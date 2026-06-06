@@ -67,18 +67,55 @@ void JSLockObject::destroy(JSCell* cell)
 
 GILParkSavedExecutionState::GILParkSavedExecutionState(VM& vm)
     : m_vm(vm)
-    , m_topCallFrame(vm.topCallFrame)
-    , m_topEntryFrame(vm.topEntryFrame)
-#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    , m_topExceptionScope(vm.m_topExceptionScope)
-    , m_needExceptionCheck(vm.m_needExceptionCheck)
-#endif
+    , m_gilOff(vm.gilOff())
 {
+    if (m_gilOff) {
+        // UNGIL §J.2 (U-T11): dead GIL-off. Group-3 execution state is
+        // per-lite (§A.1.3) — no other mutator can clobber this thread's
+        // topCallFrame/topEntryFrame/exception-scope words while it parks,
+        // so there is nothing to save (see the keying rationale on the
+        // member declaration, LockObject.h). A save/restore through the raw
+        // VM-block members would be a data race shared by every concurrently
+        // parking spawned thread. Park-site asserts move to the token
+        // meaning (JSLock.cpp IU row 28): a spawned thread holds an entry
+        // token; a main/embedder carrier still holds m_lock here, which
+        // satisfies the token predicate too.
+        ASSERT(vm.currentThreadIsHoldingAPILock());
+#if ASSERT_ENABLED
+        // Premise check (reviewer amendment): the raw VM-block words must be
+        // UNCHANGED across the park — main carrier: its own per-lite live
+        // words, untouched while it parks; spawned: GIL-off "inert spare
+        // storage" nobody writes (all writers route per-lite). Capture for
+        // the dtor's equality assert; reads of never-written (or
+        // self-owned) words race with nothing.
+        m_topCallFrame = vm.topCallFrame;
+        m_topEntryFrame = vm.topEntryFrame;
+#endif
+        return;
+    }
     ASSERT(vm.apiLock().currentThreadIsHoldingLock());
+    m_topCallFrame = vm.topCallFrame;
+    m_topEntryFrame = vm.topEntryFrame;
+#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+    m_topExceptionScope = vm.m_topExceptionScope;
+    m_needExceptionCheck = vm.m_needExceptionCheck;
+#endif
 }
 
 GILParkSavedExecutionState::~GILParkSavedExecutionState()
 {
+    if (m_gilOff) {
+        // §J.2: nothing was saved; this thread's per-lite state survived the
+        // park untouched. Token-meaning assert (runs AFTER ~GILDroppedSection's
+        // body re-established the entered state — member dtors run last).
+        ASSERT(m_vm.currentThreadIsHoldingAPILock());
+#if ASSERT_ENABLED
+        // The "unchanged across the park" premise the skip rests on.
+        ASSERT(m_vm.topCallFrame == m_topCallFrame);
+        ASSERT(m_vm.topEntryFrame == m_topEntryFrame);
+#endif
+        return;
+    }
     ASSERT(m_vm.apiLock().currentThreadIsHoldingLock());
     m_vm.topCallFrame = m_topCallFrame;
     m_vm.topEntryFrame = m_topEntryFrame;
@@ -90,6 +127,15 @@ GILParkSavedExecutionState::~GILParkSavedExecutionState()
 
 void GILParkSavedExecutionState::resetForFreshThread(VM& vm)
 {
+    if (vm.gilOff()) {
+        // IU row 28 (§J.2): token meaning. GIL-off a fresh thread's Group-3
+        // execution state is its own lite's, clean at lite creation
+        // (§A.1.3); writing the raw VM-block spare storage from a spawned
+        // thread would be a cross-thread store into words other parkers
+        // concurrently read. Nothing to reset.
+        ASSERT(vm.currentThreadIsHoldingAPILock());
+        return;
+    }
     ASSERT(vm.apiLock().currentThreadIsHoldingLock());
     vm.topCallFrame = nullptr;
     vm.topEntryFrame = nullptr;
@@ -99,11 +145,47 @@ void GILParkSavedExecutionState::resetForFreshThread(VM& vm)
 #endif
 }
 
+// UNGIL §J.3 spawned arm (U-T11; the JSLock.cpp unlockAllForThreadParking
+// "ORDERING CONSTRAINT" / AB-13 split, now landed): a spawned thread GIL-off
+// NEVER owns m_lock (JSLock's token-only entry arm), so a park site has no
+// GIL to drop. The §J.3 release is "access release + §A.3 park cooperation +
+// §A.3.2b post-wake poll" — which is EXACTLY the §F.4/ANNEX DAL2 heap-access
+// bracket: enter releases the client's heap access (a §10.4 GC barrier /
+// §A.3.2 conductor never waits on a parked thread); exit re-acquires
+// §A.3.2b/§A.3.8-gated (parks across an in-flight stop-the-world) and then
+// polls the lite's deferred trap bits before returning to JS. Token, entry
+// depth, sp/lastStackTop, m_lockDropDepth are all untouched (per-lite /
+// uninvolved), so the D1 LIFO-livelock shape cannot recur (0 locks dropped).
+struct GILDroppedSectionSpawnedArm {
+    WTF_MAKE_STRUCT_FAST_ALLOCATED;
+    explicit GILDroppedSectionSpawnedArm(VM& vm)
+        : bracket(vm)
+    {
+    }
+    JSLock::DropAllLocks bracket;
+};
+
 GILDroppedSection::GILDroppedSection(VM& vm)
     : m_vm(vm)
     , m_savedExecutionState(vm)
     , m_stackPointerAtVMEntry(vm.stackPointerAtVMEntry())
 {
+    // UNGIL §J.3 (U-T11): GIL-off-by-caller split. The predicate is
+    // textually identical to JSLock::DropAllLocks' own GIL-off arm
+    // (JSLock.cpp), so the outer split and the inner bracket can never
+    // disagree. (m_savedExecutionState keys on gilOff ALONE — see its
+    // declaration comment for why that is sound for gilOff MAIN carriers
+    // too.)
+    if (vm.gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        // Spawned arm: token-only (see GILDroppedSectionSpawnedArm above).
+        // Reaching unlockAllForThreadParking here would trip its AB-13
+        // RELEASE_ASSERT (a spawned GIL-off thread never holds m_lock).
+        m_spawnedArm = makeUnique<GILDroppedSectionSpawnedArm>(vm);
+        return;
+    }
+    // Main/embedder carriers (GIL-off) and every GIL-on caller: m_lock is
+    // genuinely held; full §J.3 release (m_lock + token, drain suppressed,
+    // park-record push for the W1 watchdog episode happens inside).
     JSLock& apiLock = vm.apiLock();
     ASSERT(apiLock.currentThreadIsHoldingLock());
     // 9.2-9: depth-suppressed release — no microtask drain at park sites
@@ -113,6 +195,42 @@ GILDroppedSection::GILDroppedSection(VM& vm)
 
 GILDroppedSection::~GILDroppedSection()
 {
+    if (m_spawnedArm) [[unlikely]] {
+        // §J.3 spawned exit: close the DAL2 bracket NOW (the §A.3.2b/§A.3.8-
+        // gated heap-access re-acquire — may park across an in-flight
+        // stop-the-world — then the deferred lite trap poll), explicitly
+        // rather than via the member dtor so the poll's effects can be
+        // normalized below before control returns to the park site.
+        m_spawnedArm = nullptr;
+        // The bracket-exit trap poll (spawnedDropAllLocksBracketExit,
+        // JSLock.cpp) runs handleTrapsIfNeeded, which can INSTALL the
+        // termination exception inside this host call. Park-site epilogues
+        // were written under the recorded premise "only trap BITS were
+        // raised while we slept" (request-then-throw), and a value-return
+        // with a pending termination exception trips their
+        // EXCEPTION_SCOPE_VERIFICATION scopes. Convert the delivery back to
+        // the bits+request form: the site's own
+        // jsThreadParkTerminationRequested / parkLitePollTerminationRequested
+        // check (every park epilogue runs one) or the caller's next trap
+        // poll surfaces it — never lost, single canonical throw, no
+        // double-throw.
+        // (hasPendingTerminationException is the non-mutating per-lite read;
+        // vm.exception() would flip the raw m_needExceptionCheck word.)
+        if (m_vm.hasPendingTerminationException()) [[unlikely]] {
+            m_vm.clearException();
+            m_vm.setHasTerminationRequest();
+            m_vm.traps().fireTrapVMWide(VMTraps::NeedTermination); // Idempotent OR; guarantees the next handleTraps re-delivers.
+        }
+        // Early return BEFORE the sp/lastStackTop restore below: for a
+        // spawned thread mid-entry those are LIVE per-lite §A.1.4 slots
+        // (token + entry depth untouched across the park); re-stamping
+        // lastStackTop with this dtor frame would shrink conservative-scan
+        // coverage of the thread's deeper live JS frames for the rest of the
+        // entry — a GC-miss UAF. Nothing was unlocked (0 locks dropped), so
+        // there is nothing to reacquire or restore.
+        return;
+    }
+
     JSLock& apiLock = m_vm.apiLock();
     for (unsigned i = 0; i < m_lockCount; ++i)
         apiLock.lock();
@@ -127,7 +245,16 @@ GILDroppedSection::~GILDroppedSection()
 
 void jsThreadGILHandoffYield(VM& vm)
 {
-    if (!vm.apiLock().currentThreadIsHoldingLock())
+    // UNGIL IU row 29 (JSLock.cpp; §J.3/U-T11): the park full-release branch
+    // moves to the TOKEN meaning for GIL-off spawned callers — mutex-literal
+    // it no-ops (a spawned thread never owns m_lock), and the
+    // jsThreadYieldForPendingParkResumptions loop below would busy-spin its
+    // full deadline HOLDING heap access, stalling §A.3.2 conductor stops.
+    // The spawned GILDroppedSection arm releases heap access for the yield.
+    if (vm.gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        if (!vm.currentThreadIsHoldingAPILock())
+            return;
+    } else if (!vm.apiLock().currentThreadIsHoldingLock())
         return;
     GILDroppedSection droppedSection(vm);
     Thread::yield();

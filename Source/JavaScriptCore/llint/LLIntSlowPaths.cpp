@@ -616,7 +616,7 @@ UGPRPair SYSV_ABI llint_check_stack_and_vm_traps(CallFrame* callFrame, const JSI
             slowPathLogF("Num callee registers = %u.\n", codeBlock->numCalleeLocals());
             slowPathLogF("Num vars = %u.\n", codeBlock->numVars());
         }
-        slowPathLogF("Current OS stack end is at %p.\n", vm.softStackLimit());
+        slowPathLogF("Current OS stack end is at %p.\n", softStackLimitForCurrentThread(vm));
 #if ENABLE(C_LOOP)
         slowPathLogF("Current C Loop stack end is at %p.\n", vm.cloopStackLimit());
 #endif
@@ -644,7 +644,12 @@ UGPRPair SYSV_ABI llint_check_stack_and_vm_traps(CallFrame* callFrame, const JSI
         imminentOverflowDetected = true; // Stack underflow == overflow.
 #else // not C_LOOP case
 
-    void* softStackLimit = vm.softStackLimit();
+    // UNGIL §A.2.2 (AB-17 item 3, C++-reader leg): re-confirm against the
+    // CURRENT THREAD's soft limit (per-lite GIL-off), not the VM word — the
+    // PLAIN limit only. Trap servicing above (handleTrapsIfNeeded) still
+    // goes through the VM-level traps instance until items 3b/3c land
+    // (VMTraps.h ACTIVATION CHECKLIST).
+    void* softStackLimit = softStackLimitForCurrentThread(vm);
 #if CPU(ADDRESS32)
     // With 32-bit addresses, there's a chance that we can underflow, and need this check.
     // The new stack pointer should only grow smaller. The only way it can be larger than

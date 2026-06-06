@@ -512,6 +512,16 @@ private:
 //       ensureStackCapacityFor, LLIntSlowPaths stack_check slow-path
 //       re-confirm, JSString rope resolution, JSONObject, LiteralParser,
 //       Yarr) through the per-thread lite chain, AND lands item (3c).
+//       LANDED SUBSET (I1-AB17 R3): the C++-reader leg only —
+//       softStackLimitForCurrentThread() (VMInlines.h) reroutes
+//       isSafeToRecurseSoft / ensureJSStackCapacityFor and the
+//       LLIntSlowPaths re-confirm through the per-lite PLAIN limit (null
+//       per-lite limit falls back to the VM word). This subset is inert
+//       w.r.t. 3c/3b: it never reads the trap-aware word, so trap
+//       observability is unchanged. The remaining C++ readers (JSString
+//       rope, JSONObject, LiteralParser, Yarr interpreter) should adopt
+//       the same helper in their own files. Everything else in (3) —
+//       LLInt asm reroute included — remains UNLANDED; see (3d).
 //   (3c) STOP FAN (REQUIRED BEFORE any (3) read-site reroute lands;
 //       memory-safety/liveness grade): once any check site reads the
 //       per-lite trap-aware word, VMTraps::requestThreadStopIfNeeded() /
@@ -559,6 +569,36 @@ private:
 //       per-lite trap bits are still pending must NOT clear that lite's
 //       marker (interleaving (d) above), alongside the mid-LLInt stop
 //       test.
+//       REVIEW FINDINGS (I1-AB17 R3, proposal rejected 1/3 — a
+//       single-controller fan driving each lite's OWN
+//       updateThreadStopRequestIfNeeded fixes (d)-(f), but is STILL not
+//       landable ahead of (3b)):
+//       (g) UNCANCELLABLE MARKER: with the LLInt read rerouted and the fan
+//       arming per-lite markers, but trap SERVICING still running through
+//       the VM-level instance (LLIntSlowPaths `vm.traps()
+//       .handleTrapsIfNeeded()`), servicing clears only the VM-level bits;
+//       the lite's own m_trapBits stay set and its marker stays armed
+//       forever — failure mode (d) reproduced one layer up, livelock-grade
+//       for recurring async events (GC safepoints). Therefore the LLInt
+//       read reroute and the stop fan are NOT inert (a lone spawned lite
+//       passes the no-other-entered tripwire) and may land ONLY atomically
+//       with the (3b) servicing reroute (VMTrapsInlines.h liteAwareVM-based
+//       vm() for instance paths, plus every handleTrapsIfNeeded poll site
+//       dispatching on the CURRENT lite's traps instance GIL-off).
+//       (h) ATOMIC LANDING UNIT: LLInt asm reroute + all generated-code
+//       emission sites listed in (3) + stop fan (3c, single-controller
+//       form) + servicing reroute (3b) + tripwire deletion + VM-level
+//       dual-publish removal are ONE indivisible diff. The fan's lock
+//       re-rank (VMLiteRegistry.lock -> per-lite m_trapSignalingLock ->
+//       per-lite StackManager m_mirrorLock) demotes the registry lock from
+//       leaf rank and MUST land with a runtime lock-rank assertion plus a
+//       grep-audit that no path takes the registry lock while holding any
+//       per-lite m_trapSignalingLock.
+//       (i) Third pin test, alongside (f) and the mid-LLInt stop test:
+//       GIL-off spawned lite receives a fanned async event, services it,
+//       then assert the lite's marker is cancelled (trap-aware word !=
+//       stop-request marker) and subsequent calls take the fast path —
+//       regression test for (g).
 //   (3b) VMTrapsInlines.h: VMTraps::vm() must consult m_liteOwnerVM before
 //       the `this - VM::offsetOfTraps()` arithmetic — that arithmetic is
 //       valid ONLY for the VM-embedded instance and is garbage on a

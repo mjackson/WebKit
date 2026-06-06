@@ -32,6 +32,7 @@
 #include "ProfilerDatabase.h"
 #include "SideDataRepository.h"
 #include "VM.h"
+#include "VMLite.h"
 #include "Watchdog.h"
 
 #if ENABLE(C_LOOP)
@@ -55,19 +56,46 @@ inline ActiveScratchBufferScope::~ActiveScratchBufferScope()
         m_scratchBuffer->setActiveLength(0);
 }
 
+// UNGIL §A.2.2 (AB-17 item 3, C++-reader leg only): GIL-off, the soft stack
+// limit is per-thread state on the current lite; the VM-level word serves
+// only no-lite threads. This helper reads the PLAIN per-lite soft limit
+// (StackManager::m_softStackLimit, dual-published by VM::updateStackLimits
+// from the entering thread's own StackBounds) — deliberately NOT the
+// trap-aware word. Trap delivery still flows exclusively through the
+// VM-level VMTraps instance (LLIntSlowPaths handleTrapsIfNeeded), so this
+// reroute is inert w.r.t. the unlanded item-3c stop fan and item-3b
+// servicing reroute: it changes which thread's OVERFLOW limit a C++ reader
+// compares against, never trap observability. The LLInt/JIT generated-code
+// read sites still read the VM word and may be rerouted ONLY atomically
+// with 3c + 3b (see the ACTIVATION CHECKLIST in VMTraps.h).
+ALWAYS_INLINE void* softStackLimitForCurrentThread(const VM& vm)
+{
+    if (vm.gilOff()) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->gilOff && lite->vm == &vm) {
+            // Null until this thread's first VMEntryScope publish; fall back
+            // to the VM word then (matches pre-reroute behavior — a null
+            // per-lite limit must not disable overflow detection).
+            if (void* liteLimit = lite->threadContext.traps().softStackLimit())
+                return liteLimit;
+        }
+    }
+    return vm.softStackLimit();
+}
+
 bool VM::ensureJSStackCapacityFor(Register* newTopOfStack)
 {
 #if !ENABLE(C_LOOP)
-    return newTopOfStack >= softStackLimit();
+    return newTopOfStack >= softStackLimitForCurrentThread(*this);
 #else
     return cloopStack().ensureCapacityFor(newTopOfStack);
 #endif
-    
+
 }
 
 bool VM::isSafeToRecurseSoft() const
 {
-    bool safe = isSafeToRecurse(softStackLimit());
+    bool safe = isSafeToRecurse(softStackLimitForCurrentThread(*this));
 #if ENABLE(C_LOOP)
     safe = safe && cloopStack().isSafeToRecurse();
 #endif

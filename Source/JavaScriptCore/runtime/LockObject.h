@@ -218,11 +218,25 @@ public:
 
 private:
     VM& m_vm;
-    CallFrame* m_topCallFrame;
-    EntryFrame* m_topEntryFrame;
+    // UNGIL §J.2 (U-T11): the save/restore is dead GIL-off — Group-3
+    // execution state is per-lite (§A.1.3), so there is nothing another
+    // mutator could clobber while this thread parks. Keyed on vm.gilOff()
+    // ALONE (not gilOff && spawned, unlike GILDroppedSection below): for a
+    // gilOff MAIN carrier the raw VM-block words are ITS live per-lite
+    // storage and no other GIL-off thread writes them (spawned/embedder
+    // carriers write their own lites — mainThreadCarrierMap /
+    // threadLocalCarrierMap are per-thread, JSLock.cpp), and for spawned
+    // threads they are inert spare storage shared by every concurrently
+    // parking thread — a restore through them would be a data race. The
+    // ctor/dtor check the premise under ASSERT_ENABLED instead of assuming
+    // it. Asserts move from the mutex meaning to the token meaning GIL-off
+    // (JSLock.cpp IU row 28).
+    bool m_gilOff { false };
+    CallFrame* m_topCallFrame { nullptr };
+    EntryFrame* m_topEntryFrame { nullptr };
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    ExceptionScope* m_topExceptionScope;
-    bool m_needExceptionCheck;
+    ExceptionScope* m_topExceptionScope { nullptr };
+    bool m_needExceptionCheck { false };
 #endif
 };
 
@@ -266,6 +280,12 @@ private:
 //     willReleaseLock side effect matches dropAllLocks(), and the transient
 //     depth never escapes into the DAL protocol, so the livelock fix is
 //     preserved. Regression test: JSTests/threads/api/park-no-microtask-drain.js.
+// UNGIL §J.3 spawned arm (U-T11): pImpl wrapping the §F.4/DAL2 heap-access
+// bracket (JSLock::DropAllLocks, a nested type — not forward-declarable
+// here). Defined in LockObject.cpp; GILDroppedSection's out-of-line dtor
+// sees the complete type.
+struct GILDroppedSectionSpawnedArm;
+
 class GILDroppedSection {
     WTF_MAKE_NONCOPYABLE(GILDroppedSection);
 public:
@@ -277,6 +297,9 @@ private:
     GILParkSavedExecutionState m_savedExecutionState;
     void* m_stackPointerAtVMEntry;
     unsigned m_lockCount { 0 };
+    // Non-null exactly when the §J.3 GIL-off-by-caller split took the
+    // spawned arm (LockObject.cpp ctor); the dtor early-returns on it.
+    std::unique_ptr<GILDroppedSectionSpawnedArm> m_spawnedArm;
 };
 
 } // namespace JSC

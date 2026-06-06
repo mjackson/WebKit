@@ -34,11 +34,22 @@
 #include "ObjectConstructor.h"
 #include "ThreadManager.h"
 #include "ThreadObject.h"
+#include "VMLite.h" // UNGIL §J.3 (U-T11): the spawned park lite is the CURRENT lite (TERM1 rule 4).
 #include <wtf/HashSet.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
 
 namespace JSC {
+
+// UNGIL same-library seams (U-T11; the currentThreadHoldsEntryToken pattern —
+// redeclared here, not in any header, matching WaiterListManager.cpp): the
+// §A.2.4 rule-4 PARK-LITE D9 poll predicates (VMTraps.cpp), the §J.3
+// captured-lite record (JSLock.cpp), and the annex-W W1 parked-carrier
+// watchdog service episode (JSLock.cpp).
+bool parkLitePollTerminationRequested(VM&, VMLite* parkLite);
+bool parkLitePollWatchdogCheckRequested(VM&, VMLite* parkLite);
+VMLite* capturedParkLiteOfCurrentThreadIfAny(VM&);
+bool reacquireParkedCarrierAndServiceWatchdogCheck(VM&);
 
 // ---------------- own-data-property helpers ----------------
 
@@ -958,7 +969,7 @@ static Seconds parseAtomicsTimeout(JSGlobalObject* globalObject, JSValue timeout
     return timeout;
 }
 
-JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue expected, JSValue timeoutValue)
+JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue expected, JSValue timeoutValue) WTF_IGNORES_THREAD_SAFETY_ANALYSIS // The W1 episode drops/retakes listLock under a live Locker (the WaiterListManager pattern).
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1001,17 +1012,60 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
 
     uint8_t finalState;
     bool listNowEmpty = false;
+    bool gilOff = vm.gilOff();
+    bool isSpawnedParker = gilOff && ThreadManager::isJSThreadCurrent();
     {
         // Steps 3-6: park with the GIL dropped; 10ms quantum to poll for
         // termination requests (VMTraps cannot wake property waiters).
         // Depth-free drop (GILDroppedSection, LockObject.h): timed waiters
         // wake in arbitrary order, which DropAllLocks' strict-LIFO unwind
-        // protocol livelocks on.
+        // protocol livelocks on. GIL-off the section's spawned arm is
+        // token-only + access-released (§J.3, LockObject.cpp); a carrier's
+        // full release stashed the §J.3-captured park lite consumed below.
         GILDroppedSection droppedSection(vm);
+        // UNGIL §A.2.4 rule 4 / TERM1 rule 4 (the I3 apiLock-assumption
+        // re-key): the D9 quanta must poll the PARK LITE's bits, not the VM
+        // word — spawned = the CURRENT lite (the §J.3 spawned arm never runs
+        // the §A.3.6 restore, so the spawned lite stays current across the
+        // park); main/embedder = the §J.3-CAPTURED carrier lite
+        // (unlockAllForThreadParking inside the section's ctor stashed it).
+        // GIL-on parkLite stays null and parkLitePollTerminationRequested's
+        // !gilOff arm is byte-equivalent to the landed
+        // jsThreadParkTerminationRequested (watchdog-check folded in), so
+        // flag-off/GIL-on behavior is identical.
+        VMLite* parkLite = nullptr;
+        if (gilOff)
+            parkLite = isSpawnedParker ? VMLite::currentIfExists() : capturedParkLiteOfCurrentThreadIfAny(vm);
         Locker listLocker { list->listLock };
         while (waiter->state.load(std::memory_order_acquire) == PropertyWaiter::Waiting
-            && !jsThreadParkTerminationRequested(vm)
+            && !parkLitePollTerminationRequested(vm, parkLite)
             && MonotonicTime::now() < deadline) {
+            if (gilOff && !isSpawnedParker && parkLitePollWatchdogCheckRequested(vm, parkLite)) [[unlikely]] {
+                // Annex W W1 (carrier-only; GIL-off the termination poll
+                // above no longer folds the watchdog-check bit in, so a
+                // parked carrier must SERVICE it or become unkillable): full
+                // §J.3 exit reacquisition + Watchdog::shouldTerminate under
+                // the token. NO rank-3 lock across the episode — drop
+                // listLock (the waiter stays enqueued; every notify
+                // serializes through listLock, so the disposition below sees
+                // a consistent state). Same shape as the SD6 per-wait TA
+                // park (WaiterListManager.cpp).
+                list->listLock.unlock();
+                bool terminated = reacquireParkedCarrierAndServiceWatchdogCheck(vm);
+                list->listLock.lock();
+                if (!terminated)
+                    continue; // Re-check waiter state/deadline before any quantum wait.
+                // Terminate verdict: rule-3 VM-wide termination was raised.
+                // If the waiter was notified DURING the episode, the consumed
+                // notify is honored as "ok" (epilogue below) — but the W1
+                // consumed-by-servicer shield was set on the SD8-fail
+                // premise, so re-raise VM-wide to revoke it (idempotent OR);
+                // the termination is then delivered at the caller's next
+                // trap poll (the WaiterListManager disposition-(a) rule).
+                if (waiter->state.load(std::memory_order_acquire) == PropertyWaiter::Notified) [[unlikely]]
+                    vm.traps().fireTrapVMWide(VMTraps::NeedTermination);
+                break; // Final park exit: the epilogue resolves Notified vs Terminated.
+            }
             MonotonicTime quantum = MonotonicTime::now() + Seconds::fromMilliseconds(10);
             waiter->condition.waitUntil(list->listLock, std::min(deadline, quantum).approximate<WallTime>());
         }
@@ -1022,7 +1076,7 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
                 return entry.ptr() == waiter.ptr();
             });
             ASSERT_UNUSED(removed, removed);
-            finalState = jsThreadParkTerminationRequested(vm) ? PropertyWaiter::Terminated : PropertyWaiter::TimedOut;
+            finalState = parkLitePollTerminationRequested(vm, parkLite) ? PropertyWaiter::Terminated : PropertyWaiter::TimedOut;
             waiter->state.store(finalState, std::memory_order_release);
         }
         listNowEmpty = list->waiters.isEmpty();

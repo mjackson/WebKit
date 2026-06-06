@@ -531,6 +531,12 @@ public:
     }
 
     // UNGIL §A.1.3 (U-T4, emission side): mode-keyed exception-word access.
+    // FLAG-OFF IDENTITY: every vm.gilOff() split in this file and
+    // CCallHelpers.h is an emission-time C++ branch; with threads options off
+    // the legacy AbsoluteAddress/raw-pointer leg is emitted and loadVMLite/
+    // materializeGILOffExceptionSlot are unreachable, so flag-off codegen is
+    // unchanged from pre-split. See the I4 rung-R8 audit notes for the bench
+    // investigation that established this.
     // GIL-on the live word is VM::m_exception (AbsoluteAddress is correct);
     // GIL-off VM::setException publishes through the CURRENT thread's
     // VMLitePrimitives::m_exception, so emitted checks must read per-lite —

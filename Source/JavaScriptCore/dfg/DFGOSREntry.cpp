@@ -306,7 +306,7 @@ void* prepareOSREntry(VM& vm, CallFrame* callFrame, CodeBlock* codeBlock, Byteco
     auto dontSaveRegisters = RegisterSet::stackRegisters();
 
     unsigned registerCount = registerSaveLocations->registerCount();
-    VMEntryRecord* record = vmEntryRecord(vm.topEntryFrame);
+    VMEntryRecord* record = vmEntryRecord(vm.group3Primitives().topEntryFrame); // UNGIL §A.1.3 mode split (U-T4): the OSR-entering thread's callee saves live in ITS doVMEntry record; the raw VM word is inert spare storage GIL-off.
     for (unsigned i = 0; i < registerCount; i++) {
         RegisterAtOffset currentEntry = registerSaveLocations->at(i);
         ASSERT(dontSaveRegisters.contains(currentEntry.reg(), IgnoreVectors) == dontSaveRegisters.contains(currentEntry.reg(), Width128));
