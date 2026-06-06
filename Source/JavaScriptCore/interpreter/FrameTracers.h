@@ -62,18 +62,28 @@ class TopCallFrameSetter {
 public:
     TopCallFrameSetter(VM& currentVM, CallFrame* callFrame)
         : vm(currentVM)
-        , oldCallFrame(currentVM.topCallFrame)
+        , oldCallFrame(currentVM.group3Primitives().topCallFrame) // UNGIL §A.1.3 mode split.
     {
-        currentVM.topCallFrame = callFrame;
+        currentVM.group3Primitives().topCallFrame = callFrame;
+#if ASSERT_ENABLED
+        m_primitivesAtConstruction = &currentVM.group3Primitives();
+#endif
     }
 
     ~TopCallFrameSetter()
     {
-        vm.topCallFrame = oldCallFrame;
+        // Rematerialized per §A.1.2; same thread+VM => same lite as ctor.
+        // Assert that holds so a §F.5 foreign-lite window restoring into
+        // different storage than the ctor wrote is loud, not silent.
+        ASSERT(&vm.group3Primitives() == m_primitivesAtConstruction);
+        vm.group3Primitives().topCallFrame = oldCallFrame;
     }
 private:
     VM& vm;
     CallFrame* oldCallFrame;
+#if ASSERT_ENABLED
+    VMLitePrimitives* m_primitivesAtConstruction;
+#endif
 };
 
 ALWAYS_INLINE static void assertStackPointerIsAligned()
@@ -93,9 +103,14 @@ public:
     ALWAYS_INLINE SlowPathFrameTracer(VM& vm, CallFrame* callFrame)
     {
         ASSERT(callFrame);
-        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(vm.topEntryFrame));
+        // UNGIL §A.1.3 (U-T1): GIL-off, doVMEntry publishes topEntryFrame through
+        // the current thread's VMLitePrimitives (LowLevelInterpreter.asm gilOff
+        // branch); the VM-block word is inert spare storage. GIL-on this selects
+        // the VM block — bit-identical to the old direct access.
+        VMLitePrimitives& primitives = vm.group3Primitives();
+        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(primitives.topEntryFrame));
         assertStackPointerIsAligned();
-        vm.topCallFrame = callFrame;
+        primitives.topCallFrame = callFrame;
     }
 };
 
@@ -108,7 +123,7 @@ public:
     {
         // Wasm frames don't participate in ShadowChicken.
         if (vm.shadowChicken()) [[unlikely]]
-            vm.topCallFrame = nullptr;
+            vm.group3Primitives().topCallFrame = nullptr; // UNGIL §A.1.3 mode split.
     }
 };
 
@@ -117,9 +132,10 @@ public:
     ALWAYS_INLINE NativeCallFrameTracer(VM& vm, CallFrame* callFrame)
     {
         ASSERT(callFrame);
-        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(vm.topEntryFrame));
+        VMLitePrimitives& primitives = vm.group3Primitives(); // UNGIL §A.1.3 mode split.
+        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(primitives.topEntryFrame));
         assertStackPointerIsAligned();
-        vm.topCallFrame = callFrame;
+        primitives.topCallFrame = callFrame;
     }
 };
 
@@ -128,9 +144,12 @@ public:
     ALWAYS_INLINE WasmOperationPrologueCallFrameTracer(VM& vm, CallFrame* callFrame, void* returnPC)
     {
         ASSERT(callFrame);
-        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(vm.topEntryFrame));
+        VMLitePrimitives& primitives = vm.group3Primitives(); // UNGIL §A.1.3 mode split.
+        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(primitives.topEntryFrame));
         assertStackPointerIsAligned();
-        vm.topCallFrame = callFrame;
+        primitives.topCallFrame = callFrame;
+        // maybeReturnPC is a SPEC-vmstate §6.3 relocated member (VM.h:560),
+        // deliberately NOT in VMLitePrimitives — stays a direct VM access.
         vm.maybeReturnPC = returnPC;
     }
 };
@@ -145,14 +164,20 @@ public:
         UNUSED_PARAM(vm);
         UNUSED_PARAM(callFrame);
         ASSERT(callFrame);
-        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(vm.topEntryFrame));
+        ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(vm.group3Primitives().topEntryFrame));
         assertStackPointerIsAligned();
 #if USE(BUILTIN_FRAME_ADDRESS)
         // If ASSERT_ENABLED and USE(BUILTIN_FRAME_ADDRESS), prepareCallOperation() will put the frame pointer into vm.topCallFrame.
         // We can ensure here that a call to prepareCallOperation() (or its equivalent) is not missing by comparing vm.topCallFrame to
         // the result of __builtin_frame_address which is passed in as callFrame.
-        ASSERT(vm.topCallFrame == callFrame);
-        vm.topCallFrame = callFrame;
+        // UNGIL §A.1.3: compare against the mode-selected storage. NOTE: this
+        // assert will (correctly) fire under gilOff JIT until the emission side
+        // of prepareCallOperation (AssemblyHelpers.h:82, raw &vm.topCallFrame
+        // store) is converted per U-T4 — that is the next unconverted publisher,
+        // and masking it by reading the VM block here would re-create the
+        // split-brain this change removes.
+        ASSERT(vm.group3Primitives().topCallFrame == callFrame);
+        vm.group3Primitives().topCallFrame = callFrame;
 #endif
     }
 
@@ -160,7 +185,7 @@ public:
     ~JITOperationPrologueCallFrameTracer()
     {
         // Fill vm.topCallFrame with invalid value when leaving from JIT operation functions.
-        m_vm.topCallFrame = std::bit_cast<CallFrame*>(static_cast<uintptr_t>(0x0badbeef0badbeefULL));
+        m_vm.group3Primitives().topCallFrame = std::bit_cast<CallFrame*>(static_cast<uintptr_t>(0x0badbeef0badbeefULL)); // UNGIL §A.1.3: poison the storage LLInt/JIT actually read.
     }
 
     VM& m_vm;
@@ -175,7 +200,7 @@ public:
     ~ICSlowPathCallFrameTracer()
     {
         // Fill vm.topCallFrame with invalid value when leaving from JIT operation functions.
-        m_vm.topCallFrame = std::bit_cast<CallFrame*>(static_cast<uintptr_t>(0x0badbeef0badbeefULL));
+        m_vm.group3Primitives().topCallFrame = std::bit_cast<CallFrame*>(static_cast<uintptr_t>(0x0badbeef0badbeefULL)); // UNGIL §A.1.3 mode split.
     }
 
     VM& m_vm;

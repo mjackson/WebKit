@@ -42,9 +42,16 @@
     for (var i = 0; i < 100000; ++i)
         expected += 2 * (i & 0xff) + 11;
 
-    // Longer measured region: ~285ms instead of ~57ms, so a 1% gate margin
-    // is resolvable and standalone `perf record` of the measured loop gets
-    // enough samples for attribution (the 9-run median protocol is
-    // unchanged; harness.js already supports explicit iteration counts).
-    reportBench("transition-heavy-constructor", run, expected, 20, 250);
+    // Protocol must match Tools/threads/baseline.json: the 54.918ms baseline
+    // median was recorded (2026-06-05T08:59:40Z) with the harness default of
+    // 50 measured iterations. Changing measuredIterations without a --record
+    // on the same pre-threads reference build is a gate-protocol mismatch,
+    // not a regression signal (see docs/threads/BENCH.md, "Compare like with
+    // like" and "Writing a new benchmark" item 5: the gated count must stay
+    // in lockstep with the protocol baseline.json was recorded under).
+    // If a longer region is needed for perf attribution, run a local copy
+    // with a larger count instead of editing the gated bench. The count is
+    // kept explicit here to pin the gated protocol against future
+    // harness-default drift.
+    reportBench("transition-heavy-constructor", run, expected, 20, 50);
 })();
