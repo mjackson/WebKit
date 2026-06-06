@@ -47,7 +47,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> handleExceptionGenerator(VM& vm)
 {
     CCallHelpers jit;
 
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::argumentGPR0);
 
     jit.move(CCallHelpers::TrustedImmPtr(&vm), GPRInfo::argumentGPR0);
     jit.prepareCallOperation(vm);
@@ -134,7 +134,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> throwExceptionFromCallGenerator(VM& vm)
 
     jit.emitFunctionPrologue();
 
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::argumentGPR0);
     jit.setupArguments<decltype(operationLookupExceptionHandler)>(CCallHelpers::TrustedImmPtr(&vm));
     jit.prepareCallOperation(vm);
     jit.move(CCallHelpers::TrustedImmPtr(tagCFunction<OperationPtrTag>(operationLookupExceptionHandler)), GPRInfo::nonArgGPR0);
@@ -156,7 +156,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> throwExceptionFromCallSlowPathGenerator(VM
     // even though we won't use it.
     jit.preserveReturnAddressAfterCall(GPRInfo::nonPreservedNonReturnGPR);
 
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::argumentGPR0);
 
     jit.setupArguments<decltype(operationLookupExceptionHandler)>(CCallHelpers::TrustedImmPtr(&vm));
     jit.prepareCallOperation(vm);
@@ -183,7 +183,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> throwStackOverflowAtPrologueGenerator(VM& 
     jit.prepareCallOperation(vm);
     jit.callOperation<OperationPtrTag>(operationThrowStackOverflowError);
 
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::argumentGPR0);
 
     jit.move(CCallHelpers::TrustedImmPtr(&vm), GPRInfo::argumentGPR0);
     jit.prepareCallOperation(vm);
@@ -1435,7 +1435,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> boundFunctionCallGenerator(VM& vm)
     CCallHelpers::Jump haveStackSpace = jit.branchPtr(CCallHelpers::LessThanOrEqual, CCallHelpers::AbsoluteAddress(vm.addressOfSoftStackLimit()), GPRInfo::regT2);
 
     // Throw Stack Overflow exception
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::regT3);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::regT3);
     jit.loadPtr(CCallHelpers::Address(GPRInfo::regT0, JSCallee::offsetOfScopeChain()), GPRInfo::regT3);
     jit.setupArguments<decltype(operationThrowStackOverflowErrorFromThunk)>(GPRInfo::regT3);
     jit.prepareCallOperation(vm);
@@ -1541,7 +1541,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> boundFunctionCallGenerator(VM& vm)
     jit.jump().linkTo(dispatch, &jit);
 
     exceptionChecks.link(&jit);
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::argumentGPR0);
     jit.setupArguments<decltype(operationLookupExceptionHandler)>(CCallHelpers::TrustedImmPtr(&vm));
     jit.prepareCallOperation(vm);
     jit.move(CCallHelpers::TrustedImmPtr(tagCFunction<OperationPtrTag>(operationLookupExceptionHandler)), GPRInfo::nonArgGPR0);
@@ -1599,7 +1599,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> remoteFunctionCallGenerator(VM& vm)
     CCallHelpers::Jump haveStackSpace = jit.branchPtr(CCallHelpers::LessThanOrEqual, CCallHelpers::AbsoluteAddress(vm.addressOfSoftStackLimit()), GPRInfo::regT2);
 
     // Throw Stack Overflow exception
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::regT3);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::regT3);
     jit.loadPtr(CCallHelpers::Address(GPRInfo::regT0, JSCallee::offsetOfScopeChain()), GPRInfo::regT3);
     jit.setupArguments<decltype(operationThrowStackOverflowErrorFromThunk)>(GPRInfo::regT3);
     jit.prepareCallOperation(vm);
@@ -1742,7 +1742,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> remoteFunctionCallGenerator(VM& vm)
     jit.ret();
 
     exceptionChecks.link(&jit);
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
+    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm, GPRInfo::argumentGPR0);
     jit.setupArguments<decltype(operationLookupExceptionHandler)>(CCallHelpers::TrustedImmPtr(&vm));
     jit.prepareCallOperation(vm);
     jit.move(CCallHelpers::TrustedImmPtr(tagCFunction<OperationPtrTag>(operationLookupExceptionHandler)), GPRInfo::nonArgGPR0);

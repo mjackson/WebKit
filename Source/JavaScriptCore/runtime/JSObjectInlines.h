@@ -885,10 +885,18 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     // try* protocols require (false/RESTART => re-enter from a fresh
     // structureID/tag). Flag-off nothing ever RESTARTs and the loop body runs
     // exactly once - today's code (I22).
+    // I22 latched-option pattern (cf. JSObjectWithButterfly::visitButterflyImpl):
+    // the flag is immutable after VM start, but the compiler cannot CSE the
+    // global load across the opaque calls below (addOrReplacePropertyWithoutTransition,
+    // allocateMoreOutOfLineStorage, addNewPropertyTransition, attributeChangeTransition),
+    // so the unlatched form pays up to six separate option loads + tests per
+    // put on the transition slow path. Latching also cannot change re-dispatch
+    // semantics: every RESTART iteration already assumes the same flag value.
+    [[maybe_unused]] const bool jsThreads = Options::useJSThreads();
     while (true) {
     StructureID structureID = this->structureID();
 #if USE(JSVALUE64)
-    if (Options::useJSThreads() && structureID.isNuked()) [[unlikely]]
+    if (jsThreads && structureID.isNuked()) [[unlikely]]
         continue; // M5: a racing publication is mid-flight; spin to the settled ID.
 #endif
     Structure* structure = structureID.decode();
@@ -900,7 +908,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
         }
 
 #if USE(JSVALUE64)
-        if (Options::useJSThreads()) [[unlikely]] {
+        if (jsThreads) [[unlikely]] {
             // §6 L3/L4 (review round 1): dictionary adds/replaces mutate the
             // structure and the object in tandem; serialize against deletes/
             // flatten/other adds with the cell lock (outer to the m_lock the
@@ -1051,7 +1059,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
             ASSERT(newStructure->isValidOffset(offset));
 
 #if USE(JSVALUE64)
-            if (Options::useJSThreads()) [[unlikely]] {
+            if (jsThreads) [[unlikely]] {
                 // Review round 1: route through the E4 gate / locked
                 // protocols instead of the unconditional lock-free sequence.
                 if (!tryPutDirectTransitionConcurrent(vm, structure, structureID, newStructure, offset, value))
@@ -1095,7 +1103,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
         // - otherwise an owner T1 copying resize can silently drop it).
         // Inline replaces are cell stores (atomic for free; never copied by
         // resizes), and dictionary objects never reach this leg.
-        if (Options::useJSThreads() && isOutOfLineOffset(offset)) [[unlikely]] {
+        if (jsThreads && isOutOfLineOffset(offset)) [[unlikely]] {
             uint64_t word = taggedButterflyWord();
             if ((word & butterflyPointerMask) && !isSegmentedButterfly(word)
                 && !butterflySharedWrite(word) && butterflyWriterIsForeign(word)) // incl. §9.6 forceButterflySWBit
@@ -1114,7 +1122,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
             DeferredStructureTransitionWatchpointFire deferredWatchpointFire(vm, structure);
             Structure* attributeChanged = Structure::attributeChangeTransition(vm, structure, propertyName, newAttributes, &deferredWatchpointFire);
 #if USE(JSVALUE64)
-            if (Options::useJSThreads() && attributeChanged != structure) [[unlikely]] {
+            if (jsThreads && attributeChanged != structure) [[unlikely]] {
                 // Review round 1: an attribute change is a butterfly-untouched
                 // (N2) structure publication - route it through the E4 gate /
                 // locked header-CAS so racing transitions cannot clobber each
@@ -1149,7 +1157,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     ASSERT(newStructure->isValidOffset(offset));
 
 #if USE(JSVALUE64)
-    if (Options::useJSThreads()) [[unlikely]] {
+    if (jsThreads) [[unlikely]] {
         // Review round 1: same E4-gate / locked-protocol routing as the
         // existing-structure transition leg above.
         if (!tryPutDirectTransitionConcurrent(vm, structure, structureID, newStructure, offset, value))

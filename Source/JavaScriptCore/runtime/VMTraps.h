@@ -521,6 +521,35 @@ private:
 //       swap; (c) cancel restores the PER-LITE saved value (never the VM
 //       word). Pin with a GIL-off test requesting a VMTraps stop while a
 //       lite is mid-LLInt.
+//       REVIEW FINDINGS (I1-AB17 R2, proposal rejected 0/3 — a naive fan
+//       that calls liteTraps->m_stack.requestStop()/cancelStop() directly
+//       from the VM-level instance fails all three of the following; the
+//       fan contract above is NECESSARY but NOT SUFFICIENT):
+//       (d) SINGLE CONTROLLER: each lite's m_trapAwareSoftStackLimit marker
+//       must have exactly ONE controlling traps instance. The VM-level
+//       request/cancel must drive each lite via that lite's OWN traps
+//       bookkeeping (per-lite updateThreadStopRequestIfNeeded recomputing
+//       liteTraps->needHandling, with an explicit VM-instance-lock-before-
+//       lite-instance-lock rank for m_trapSignalingLock). Otherwise: the
+//       VM-level cancel fan erases a lite's marker while that lite's OWN
+//       m_trapBits are still pending (StackManager::cancelStop overwrites
+//       unconditionally; the hasStopRequest() guard protects only against
+//       limit publishes) — lost delivery, the lite spins forever; and the
+//       request fan leaves the per-lite m_threadStopRequested stale
+//       (false), so the lite's own updateThreadStopRequestIfNeeded sees
+//       shouldStop==false==m_threadStopRequested and never cancels — a
+//       permanently stuck marker forcing every JS call onto the slow path.
+//       (e) LATE-JOINER LEG: a fan that snapshots the registry at request
+//       time misses lites registering afterwards. Registration (item 2's
+//       backfill) must ALSO derive the fresh lite's own stop request from
+//       the backfilled VM-wide bits, under the registry lock, with a
+//       stated delivery bound — else the new lite's first
+//       updateStackLimits publishes a plain limit and its rerouted sites
+//       pass forever.
+//       (f) Additional pin test: VM-level cancel while a sibling lite's
+//       per-lite trap bits are still pending must NOT clear that lite's
+//       marker (interleaving (d) above), alongside the mid-LLInt stop
+//       test.
 //   (3b) VMTrapsInlines.h: VMTraps::vm() must consult m_liteOwnerVM before
 //       the `this - VM::offsetOfTraps()` arithmetic — that arithmetic is
 //       valid ONLY for the VM-embedded instance and is garbage on a

@@ -5226,24 +5226,42 @@ bool Heap::currentThreadIsAllocatorOwner(const LocalAllocator* allocator) const
 // narrower gate covers every failing case. Unstamped threads (GC helpers,
 // pre-attach): the VM's original client, today's behavior (I10).
 //
-// APPLY-SCOPE NOTE (I3, this round touches Heap.cpp only): this is the
-// in-scope half of the fix and is intentionally uncalled until the
-// companion routing edits land. Outstanding for the next round:
-//   (1) Per review amendments, hoist this ALWAYS_INLINE into Heap.h as a
-//       Heap member next to the deferralDepthSlot()/mutatorStateSlot()
+// APPLY-SCOPE NOTE (I4, reviewed 3/3 approve-with-amendments; this round's
+// write scope was Heap.cpp/LocalAllocator.cpp only, so the Heap.h half could
+// not land atomically): the helper intentionally stays namespace-scope and
+// uncalled — a Heap::-qualified out-of-line definition without its in-class
+// declaration is a hard build break in every configuration. Outstanding for
+// the next round that may write Heap.h, ALL-OR-NOTHING:
+//   (1) Promote to a `static` Heap member declared AND defined ALWAYS_INLINE
+//       in Heap.h next to the deferralDepthSlot()/mutatorStateSlot()
 //       dispatchers — the consuming sites are ALWAYS_INLINE VM.h iso
 //       accessors on the hottest allocation path, so an out-of-line call
-//       would regress the flag-off bench gate — and strengthen the fallback
-//       tripwire below to `vmOriginalClient.m_accessOwner ==
-//       &Thread::currentSingleton()` (private; needs the GCClient::Heap
-//       friendship a Heap member has; a namespace-scope function here does
-//       not).
-//   (2) Consume it at the three vm.clientHeap routing sites: the VM.h iso
-//       subspace accessors, CompleteSubspaceInlines.h allocate(), and
-//       CompleteSubspace.cpp tryAllocateSlow(). Until then the spawned
-//       thread still reaches the main client's LocalAllocator and the
-//       (correct, load-bearing) ownership ASSERT in
-//       LocalAllocator::allocateSlowCase still fires.
+//       would regress the flag-off bench gate. Do NOT leave the body
+//       out-of-line in Heap.cpp with only a declaration in Heap.h (review
+//       amendment: that bakes a per-allocation call+branch into the
+//       serialized fast path the moment the routing edits consume it).
+//   (2) With the GCClient::Heap friendship a Heap member has (Heap.h
+//       `friend class JSC::Heap`), strengthen the fallback tripwire below to
+//       the access-OWNER identity form:
+//       `vm.heap.worldIsStoppedForAllClients() ||
+//        vmOriginalClient.m_accessOwner.load(std::memory_order_relaxed) ==
+//        &Thread::currentSingleton()` — hasHeapAccess() alone would pass
+//       while ANOTHER thread holds the main client's access, the exact racy
+//       fallback (same pattern as currentThreadIsAllocatorOwner above).
+//       Before the helper goes live, re-validate the tightened ASSERT
+//       against non-mutator allocation entry points (GC helpers, finalizer/
+//       sweeper, pre-attach): if a legitimate unstamped caller trips it,
+//       stamp that caller — never weaken the assert back.
+//   (3) Consume it at the three vm.clientHeap routing sites: the VM.h iso
+//       subspace accessors (including the dynamic clientHeap.name<mode>()
+//       template form and codeBlockSpace()), CompleteSubspaceInlines.h
+//       allocate(), and CompleteSubspace.cpp tryAllocateSlow(). Any
+//       unconverted allocation entry path keeps racing exactly as before;
+//       until all three land, the spawned thread still reaches the main
+//       client's LocalAllocator and the (correct, load-bearing) ownership
+//       ASSERT in LocalAllocator::allocateSlowCase still fires
+//       (ta-wait-thread-gate.js stays red — re-verify only after the
+//       companion round).
 GCClient::Heap& allocationClientForCurrentThread(VM&, GCClient::Heap&);
 GCClient::Heap& allocationClientForCurrentThread(VM& vm, GCClient::Heap& vmOriginalClient)
 {

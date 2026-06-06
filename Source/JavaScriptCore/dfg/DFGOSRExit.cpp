@@ -153,8 +153,12 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
         vm.setDoesGCExpectation(true, DoesGCCheck::Special::DFGOSRExit);
     }
 
-    if (vm.callFrameForCatch)
-        RELEASE_ASSERT(vm.callFrameForCatch == callFrame);
+    // UNGIL §A.1.3: read through the mode-split accessor — gilOff the live
+    // callFrameForCatch is the current lite's, not the inert VM block's
+    // (genericUnwind publishes catch state per-lite; same idiom as
+    // operationCompileFTLOSRExit).
+    if (vm.group3Primitives().callFrameForCatch)
+        RELEASE_ASSERT(vm.group3Primitives().callFrameForCatch == callFrame);
 
     CodeBlock* codeBlock = callFrame->codeBlock();
     ASSERT(codeBlock);
@@ -167,7 +171,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
     uint32_t exitIndex = vm.osrExitIndex;
     OSRExit& exit = codeBlock->jitCode()->dfg()->m_osrExit[exitIndex];
 
-    ASSERT(!vm.callFrameForCatch || exit.m_kind == GenericUnwind);
+    ASSERT(!vm.group3Primitives().callFrameForCatch || exit.m_kind == GenericUnwind); // UNGIL §A.1.3 mode split.
     EXCEPTION_ASSERT_UNUSED(scope, !!scope.exception() || !exit.isOSRExitDueToException());
     
     // Compute the value recoveries.
@@ -185,8 +189,25 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
         if (exit.m_kind == GenericUnwind) {
             // We are acting as a defacto op_catch because we arrive here from genericUnwind().
             // So, we must restore our call frame and stack pointer.
-            jit.restoreCalleeSavesFromEntryFrameCalleeSavesBuffer(vm.topEntryFrame);
-            jit.loadPtr(vm.addressOfCallFrameForCatch(), GPRInfo::callFrameRegister);
+            if (vm.gilOff()) [[unlikely]] {
+                // UNGIL §A.1.3 (U-T4b): topEntryFrame and callFrameForCatch
+                // are per-lite Group-3 state GIL-off, and this exit ramp is
+                // cached on a shared CodeBlock — it runs on whichever thread
+                // unwinds, so resolve the CURRENT lite instead of baking
+                // &vm's inert words. All registers are dead at catch entry
+                // (defacto op_catch), so a caller-save base (regT3) with the
+                // plain skip list restores every VM callee save; no
+                // scratch-restore dance needed. Rematerialize the lite
+                // (§A.1.2) after the restore clobbers regT3 as buffer base.
+                jit.loadVMLite(GPRInfo::regT3);
+                jit.loadPtr(CCallHelpers::Address(GPRInfo::regT3, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topEntryFrame())), GPRInfo::regT3);
+                jit.restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferImpl(GPRInfo::regT3, RegisterSet::stackRegisters());
+                jit.loadVMLite(GPRInfo::regT3);
+                jit.loadPtr(CCallHelpers::Address(GPRInfo::regT3, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_callFrameForCatch())), GPRInfo::callFrameRegister);
+            } else {
+                jit.restoreCalleeSavesFromEntryFrameCalleeSavesBuffer(vm.topEntryFrame);
+                jit.loadPtr(vm.addressOfCallFrameForCatch(), GPRInfo::callFrameRegister);
+            }
         }
         jit.addPtr(
             CCallHelpers::TrustedImm32(codeBlock->stackPointerOffset() * sizeof(Register)),

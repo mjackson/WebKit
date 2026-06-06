@@ -516,11 +516,45 @@ public:
 #endif
     }
 
+    // UNGIL §A.1.3 (U-T4): mode-keyed materialization of the CURRENT thread's
+    // topEntryFrame. GIL-on it is the VM-block word; GIL-off the VM-block word
+    // is inert spare storage (doVMEntry publishes through the lite) and the
+    // live word is per-lite. ARM64: destGPR must not be the data temp (same
+    // contract as loadVMLite).
+    void loadTopEntryFrame(VM& vm, GPRReg destGPR)
+    {
+        if (vm.gilOff()) [[unlikely]] {
+            loadVMLite(destGPR);
+            loadPtr(Address(destGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topEntryFrame())), destGPR);
+        } else
+            loadPtr(&vm.topEntryFrame, destGPR);
+    }
+
+    // Mode-keyed replacement for the EntryFrame*&-baking overload above.
+    // GIL-on, instruction-identical to
+    // copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, scratch).
+    void copyCalleeSavesToEntryFrameCalleeSavesBuffer(VM& vm, GPRReg scratch)
+    {
+#if NUMBER_OF_CALLEE_SAVES_REGISTERS > 0
+        loadTopEntryFrame(vm, scratch);
+        copyCalleeSavesToEntryFrameCalleeSavesBufferImpl(scratch);
+#else
+        UNUSED_PARAM(vm);
+        UNUSED_PARAM(scratch);
+#endif
+    }
+
     void restoreCalleeSavesFromEntryFrameCalleeSavesBuffer(EntryFrame*&);
     void restoreCalleeSavesFromVMEntryFrameCalleeSavesBuffer(GPRReg vmGPR, GPRReg scratchGPR);
     void restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferImpl(GPRReg entryFrame, const RegisterSet& skipList);
 
     void copyLLIntBaselineCalleeSavesFromFrameOrRegisterToEntryFrameCalleeSavesBuffer(EntryFrame*&, const RegisterSet& usedRegisters = RegisterSet::stubUnavailableRegisters());
+    // UNGIL §A.1.3 (U-T4a): VM&-keyed overload; materializes the buffer base
+    // via loadTopEntryFrame(vm, destBufferGPR) instead of baking
+    // loadPtr(&topEntryFrame). Defined in JITOpcodes.cpp beside its only
+    // callers for now (FIXME: fold into AssemblyHelpers.cpp alongside the
+    // EntryFrame*& overload).
+    void copyLLIntBaselineCalleeSavesFromFrameOrRegisterToEntryFrameCalleeSavesBuffer(VM&, const RegisterSet& usedRegisters = RegisterSet::stubUnavailableRegisters());
 
     void emitMaterializeTagCheckRegisters()
     {

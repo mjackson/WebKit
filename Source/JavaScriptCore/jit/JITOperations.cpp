@@ -98,14 +98,24 @@ ALWAYS_INLINE ICSlowPathCallFrameTracer::ICSlowPathCallFrameTracer(VM& vm, CallF
     UNUSED_PARAM(vm);
     UNUSED_PARAM(callFrame);
     ASSERT(callFrame);
-    ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(vm.topEntryFrame));
+    // UNGIL §A.1.3 mode split (U-T4): GIL-off, doVMEntry publishes topEntryFrame
+    // and prepareCallOperation (AssemblyHelpers.h:121, emission side already
+    // converted) stores the frame pointer through the current thread's
+    // VMLitePrimitives; the raw VM-block words are inert spare storage. GIL-on
+    // this selects the VM block — bit-identical to the old direct access.
+    VMLitePrimitives& primitives = vm.group3Primitives();
+    ASSERT(reinterpret_cast<void*>(callFrame) < reinterpret_cast<void*>(primitives.topEntryFrame));
     assertStackPointerIsAligned();
 #if USE(BUILTIN_FRAME_ADDRESS)
     // If ASSERT_ENABLED and USE(BUILTIN_FRAME_ADDRESS), prepareCallOperation() will put the frame pointer into vm.topCallFrame.
     // We can ensure here that a call to prepareCallOperation() (or its equivalent) is not missing by comparing vm.topCallFrame to
     // the result of __builtin_frame_address which is passed in as callFrame.
-    ASSERT(vm.topCallFrame == callFrame);
-    vm.topCallFrame = callFrame;
+    // UNGIL §A.1.3: compare against the mode-selected storage that the
+    // converted prepareCallOperation emission actually wrote.
+    ASSERT(primitives.topCallFrame == callFrame);
+    primitives.topCallFrame = callFrame;
+#else
+    UNUSED_VARIABLE(primitives);
 #endif
     callFrame->setCallSiteIndex(propertyCache->callSiteIndex);
 }

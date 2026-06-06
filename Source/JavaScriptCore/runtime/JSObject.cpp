@@ -6198,7 +6198,23 @@ Butterfly* JSObject::allocateMoreOutOfLineStorage(VM& vm, size_t oldSize, size_t
     // It's important that this function not rely on structure(), for the property
     // capacity, since we might have already mutated the structure in-place.
 
-    return Butterfly::createOrGrowPropertyStorage(this->butterfly(), vm, this, structure(), oldSize, newSize);
+#if USE(JSVALUE64)
+    // Branchless flat load: flag-off every tag bit is zero (I22) so the mask
+    // is the identity and this compiles to the pre-threads single load + AND;
+    // flag-on every caller (E4 sites, growOutOfLineStorageForConcurrentLockedAdd,
+    // flag-off-only legacy legs) has already established flatness, which the
+    // assert witnesses. This avoids the option-load + branch inside
+    // JSObject::butterfly() on the hottest reallocation path.
+    // The RELEASE_ASSERT is the storage-growth path's segmented-word witness
+    // (word is already in a register: test + never-taken branch, no memory
+    // traffic; flag-off it can never fire because all tag bits are zero).
+    uint64_t word = taggedButterflyWord();
+    RELEASE_ASSERT(!isSegmentedButterfly(word));
+    Butterfly* oldButterfly = untaggedButterfly(word);
+#else
+    Butterfly* oldButterfly = this->butterfly();
+#endif
+    return Butterfly::createOrGrowPropertyStorage(oldButterfly, vm, this, structure(), oldSize, newSize);
 }
 
 bool JSObject::getOwnPropertyDescriptor(JSGlobalObject* globalObject, PropertyName propertyName, PropertyDescriptor& descriptor)
