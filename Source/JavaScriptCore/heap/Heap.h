@@ -107,6 +107,7 @@ class MarkStackMergingConstraint;
 class BlockDirectory;
 class MarkedVectorBase;
 class MarkingConstraint;
+class JSLock;
 class MarkingConstraintSet;
 class MutatorScheduler;
 class RunningScope;
@@ -446,6 +447,44 @@ public:
     // gate-CAS through the ISS store) and re-reads ISS. After such an edge,
     // relaxed reads here are coherence-bound to return true.
     bool isSharedServer() const { return m_isSharedServer.load(std::memory_order_relaxed); }
+
+    // UNGIL §0 U0c (ANNEX U0C, BINDING; U-T1): the GIL-off shared-server
+    // DESIGNATION primitive — the s_stickySharedServer CAS, returning
+    // won/lost, NO assert (noteSharedServerSticky's inner CAS
+    // RELEASE_ASSERTs — I13 — so it cannot BE the designation). Under
+    // gilOffProcess every VM ctor calls this; the winner sets vm.m_gilOff=1
+    // and eagerly calls noteSharedServerSticky() at clientSet()==1
+    // (quiescence trivial at birth; I13 sees previous==this and never
+    // fires). Idempotent for the winner.
+    JS_EXPORT_PRIVATE bool tryDesignateStickySharedServer();
+
+    // UNGIL §0 U0c (ANNEX U0C, BINDING; U-T3): the designation check —
+    // RELEASE_ASSERT(gilOffProcess => the server VM's m_gilOff == 1), run
+    // immediately before a noteSharedServerSticky() trigger. Under
+    // gilOffProcess a LOSER VM (m_gilOff == 0) can never legally reach a
+    // trigger (U0b spawn refusal keeps its clientSet() <= 1), so this
+    // fail-stops the bug precisely instead of leaving it to I13's inner
+    // CAS. No-op (early return) when !gilOffProcess. Defined in
+    // runtime/VM.cpp (needs the complete VM type; Heap.cpp is outside this
+    // slice's owned-file set).
+    //
+    // CALL-SITE STATUS (INTEGRATE-ungil.md supersession ledger row 6):
+    // - WIRED: the winner-ctor eager trigger (runtime/VM.cpp VM ctor,
+    //   immediately before the clientSet()==1 noteSharedServerSticky()).
+    // - OPEN — NOT YET WIRED: HeapClientSet::add's second-client trigger
+    //   (HeapClientSet.cpp:69 — which STAYS, idempotent; the U0c
+    //   SUPERSESSION of heap §5.1's "option && clientSet().size() EVER > 1"
+    //   trigger, both sides). The mandated one-line call
+    //   `server.verifyStickySharedServerDesignation();` immediately before
+    //   noteSharedServerSticky() there could NOT land from this slice:
+    //   HeapClientSet.cpp is outside its writable file set, and no later
+    //   task currently owns the wiring — ESCALATED to the orchestrator at
+    //   the U-T3 amendment; ledger row 6 stays open until it lands. Until
+    //   then a loser reaching that trigger is still fail-stopped — by
+    //   noteSharedServerSticky's inner I13 one-shared-server RELEASE_ASSERT
+    //   (its CAS sees previous != this) — just with the less precise
+    //   failure signature this assert exists to improve on.
+    JS_EXPORT_PRIVATE void verifyStickySharedServerDesignation();
 
     // WSAC (F7): written only by the conductor under m_gcBarrierLock; reads acquire.
     bool worldIsStoppedForAllClients() const { return m_worldIsStoppedForAllClients.load(std::memory_order_acquire); }
@@ -820,6 +859,7 @@ private:
     friend class GCClient::Heap;
     friend class JSC::HeapClientSet;
     friend class SharedHeapTestHarness; // T10 (§12.1): standalone scenarios drive the private per-client deferral-depth routing (I17) directly.
+    friend class VM; // UNGIL §0 U0c (U-T1): the winner's VM ctor calls the private noteSharedServerSticky() eagerly at clientSet()==1.
 
     // THREADS (SPEC-heap.md): shared-server internals (T1 scaffolding).
     void noteSharedServerSticky(); // Sticky ISS switch (§10B.4 quiescence); I13 one-shared-server assert.
@@ -1583,6 +1623,7 @@ private:
     friend class JSC::Heap;
     friend class JSC::HeapClientSet;
     friend class JSC::GCSafepointEpoch; // §11: reads/stamps m_localEpoch (T7).
+    friend class JSC::JSLock; // UNGIL §A.3.6/A36C (U-T1): the carrier tuple swap re-stamps the §10A.1 client slot at install/LIFO-restore.
 
     static constexpr uint8_t noAccessState = 0; // §10A m_accessState values.
     static constexpr uint8_t hasAccessState = 1;

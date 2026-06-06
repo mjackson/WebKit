@@ -64,6 +64,7 @@
 #include "GigacageAlignedMemoryAllocator.h"
 #include "HasOwnPropertyCache.h"
 #include "Heap.h"
+#include "HeapInlines.h"
 #include "HeapProfiler.h"
 #include "IncrementalSweeper.h"
 #include "Interpreter.h"
@@ -196,9 +197,84 @@ namespace JSC {
 
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(VM);
 
+// ===========================================================================
+// UNGIL §A.1.1 (U-T3): g_jscCurrentVMLite — the JIT/LLInt-visible mirror of
+// vmstate L4's `t_currentVMLite` (runtime/VMLite.cpp). The L4 freeze keeps
+// the C++ accessors (VMLite::current/currentIfExists/setCurrent) backed by
+// the plain thread_local in VMLite.cpp; generated code instead reads THIS
+// symbol, per SPEC-jit annex App. R5 mechanics (the g_jscButterflyTIDTag
+// precedent, jit/ConcurrentButterflyOperations.cpp):
+//
+// - ELF (Linux glibc+musl): initial-exec model => the symbol's TPOFF is
+//   link-time thread-invariant. The JIT-tier read is LANDED (the
+//   loadVMLite free-function emitter in jit/AssemblyHelpers.cpp; the
+//   member surface follows with the emission slice). The LLInt side —
+//   the `loadVMLite` offlineasm macro reading this symbol with
+//   initial-exec relocations (x86-64 `movq %fs:g_jscCurrentVMLite@TPOFF`;
+//   arm64 mrs + :tprel_hi12:/:tprel_lo12_nc:) plus the per-Group-3-site
+//   two-level selection and the JSCConfig `gilOffProcess` byte — is NOT
+//   YET LANDED: llint/ and runtime/JSCConfig.h are outside this slice's
+//   writable file set (OPEN U-T3 obligation, INTEGRATE-ungil.md 9b;
+//   escalated at the U-T3 amendment — the licensed flag-off golden-disasm
+//   re-baseline for the LLInt Group-3 branches happens when those branches
+//   land, not before). The symbol is extern "C" (unmangled
+//   asm-referenceable name) and defined OUTSIDE any ENABLE(JIT) region so
+//   that LLInt slice can bind to it unchanged.
+// - Darwin: Mach-O TLV has no constant offset; the JIT-visible copy lives in
+//   a pthread TSD slot whose key is to be published through the M4a-style
+//   JSCConfig slot (vmLiteTLSKey, beside butterflyTIDTagTLSKey). That slot,
+//   its key creation, and the per-thread pthread_setspecific are NOT YET
+//   LANDED (same writable-set constraint; see the Darwin arm in
+//   jit/AssemblyHelpers.cpp). This thread_local still exists there
+//   (harmless; generated code will read the TSD slot, not this symbol).
+//
+// COHERENCE CONTRACT (the App. R5 CS3 discipline, applied to the lite
+// pointer): VMLite::setCurrent — the SOLE writer of t_currentVMLite — must
+// mirror every TLS write here (and, on Darwin, pthread_setspecific the same
+// value into the vmLiteTLSKey slot), immediately after the t_currentVMLite
+// store and before its TID-tag hook fires — INCLUDING the null/uninstall
+// writes (carrier teardown, thread exit): an unmirrored clear would leave a
+// reused thread's generated code reading a stale/freed lite. STATUS: the
+// mirror store is NOT YET IMPLEMENTED (runtime/VMLite.cpp is outside this
+// slice's writable set), and NO existing INTEGRATE-ungil.md obligation row
+// covers it — obligation 9b covers only the Config byte / LLInt selection /
+// loadVMLite emitter / VMEntryRecord slot. A dedicated IU obligation row
+// (owner: the VMLite.cpp slice) must be added before any task emits live
+// reads of this symbol; escalated at the U-T3 amendment. Until the mirror
+// lands, this symbol stays null on every thread — dark-safe: only
+// gilOff-mode compilations (§A.1.3 COMPILED-FOR-VM-mode rule) emit reads of
+// it, and no shipping configuration constructs a gilOff VM.
+// ===========================================================================
+#if OS(LINUX)
+extern "C" __attribute__((tls_model("initial-exec"))) thread_local VMLite* g_jscCurrentVMLite = nullptr;
+#else
+extern "C" thread_local VMLite* g_jscCurrentVMLite = nullptr;
+#endif
+
 MicrotaskQueue& VM::defaultMicrotaskQueue() { return m_defaultMicrotaskQueue.get(); }
 
-bool VM::currentThreadIsHoldingAPILock() const { return m_apiLock->currentThreadIsHoldingLock(); }
+// UNGIL §F.2 (U-T8): defined in JSLock.cpp (the token machinery's home);
+// same-library linkage, deliberately not declared in any header — the
+// predicate split is an implementation detail of the two functions below.
+bool currentThreadHoldsEntryToken(const VM&);
+
+bool VM::currentThreadIsHoldingAPILock() const
+{
+    // UNGIL §F.2 (U-T8), the predicate split: GIL-off this predicate is
+    // REDEFINED as "the current thread holds an entry token for this VM" —
+    // the host-call assert meaning (DWT §E.7.2; U12/U13). Spawned threads
+    // never touch JSLock::m_lock (§F.1) and main/embedder m_lock holders
+    // ALSO hold a token (F1B), so the token question subsumes the mutex one.
+    // JSLock::currentThreadIsHoldingLock() stays MUTEX-LITERAL — §F.4's DAL
+    // handling + the m_lockDropDepth LIFO depend on it; consumers needing
+    // the mutex meaning ask the JSLock directly (IU table rows 19/22/26/36,
+    // JSLock.cpp). GIL-on (m_gilOff == 0 — every shipping configuration):
+    // bit-identical to the landed mutex forward.
+    if (m_gilOff) [[unlikely]]
+        return currentThreadHoldsEntryToken(*this);
+    return m_apiLock->currentThreadIsHoldingLock();
+}
+
 JSLock& VM::apiLock() { return m_apiLock.get(); }
 
 // Note: Platform.h will enforce that ENABLE(ASSEMBLER) is true if either
@@ -285,6 +361,40 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
 {
     if (vmCreationShouldCrash || g_jscConfig.vmCreationDisallowed) [[unlikely]]
         CRASH_WITH_EXTRA_SECURITY_IMPLICATION_AND_INFO(VMCreationDisallowed, "VM creation disallowed"_s, 0x4242424220202020, 0xbadbeef0badbeef, 0x1234123412341234, 0x1337133713371337);
+
+    // ANNEX A36 (UNGIL U-T1): process-monotonic epoch for the per-thread
+    // VM->carrier TLS maps (stale-epoch detection; never 0).
+    {
+        static std::atomic<uint64_t> s_nextVMEpoch { 1 };
+        m_vmEpoch = s_nextVMEpoch.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    // UNGIL §0 U0c (ANNEX U0C, BINDING): m_gilOff is computed ONCE, here —
+    // BEFORE m_mainVMLite registration (end of this ctor), any entry
+    // (including this ctor's own JSLockHolder below), and any codegen
+    // (including the JIT thunk initialization below) — and is IMMUTABLE for
+    // the VM's lifetime. Under gilOffProcess every VM ctor races the
+    // designation CAS (Heap::tryDesignateStickySharedServer — won/lost, NO
+    // assert): the WINNER is the one m_gilOff VM per process (U0b) and
+    // eagerly flips sticky-ISS at clientSet()==1 (quiescence trivial at
+    // birth; noteSharedServerSticky's inner CAS sees previous==this, so I13
+    // stands textually unchanged and never fires on this path). A LOSER
+    // keeps m_gilOff=0 and the GIL-on single-migrating-client protocol; U0b
+    // spawn-refusal keeps its clientSet()<=1, so the HeapClientSet::add
+    // trigger never runs for it.
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        if (heap.tryDesignateStickySharedServer()) {
+            m_gilOff = true;
+            // U0c invariant check immediately before EVERY in-scope
+            // noteSharedServerSticky() trigger (annex U0C). The second
+            // trigger family — HeapClientSet::add's second-client site
+            // (HeapClientSet.cpp:69) — is OUTSIDE this slice's writable set
+            // and remains UNWIRED; see the declaration comment in
+            // heap/Heap.h and INTEGRATE-ungil.md ledger row 6 (still open).
+            heap.verifyStickySharedServerDesignation();
+            heap.noteSharedServerSticky();
+        }
+    }
 
     // Arm the race amplifier (no-op unless --randomYieldPeriod is set).
     // Idempotent across VM constructions; see runtime/RaceAmplifier.h.
@@ -582,6 +692,13 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         // NEVER calls setCurrent — JSLock::didAcquireLock installs the
         // carrier at the outermost acquisition (M4).
         m_mainVMLite = makeUnique<VMLite>();
+        // UNGIL §A.1.3 level-2 byte: copied from vm.m_gilOff AT lite
+        // registration. Set BEFORE registerLite publishes the lite to
+        // registry walkers. (A36: GIL-off entry never INSTALLS m_mainVMLite
+        // — every thread, the main one included, uses a per-(thread,VM)
+        // carrier from JSLock's TLS map — but the byte is stamped uniformly
+        // at every registration site.)
+        m_mainVMLite->gilOff = m_gilOff ? 1 : 0;
         VMLiteRegistry::singleton().registerLite(*m_mainVMLite, *this);
     }
 
@@ -646,6 +763,12 @@ VM::~VM()
     // final JSLock hold, api r11 §4.6.1/5.2), (3) unregister, (4) destroy.
     // Result: no thread's TLS dangles across lastChanceToFinalize.
     if (m_mainVMLite) {
+        // UNGIL §F.2 (U-T8): GIL-off this assert is the TOKEN meaning — the
+        // destroying thread's entry token deliberately SURVIVES the carrier
+        // uninstall below and every teardown step that asserts the predicate
+        // (DWT stopRunningTasks, traps().willDestroyVM, the :801 assert); it
+        // is retired only when m_lock actually drops, by willReleaseLock's
+        // lock-keyed retirement (JSLock.cpp, retireEntryTokenForLock).
         ASSERT(currentThreadIsHoldingAPILock());
         m_apiLock->uninstallVMLiteForVMDestruction();
         ASSERT(VMLite::currentIfExists() != m_mainVMLite.get());
@@ -754,6 +877,13 @@ void VM::primitiveGigacageDisabledCallback(void* argument)
 
 void VM::primitiveGigacageDisabled()
 {
+    // UNGIL §F.2 ANNEX F2 fixed ruling (U-T8): this site KEEPS the MUTEX
+    // predicate (not the token redefinition) + the §A.1.5 deferred arm — the
+    // gigacage-disable service is VM-WIDE, so a GIL-off token holder that is
+    // not the m_lock owner routes through requestEntryScopeService, whose
+    // VM-wide classification fans the bit to every registered lite of this
+    // VM under the registry lock (CONCURRENT_SAFE: the disabling thread may
+    // hold NO lite at all).
     if (m_apiLock->currentThreadIsHoldingLock()) {
         m_primitiveGigacageEnabled.fireAll(*this, "Primitive gigacage disabled");
         return;
@@ -766,9 +896,11 @@ void VM::primitiveGigacageDisabled()
 
 void VM::setLastStackTop(const Thread& thread)
 {
-    m_lastStackTop = thread.savedLastStackTop();
+    // UNGIL §A.1.3/§A.1.4 mode split: per-lite when gilOff.
+    void*& lastStackTop = group3Primitives().m_lastStackTop;
+    lastStackTop = thread.savedLastStackTop();
     auto& stack = thread.stack();
-    RELEASE_ASSERT(stack.contains(m_lastStackTop), 0x5510, m_lastStackTop, stack.origin(), stack.end());
+    RELEASE_ASSERT(stack.contains(lastStackTop), 0x5510, lastStackTop, stack.origin(), stack.end());
 }
 
 Ref<VM> VM::createContextGroup(HeapType heapType)
@@ -1178,8 +1310,11 @@ void VM::setException(Exception* exception)
     if (Options::useVMLite())
         ASSERT(currentThreadIsHoldingAPILock());
 #endif
-    m_exception = exception;
-    m_lastException = exception;
+    // UNGIL §A.1.3 mode split: the throwing thread's lite when gilOff (the
+    // GC root walk picks these up per registered lite, r6 F5).
+    auto& primitives = group3Primitives();
+    primitives.m_exception = exception;
+    primitives.m_lastException = exception;
     if (exception)
         traps().fireTrap(VMTraps::NeedExceptionHandling);
 }
@@ -1202,7 +1337,7 @@ Exception* VM::throwException(JSGlobalObject* globalObject, Exception* exception
 {
     // The TerminationException should never be overridden.
     if (hasPendingTerminationException())
-        return m_exception;
+        return group3Primitives().m_exception; // UNGIL §A.1.3 mode split.
 
     // The TerminationException is not like ordinary exceptions that should be
     // reported to the debugger. The fact that the TerminationException uses the
@@ -1250,7 +1385,7 @@ Exception* VM::throwException(JSGlobalObject* globalObject, JSObject* error)
 
 void VM::setStackPointerAtVMEntry(void* sp)
 {
-    m_stackPointerAtVMEntry = sp;
+    group3Primitives().m_stackPointerAtVMEntry = sp; // UNGIL §A.1.4: per-entry-token lite field when gilOff.
     updateStackLimits();
 }
 
@@ -1304,14 +1439,17 @@ void VM::updateStackLimits()
     // that the value is sane.
     RELEASE_ASSERT(reservedZoneSize >= minimumReservedZoneSize);
 
+    // UNGIL §A.1.3/§A.2 mode split: stack-limit state is per-lite when
+    // gilOff (this runs on the entering thread with its carrier installed).
+    auto& primitives = group3Primitives();
     void* newSoftStackLimit = 0;
-    if (m_stackPointerAtVMEntry) {
-        char* startOfStack = reinterpret_cast<char*>(m_stackPointerAtVMEntry);
+    if (primitives.m_stackPointerAtVMEntry) {
+        char* startOfStack = reinterpret_cast<char*>(primitives.m_stackPointerAtVMEntry);
         newSoftStackLimit = stack.recursionLimit(startOfStack, Options::maxPerThreadStackUsage(), m_currentSoftReservedZoneSize);
-        m_stackLimit = stack.recursionLimit(startOfStack, Options::maxPerThreadStackUsage(), reservedZoneSize);
+        primitives.m_stackLimit = stack.recursionLimit(startOfStack, Options::maxPerThreadStackUsage(), reservedZoneSize);
     } else {
         newSoftStackLimit = stack.recursionLimit(m_currentSoftReservedZoneSize);
-        m_stackLimit = stack.recursionLimit(reservedZoneSize);
+        primitives.m_stackLimit = stack.recursionLimit(reservedZoneSize);
     }
 
     if (lastSoftStackLimit != newSoftStackLimit) {
@@ -1335,11 +1473,37 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 void VM::gatherScratchBufferRoots(ConservativeRoots& conservativeRoots)
 {
-    Locker locker { m_scratchBufferLock };
-    for (auto* scratchBuffer : m_scratchBuffers) {
-        if (scratchBuffer->activeLength()) {
-            void* bufferStart = scratchBuffer->dataBuffer();
-            conservativeRoots.add(bufferStart, static_cast<void*>(static_cast<char*>(bufferStart) + scratchBuffer->activeLength()));
+    {
+        Locker locker { m_scratchBufferLock };
+        for (auto* scratchBuffer : m_scratchBuffers) {
+            if (scratchBuffer->activeLength()) {
+                void* bufferStart = scratchBuffer->dataBuffer();
+                conservativeRoots.add(bufferStart, static_cast<void*>(static_cast<char*>(bufferStart) + scratchBuffer->activeLength()));
+            }
+        }
+    }
+
+    // UNGIL §A.1.6 (annex A16 / jit R2): per-lite buffers — the non-baked
+    // per-thread tables AND the baked registry-index installs (both live on
+    // each lite's `scratchBuffers` ownership list) — are GC-scanned via the
+    // registry walk, per-VM filtered (r6 F5's filter). Mutators are quiesced
+    // by the heap §10 stop, so the registry is stable; taking each lite's
+    // scratchBufferLock under the registry lock is the §LK.6 re-rank
+    // (ScratchBufferRegistry -> VMLiteRegistry::lock -> scratchBufferLock).
+    // This also closes VMLite's former Phase-A "not visited" caveat.
+    if (Options::useVMLite()) [[unlikely]] {
+        auto& registry = VMLiteRegistry::singleton();
+        Locker registryLocker { registry.lock };
+        for (VMLite* lite : registry.lites) {
+            if (lite->vm != this)
+                continue;
+            Locker bufferLocker { lite->scratchBufferLock };
+            for (auto* scratchBuffer : lite->scratchBuffers) {
+                if (scratchBuffer->activeLength()) {
+                    void* bufferStart = scratchBuffer->dataBuffer();
+                    conservativeRoots.add(bufferStart, static_cast<void*>(static_cast<char*>(bufferStart) + scratchBuffer->activeLength()));
+                }
+            }
         }
     }
 }
@@ -1610,6 +1774,12 @@ void sanitizeStackForVM(VM& vm)
 {
     auto& thread = Thread::currentSingleton();
     auto& stack = thread.stack();
+    // UNGIL §F.2 ANNEX F2 fixed ruling (U-T8): GIL-off this BRANCH consumes
+    // the TOKEN meaning and uses the CURRENT lite's lastStackTop —
+    // vm.lastStackTop()/setLastStackTop are the §A.1.3 mode-split selectors
+    // routing to the CURRENT carrier/spawned lite, so token-true implies the
+    // slot read below belongs to THIS thread's entry (never another
+    // mutator's). GIL-on: unchanged (predicate == mutex, VM-block slot).
     if (!vm.currentThreadIsHoldingAPILock())
         return; // vm.lastStackTop() may not be set up correctly if JSLock is not held.
 
@@ -1681,6 +1851,19 @@ ScratchBuffer* VM::scratchBufferForSize(size_t size)
     if (!size)
         return nullptr;
 
+    // UNGIL §A.1.6 (annex A16): gilOff, the non-baked path is the CURRENT
+    // lite's table by size-class — this dispatch IMPLEMENTS the reserved
+    // VMLite::scratchBufferForSize contract (re-freeze recorded vs
+    // vmstate:534-539, both sides; INTEGRATE-ungil.md supersession ledger).
+    if (m_gilOff) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->vm == this)
+            return lite->scratchBufferForSize(size);
+        // No installed same-VM lite (e.g. compiler-thread C++ paths):
+        // fall through to the VM-owned buffers below — those callers do not
+        // run JS and the buffers they get are still GC-scanned.
+    }
+
     Locker locker { m_scratchBufferLock };
 
     if (size > m_sizeOfLastScratchBuffer) {
@@ -1701,20 +1884,60 @@ ScratchBuffer* VM::scratchBufferForSize(size_t size)
 
 void VM::clearScratchBuffers()
 {
-    Locker locker { m_scratchBufferLock };
-    for (auto* scratchBuffer : m_scratchBuffers)
-        scratchBuffer->setActiveLength(0);
+    // UNGIL §A.1.6: gilOff, ClearScratchBuffers is a THREAD-LOCAL service
+    // (§A.1.5 table) — clear the CURRENT lite's buffers; the VM-owned list
+    // is also cleared (harmless; compiler-thread fallback users).
+    if (m_gilOff) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->vm == this)
+            lite->clearScratchBuffers();
+    }
+    {
+        Locker locker { m_scratchBufferLock };
+        for (auto* scratchBuffer : m_scratchBuffers)
+            scratchBuffer->setActiveLength(0);
+    }
     clearEntryScopeService(EntryScopeService::ClearScratchBuffers);
 }
 
 bool VM::isScratchBuffer(void* ptr)
 {
-    Locker locker { m_scratchBufferLock };
-    for (auto* scratchBuffer : m_scratchBuffers) {
-        if (scratchBuffer->dataBuffer() == ptr)
-            return true;
+    {
+        Locker locker { m_scratchBufferLock };
+        for (auto* scratchBuffer : m_scratchBuffers) {
+            if (scratchBuffer->dataBuffer() == ptr)
+                return true;
+        }
+    }
+    // UNGIL §A.1.6: gilOff callers may hold a per-lite buffer.
+    if (m_gilOff) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->vm == this) {
+            Locker locker { lite->scratchBufferLock };
+            for (auto* scratchBuffer : lite->scratchBuffers) {
+                if (scratchBuffer->dataBuffer() == ptr)
+                    return true;
+            }
+        }
     }
     return false;
+}
+
+unsigned VM::allocateBakedScratchBufferIndex(size_t size)
+{
+    // ANNEX A16 (UNGIL U-T1; dark until U-T4 emission): baked DFG/FTL
+    // scratch addresses become process-wide indices; install fans to this
+    // VM's registered lites under the registry lock (§LK.6 re-rank legality
+    // for the nested scratchBufferLock), registration backfills the rest.
+    RELEASE_ASSERT(m_gilOff);
+    unsigned index = ScratchBufferRegistry::singleton().allocateIndex(size);
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+    for (VMLite* lite : registry.lites) {
+        if (lite->vm == this)
+            lite->ensureScratchBufferAtIndex(index, size);
+    }
+    return index;
 }
 
 Ref<Waiter> VM::syncWaiter()
@@ -1858,6 +2081,101 @@ NativeExecutable* VM::promiseAnySlowRejectFunctionExecutableSlow()
     return executable;
 }
 
+bool VM::isGILOffProcess()
+{
+    // UNGIL §A.1.3 level (i) / §0 U0c: OPTION-derived; the JSCConfig
+    // gilOffProcess byte (LLInt's copy, beside the M4a slot — NOT YET
+    // LANDED; OPEN U-T3 obligation, INTEGRATE-ungil.md 9b: JSCConfig.h is
+    // outside this slice's writable set; latched at Config finalization)
+    // MUST stay derivation-identical to this conjunction. U0 option
+    // validation refuses GIL-off without the trio (forced useThreadGIL=1),
+    // so the extra terms are belt-and-suspenders.
+    return Options::useJSThreads() && !Options::useThreadGIL()
+        && Options::useVMLite() && Options::useSharedAtomStringTable() && Options::useSharedGCHeap();
+}
+
+void Heap::verifyStickySharedServerDesignation()
+{
+    // UNGIL §0 U0c (ANNEX U0C, BINDING; U-T3):
+    // RELEASE_ASSERT(gilOffProcess => the server VM's m_gilOff == 1) before
+    // a noteSharedServerSticky() trigger. WIRED at the winner-ctor eager
+    // trigger (VM ctor, above); the annex-mandated HeapClientSet::add
+    // second-client site (HeapClientSet.cpp:69) is NOT YET WIRED — see the
+    // declaration comment in heap/Heap.h for the open-obligation record and
+    // the I13 interim backstop. Under
+    // gilOffProcess only the designation winner may ever see clientSet() > 1
+    // — a LOSER VM's U0b spawn refusal keeps its clientSet() <= 1, so a
+    // loser reaching the trigger IS a bug (and noteSharedServerSticky's
+    // inner I13 CAS firing right after is the correct behavior; this assert
+    // just makes the failure mode precise). GIL-on processes
+    // (!gilOffProcess) are exempt: the legacy "option && size() EVER > 1"
+    // sticky trigger is their sanctioned path.
+    //
+    // Defined HERE (not Heap.cpp) because it needs the complete VM type
+    // (vm()/gilOff()) and Heap.cpp is outside U-T3's owned-file set — see
+    // INTEGRATE-ungil.md supersession ledger row 6. Declared in heap/Heap.h.
+    if (!VM::isGILOffProcess())
+        return;
+    RELEASE_ASSERT(vm().gilOff());
+}
+
+bool VM::isAnyThreadEntered() const
+{
+    // UNGIL §A.1.5: VM-wide "entered" consumers iterate the registry under
+    // its lock (leaf — nothing acquired while held). Replaced by the §A.3.1
+    // entered-thread set's non-emptiness when U-T5 lands it.
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+    for (VMLite* lite : registry.lites) {
+        if (lite->vm == this && lite->entryScope)
+            return true;
+    }
+    return false;
+}
+
+void VM::requestVMWideEntryScopeService(EntryScopeService service)
+{
+    // UNGIL §A.1.5 service routing (mirrors §A.2.3): VM-wide requests set
+    // the VM-level word AND fan into this VM's registered lites under the
+    // registry lock; carrier registration backfills the word into lites
+    // registered later. The VM-level word's writers are serialized by the
+    // registry lock GIL-off (owner threads read/clear only their lite bits).
+    ASSERT(m_gilOff);
+    uint16_t bit = packedServiceBits(service);
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+    entryScopeServices().add(service);
+    for (VMLite* lite : registry.lites) {
+        if (lite->vm == this)
+            lite->entryScopeServicesRawBits.fetch_or(bit, std::memory_order_relaxed);
+    }
+}
+
+void VM::requestVMWideEntryScopeService(ConcurrentEntryScopeService service)
+{
+    // CONCURRENT_SAFE: the requester may hold NO lite (§A.1.5); the registry
+    // lock is a leaf, so this is callable from any thread.
+    ASSERT(m_gilOff);
+    uint16_t bit = packedServiceBits(service);
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+    concurrentEntryScopeServices().add(service);
+    for (VMLite* lite : registry.lites) {
+        if (lite->vm == this)
+            lite->entryScopeServicesRawBits.fetch_or(bit, std::memory_order_relaxed);
+    }
+}
+
+void VM::backfillEntryScopeServiceBitsForLiteRegistration(VMLite& lite)
+{
+    // §A.1.5: under the registry lock so it cannot interleave with a
+    // concurrent VM-wide fan-out (which holds the same lock).
+    ASSERT(lite.vm == this);
+    Locker locker { VMLiteRegistry::singleton().lock };
+    if (uint16_t word = m_entryScopeServicesRawBits)
+        lite.entryScopeServicesRawBits.fetch_or(word, std::memory_order_relaxed);
+}
+
 void VM::executeEntryScopeServicesOnEntry()
 {
     if (hasEntryScopeServiceRequest(EntryScopeService::FirePrimitiveGigacageEnabled)) [[unlikely]] {
@@ -1925,8 +2243,10 @@ void VM::executeEntryScopeServicesOnExit()
 
 JSGlobalObject* VM::deprecatedVMEntryGlobalObject(JSGlobalObject* globalObject) const
 {
-    if (entryScope)
-        return entryScope->globalObject();
+    // UNGIL §A.1.5: per-lite entry record when gilOff (this is asked on the
+    // running thread about ITS entry).
+    if (VMEntryScope* scope = const_cast<VM*>(this)->currentThreadEntryScope())
+        return scope->globalObject();
     return globalObject;
 }
 

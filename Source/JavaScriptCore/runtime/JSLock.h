@@ -56,6 +56,10 @@ class VMLite;
 class JSGlobalObject;
 class JSLock;
 
+namespace GCClient {
+class Heap;
+}
+
 // FIXME: We should either have a specialization of WTF::Locker for JSLock or only allow using JSLockHolder.
 // It's weird that WTF::Locker<JSLock> doesn't ref() the VM for the lifetime of the lock and it's unclear
 // there's any noticable performance difference.
@@ -178,9 +182,17 @@ private:
     unsigned m_lockDropDepth;
     uint32_t m_lastOwnerThread { 0 };
     VM* m_vm;
-    AtomStringTable* m_entryAtomStringTable; 
+    AtomStringTable* m_entryAtomStringTable;
     VMLite* m_entryVMLite { nullptr };
     bool m_didInstallVMLite { false };
+    // UNGIL §A.3.6 (ANNEXES A36 + A36C; U-T1, dark): GIL-off the swapped TLS
+    // state is the TUPLE {lite, TID-tag, heap §10A.1 currentThreadClient
+    // slot}. The lite/tag halves ride m_entryVMLite + VMLite::setCurrent's
+    // tag hook; this is the saved client-slot half, restored LIFO at the
+    // depth-0 unlock. m_didInstallCarrierVMLite keys the GIL-off carrier
+    // path, disjoint from the GIL-on m_didInstallVMLite main-carrier path.
+    GCClient::Heap* m_entryThreadClient { nullptr };
+    bool m_didInstallCarrierVMLite { false };
 };
 
 } // namespace

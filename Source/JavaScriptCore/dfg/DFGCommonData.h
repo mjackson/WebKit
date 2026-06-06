@@ -139,7 +139,14 @@ public:
     Bag<DirectCallLinkInfo> m_directCallLinkInfos;
     Yarr::YarrBoyerMooreData m_boyerMooreData;
     
-    ScratchBuffer* catchOSREntryBuffer;
+    ScratchBuffer* catchOSREntryBuffer { nullptr };
+    // UNGIL §A.1.6 (ANNEX A16, U-T4b): gilOff-mode compilations leave
+    // catchOSREntryBuffer null and store a process-wide ScratchBufferRegistry
+    // index here instead — the JITCode-RESIDENT buffer becomes a per-lite
+    // registry index, so concurrent catch OSR entries on one CodeBlock each
+    // resolve their OWN thread's buffer (VMLite::scratchBufferAtIndex).
+    // UINT_MAX = unset (every GIL-on / flag-off compilation).
+    unsigned catchOSREntryBufferBakedIndex { std::numeric_limits<unsigned>::max() };
     RefPtr<Profiler::Compilation> compilation;
     
 #if USE(JSVALUE32_64)

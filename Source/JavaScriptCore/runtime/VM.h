@@ -295,7 +295,52 @@ public:
     void setFuzzerAgent(std::unique_ptr<FuzzerAgent>&&);
 
     VMIdentifier identifier() const { return m_identifier; }
-    bool isEntered() const { return !!entryScope; }
+
+    // UNGIL §0 U0c (ANNEX U0C): computed ONCE at the top of the VM ctor —
+    // before m_mainVMLite registration, any entry, any codegen — and
+    // IMMUTABLE for the VM's lifetime. True iff this VM won the
+    // sticky-shared-server designation under gilOffProcess: the ONE VM per
+    // process (U0b) whose threads run without the GIL. Every unqualified
+    // "gilOff" predicate in SPEC-ungil means THIS member (level (ii) of the
+    // §A.1.3 two-level discriminator; r27/TERM1.4), not the process byte.
+    bool gilOff() const { return m_gilOff; }
+
+    // C++-side equivalent of the derived JSCConfig gilOffProcess byte
+    // (§A.1.3 level (i); the Config byte itself + the LLInt consumer land
+    // with U-T3 and MUST stay derivation-identical to this). U0 option
+    // validation forces useThreadGIL=1 unless the trio is on, so the
+    // conjunction is the canonical derivation.
+    JS_EXPORT_PRIVATE static bool isGILOffProcess();
+
+    // ANNEX A36: process-monotonic VM epoch; the per-thread VM->carrier TLS
+    // map stores {VM*, epoch, carrier} and compares epochs BEFORE trusting a
+    // cached carrier (stale epoch => the VM at this address died; never a
+    // dangling lite/client).
+    uint64_t vmEpoch() const { return m_vmEpoch; }
+
+    // UNGIL §A.1.5: GIL-on this is the landed "!!entryScope". GIL-off the
+    // per-entry record is per-lite and "entered" means the §A.3.1 entered
+    // set is non-empty; until U-T5 builds that set, the equivalent form is
+    // "any registered same-VM lite has a live entry scope" (registry walk
+    // under its lock — VM-wide consumers iterate the registry, §A.1.5).
+    bool isEntered() const
+    {
+        if (m_gilOff) [[unlikely]]
+            return isAnyThreadEntered();
+        return !!entryScope;
+    }
+    JS_EXPORT_PRIVATE bool isAnyThreadEntered() const;
+
+    // §A.1.5: the CURRENT thread's entry scope — per-lite when GIL-off, the
+    // VM member otherwise. Null off-thread / when not entered.
+    VMEntryScope* currentThreadEntryScope()
+    {
+        if (m_gilOff) [[unlikely]] {
+            VMLite* lite = VMLite::currentIfExists();
+            return (lite && lite->vm == this) ? lite->entryScope : nullptr;
+        }
+        return entryScope;
+    }
 
     inline CallFrame* topJSCallFrame() const;
 
@@ -342,7 +387,9 @@ public:
     }
     bool hasPendingTerminationException() const
     {
-        return m_exception && isTerminationException(m_exception);
+        // UNGIL §A.1.3: Group-3 exception state is per-lite when gilOff.
+        Exception* exception = group3Primitives().m_exception;
+        return exception && isTerminationException(exception);
     }
 
     void throwTerminationException();
@@ -370,16 +417,62 @@ public:
         NeedStopTheWorld = 1 << 1, // FIXME rdar://161576886
     };
 
-    bool hasAnyEntryScopeServiceRequest() { return m_entryScopeServicesRawBits; }
+    // UNGIL §A.1.5 service routing (U-T1; mirrors §A.2.3). GIL-on/flag-off:
+    // unchanged — the VM-level word is the only storage. GIL-off, services
+    // classify VM-wide vs thread-local (the U-T1 table; mirrored in
+    // INTEGRATE-ungil.md):
+    //   EntryScopeService::SamplingProfiler            VM-wide (sticky)
+    //   EntryScopeService::TracePoints                 VM-wide (sticky)
+    //   EntryScopeService::Watchdog                    VM-wide (sticky; per-lite delivery = U-T2/annex W)
+    //   EntryScopeService::ClearScratchBuffers         THREAD-LOCAL (scratch is per-lite, §A.1.6)
+    //   EntryScopeService::FirePrimitiveGigacageEnabled VM-wide (§F.2's gigacage-disable deferred arm, named in §A.1.5)
+    //   EntryScopeService::PopListeners                VM-wide (listener list is VM state)
+    //   ConcurrentEntryScopeService::*                 VM-wide (CONCURRENT_SAFE; requester may hold NO lite)
+    // VM-wide GIL-off requests set the VM-level word AND fan into this VM's
+    // registered lites under the registry lock; carrier registration
+    // backfills the VM-level word into new lites. Thread-local requests (and
+    // all GIL-off servicing/clearing) use the CURRENT lite's bits.
+    static constexpr bool isThreadLocalEntryScopeService(EntryScopeService service)
+    {
+        return service == EntryScopeService::ClearScratchBuffers;
+    }
+
+    bool hasAnyEntryScopeServiceRequest()
+    {
+        if (m_gilOff) [[unlikely]] {
+            if (std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits())
+                return bits->load(std::memory_order_relaxed);
+        }
+        return m_entryScopeServicesRawBits;
+    }
+
+    // §A.1.5 registration backfill: copies the VM-level service word into a
+    // freshly registered lite's bits (so VM-wide requests made before this
+    // thread's first entry are serviced by it too). Caller: the GIL-off
+    // carrier/spawn registration sites, after VMLiteRegistry::registerLite.
+    JS_EXPORT_PRIVATE void backfillEntryScopeServiceBitsForLiteRegistration(VMLite&);
     void executeEntryScopeServicesOnEntry();
     void executeEntryScopeServicesOnExit();
 
     void requestEntryScopeService(EntryScopeService service)
     {
+        if (m_gilOff) [[unlikely]] {
+            if (isThreadLocalEntryScopeService(service)) {
+                std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits();
+                RELEASE_ASSERT(bits); // Thread-local services are requested by an entered thread.
+                bits->fetch_or(packedServiceBits(service), std::memory_order_relaxed);
+            } else
+                requestVMWideEntryScopeService(service);
+            return;
+        }
         entryScopeServices().add(service);
     }
     CONCURRENT_SAFE void requestEntryScopeService(ConcurrentEntryScopeService service)
     {
+        if (m_gilOff) [[unlikely]] {
+            requestVMWideEntryScopeService(service);
+            return;
+        }
         concurrentEntryScopeServices().add(service);
     }
 
@@ -426,6 +519,32 @@ public:
         return *std::bit_cast<VMLitePrimitives*>(std::bit_cast<uint8_t*>(this) + OBJECT_OFFSETOF(VM, topCallFrame));
     }
 
+    // UNGIL §A.1.3 (U-T1): the mode-split Group-3 storage selector every
+    // same-name VM accessor routes through. GIL-on (m_gilOff == 0, incl.
+    // flag-off): the VM member block — bit-identical to today. GIL-off: the
+    // CURRENT thread's lite (rematerialized per use, §A.1.2). The VM-block
+    // fallback below covers the windows where the GIL-off VM legitimately
+    // has no installed same-VM lite on this thread (ctor tail before first
+    // entry, ~VM tail after uninstall, the §F.5 nested-foreign-VM window for
+    // VM-A accessors — where A's state must not be read anyway): the VM
+    // block is inert spare storage there. Recorded in INTEGRATE-ungil.md.
+    // NOTE: emission-side selection (LLInt/Baseline/DFG/FTL) does NOT use
+    // this — it selects AT CODEGEN TIME on the compiled-for VM's mode
+    // (U-T3/U-T4); this helper is the C++ accessor carrier only.
+    ALWAYS_INLINE VMLitePrimitives& group3Primitives()
+    {
+        if (m_gilOff) [[unlikely]] {
+            VMLite* lite = VMLite::currentIfExists();
+            if (lite && lite->vm == this) [[likely]]
+                return lite->primitives;
+        }
+        return mainVMLitePrimitives();
+    }
+    ALWAYS_INLINE const VMLitePrimitives& group3Primitives() const
+    {
+        return const_cast<VM*>(this)->group3Primitives();
+    }
+
     // SPEC-vmstate §6.4.4: the main thread's carrier (tid 0); non-null exactly
     // when the VM was constructed with useVMLite on. Consumed by JSLock (M4)
     // and ~VM.
@@ -444,6 +563,36 @@ private:
     uint16_t m_entryScopeServicesRawBits { 0 };
     static_assert(sizeof(EntryScopeServicesBits) == sizeof(m_entryScopeServicesRawBits));
 
+    // UNGIL §A.1.5 (U-T1): the same packing, expressed as raw bit positions,
+    // for the per-lite atomic word (VMLite::entryScopeServicesRawBits — the
+    // lite stores an opaque std::atomic<uint16_t>; VM owns the packing).
+    // EntryScopeService occupies byte 0 (EntryScopeServicesBits' first
+    // member), ConcurrentEntryScopeService byte 1.
+    static constexpr uint16_t packedServiceBits(EntryScopeService service)
+    {
+        return static_cast<uint16_t>(service);
+    }
+    static constexpr uint16_t packedServiceBits(ConcurrentEntryScopeService service)
+    {
+        return static_cast<uint16_t>(static_cast<uint16_t>(service) << 8);
+    }
+
+    // Null when no lite is installed or a foreign VM's lite is current
+    // (nested-entry window, §F.5).
+    std::atomic<uint16_t>* currentLiteEntryScopeServiceBits()
+    {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->vm == this)
+            return &lite->entryScopeServicesRawBits;
+        return nullptr;
+    }
+
+    // §A.1.5 VM-wide fan-out (VM.cpp): sets the VM-level word and fans into
+    // every registered same-VM lite under the registry lock. The requester
+    // may hold NO lite (CONCURRENT_SAFE).
+    JS_EXPORT_PRIVATE void requestVMWideEntryScopeService(EntryScopeService);
+    JS_EXPORT_PRIVATE CONCURRENT_SAFE void requestVMWideEntryScopeService(ConcurrentEntryScopeService);
+
     OptionSet<EntryScopeService>& entryScopeServices()
     {
         auto& services = *std::bit_cast<EntryScopeServicesBits*>(&m_entryScopeServicesRawBits);
@@ -460,6 +609,12 @@ public:
 
 private:
     bool m_isInService { false };
+    // UNGIL §0 U0c: see gilOff() above. Written exactly once, at the top of
+    // the VM ctor (before any entry/codegen); never cleared (§10D never
+    // clears it — it is not heap state).
+    bool m_gilOff { false };
+    // ANNEX A36 carrier-map staleness epoch; see vmEpoch() above.
+    uint64_t m_vmEpoch { 0 };
     RefPtr<CrossTaskToken> m_crossTaskToken;
     VMIdentifier m_identifier;
     const Ref<JSLock> m_apiLock;
@@ -470,23 +625,46 @@ private:
     WeakRandom m_heapRandom;
     Integrity::Random m_integrityRandom;
 
+    // UNGIL §A.1.5: GIL-off, a thread services/clears the bits on ITS lite
+    // (every entered thread received VM-wide bits via the fan-out or the
+    // registration backfill). The VM-level word stays the GIL-on storage and
+    // the GIL-off backfill source; its transient-bit retirement protocol is
+    // refined when the trap fan-out lands (U-T2 rule 3; INTEGRATE-ungil.md).
     bool hasEntryScopeServiceRequest(EntryScopeService service)
     {
+        if (m_gilOff) [[unlikely]] {
+            std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits();
+            return bits && (bits->load(std::memory_order_relaxed) & packedServiceBits(service));
+        }
         return entryScopeServices().contains(service);
     }
 
     bool hasEntryScopeServiceRequest(ConcurrentEntryScopeService service)
     {
+        if (m_gilOff) [[unlikely]] {
+            std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits();
+            return bits && (bits->load(std::memory_order_relaxed) & packedServiceBits(service));
+        }
         return concurrentEntryScopeServices().contains(service);
     }
 
     void clearEntryScopeService(EntryScopeService service)
     {
+        if (m_gilOff) [[unlikely]] {
+            if (std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits())
+                bits->fetch_and(static_cast<uint16_t>(~packedServiceBits(service)), std::memory_order_relaxed);
+            return;
+        }
         entryScopeServices().remove(service);
     }
 
     void clearEntryScopeService(ConcurrentEntryScopeService service)
     {
+        if (m_gilOff) [[unlikely]] {
+            if (std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits())
+                bits->fetch_and(static_cast<uint16_t>(~packedServiceBits(service)), std::memory_order_relaxed);
+            return;
+        }
         concurrentEntryScopeServices().remove(service);
     }
 
@@ -854,18 +1032,26 @@ public:
 
     ALWAYS_INLINE VMThreadContext* threadContext() { return &m_threadContext; }
 
-    void clearLastException() { m_lastException = nullptr; }
+    void clearLastException() { group3Primitives().m_lastException = nullptr; } // UNGIL §A.1.3 mode split.
 
+    // UNGIL §A.1.3 NOTE on addressOf*/offset constants (addressOfException,
+    // addressOfLastException, addressOfCallFrameForCatch, exceptionOffset,
+    // offsetOfTopCallFrame, ...): these bake VM-block addresses/offsets and
+    // are GIL-ON EMISSION HELPERS ONLY. A gilOff-mode compilation must NOT
+    // consume them — it emits loadVMLite + VMLitePrimitives offsets instead
+    // (codegen-time selection on the compiled-for VM's mode; U-T3/U-T4).
+    // They deliberately do NOT branch on m_gilOff: returning the CURRENT
+    // lite's slot address would bake one thread's storage into shared code.
     CallFrame** addressOfCallFrameForCatch() { return &callFrameForCatch; }
 
     JSCell** addressOfException() { return reinterpret_cast<JSCell**>(&m_exception); }
 
-    Exception* lastException() const { return m_lastException; }
+    Exception* lastException() const { return group3Primitives().m_lastException; } // UNGIL §A.1.3 mode split.
     JSCell** addressOfLastException() { return reinterpret_cast<JSCell**>(&m_lastException); }
 
     // This should only be used for code that wants to check for any pending
     // exception without interfering with Throw/CatchScopes.
-    Exception* exceptionForInspection() const { return m_exception; }
+    Exception* exceptionForInspection() const { return group3Primitives().m_exception; }
 
     void setFailNextNewCodeBlock() { m_failNextNewCodeBlock = true; }
     bool getAndClearFailNextNewCodeBlock()
@@ -875,7 +1061,10 @@ public:
         return result;
     }
     
-    void* stackPointerAtVMEntry() const { return m_stackPointerAtVMEntry; }
+    // UNGIL §A.1.4: per-entry-token lite fields when gilOff (the L7
+    // RELEASE_ASSERT at JSLock.cpp didAcquireLock reads through this, so
+    // GIL-off it asserts the LITE's slot empty).
+    void* stackPointerAtVMEntry() const { return group3Primitives().m_stackPointerAtVMEntry; }
     void setStackPointerAtVMEntry(void*);
 
     size_t softReservedZoneSize() const { return m_currentSoftReservedZoneSize; }
@@ -884,17 +1073,17 @@ public:
     static size_t committedStackByteCount();
     inline bool ensureJSStackCapacityFor(Register* newTopOfStack);
 
-    void* stackLimit() { return m_stackLimit; }
+    void* stackLimit() { return group3Primitives().m_stackLimit; } // UNGIL §A.1.3 mode split.
     ALWAYS_INLINE void* softStackLimit() const { return traps().softStackLimit(); }
     ALWAYS_INLINE void** addressOfSoftStackLimit() { return traps().addressOfSoftStackLimit(); }
 
     inline bool isSafeToRecurseSoft() const;
     bool isSafeToRecurse() const
     {
-        return isSafeToRecurse(m_stackLimit);
+        return isSafeToRecurse(group3Primitives().m_stackLimit); // UNGIL §A.1.3 mode split.
     }
 
-    void* lastStackTop() { return m_lastStackTop; }
+    void* lastStackTop() { return group3Primitives().m_lastStackTop; } // UNGIL §A.1.3 mode split.
     void NODELETE setLastStackTop(const Thread&);
     
 #if ENABLE(C_LOOP)
@@ -914,9 +1103,23 @@ public:
     // - You can call scratchBufferForSize from any thread.
     // - You can only set the ScratchBuffer's activeLength from the main thread.
     // - You can only write to entries in the ScratchBuffer from the main thread.
+    //
+    // UNGIL §A.1.6 (annex A16): gilOff, this is the NON-BAKED path and
+    // dispatches to the CURRENT lite's table by size-class
+    // (VMLite::scratchBufferForSize); GIL-on/flag-off keeps the VM-owned
+    // buffers and baked addresses.
     ScratchBuffer* scratchBufferForSize(size_t size);
     void clearScratchBuffers();
     bool isScratchBuffer(void*);
+
+    // ANNEX A16 baked-index path (UNGIL U-T1; consumed by U-T4a/U-T4b
+    // gilOff-mode codegen, incl. OSR-exit/calleeSaveRegistersBuffer and the
+    // JITCode-RESIDENT buffers): allocates a process-wide
+    // ScratchBufferRegistry index of `size` bytes and fans a buffer install
+    // to every registered lite of this VM (registration backfills late
+    // lites), so a buffer exists at (lite, index) before any code emitted
+    // against the index can run. gilOff VMs only.
+    JS_EXPORT_PRIVATE unsigned allocateBakedScratchBufferIndex(size_t);
 
     EncodedJSValue* exceptionFuzzingBuffer(size_t size)
     {
@@ -1219,7 +1422,10 @@ private:
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
         m_needExceptionCheck = false;
 #endif
-        return m_exception;
+        // UNGIL §A.1.3 mode split: per-lite when gilOff (a GC visit thread
+        // must NOT come through here — the root walk reads each registered
+        // lite directly, r6 F5; Heap.cpp Msr/VMExceptions).
+        return group3Primitives().m_exception;
     }
 
     void clearException()
@@ -1235,7 +1441,7 @@ private:
         clearNativeStackTraceOfLastThrow();
         m_throwingThread = nullptr;
 #endif
-        m_exception = nullptr;
+        group3Primitives().m_exception = nullptr; // UNGIL §A.1.3 mode split.
         traps().clearTrap(VMTraps::NeedExceptionHandling);
     }
 
@@ -1267,6 +1473,15 @@ private:
     size_t m_currentSoftReservedZoneSize;
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+    // UNGIL audit K4 table I: m_needExceptionCheck / m_throwingThread (and
+    // this verification block generally) are classed PER-LITE (vmstate I15 —
+    // throw state is thread-local). DELIBERATELY not rerouted at U-T1: the
+    // raw writers live outside U-T1's file set (ThrowScope.cpp,
+    // LockObject.cpp, Interpreter.cpp friends), so the move is tracked as
+    // INTEGRATE-ungil.md obligation 10 (owner U-T8b; debug-only members are
+    // an L2 VMLite tail append, NOT part of the frozen VMLitePrimitives
+    // ABI). Until it lands, EXCEPTION_SCOPE_VERIFICATION builds are not
+    // N-mutator-safe GIL-off — dark today.
     ExceptionScope* m_topExceptionScope { nullptr };
     ExceptionEventLocation m_simulatedThrowPointLocation;
     unsigned m_simulatedThrowPointRecursionDepth { 0 };

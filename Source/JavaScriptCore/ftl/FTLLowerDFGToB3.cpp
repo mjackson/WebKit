@@ -65,6 +65,7 @@
 #include "FTLOperations.h"
 #include "FTLOutput.h"
 #include "FTLPatchpointExceptionHandle.h"
+#include "FTLSaveRestore.h"
 #include "FTLSnippetParams.h"
 #include "FTLThunks.h"
 #include "FTLWeightedTarget.h"
@@ -297,7 +298,14 @@ public:
 
             if (m_graph.m_maxLocalsForCatchOSREntry) {
                 uint32_t numberOfLiveLocals = std::max(*m_graph.m_maxLocalsForCatchOSREntry, 1u); // Make sure we always allocate a non-null catchOSREntryBuffer.
-                m_ftlState.jitCode->common.catchOSREntryBuffer = m_graph.m_vm.scratchBufferForSize(sizeof(JSValue) * numberOfLiveLocals);
+                if (m_graph.m_vm.gilOff()) [[unlikely]] {
+                    // UNGIL §A.1.6 (A16, U-T4b): the JITCode-RESIDENT catch
+                    // OSR entry buffer becomes a per-lite registry index, so
+                    // concurrent catch OSR entries on one CodeBlock each use
+                    // their OWN thread's buffer.
+                    m_ftlState.jitCode->common.catchOSREntryBufferBakedIndex = m_graph.m_vm.allocateBakedScratchBufferIndex(sizeof(JSValue) * numberOfLiveLocals);
+                } else
+                    m_ftlState.jitCode->common.catchOSREntryBuffer = m_graph.m_vm.scratchBufferForSize(sizeof(JSValue) * numberOfLiveLocals);
             }
         }
 
@@ -2582,8 +2590,48 @@ private:
         setDouble(value);
     }
 
+    // ---- UNGIL §A.1.6 (ANNEX A16, BINDING) — U-T4b FTL emission of the
+    // frozen baked-scratch addressing contract. gilOff-mode compilations
+    // (codegen-time selection on the COMPILED-FOR VM's mode, §A.1.3 — U0c
+    // fixes the mode pre-codegen) replace every baked scratch-buffer ADDRESS
+    // with a process-wide registry INDEX resolved against the CURRENT
+    // thread's lite: loadVMLite -> segment -> [index]. The resolution is an
+    // opaque patchpoint (one per site — rematerialization per §A.1.2 is the
+    // correctness carrier; the lite is fixed for a thread while it runs JS,
+    // so Effects::none() is sound and B3 may hoist/CSE freely). GIL-on /
+    // flag-off compilations never call these — every site below keeps its
+    // original absolute-address emission byte-for-byte.
+
+    LValue bakedScratchBufferPointer(unsigned bakedIndex)
+    {
+        ASSERT(vm().gilOff());
+        PatchpointValue* patchpoint = m_out.patchpoint(pointerType());
+        patchpoint->effects = Effects::none();
+        patchpoint->setGenerator(
+            [bakedIndex] (CCallHelpers& jit, const StackmapGenerationParams& params) {
+                materializeBakedScratchBufferPointer(jit, bakedIndex, params[0].gpr());
+            });
+        return patchpoint;
+    }
+
+    LValue bakedScratchBufferDataPointer(unsigned bakedIndex)
+    {
+        return m_out.add(
+            bakedScratchBufferPointer(bakedIndex),
+            m_out.constIntPtr(OBJECT_OFFSETOF(ScratchBuffer, m_buffer)));
+    }
+
     void compileExtractOSREntryLocal()
     {
+        if (vm().gilOff()) [[unlikely]] {
+            // UNGIL A16 (U-T4b): the entry buffer is a per-lite registry
+            // index — the entering thread filled ITS buffer
+            // (FTLOSREntry.cpp), and this reads it back through the SAME
+            // lite, so concurrent loop OSR entries stay disjoint.
+            LValue data = bakedScratchBufferDataPointer(m_ftlState.jitCode->ftlForOSREntry()->entryBufferBakedIndex());
+            setJSValue(m_out.load64(m_out.address(m_heaps.root, data, m_node->unlinkedOperand().virtualRegister().toLocal() * sizeof(EncodedJSValue))));
+            return;
+        }
         EncodedJSValue* buffer = static_cast<EncodedJSValue*>(
             m_ftlState.jitCode->ftlForOSREntry()->entryBuffer()->dataBuffer());
         setJSValue(m_out.load64(m_out.absolute(buffer + m_node->unlinkedOperand().virtualRegister().toLocal())));
@@ -2591,12 +2639,26 @@ private:
 
     void compileExtractCatchLocal()
     {
+        if (vm().gilOff()) [[unlikely]] {
+            // UNGIL A16 (U-T4b): per-lite catch OSR entry buffer (filled by
+            // prepareCatchOSREntry on this same thread).
+            LValue data = bakedScratchBufferDataPointer(m_ftlState.jitCode->common.catchOSREntryBufferBakedIndex);
+            setJSValue(m_out.load64(m_out.address(m_heaps.root, data, m_node->catchOSREntryIndex() * sizeof(EncodedJSValue))));
+            return;
+        }
         EncodedJSValue* buffer = static_cast<EncodedJSValue*>(m_ftlState.jitCode->common.catchOSREntryBuffer->dataBuffer());
         setJSValue(m_out.load64(m_out.absolute(buffer + m_node->catchOSREntryIndex())));
     }
 
     void compileClearCatchLocals()
     {
+        if (vm().gilOff()) [[unlikely]] {
+            // UNGIL A16 (U-T4b): zero the CURRENT lite's buffer's active
+            // length (offset 0 of the resolved ScratchBuffer).
+            LValue buffer = bakedScratchBufferPointer(m_ftlState.jitCode->common.catchOSREntryBufferBakedIndex);
+            m_out.storePtr(m_out.constIntPtr(0), m_out.address(m_heaps.root, buffer, 0));
+            return;
+        }
         ScratchBuffer* scratchBuffer = m_ftlState.jitCode->common.catchOSREntryBuffer;
         ASSERT(scratchBuffer);
         m_out.storePtr(m_out.constIntPtr(0), m_out.absolute(scratchBuffer->addressOfActiveLength()));
@@ -5693,12 +5755,28 @@ private:
         LValue key = lowJSValue(m_graph.varArgChild(m_node, 1));
 
         constexpr size_t scratchSize = sizeof(EncodedJSValue) * Node::numberOfDescriptorSlots;
-        ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-        EncodedJSValue* buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
-        for (unsigned slot = 0; slot < Node::numberOfDescriptorSlots; ++slot)
-            m_out.store64(lowJSValue(m_graph.varArgChild(m_node, slot + 2)), m_out.absolute(buffer + slot));
+        // UNGIL A16 (U-T4b): gilOff bakes a registry index; GIL-on keeps the
+        // baked absolute address byte-for-byte (same dual shape at every
+        // scratchBufferForSize site in this file).
+        const bool bakedScratch = vm().gilOff();
+        LValue bufferValue = nullptr;
+        EncodedJSValue* buffer = nullptr;
+        if (bakedScratch) [[unlikely]]
+            bufferValue = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+        else {
+            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
+            buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
+            bufferValue = m_out.constIntPtr(buffer);
+        }
+        for (unsigned slot = 0; slot < Node::numberOfDescriptorSlots; ++slot) {
+            LValue value = lowJSValue(m_graph.varArgChild(m_node, slot + 2));
+            if (bakedScratch) [[unlikely]]
+                m_out.store64(value, m_out.address(m_heaps.root, bufferValue, slot * sizeof(EncodedJSValue)));
+            else
+                m_out.store64(value, m_out.absolute(buffer + slot));
+        }
 
-        vmCall(Void, operationObjectDefinePropertyFromFields, weakPointer(globalObject), target, key, m_out.constIntPtr(buffer));
+        vmCall(Void, operationObjectDefinePropertyFromFields, weakPointer(globalObject), target, key, bufferValue);
     }
 
     void compileDefineAccessorProperty()
@@ -8771,8 +8849,12 @@ IGNORE_CLANG_WARNINGS_END
             size_t scratchSize = sizeof(EncodedJSValue) * elementCount;
             static_assert(sizeof(EncodedJSValue) == sizeof(double));
             ASSERT(scratchSize);
-            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-            ValueFromBlock slowBufferResult = m_out.anchor(m_out.constIntPtr(static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer())));
+            LValue slowBuffer;
+            if (vm().gilOff()) [[unlikely]] // UNGIL A16 (U-T4b): per-lite indexed scratch.
+                slowBuffer = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+            else
+                slowBuffer = m_out.constIntPtr(static_cast<EncodedJSValue*>(vm().scratchBufferForSize(scratchSize)->dataBuffer()));
+            ValueFromBlock slowBufferResult = m_out.anchor(slowBuffer);
             m_out.jump(setup);
 
             m_out.appendTo(setup, slowCallPath);
@@ -8876,8 +8958,12 @@ IGNORE_CLANG_WARNINGS_END
             m_out.appendTo(slowPath, setup);
             size_t scratchSize = sizeof(EncodedJSValue) * elementCount;
             ASSERT(scratchSize);
-            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-            ValueFromBlock slowBufferResult = m_out.anchor(m_out.constIntPtr(static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer())));
+            LValue slowBuffer;
+            if (vm().gilOff()) [[unlikely]] // UNGIL A16 (U-T4b): per-lite indexed scratch.
+                slowBuffer = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+            else
+                slowBuffer = m_out.constIntPtr(static_cast<EncodedJSValue*>(vm().scratchBufferForSize(scratchSize)->dataBuffer()));
+            ValueFromBlock slowBufferResult = m_out.anchor(slowBuffer);
             m_out.jump(setup);
 
             m_out.appendTo(setup, slowCallPath);
@@ -8904,8 +8990,11 @@ IGNORE_CLANG_WARNINGS_END
         case Array::SlowPutArrayStorage: {
             size_t scratchSize = sizeof(EncodedJSValue) * elementCount;
             ASSERT(scratchSize);
-            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-            LValue buffer = m_out.constIntPtr(static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer()));
+            LValue buffer;
+            if (vm().gilOff()) [[unlikely]] // UNGIL A16 (U-T4b): per-lite indexed scratch.
+                buffer = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+            else
+                buffer = m_out.constIntPtr(static_cast<EncodedJSValue*>(vm().scratchBufferForSize(scratchSize)->dataBuffer()));
             for (unsigned elementIndex = 0; elementIndex < elementCount; ++elementIndex) {
                 Edge& element = m_graph.varArgChild(m_node, elementIndex + elementOffset);
                 LValue value = lowJSValue(element);
@@ -9067,20 +9156,31 @@ IGNORE_CLANG_WARNINGS_END
         LValue deleteCount = lowInt32(m_graph.child(m_node, 2));
 
         unsigned insertionCount = m_node->numChildren() - 3;
+        const bool bakedScratch = vm().gilOff(); // UNGIL A16 (U-T4b): per-lite indexed scratch.
         EncodedJSValue* buffer = nullptr;
+        LValue bufferValue = nullptr;
         if (insertionCount) {
             size_t scratchSize = sizeof(EncodedJSValue) * insertionCount;
             ASSERT(scratchSize);
-            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-            buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
+            if (bakedScratch) [[unlikely]]
+                bufferValue = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+            else {
+                ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
+                buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
+                bufferValue = m_out.constIntPtr(buffer);
+            }
 
             for (unsigned i = 0; i < insertionCount; ++i) {
                 LValue value = lowJSValue(m_graph.child(m_node, i + 3));
-                m_out.store64(value, m_out.absolute(buffer + i));
+                if (bakedScratch) [[unlikely]]
+                    m_out.store64(value, m_out.address(m_heaps.root, bufferValue, i * sizeof(EncodedJSValue)));
+                else
+                    m_out.store64(value, m_out.absolute(buffer + i));
             }
-        }
+        } else
+            bufferValue = m_out.constIntPtr(buffer);
 
-        setJSValue(vmCall(Int64, refCount ? operationArraySplice : operationArraySpliceIgnoreResult, weakPointer(globalObject), base, index, deleteCount, m_out.constIntPtr(buffer), m_out.constInt32(insertionCount)));
+        setJSValue(vmCall(Int64, refCount ? operationArraySplice : operationArraySpliceIgnoreResult, weakPointer(globalObject), base, index, deleteCount, bufferValue, m_out.constInt32(insertionCount)));
     }
 
     void compileArrayIndexOfOrArrayIncludes()
@@ -9701,8 +9801,11 @@ IGNORE_CLANG_WARNINGS_END
         size_t scratchSize = (isDouble ? sizeof(double) : sizeof(EncodedJSValue)) * elementCount;
         static_assert(sizeof(EncodedJSValue) == sizeof(double));
         ASSERT(scratchSize);
-        ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-        LValue buffer = m_out.constIntPtr(static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer()));
+        LValue buffer;
+        if (vm().gilOff()) [[unlikely]] // UNGIL A16 (U-T4b): per-lite indexed scratch.
+            buffer = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+        else
+            buffer = m_out.constIntPtr(static_cast<EncodedJSValue*>(vm().scratchBufferForSize(scratchSize)->dataBuffer()));
 
         for (unsigned elementIndex = 0; elementIndex < elementCount; ++elementIndex) {
             Edge& element = m_graph.varArgChild(m_node, elementIndex + elementOffset);
@@ -10617,8 +10720,16 @@ IGNORE_CLANG_WARNINGS_END
 
         size_t scratchSize = sizeof(EncodedJSValue) * m_node->numChildren();
         ASSERT(scratchSize);
-        ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-        EncodedJSValue* buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
+        const bool bakedScratch = vm().gilOff(); // UNGIL A16 (U-T4b): per-lite indexed scratch.
+        EncodedJSValue* buffer = nullptr;
+        LValue bufferValue = nullptr;
+        if (bakedScratch) [[unlikely]]
+            bufferValue = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+        else {
+            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
+            buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
+            bufferValue = m_out.constIntPtr(buffer);
+        }
 
         for (unsigned operandIndex = 0; operandIndex < m_node->numChildren(); ++operandIndex) {
             Edge edge = m_graph.varArgChild(m_node, operandIndex);
@@ -10631,12 +10742,15 @@ IGNORE_CLANG_WARNINGS_END
                 valueToStore = lowJSValue(edge, ManualOperandSpeculation);
                 break;
             }
-            m_out.store64(valueToStore, m_out.absolute(buffer + operandIndex));
+            if (bakedScratch) [[unlikely]]
+                m_out.store64(valueToStore, m_out.address(m_heaps.root, bufferValue, operandIndex * sizeof(EncodedJSValue)));
+            else
+                m_out.store64(valueToStore, m_out.absolute(buffer + operandIndex));
         }
 
         LValue result = vmCall(
             Int64, operationNewArray, weakPointer(globalObject),
-            weakStructure(structure), m_out.constIntPtr(buffer),
+            weakStructure(structure), bufferValue,
             m_out.constIntPtr(m_node->numChildren()));
 
         setJSValue(result);
@@ -10845,8 +10959,16 @@ IGNORE_CLANG_WARNINGS_END
 
         ASSERT(m_node->numChildren());
         size_t scratchSize = sizeof(EncodedJSValue) * m_node->numChildren();
-        ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
-        EncodedJSValue* buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
+        const bool bakedScratch = vm().gilOff(); // UNGIL A16 (U-T4b): per-lite indexed scratch.
+        EncodedJSValue* buffer = nullptr;
+        LValue bufferValue = nullptr;
+        if (bakedScratch) [[unlikely]]
+            bufferValue = bakedScratchBufferDataPointer(vm().allocateBakedScratchBufferIndex(scratchSize));
+        else {
+            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
+            buffer = static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer());
+            bufferValue = m_out.constIntPtr(buffer);
+        }
         BitVector* bitVector = m_node->bitVector();
         for (unsigned i = 0; i < m_node->numChildren(); ++i) {
             Edge use = m_graph.m_varArgChildren[m_node->firstChild() + i];
@@ -10855,10 +10977,13 @@ IGNORE_CLANG_WARNINGS_END
                 value = lowCell(use);
             else
                 value = lowJSValue(use);
-            m_out.store64(value, m_out.absolute(&buffer[i]));
+            if (bakedScratch) [[unlikely]]
+                m_out.store64(value, m_out.address(m_heaps.root, bufferValue, i * sizeof(EncodedJSValue)));
+            else
+                m_out.store64(value, m_out.absolute(&buffer[i]));
         }
 
-        LValue result = vmCall(Int64, operationNewArrayWithSpreadSlow, weakPointer(globalObject), m_out.constIntPtr(buffer), m_out.constInt32(m_node->numChildren()));
+        LValue result = vmCall(Int64, operationNewArrayWithSpreadSlow, weakPointer(globalObject), bufferValue, m_out.constInt32(m_node->numChildren()));
 
         setJSValue(result);
     }

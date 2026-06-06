@@ -99,6 +99,8 @@
 #include "UnlinkedEvalCodeBlock.h"
 #include "StopTheWorldCallback.h" // THREADS T5: StopTheWorldEvent for the §10.2 follower park.
 #include "VM.h"
+#include "VMLite.h"
+#include "VMLiteShared.h"
 #include "VMManager.h" // THREADS T5 (§10.3/§10.9 + manifest items 4-5): requestStopAll/requestResumeAll(StopReason::GC), setGCParkCallbacks.
 #include "VMTraps.h" // THREADS T5 (§10.2): election followers poll the stop-the-world trap bit.
 #include "VerifierSlotVisitorInlines.h"
@@ -3582,13 +3584,37 @@ void Heap::addCoreConstraints()
 
             {
                 SetRootMarkReasonScope rootScope(visitor, RootMarkReason::VMExceptions);
-                visitor.appendUnbarriered(vm.exception());
-                visitor.appendUnbarriered(vm.lastException());
+                if (vm.gilOff()) [[unlikely]] {
+                    // UNGIL §A.1.3 GC roots (r6 F5, NORMATIVE; U-T1): post
+                    // Group-3 rerouting, vm.exception()/vm.lastException()
+                    // resolve through the CURRENT lite — wrong on a GC visit
+                    // thread (conductor/marker). The shared collection's
+                    // root visit instead iterates the VMLiteRegistry under
+                    // its lock and appends EVERY registered same-VM lite's
+                    // exception cells (per-VM filter). The registry is
+                    // stable here: mutators are quiesced by the heap §10
+                    // stop. Amplifier arms (IU): a thrower parked pre-catch
+                    // must survive a forced full collection; two-VM arm.
+                    auto& registry = VMLiteRegistry::singleton();
+                    Locker locker { registry.lock };
+                    for (VMLite* lite : registry.lites) {
+                        if (lite->vm != &vm)
+                            continue;
+                        visitor.appendUnbarriered(lite->primitives.m_exception);
+                        visitor.appendUnbarriered(lite->primitives.m_lastException);
+                    }
+                } else {
+                    visitor.appendUnbarriered(vm.exception());
+                    visitor.appendUnbarriered(vm.lastException());
+                }
 
                 // We're going to m_terminationException directly instead of going through
                 // the exception() getter because we want to assert in the getter that the
                 // TerminationException has been reified. Here, we don't care if it is
                 // reified or not.
+                // UNGIL r6 F5: m_terminationException stays VM-global (a
+                // per-VM singleton, not per-thread Group-3 state) — rooted
+                // here in BOTH modes.
                 visitor.appendUnbarriered(vm.m_terminationException);
             }
         })),
@@ -4102,6 +4128,19 @@ static Atomic<Heap*> s_stickySharedServer;
 // increment/decrement to no-ops.
 static thread_local unsigned t_stwForbiddenScopeDepth { 0 };
 #endif
+
+bool Heap::tryDesignateStickySharedServer()
+{
+    // UNGIL §0 U0c (ANNEX U0C; U-T1): designation primitive — the
+    // s_stickySharedServer CAS, returning won/lost, NO assert. Called by
+    // every VM ctor under gilOffProcess, BEFORE m_mainVMLite registration,
+    // any entry, any codegen. The winner follows up with
+    // noteSharedServerSticky() at clientSet()==1 (its inner CAS then sees
+    // previous==this, so I13 stands textually unchanged below and never
+    // fires on this path).
+    Heap* previous = s_stickySharedServer.compareExchangeStrong(nullptr, this);
+    return !previous || previous == this;
+}
 
 void Heap::noteSharedServerSticky() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
@@ -4678,6 +4717,17 @@ void Heap::runSafepointHooksAndReclaim()
 
 void Heap::pollIssRevertIfNeeded() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
+    // UNGIL §0 U0c (ANNEX U0C; U-T1): the §10D m_isSharedServer=false arm is
+    // conditioned on !gilOffProcess — under gilOffProcess the designated
+    // server stays ISS for process lifetime (codegen and lite gilOff bytes
+    // were stamped against gilOff=1; un-sharing would not un-stamp them; a
+    // GIL-off process that joins all threads keeps shared-server overheads —
+    // accepted). Disarm the hint so the poll stays cheap.
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        m_issRevertPending.store(false, std::memory_order_relaxed);
+        return;
+    }
+
     // §10D ISS reversion: performed by the MAIN client's thread at a
     // CIND/SINFAC poll — never inside HeapClientSet::remove() or a stop
     // window. One bounded attempt per poll: if the server is not yet

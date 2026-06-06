@@ -26,9 +26,17 @@
 #include "MachineStackMarker.h"
 #include "Options.h"
 #include "SamplingProfiler.h"
+#include "ThreadManager.h" // UNGIL §F.1 (U-T8): isJSThreadCurrent keys the spawned token arm.
 #include "VMLite.h"
+#include "VMLiteInlines.h" // UNGIL §F.1 (U-T8): per-lite drain-on-release (I11).
+#include "VMLiteShared.h"
 #include "VMTrapsInlines.h"
+#include <wtf/Vector.h>
+#include <wtf/HashMap.h>
+#include <wtf/MainThread.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/StackPointer.h>
+#include <wtf/ThreadSpecific.h>
 #include <wtf/Threading.h>
 #include <wtf/threads/Signals.h>
 
@@ -41,6 +49,616 @@
 #endif
 
 namespace JSC {
+
+// ============================================================================
+// UNGIL §A.3.6 — lazy main/embedder carriers (ANNEXES A36 + A36C, BINDING;
+// U-T1, DARK: reachable only when the entered VM has m_gilOff == 1, which no
+// shipping configuration produces until the activation tasks land).
+//
+// GIL-off EVERY thread uses a real carrier lite with a TM-allocated unique
+// nonzero TID, lazily installed at first entry; m_mainVMLite (tid 0) is
+// GIL-on-only. Carriers are per-(thread, VM) in a TLS VM->carrier map with
+// TWO slots, chosen ONCE at first-entry registration (A36 r32):
+//   - every NON-MAIN thread's carriers live in the destructor-BEARING
+//     WTF::ThreadSpecific map, whose TLS destructor IS the carrier-TLS-death
+//     path;
+//   - the process MAIN thread's carriers live in a destructor-FREE plain
+//     thread_local map (pthread TLS destructors never run for a thread
+//     exiting via exit()/return-from-main, and a late Windows FLS callback
+//     over the same storage would re-read a walk-freed lite), so NO cleanup
+//     is ever installed over the main-thread slot on ANY platform — entries
+//     leak at process exit unless a ~VM walk frees them (accepted).
+// The choice is recorded per-lite as ownerHasNoTlsDtor, fixed at
+// registration time under the registry lock.
+//
+// §10A.1 STAMPING AUTHORITY (U-T8 row; ANNEX A36C): GIL-off, the JSLock
+// install/restore tuple swap in THIS file is the stamping authority for the
+// heap §10A.1 currentThreadClient TLS slot on every entered thread —
+// consumers of GCClient::Heap::currentThreadClient() (TLC allocation fast
+// paths, DeferGC dispatch, validateIsNotSweeping's per-client mutator state)
+// must treat the A36C swap here (plus GCClient::Heap::attachCurrentThread for
+// spawned threads, which the swap leaves untouched because a spawned lite is
+// never installed by JSLock) as the slot's GIL-off source of truth; nothing
+// else may write the slot while a token is live on the thread (the U1 client
+// clause RELEASE_ASSERTs the agreement at every GIL-off acquisition, §J.7).
+//
+// The map stores {VM*, epoch, carrier}; lock() compares epochs BEFORE
+// trusting a cached carrier (A36 staleness rule — a dead VM's address can
+// be reused).
+//
+// U-T1 lands the install/restore tuple swap ({lite, TID-tag, §10A.1 client
+// slot} — A36C) and a SKELETAL carrier-TLS-death path (TEARDOWN mark ->
+// unregisterLite LAST). The stale-epoch eviction arm runs the SAME skeleton
+// (evictStaleCarrier below) — every physical removal goes through
+// unregisterLite and every free is protocol-keyed; a map entry NEVER
+// bare-deletes its lite. U-T6 owns the full r31/r32 teardown protocol
+// (COLLECTED/DETACHED, EXIT1.9 ~VM completion fence, deferred degenerate
+// dtor) and replaces both skeleton paths.
+// ============================================================================
+
+// §J.7/U1 TLS-tag clause (U-T8; INTEGRATE-ungil ledger row 3): the I19
+// coherence check — RELEASE_ASSERTs that g_jscButterflyTIDTag (and the
+// JIT-visible copy, where one exists) equals currentButterflyTID() << 48,
+// i.e. the CURRENT lite's tid. Defined unconditionally in
+// jit/ConcurrentButterflyOperations.cpp; redeclared here (namespace-scope,
+// same library — the recorded U-T8 seam pattern) because jit/ headers are
+// outside this task's include discipline. Reading the REAL TLS word(s) is
+// the point: a null/unregistered P5 tag hook or a desynchronized tag is
+// exactly the failure mode the §J.7 backstop must fail-stop — comparing the
+// lite-derived currentButterflyTID() against lite->tid would be a tautology.
+JS_EXPORT_PRIVATE void assertButterflyTIDTagCoherent();
+
+struct CarrierMapEntry {
+    uint64_t vmEpoch { 0 };
+    std::unique_ptr<VMLite> carrier;
+};
+
+using CarrierMap = UncheckedKeyHashMap<VM*, CarrierMapEntry>;
+
+// EXIT1.3 live-path SKELETON (see banner): TEARDOWN-mark-precedes-destroy,
+// physical removal via unregisterLite LAST, lite freed after both.
+static void tearDownCarriersAtThreadDeath(CarrierMap& map)
+{
+    for (auto& mapEntry : map) {
+        VMLite* lite = mapEntry.value.carrier.get();
+        if (!lite)
+            continue;
+        if (VMLite::currentIfExists() == lite)
+            VMLite::setCurrent(nullptr); // I20: TLS never dangles past destruction (also clears the TID tag via the hook).
+        auto& registry = VMLiteRegistry::singleton();
+        bool registered = false;
+        {
+            Locker locker { registry.lock };
+            registered = registry.lites.contains(lite);
+            if (registered) {
+                // State transitions are under-registry-lock-only (EXIT1/A36).
+                RELEASE_ASSERT(lite->state == VMLite::State::Live);
+                lite->state = VMLite::State::Teardown;
+            }
+        }
+        if (registered)
+            registry.unregisterLite(*lite); // The notifying, LAST physical removal (U20).
+        releaseCarrierTIDIfHooked(lite->tid);
+    }
+    // The unique_ptrs free the lites when the map is destroyed by the caller.
+}
+
+class ThreadCarrierMaps {
+    WTF_MAKE_FAST_ALLOCATED;
+public:
+    CarrierMap map;
+    ~ThreadCarrierMaps() { tearDownCarriersAtThreadDeath(map); } // Carrier-TLS-death (non-main threads only).
+};
+
+static CarrierMap& mainThreadCarrierMap()
+{
+    // Destructor-free by construction (A36 r32) — never freed.
+    static thread_local CarrierMap* map { nullptr };
+    if (!map) [[unlikely]]
+        map = new CarrierMap;
+    return *map;
+}
+
+static CarrierMap& threadLocalCarrierMap()
+{
+    static LazyNeverDestroyed<ThreadSpecific<ThreadCarrierMaps>> maps;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        maps.construct();
+    });
+    return maps.get()->map;
+}
+
+// A36 stale-epoch eviction: the VM that owned this map slot died and a new VM
+// was constructed at the same address. The stale lite is disposed of through
+// the SAME protocol skeleton as carrier-TLS-death — NEVER a bare delete.
+// Until U-T6 lands the ~VM carrier-collection walk, a destroyed gilOff VM
+// leaves its carriers REGISTERED; an unprotocoled free here would leave the
+// VMLiteRegistry pointing at freed memory (release-build UAF in every
+// registry walk: the r6 F5 root walk, requestVMWideEntryScopeService,
+// gatherScratchBufferRoots, isAnyThreadEntered) and leak the carrier TID
+// against I17 accounting. Recorded in INTEGRATE-ungil.md obligation 4.
+static void evictStaleCarrier(CarrierMapEntry& entry, bool isMainThread)
+{
+    VMLite* lite = entry.carrier.get();
+    if (!lite)
+        return;
+    if (VMLite::currentIfExists() == lite) [[unlikely]]
+        VMLite::setCurrent(nullptr); // I20 mirror of the TLS-death skeleton (a stale carrier should never be CURRENT — restores run at depth-0 unlock / ~VM uninstall).
+    auto& registry = VMLiteRegistry::singleton();
+    bool registered = false;
+    {
+        Locker locker { registry.lock };
+        registered = registry.lites.contains(lite);
+        if (registered) {
+            // Pre-U-T6 the dead VM's ~VM did NOT collect carriers, so the
+            // stale lite is still registered and still Live, and this thread
+            // owns it: live path, TEARDOWN-mark-precedes-destroy (EXIT1.3
+            // skeleton; state transitions under-registry-lock-only).
+            RELEASE_ASSERT(lite->state == VMLite::State::Live);
+            lite->state = VMLite::State::Teardown;
+        }
+    }
+    if (registered) {
+        registry.unregisterLite(*lite); // The notifying, LAST physical removal (U20).
+        releaseCarrierTIDIfHooked(lite->tid); // I17 carrier accounting.
+        entry.carrier = nullptr; // Owner frees, strictly after unregistration (§6.5.1).
+        return;
+    }
+    // Not registered: unreachable until U-T6 (no other path unregisters a
+    // carrier while its owner thread's map entry is alive). Once U-T6's ~VM
+    // collection walk lands: a bit-SET (main-thread) lite was WALK-FREED at
+    // its DETACHED flip (A36 r32) — FORGET the pointer without touching it
+    // (the walk owns that free; deleting here would double-free); a
+    // bit-CLEAR lite is never walk-freed, and U-T6 replaces this arm with
+    // the state-keyed deferred degenerate dtor (COLLECTED => predicate-wait
+    // on vmTeardownCondition until DETACHED).
+    if (isMainThread) {
+        (void)entry.carrier.release(); // A36 r32 WALK-FREE ownership: the ~VM walk freed (or will free) it.
+        return;
+    }
+    RELEASE_ASSERT_NOT_REACHED(); // U-T6 lands the bit-CLEAR deferred degenerate dtor here.
+}
+
+// ANNEX A36C / §A.3.6 SUPERSESSION 3 — per-thread client SEAM (U-T8; U-T6
+// REPLACES THE BODY). GIL-off, the JSLock pair acquires/releases on the
+// CURRENT carrier's OWN client (§F.1) — NEVER the main client (heap Dev 8).
+// The per-thread client factory is heap-side U-T6 territory (a declared
+// PREREQ of this task per INTEGRATE-ungil ledger row 3; its owned set, not
+// ours), so until it lands this seam returns the VM's single client.
+// Consequence, recorded: N >= 2 SIMULTANEOUS GIL-off entry is IMPOSSIBLE
+// pre-U-T6 — the single-owner GCClient access protocol fail-stops the second
+// concurrent acquire (heap F8 step-0 owner RELEASE_ASSERT / NoAccess-CAS
+// check, Heap.cpp) rather than corrupting; and the U1/A36C client asserts
+// below verify SLOT AGREEMENT only — with a shared client they cannot detect
+// the missing per-thread split, so they are NOT evidence U-T6 landed.
+// This function is the ONLY carrier stamping site in this file; U-T6's
+// rewrite is a one-line body swap here plus the spawned-lite stamp
+// (VMLite clientHeap, api §5.2 spawn path). BLOCKING: U-T6 must land before
+// any gate runs two mutators in parallel (U-T9 entry).
+static GCClient::Heap* perThreadClientForCarrierEntry(VM& vm)
+{
+    return &vm.clientHeap; // U-T6: replace with the per-thread client factory.
+}
+
+static VMLite& ensureCarrierLiteForCurrentThread(VM& vm)
+{
+    ASSERT(vm.gilOff());
+    bool isMainThread = WTF::isMainThread();
+    CarrierMap& map = isMainThread ? mainThreadCarrierMap() : threadLocalCarrierMap();
+
+    auto addResult = map.add(&vm, CarrierMapEntry { });
+    CarrierMapEntry& entry = addResult.iterator->value;
+    if (!addResult.isNewEntry) {
+        if (entry.vmEpoch == vm.vmEpoch()) // Epochs compared BEFORE the cached carrier (A36).
+            return *entry.carrier;
+        evictStaleCarrier(entry, isMainThread);
+    }
+
+    auto carrier = makeUnique<VMLite>();
+    // All fields stamped BEFORE registerLite publishes the lite to registry
+    // walkers; the registration lock hold is what fixes them (A36).
+    carrier->tid = allocateCarrierTID(); // unique nonzero TM allocation; main/embedder ThreadState.tid stays 0 (r9 F4).
+    carrier->gilOff = vm.gilOff() ? 1 : 0; // §A.1.3 level-2 byte, copied at registration.
+    carrier->ownerHasNoTlsDtor = isMainThread; // A36 r32 registration clause.
+    carrier->clientHeap = perThreadClientForCarrierEntry(vm); // §A.3.6 supersession 3 seam — see the banner above.
+    VMLiteRegistry::singleton().registerLite(*carrier, vm);
+    // Registration backfills (run AFTER registration so a concurrent install
+    // fan cannot be lost; both are idempotent under the per-lite lock):
+    carrier->backfillBakedScratchBuffers(); // A16.
+    vm.backfillEntryScopeServiceBitsForLiteRegistration(*carrier); // §A.1.5 VM-wide word.
+
+    entry.vmEpoch = vm.vmEpoch();
+    entry.carrier = WTF::move(carrier);
+    return *entry.carrier;
+}
+
+// ============================================================================
+// UNGIL §F.1/§F.2/§F.4/§J — entry tokens + the post-GIL lock contract (U-T8;
+// DARK: every path below is keyed on vm.gilOff(), which no shipping
+// configuration sets — flag-off (useJSThreads=false) behavior is identical).
+//
+// GIL-off there are two acquisition arms:
+//   - SPAWNED Thread (api §5.2; ThreadManager::isJSThreadCurrent()): NO
+//     m_lock, ever. lock() installs an entry token {depth, spAtEntry}
+//     against the thread's own pre-installed lite — records sp/lastStackTop
+//     (§A.1.4), ORs the VM trap + service words into the lite (§A.2.3
+//     replaces notifyGrabAllLocks as the late-joiner edge), acquires CLIENT
+//     heap access (§B.1, §A.3.2b-gated inside acquireHeapAccess), bumps
+//     depth. unlock() is symmetric; depth 0 drains the CURRENT lite's queue
+//     (I11), then releases access. JSLockHolder = token.
+//   - MAIN/EMBEDDER (ANNEX F1B): m_lock stays REAL (Bun embedder exclusion
+//     kept) and acquiring it ALSO takes an entry token (§A.3.1 "entered set"
+//     is uniform) + the §A.3.6 carrier+tag+client tuple swap. EVERY lock()
+//     runs the gated acquireHeapAccess on THAT carrier's client (idempotent
+//     at depth>0, heap F8 step 0); depth-0 unlock releases and retires the
+//     token (so §J.3 park sites, which fully release via
+//     unlockAllForThreadParking -> willReleaseLock, drop m_lock + token in
+//     one shape).
+//
+// TOKEN STORAGE (recorded deviation, U-T8): §F.1 words the token as living
+// "in the VMLite". VMLite.h is OUTSIDE U-T8's owned-file set (L2 appends are
+// U-T1/U-T6 territory), so the token record lives in the thread_local vector
+// below, keyed by (VM*, vmEpoch). This is semantics-preserving: a token is
+// thread-affine by definition (installed/consumed only by its owner thread;
+// §F.2's predicate is a current-thread question), conductor predicates read
+// lite->clientHeap access state — never token depth — and the §A.3.1 entered
+// set is the registry walk. If a later task moves the fields onto the lite
+// (L2 append), only this file's helpers change. Records are popped at
+// depth-0 release, so the vector is empty at thread death (nothing here
+// re-reads walk-freed lites; A36 r32 concerns don't apply).
+//
+// VM::currentThreadIsHoldingAPILock() (VM.cpp, U-T8) consumes
+// currentThreadHoldsEntryToken() below: GIL-off the predicate is REDEFINED
+// as "this thread holds an entry token for this VM" (§F.2; DWT §E.7.2 host-
+// call meaning). JSLock::currentThreadIsHoldingLock() stays MUTEX-LITERAL.
+// ============================================================================
+
+struct VMEntryTokenRecord {
+    VM* vm { nullptr };
+    uint64_t vmEpoch { 0 };       // A36 staleness rule: tokens never match a reused VM address.
+    JSLock* lock { nullptr };     // Non-null => main/embedder arm (F1B); retired by willReleaseLock, keyed by lock so the ~VM-final-unlock (m_vm already nulled) still finds it.
+    VMLite* lite { nullptr };     // The lite this token entered with (spawned lite, or the A36 carrier).
+    intptr_t depth { 0 };         // Spawned arm: entry depth. Main/embedder arm: 1 (m_lockCount carries recursion under m_lock).
+    void* spAtEntry { nullptr };  // §F.1 token half {depth, spAtEntry}.
+    unsigned dalDepth { 0 };      // §F.4/DAL2 per-(thread,VM) DropAllLocks bracket depth (only the OUTERMOST bracket transitions access).
+    intptr_t depthAtBracketEnter { 0 }; // DAL2 composition: entry depth recorded at the OUTERMOST bracket enter; a nested entry's unlock returning to this depth restores the bracket's access-released state.
+    bool releaseAccessAtDepthZero { false };
+    AtomStringTable* entryAtomStringTable { nullptr }; // Spawned arm only (the mutex arm keeps JSLock::m_entryAtomStringTable).
+};
+
+static Vector<VMEntryTokenRecord, 2>& entryTokensForCurrentThread()
+{
+    // Trivial-enough TLS: records are POD and the vector is EMPTY whenever
+    // the thread is not entered (depth-0 pops), so late TLS destruction
+    // touches no JSC state. GIL-on threads never push, so the flag-off cost
+    // is one TLS read + an empty-vector scan on the paths that consult it.
+    static thread_local Vector<VMEntryTokenRecord, 2> tokens;
+    return tokens;
+}
+
+static VMEntryTokenRecord* entryTokenFor(VM& vm)
+{
+    auto& tokens = entryTokensForCurrentThread();
+    for (auto& token : tokens) {
+        if (token.vm == &vm && token.vmEpoch == vm.vmEpoch())
+            return &token;
+    }
+    return nullptr;
+}
+
+// §F.2 predicate, token meaning. Consumed by VM::currentThreadIsHoldingAPILock
+// (VM.cpp; same-library linkage — redeclared there, not in any header, so no
+// header outside U-T8's owned set changes).
+bool currentThreadHoldsEntryToken(const VM& vm)
+{
+    auto& tokens = entryTokensForCurrentThread();
+    for (auto& token : tokens) {
+        if (token.vm == &vm && token.vmEpoch == vm.vmEpoch() && token.depth)
+            return true;
+    }
+    return false;
+}
+
+// §F.1 spawned arm: NO m_lock. Caller guarantees vm.gilOff() &&
+// ThreadManager::isJSThreadCurrent().
+static void spawnedThreadEntryTokenLock(VM& vm, intptr_t lockCount)
+{
+    // api §5.2: a spawned thread registered + setCurrent its own lite before
+    // its first JSLockHolder. A foreign-VM entry from a spawned thread is an
+    // embedder-contract violation (§F.5 caller scope / §F.6(e), TERM1.5;
+    // A36 single-VM v1): process-abort, not a catchable error.
+    VMLite* lite = VMLite::currentIfExists();
+    RELEASE_ASSERT(lite && lite->vm == &vm); // §F.6(e): spawned threads are single-VM in v1.
+
+    if (VMEntryTokenRecord* token = entryTokenFor(vm)) {
+        ASSERT(token->depth);
+        ASSERT(token->lite == lite);
+        token->depth += lockCount;
+        // §F.1: EVERY lock() runs the gated acquire (idempotent at depth>0,
+        // heap F8 step 0). Inside a DAL2 bracket this is the NESTED-ENTRY
+        // re-acquire (the canonical DropAllLocks shape: bracketed native code
+        // calls back into JS) — correct while JS runs; the matching unlock
+        // below restores the bracket's access-released state when depth
+        // returns to depthAtBracketEnter (DAL2.2 composition).
+        lite->clientHeap->acquireHeapAccess();
+        return;
+    }
+
+    VMEntryTokenRecord token;
+    token.vm = &vm;
+    token.vmEpoch = vm.vmEpoch();
+    token.lite = lite;
+    token.depth = lockCount;
+    token.releaseAccessAtDepthZero = true; // §F.1: spawned depth-0 unlock releases access (E.2's drain loop re-acquires; §F.6(c) covers native sections in between).
+
+    // U1/§J.7 (FULL backstop, spawned outermost-entry arm): registered lite
+    // for the entered VM, unique nonzero TID, A36C client clause, TLS-tag
+    // equality.
+    RELEASE_ASSERT(lite->tid);     // tid 0 never installed GIL-off (folded into U1).
+    RELEASE_ASSERT(lite->gilOff);  // §A.1.3 level-2 byte agrees with vm.m_gilOff.
+    RELEASE_ASSERT(lite->clientHeap && GCClient::Heap::currentThreadClient() == lite->clientHeap); // A36C client clause.
+    // U1 TLS-tag clause (ledger row 3 "TLS-tag equality at the backstop"):
+    // the REAL tag word(s) must equal this lite's tid << 48 (the api §5.2
+    // spawn path ran P5 init + setCurrent before the first JSLockHolder).
+    // The jit-side hook is the tag's WRITER, not a checker — a null hook or
+    // a desynchronized g_jscButterflyTIDTag fail-stops HERE, before any
+    // tier's butterfly fast path consumes a wrong tag.
+    assertButterflyTIDTagCoherent();
+
+    auto& thread = Thread::currentSingleton();
+    token.entryAtomStringTable = thread.setCurrentAtomStringTable(vm.atomStringTable());
+
+    // §A.1.4: sp/lastStackTop are per-entry-token lite fields (the VM
+    // accessors are mode-split per §A.1.3 and route to the CURRENT lite);
+    // the token ctor asserts the LITE's slot empty — re-entry restores
+    // through the VMEntryRecord chain, not this slot.
+    vm.setLastStackTop(thread);
+    RELEASE_ASSERT(!vm.stackPointerAtVMEntry());
+    token.spAtEntry = currentStackPointer();
+    vm.setStackPointerAtVMEntry(token.spAtEntry);
+
+    // §F.1/§A.2.3: token acquisition ORs the VM trap + service words into the
+    // lite (the late-joiner delivery edge GIL-off; W0/SD13 carrier-only
+    // filtering happens inside, on this — the owner — thread).
+    vm.traps().orVMWideTrapBitsIntoLite(*lite);
+    vm.backfillEntryScopeServiceBitsForLiteRegistration(*lite);
+
+    // §B.1/§A.3.2b: client heap access, gated (acquireHeapAccess parks on a
+    // pending stop per SB1 item 3 and registers the thread for conservative
+    // scan, heap I4(b)). Spawned threads are unsampled in v1 (SD18), so no
+    // SamplingProfiler notice here.
+    lite->clientHeap->acquireHeapAccess();
+
+    entryTokensForCurrentThread().append(token);
+}
+
+// §F.1 spawned arm unlock; runs BEFORE any mutex state is consulted (§F.2:
+// "Spawned unlock() takes the token branch BEFORE the mutex RELEASE_ASSERT").
+static void spawnedThreadEntryTokenUnlock(VM& vm, intptr_t unlockCount)
+{
+    auto& tokens = entryTokensForCurrentThread();
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        VMEntryTokenRecord& token = tokens[i];
+        if (token.vm != &vm || token.vmEpoch != vm.vmEpoch())
+            continue;
+        RELEASE_ASSERT(token.depth >= unlockCount);
+        if (token.depth > unlockCount) {
+            token.depth -= unlockCount;
+            // DAL2 composition (U-T8 fix): if this thread is inside a
+            // DropAllLocks bracket and this unlock fully unwinds a nested
+            // entry (depth back to the depth recorded at the OUTERMOST
+            // bracket enter), re-release heap access — otherwise the thread
+            // would resume its blocking native section HOLDING access for
+            // the rest of the bracket, and a §10.4/§A.3.2 conductor (shared
+            // GC, haveABadTime stop) would wait on it for the unbounded
+            // duration of the block (DAL2.2 violated; conductor deadlock).
+            // Mirrors the GIL-on oracle, where an inner JSLockHolder inside
+            // DropAllLocks hits m_lockCount == 0 at its unlock and releases
+            // access via willReleaseLock's m_shouldReleaseHeapAccess.
+            // Delivery stays deferred to the bracket exit's trap poll (DAL2);
+            // nothing is polled here.
+            if (token.dalDepth) {
+                ASSERT(token.depth >= token.depthAtBracketEnter);
+                if (token.depth == token.depthAtBracketEnter)
+                    token.lite->clientHeap->releaseHeapAccess();
+            }
+            return;
+        }
+        // Depth-0 release. Mirror willReleaseLock with the token still
+        // counted (callees may consult the predicate), per-thread state only.
+        VMLite* lite = token.lite;
+        ASSERT(VMLite::currentIfExists() == lite);
+        ASSERT(!token.dalDepth); // A DAL2 bracket never outlives its entry.
+        {
+            RefPtr<VM> protectedVM { &vm };
+            // §F.1 drain-on-release KEPT GIL-off: the CURRENT lite's queue
+            // (I11; §E/U-T9 routes spawned enqueues here — until then the
+            // per-lite queue is absent and this is a no-op).
+            if (!token.dalDepth) [[likely]]
+                lite->drainDefaultMicrotaskQueue();
+            // §A.1.3 mode-split selector: per-lite topCallFrame/lastException.
+            if (!protectedVM->group3Primitives().topCallFrame)
+                protectedVM->clearLastException();
+            // heap.releaseDelayedReleasedObjects() is deliberately NOT
+            // mirrored: the delayed-release list is a Cocoa/ObjC-interop
+            // facility whose mutation is carrier-affine (IU table row below,
+            // EXCLUSIVITY CONSUMER serialized by m_lock); spawned threads
+            // never run the ObjC API in v1.
+            protectedVM->setStackPointerAtVMEntry(nullptr); // §A.1.4, per-lite.
+            if (token.releaseAccessAtDepthZero)
+                lite->clientHeap->releaseHeapAccess(); // §F.1: depth 0 releases access.
+        }
+        Thread::currentSingleton().setCurrentAtomStringTable(token.entryAtomStringTable);
+        tokens.removeAt(i);
+        return;
+    }
+    // Unlock without a token: same protocol violation the GIL-on path
+    // fail-stops on (lock-not-owned).
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
+// §F.4 / ANNEX DAL2 (U-T8): the spawned DropAllLocks bracket. A HEAP-ACCESS
+// bracket, NOT a lock drop (r20 F1): token, entry depth, m_lock and
+// m_lockDropDepth are ALL untouched; JSLock::currentThreadIsHoldingLock()
+// stays mutex-literal false throughout; the dropped-lock count is 0 (U14).
+// Only the OUTERMOST bracket transitions access (inner = pure count); LIFO is
+// NOT required — there is no m_lockDropDepth participation, so the D1
+// livelock shape cannot recur. DAL ctor/dtor are access transitions: per the
+// §E.2 rule they run holding NO api rank-1..3 lock and no heap 10a/10b lock
+// (U20's lint covers DAL sites).
+static void spawnedDropAllLocksBracketEnter(VM& vm)
+{
+    VMEntryTokenRecord* token = entryTokenFor(vm);
+    if (!token || !token->depth)
+        return; // Not entered: DropAllLocks is a no-op (GIL-on parity, bug 139654#c11).
+    if (!token->dalDepth++) {
+        // DAL2.1: outermost bracket releases the CURRENT lite's client
+        // access (heap F8 mandatory-revert shape: seq_cst exchange ->
+        // NoAccess inside releaseHeapAccess). DAL2.2: the thread now counts
+        // access-released for the heap §10.4 barrier AND the §A.3.2
+        // conductor predicate. Record the entry depth so a nested
+        // JSLockHolder's unwind inside the bracket can restore this state
+        // (see spawnedThreadEntryTokenUnlock's depth>0 arm).
+        token->depthAtBracketEnter = token->depth;
+        token->lite->clientHeap->releaseHeapAccess();
+    }
+}
+
+static void spawnedDropAllLocksBracketExit(VM& vm)
+{
+    VMEntryTokenRecord* token = entryTokenFor(vm);
+    if (!token || !token->dalDepth)
+        return; // Ctor was a no-op (thread was not entered at bracket entry).
+    if (!--token->dalDepth) {
+        // DAL2.1 dtor: re-acquire the SAME client's access, §A.3.2b/§A.3.8-
+        // gated (the SB1 item-3 seq_cst stop-bit poll + park live inside
+        // acquireHeapAccess), THEN poll the lite's trap bits before
+        // returning to JS — trap delivery during the bracket was deferred to
+        // here (same shape as §F.5 nested-entry deferral). U24/DAL2.6 arm:
+        // spawned thread blocked in a DAL-bracketed native call while main
+        // conducts a shared GC AND a haveABadTime (§K.5) stop — both
+        // complete; on release the thread resumes here and observes the
+        // deferred traps.
+        token->lite->clientHeap->acquireHeapAccess();
+        token->depthAtBracketEnter = 0; // DAL2 composition bookkeeping closed with the bracket.
+        if (VMTraps* liteTraps = perThreadTrapsIfExists(*token->lite))
+            liteTraps->handleTrapsIfNeeded();
+        else
+            vm.traps().handleTrapsIfNeeded();
+    }
+}
+
+// Main/embedder (F1B) token retirement at full release — willReleaseLock and
+// §J.3's unlockAllForThreadParking both land here, so park sites release
+// m_lock + token in one shape (the captured-lite poll rule J.3 keys off the
+// PARK lite captured before this runs; it never re-reads VMLite::current()).
+// Keyed by lock, not VM: the ~VM final unlock runs after willDestroyVM nulled
+// JSLock::m_vm, and the token must survive through ~VM teardown (the
+// destroying thread IS entered — DWT stopRunningTasks and friends assert the
+// token predicate mid-teardown) and retire only when m_lock actually drops.
+static void retireEntryTokenForLock(JSLock* lock)
+{
+    auto& tokens = entryTokensForCurrentThread();
+    if (tokens.isEmpty()) [[likely]] // GIL-on threads never push: flag-off this is the whole cost.
+        return;
+    for (size_t i = tokens.size(); i--;) {
+        if (tokens[i].lock == lock) {
+            tokens.removeAt(i);
+            return;
+        }
+    }
+}
+
+// ============================================================================
+// UNGIL §F.2 — predicate-consumer IU table (U-T8 deliverable; ~60 rows).
+//
+// Both predicates' consumers, classified {assert (token meaning) | BRANCH |
+// EXCLUSIVITY CONSUMER (needs a §K serializer — the predicate alone no longer
+// implies mutual exclusion GIL-off)}. "MUTEX" rows deliberately consume
+// JSLock::currentThreadIsHoldingLock() (mutex-literal, §F.2). ANNEX F2 fixed
+// rulings are cited per row. This comment block is the table of record for
+// the tree (INTEGRATE-ungil.md is outside U-T8's owned-file set; a later
+// close task may relocate it verbatim). Line numbers are as of the U-T8 base
+// tree (rows in VM.cpp/JSLock.cpp shift slightly with this task's own edits).
+//
+// | # | Site | Class | Ruling |
+// |---|------|-------|--------|
+// | 1 | API/APICast.h:161 toJS | assert (token) | host-call path, U13 |
+// | 2 | bytecode/JSThreadsSafepoint.cpp:225 | assert (token) | §A.3 conductor entry (U-T5 replaces the stub) |
+// | 3 | heap/WeakSetInlines.h:44 WeakSet::allocate | assert (token+access) | F2 fixed ruling: NOT exclusivity (REFUTED r11 F2) — free-list pop is MSPL-locked under ISS (WeakSetInlines.h:69); deallocate stays lock-free with the recorded WeakSet.h:121-131 soundness argument |
+// | 4 | interpreter/InterpreterInlines.h:106,:138 | assert (token) | execution entry |
+// | 5 | interpreter/Interpreter.cpp:1032,:1465,:1673 | assert (token) | executeProgram/Call/Eval entries |
+// | 6 | interpreter/MicrotaskCallInlines.h:59 | assert (token) | checkpoint runs on the owner (I11) |
+// | 7 | heap/Heap.cpp:666 (lastChanceToFinalize path) | assert (token) | ~VM thread keeps its token through teardown (see retireEntryTokenForLock) |
+// | 8 | heap/Heap.cpp:789,:801 (reportExtraMemory/deprecatedReport) | assert (token) | mutator-side accounting |
+// | 9 | heap/Heap.cpp:2797 | assert (token) | already tolerates the ISS flip (`|| worldIsStoppedForAllClients`) |
+// | 10 | heap/Heap.cpp:4260 | BRANCH | sticky-designation diagnostics arm; token meaning correct |
+// | 11 | heap/Heap.cpp:4956 | BRANCH | "current thread is a mutator of this heap" query; token meaning |
+// | 12 | heap/GCActivityCallback.cpp:63 | assert (token) | timer fires on the owning runloop (carrier) |
+// | 13 | heap/HeapIterationScope.h:47 | comment-only | no live consumer |
+// | 14 | heap/PreciseSubspace.cpp:81 | assert (token) | allocation requires token+access |
+// | 15 | runtime/DeferredWorkTimer.cpp:88,:192,:219,:228,:256,:339,:345 | assert (token) | §E.7.2 token meaning (`|| GC-thread+stopped` arms unchanged) |
+// | 16 | runtime/DeferredWorkTimer.cpp:183 runRunLoop | assert (token, NEGATIVE) | §E.7.2: the pump thread must NOT hold a token |
+// | 17 | runtime/JSCell.cpp:179-180 validateIsNotSweeping | assert/BRANCH (token) | F2 fixed ruling: token + per-CLIENT mutator state (GCClient::Heap::m_mutatorState via mutatorStateSlot) |
+// | 18 | runtime/Watchdog.cpp:56,:77(W4) | assert (token) | r13: token meaning answers the DATA-RACE question; the SEMANTIC ruling is §A.2.8 carrier-only / W4 |
+// | 19 | runtime/Watchdog.cpp:52,:165 | assert (MUTEX, kept) | watchdog arm/disarm is a carrier-only API (SD13); mutex-literal is the intended meaning |
+// | 20 | runtime/VM.h:1263 (ensureWatchdog-kin),:1437 | assert (token) | |
+// | 21 | runtime/VM.cpp:745,:801 ~VM | assert (token) | the destroying thread's token survives until the final m_lock drop |
+// | 22 | runtime/VM.cpp:853 primitiveGigacageDisabled | BRANCH (MUTEX, kept) | F2 fixed ruling: MUTEX predicate + §A.1.5 deferred arm — the gigacage-disable service is VM-wide; token holders that are not the mutex holder route through requestEntryScopeService fan-out |
+// | 23 | runtime/VM.cpp:1277 (throwException kin) | assert (token) | per-lite exception slots (§A.1.3) |
+// | 24 | runtime/VM.cpp:1491,:1514,:1522 | assert (token) | entry-scope service APIs; per-lite records (§A.1.5) |
+// | 25 | runtime/VM.cpp:1743 sanitizeStackForVM | BRANCH (token) | F2 fixed ruling: uses the CURRENT lite's lastStackTop — vm.lastStackTop() is the §A.1.3 mode-split selector, so token-true implies the lite slot is this thread's |
+// | 26 | runtime/JSLock.cpp:287,:538,:541,:656,:688,:711 | BRANCH/assert (MUTEX, kept) | the m_lock recursion/unwind protocol itself; spawned arms branch away BEFORE these (§F.2) |
+// | 27 | runtime/JSLock.cpp:741 DropAllLocks ctor | BRANCH (token) | redefinition intended: a spawned token holder asserts !isCollectorBusyOnCurrentThread |
+// | 28 | runtime/LockObject.cpp:77,:82,:93,:108 | assert (MUTEX today) | §J.3/U-T11 row: park-site asserts move to the token meaning when GILDroppedSection grows its GIL-off-by-caller split (J.3 spawned arm = token-only) |
+// | 29 | runtime/LockObject.cpp:130 | BRANCH (MUTEX today) | §J.3/U-T11 row: the park full-release branch; spawned arm must branch on the token (carried by U-T11 with GILDroppedSection) |
+// | 30 | runtime/VMLiteInlines.h:84, VMLite.cpp:153 | assert (token) | I14 owner asserts |
+// | 31 | runtime/ConcurrentButterfly.cpp:463,:872,:1345,:1541,:1683,:1878,:1912,:2190,:2310,:2422,:3028 (+:236 comment) | assert (token) | witness-contract asserts; the OM serializers are the SW/TID machinery, not this predicate |
+// | 32 | runtime/ThreadManager.cpp:57-59 ~AsyncTicket | assert (token) | r10 F2 fixed ruling: gains the sweep-context arm GIL-off — the sweeper holds a token, satisfied by the redefinition; the in-lock-sweep Strong free itself is the §F.3(a)/§LK.8 carve-out |
+// | 33 | tools/VMInspector.cpp:169,:224 | BRANCH (token) | SD13/SD14 tooling family; U-T8d's off-thread-reader table governs what it may read |
+// | 34 | runtime/JSGlobalObject.cpp:1125 | assert (token) | |
+// | 35 | heap (delayed release): Heap::releaseDelayedReleasedObjects callers (willReleaseLock here) | EXCLUSIVITY CONSUMER | the ObjC delayed-release list is serialized by m_lock (carrier-affine); the spawned token arm deliberately does NOT call it — no §K serializer needed while spawned threads cannot run the ObjC API (v1) |
+// | 36 | wtf/.. JSLock::ownerThread()/ownerThreadUID() consumers (SamplingProfiler, VMTraps signal sender) | BRANCH (MUTEX, kept) | identify the m_lock owner (carrier); spawned threads are reached via the registry walk (§A.2.3), not via lock ownership |
+//
+// Rows 28/29 are the only consumers whose GIL-off rewrite lands outside this
+// task (U-T11, §J.3); every other row is correct under the §F.2 split as
+// implemented here, with rows 19/22/26/36 deliberately mutex-literal.
+// ============================================================================
+
+// ============================================================================
+// UNGIL §E.4 — settle-site lock-context table (U-T8 deliverable; r17 F2
+// precondition: AsyncTicket::settle is invoked holding NO api rank-1..3 lock;
+// U20 lints rank-3 settles; GIL-on text stands — settle = DWT
+// scheduleWorkSoon, no rank-3 lock).
+//
+// | Site | Caller context | Rank-3 locks at the settle call | Status |
+// |------|----------------|--------------------------------|--------|
+// | LockObject.cpp:275 (pump -> settleLockGrant) | api 5.5a P "dequeue head, settle" | NONE — the grant is recorded under m_queueLock, the Locker scope CLOSES, then settleLockGrant runs (decide-under-lock / act-after-drop) | COMPLIANT as landed |
+// | LockObject.cpp:521 (asyncHold immediate grant -> settleLockGrant) | api 5.5a A "set m_asyncHeld/m_asyncHolder, settle" | NONE — acquiredImmediately is decided under m_queueLock; the settle runs after the scope closes | COMPLIANT as landed |
+// | ThreadObject.cpp:246 (completion -> settleJoinTicket) | F5 Compl "drop joinLock; settle moved tkts" | NONE — asyncJoiners are swapped out under joinLock (:239 scope), settled after the drop | COMPLIANT as landed |
+// | ThreadObject.cpp:435 (asyncJoin on a non-Running thread -> settleJoinTicket) | F5 asyncJoin | NONE — Phase is re-checked under joinLock (:426 scope) which decides settle-vs-append; the settle runs after the drop (no lost wakeup: completion settles appended tickets) | COMPLIANT as landed |
+// | ThreadManager.cpp:78 AsyncTicket::settle body | the settle implementation | NONE held by settle itself; GIL-off (U-T9) it gains the inboxLock open/closed routing per §E.4 — the closed=>main fallback must run AFTER the inboxLock drop (r18 F2), and the §E.7.3 wake fires with NEITHER m_pendingLock NOR any TS::inboxLock held | GIL-on shape landed; GIL-off routing = U-T9 |
+//
+// All frozen settle sites already conform to the r17 F2 precondition; U-T9
+// must preserve the act-after-drop shape when it adds the registrant-inbox
+// arm. U20's lint (settle-under-rank-3, wake-under-rank-3) guards regression.
+// ============================================================================
+
+// ============================================================================
+// UNGIL §F.6 — embedder (Bun) checklist rows (U-T8 deliverable; ANNEX EC1).
+// These rows bind OUT-OF-TREE Bun code; they are recorded here because the
+// lock contract they audit is this file's. Sign-off split (r21 F2): (b) gates
+// U-T9 ENTRY; (a)/(c)/(e) and (d)'s audit are U-T14 close items.
+//
+// | Row | Obligation | Status |
+// |-----|------------|--------|
+// | (a) JSLockHolder exclusivity audit | enumerate every Bun JSLockHolder critical section that today relies on excluding ALL JS; GIL-off m_lock excludes only embedder threads (§F.1) — each section must either tolerate concurrent spawned mutators or take a §K serializer | OPEN (Bun-side; U-T14) |
+// | (b) SD10 continuation affinity | embedder-registered ordinary-promise reactions settled by a spawned thread run ON THE SETTLER (§E.1b.1, X1.7) — off m_lock, off the embedder loop; a carrier-hop demand = a NEW negotiated SD | HARD precondition of U-T9 ENTRY; ALS slice discharged by ANNEX ALS1 |
+// | (c) blocking-site enumeration (DAL2.5/§F.6 delta (c)) | enumerate every Bun spawned-thread blocking native section; each must use §F.4 DAL, §J.3, or RHA/AHA-bracket per heap §9 (SPEC-heap.md:244). In-tree DAL sites are already bracket-correct (this file); known Bun site CLASSES to audit: epoll/kqueue waits in the event loop, synchronous file I/O off the pool, napi blocking calls, postMessage/Atomics.wait shims, dlopen/module-resolution locks | OPEN (Bun-side; U-T14) |
+// | (d) FIRST-VM-WINS construction order (U0c/EC1) | the VM intended to spawn Threads MUST be constructed strictly before any other VM (a utility VM constructed first permanently demotes it — no re-designation in v1); recommended boot-assert vm.gilOff()==true right after construction; enumerate every Bun VM-construction site incl. lazy helper VMs | OPEN (Bun-side; U-T14) |
+// | (e) no foreign-VM entry from spawned threads | native code on a spawned Thread never enters/creates another VM; enforcement is TWO RELEASE_ASSERTs: the §F.5-scope check in spawnedThreadEntryTokenLock (gilOff target VM) AND the gilOffProcess gate in JSLock::lock() ahead of the mutex arm (loser/GIL-on target VM — the only realizable foreign-VM shape, since the winner is the sole gilOff VM); both process-abort naming §F.6(e) via the lite->vm check | ENFORCED here (both arms); Bun audit OPEN (U-T14) |
+// ============================================================================
 
 JSLockHolder::JSLockHolder(JSGlobalObject* globalObject)
     : JSLockHolder(globalObject->vm())
@@ -91,6 +709,32 @@ void JSLock::lock()
 void JSLock::lock(intptr_t lockCount) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     ASSERT(lockCount > 0);
+
+    // UNGIL §F.1 (U-T8): GIL-off a SPAWNED Thread NEVER touches m_lock —
+    // entry is token-only. Branch before any mutex state (the mutex protocol
+    // below is the main/embedder F1B arm). Dark flag-off: gilOff() is false
+    // in every shipping configuration.
+    if (m_vm && m_vm->gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        spawnedThreadEntryTokenLock(*m_vm, lockCount);
+        return;
+    }
+
+    // UNGIL §F.5 caller scope / §F.6(e) (TERM1.5, U-T8): spawned threads are
+    // single-VM in v1. The token-arm assert above only covers a gilOff
+    // TARGET VM — under gilOffProcess a LOSER VM (m_gilOff == 0) would
+    // otherwise fall through to the m_lock arm and SILENTLY enter: install
+    // the loser's shared main carrier (the licensed U0b escape below),
+    // swap this thread's TID tag and §10A.1 client slot away from the
+    // winner-lite identity it still owns, and run JS on a foreign VM while
+    // holding (or interleaving with) the winner's heap access. Fail-stop
+    // here instead — an embedder-contract violation naming §F.6(e), a
+    // process abort, NOT a catchable error. Dark flag-off: isGILOffProcess()
+    // is false in every shipping configuration.
+    if (m_vm && VM::isGILOffProcess() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        RELEASE_ASSERT(lite && lite->vm == m_vm); // §F.6(e): no foreign-VM entry from spawned threads (A36 single-VM v1).
+    }
+
 #if USE(WEB_THREAD)
     if (m_isWebThreadAware) {
         ASSERT(WebCoreWebThreadIsEnabled && WebCoreWebThreadIsEnabled());
@@ -102,6 +746,15 @@ void JSLock::lock(intptr_t lockCount) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
     if (!success) [[unlikely]] {
         if (currentThreadIsHoldingLock()) {
             m_lockCount += lockCount;
+            // UNGIL §F.1 (F1B): GIL-off EVERY lock() runs the gated
+            // acquireHeapAccess on the carrier's client — idempotent at
+            // depth>0 (heap F8 step 0); after a conductor-forced revert it
+            // re-parks/re-acquires here before JS resumes.
+            if (m_vm && m_vm->gilOff()) [[unlikely]] {
+                VMLite* lite = VMLite::currentIfExists();
+                if (lite && lite->vm == m_vm && lite->clientHeap)
+                    lite->clientHeap->acquireHeapAccess();
+            }
             return;
         }
         m_lock.lock();
@@ -126,7 +779,70 @@ void JSLock::didAcquireLock()
     m_entryAtomStringTable = thread.setCurrentAtomStringTable(m_vm->atomStringTable());
     ASSERT(m_entryAtomStringTable);
 
+    bool tookGILOffCarrierPath = false;
+    VMLite* gilOffCarrierLite = nullptr;
     if (Options::useVMLite()) [[unlikely]] {
+        if (m_vm->gilOff()) [[unlikely]] {
+            tookGILOffCarrierPath = true;
+            // UNGIL §A.3.6 (A36/A36C; U-T1, dark): GIL-off NEVER installs the
+            // shared main carrier — every thread (the process main thread
+            // included) gets its per-(thread,VM) carrier, lazily created at
+            // first entry. The install swaps the full TLS tuple
+            // {lite, TID-tag, §10A.1 client slot}: setCurrent swaps lite+tag
+            // (jit P5/CS3 hook), and the client slot is re-stamped HERE,
+            // before any allocation/OM fast path and before the heap-access
+            // acquisition below (preserving §10A.1's slot-correct-before-AHA
+            // ordering). A spawned thread (api §5.2) never reaches this
+            // path with a foreign lite: spawned Threads are single-VM in v1
+            // (TERM1.5; §F.5's nested-entry rules cover main/embedder
+            // carriers only and land with U-T6).
+            VMLite* current = VMLite::currentIfExists();
+            if (!current || current->vm != m_vm) {
+                VMLite& carrier = ensureCarrierLiteForCurrentThread(*m_vm);
+                m_entryVMLite = VMLite::setCurrent(&carrier);
+                m_didInstallCarrierVMLite = true;
+                m_entryThreadClient = GCClient::Heap::currentThreadClient();
+                // A36C: the §10A.1 client slot is stamped from the CARRIER's
+                // client (== &m_vm->clientHeap until U-T6's per-thread
+                // clients land; this line is the GIL-off stamping authority
+                // — see the banner above).
+                GCClient::Heap::setCurrentThreadClient(carrier.clientHeap);
+                gilOffCarrierLite = &carrier;
+            } else {
+                // Defensive: a lite for this VM was already current at an
+                // outermost acquisition (no path produces this today —
+                // restores run at depth-0 unlock and parks fully release).
+                gilOffCarrierLite = current;
+            }
+            // §J.7 (U-T8): the JSLock.cpp:151 L1 backstop, REPLACED — the
+            // GIL-off branch RELEASE_ASSERTs the FULL U1 (ledger row 3):
+            // lite->vm, unique nonzero TID ("tid 0 never installed" folded
+            // in), A36C client clause, AND the TLS-tag equality half.
+            RELEASE_ASSERT(gilOffCarrierLite->vm == m_vm);
+            RELEASE_ASSERT(gilOffCarrierLite->tid);
+            RELEASE_ASSERT(gilOffCarrierLite->gilOff);
+            RELEASE_ASSERT(gilOffCarrierLite->clientHeap && GCClient::Heap::currentThreadClient() == gilOffCarrierLite->clientHeap);
+            // U1 TLS-tag clause: runs AFTER setCurrent's install above (the
+            // P5/CS3 hook is the tag's WRITER; this verifies the written
+            // word — incl. the JIT-visible copy where one exists — against
+            // the CURRENT lite's tid, fail-stopping a null/broken hook
+            // before any butterfly fast path runs under a wrong tag). Also
+            // covers the defensive already-current arm.
+            assertButterflyTIDTagCoherent();
+            // §F.1 (F1B): acquiring m_lock ALSO takes an entry token — the
+            // §A.3.1 entered set is uniform across both arms. depth stays 1
+            // here; m_lockCount carries mutex-arm recursion. Retired by
+            // willReleaseLock (incl. §J.3's unlockAllForThreadParking).
+            {
+                VMEntryTokenRecord token;
+                token.vm = m_vm;
+                token.vmEpoch = m_vm->vmEpoch();
+                token.lock = this;
+                token.lite = gilOffCarrierLite;
+                token.depth = 1;
+                entryTokensForCurrentThread().append(token);
+            }
+        }
         // §6.4.4: install the main carrier iff this thread has no lite or a
         // foreign one (covers main thread, embedder threads, multi-VM per
         // thread). A spawned thread (api §5.2) registered + setCurrent its
@@ -142,30 +858,60 @@ void JSLock::didAcquireLock()
         // mutate concurrently while both believing they are TID-0 owners,
         // they would race unlocked flat-butterfly transitions
         // (SPEC-objectmodel §2/§3 assumes TIDs identify a unique live
-        // thread). The RELEASE_ASSERT fail-stops any GIL-off configuration
-        // that still reaches this install path; before GIL-off, M4 must be
-        // replaced per cross-WS item 13 (per-thread carriers, unique TIDs
-        // from ThreadManager, never two threads installed with the same tid).
-        VMLite* cur = VMLite::currentIfExists();
-        if ((!cur || cur->vm != m_vm) && m_vm->mainVMLite()) {
-            RELEASE_ASSERT(!Options::useJSThreads() || Options::useThreadGIL());
-            m_entryVMLite = VMLite::setCurrent(m_vm->mainVMLite());
-            m_didInstallVMLite = true;
+        // thread). The RELEASE_ASSERT fail-stops any GIL-off VM that still
+        // reaches this install path; the gilOff carrier branch above is M4's
+        // cross-WS-item-13 replacement (per-thread carriers, unique TIDs).
+        //
+        // UNGIL SUPERSESSION (U-T1; INTEGRATE-ungil.md ledger): the landed
+        // form `RELEASE_ASSERT(!useJSThreads || useThreadGIL)` gains exactly
+        // ONE licensed escape — under gilOffProcess a LOSER VM (U0b:
+        // m_gilOff == 0) legally installs the shared main carrier because
+        // its mutators stay serialized by its own m_lock. The m_gilOff
+        // winner never gets here (it took the carrier branch above), and a
+        // useJSThreads&&!useThreadGIL config WITHOUT the U0 trio still
+        // crashes exactly as before (U0 option validation additionally
+        // refuses that shape upstream once landed).
+        if (!tookGILOffCarrierPath) {
+            VMLite* cur = VMLite::currentIfExists();
+            if ((!cur || cur->vm != m_vm) && m_vm->mainVMLite()) {
+                RELEASE_ASSERT(!Options::useJSThreads() || Options::useThreadGIL()
+                    || (VM::isGILOffProcess() && !m_vm->gilOff()));
+                m_entryVMLite = VMLite::setCurrent(m_vm->mainVMLite());
+                m_didInstallVMLite = true;
+            }
         }
     }
 
     m_vm->setLastStackTop(thread);
 
-    if (m_vm->heap.hasAccess())
+    if (gilOffCarrierLite) [[unlikely]] {
+        // UNGIL §F.1 (F1B; U-T8): GIL-off the heap-access bracket is the
+        // CARRIER CLIENT's (§B.1), §A.3.2b/§A.3.8-gated inside
+        // acquireHeapAccess (F8 step-0 idempotent; stop-pending =>
+        // mandatory-revert + park). Symmetric release in willReleaseLock.
+        GCClient::Heap* client = gilOffCarrierLite->clientHeap;
+        m_shouldReleaseHeapAccess = !client->hasHeapAccess();
+        client->acquireHeapAccess();
+    } else if (m_vm->heap.hasAccess())
         m_shouldReleaseHeapAccess = false;
     else {
         m_vm->heap.acquireAccess();
         m_shouldReleaseHeapAccess = true;
     }
 
+    // UNGIL §A.1.4 (L7): the accessor is mode-split, so GIL-on this is the
+    // landed VM-slot assert, and GIL-off it asserts the CURRENT CARRIER
+    // LITE's slot empty (re-entry restores through the VMEntryRecord chain,
+    // not this slot) — exactly the §A.1.4 re-keying; one line serves both.
     RELEASE_ASSERT(!m_vm->stackPointerAtVMEntry());
     void* p = currentStackPointer();
     m_vm->setStackPointerAtVMEntry(p);
+    if (gilOffCarrierLite) [[unlikely]] {
+        // §F.1 token half {depth, spAtEntry}; recorded after the sp write so
+        // the token and the lite slot agree.
+        if (VMEntryTokenRecord* token = entryTokenFor(*m_vm))
+            token->spAtEntry = p;
+    }
 
     if (thread.uid() != m_lastOwnerThread) {
         m_lastOwnerThread = thread.uid();
@@ -176,7 +922,16 @@ void JSLock::didAcquireLock()
     }
 
     // Note: everything below must come after addCurrentThread().
-    m_vm->traps().notifyGrabAllLocks();
+    if (gilOffCarrierLite) [[unlikely]] {
+        // UNGIL §A.2.3/§F.1 (U-T8): GIL-off, token acquisition ORs the VM
+        // trap + service words into the entering lite — this REPLACES
+        // notifyGrabAllLocks as the late-joiner delivery edge (the VM-wide
+        // word stays the fan-out source; carrier-only bits are not filtered
+        // here because this arm IS a carrier).
+        m_vm->traps().orVMWideTrapBitsIntoLite(*gilOffCarrierLite);
+        m_vm->backfillEntryScopeServiceBitsForLiteRegistration(*gilOffCarrierLite);
+    } else
+        m_vm->traps().notifyGrabAllLocks();
 
 #if ENABLE(SAMPLING_PROFILER)
     {
@@ -304,6 +1059,13 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 // is not supported by analysis.
 void JSLock::unlock(intptr_t unlockCount) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
+    // UNGIL §F.2 (U-T8): spawned unlock takes the token branch BEFORE the
+    // mutex RELEASE_ASSERT — a spawned thread never owns m_lock GIL-off.
+    if (m_vm && m_vm->gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        spawnedThreadEntryTokenUnlock(*m_vm, unlockCount);
+        return;
+    }
+
 #if PLATFORM(COCOA) && CPU(ADDRESS64) && CPU(ARM64)
     if (!currentThreadIsHoldingLock()) [[unlikely]]
         dumpInfoAndCrashForLockNotOwned();
@@ -339,19 +1101,56 @@ void JSLock::willReleaseLock()
             });
 #endif
 
-            if (!m_lockDropDepth || useLegacyDrain)
+            if (!m_lockDropDepth || useLegacyDrain) {
                 protectedVM->drainMicrotasks();
+                // UNGIL §F.1 (U-T8): drain-on-release KEPT GIL-off — the
+                // CURRENT lite's queue (I11). The VM-level drain above stays
+                // for embedder-enqueued microtasks (queueMicrotask is not
+                // rerouted until §E/U-T9); the per-lite drain is a no-op
+                // while that queue is never created.
+                if (protectedVM->gilOff()) [[unlikely]] {
+                    VMLite* lite = VMLite::currentIfExists();
+                    if (lite && lite->vm == protectedVM.get())
+                        lite->drainDefaultMicrotaskQueue();
+                }
+            }
 
-            if (!protectedVM->topCallFrame)
+            // UNGIL §A.1.3 (U-T1): this depth-0 "no live frames" guard reads
+            // topCallFrame through the SAME mode-split selector as the
+            // clearLastException() it gates — GIL-on the VM block
+            // (bit-identical to the landed raw read), GIL-off the CURRENT
+            // carrier lite (still installed here: the tuple restore below
+            // runs after this block). A raw VM-block read would be the inert
+            // spare slot (always null) once U-T3/U-T4 emission makes the
+            // lite authoritative, unconditionally clearing the lite's
+            // m_lastException under live frames. On-thread read — IU table
+            // (iv) row, disposition (iii).
+            if (!protectedVM->group3Primitives().topCallFrame)
                 protectedVM->clearLastException();
 
             protectedVM->heap.releaseDelayedReleasedObjects();
             protectedVM->setStackPointerAtVMEntry(nullptr);
 
-            if (m_shouldReleaseHeapAccess)
-                protectedVM->heap.releaseAccess();
+            if (m_shouldReleaseHeapAccess) {
+                if (protectedVM->gilOff()) [[unlikely]] {
+                    // §F.1 (F1B; U-T8): symmetric to didAcquireLock — the
+                    // CARRIER CLIENT's access bracket, not the server's.
+                    // The carrier tuple is still installed here (the restore
+                    // below runs after this block).
+                    VMLite* lite = VMLite::currentIfExists();
+                    RELEASE_ASSERT(lite && lite->vm == protectedVM.get() && lite->clientHeap);
+                    lite->clientHeap->releaseHeapAccess();
+                } else
+                    protectedVM->heap.releaseAccess();
+            }
         }
     }
+
+    // UNGIL §F.1/§J.3 (U-T8): retire this lock's entry token (main/embedder
+    // F1B arm). Runs for plain depth-0 unlock, DropAllLocks' full drop, AND
+    // unlockAllForThreadParking — so §J.3 park sites release m_lock + token
+    // in one shape. No-op (empty thread-local scan) on GIL-on threads.
+    retireEntryTokenForLock(this);
 
     if (m_didInstallVMLite) {
         // §6.4.4: restore ONLY IF the installed main carrier is still
@@ -367,6 +1166,19 @@ void JSLock::willReleaseLock()
         m_didInstallVMLite = false;
     }
 
+    if (m_didInstallCarrierVMLite) {
+        // UNGIL A36C: LIFO restore of the full tuple — {lite, TID-tag} via
+        // setCurrent (tag hook), then the §10A.1 client slot re-stamped to
+        // the restored tuple's saved value; restoring to "no lite" clears
+        // the slot (m_entryThreadClient was captured as null then).
+        ASSERT(!VMLite::currentIfExists() || VMLite::currentIfExists()->vm == m_vm);
+        VMLite::setCurrent(m_entryVMLite);
+        GCClient::Heap::setCurrentThreadClient(m_entryThreadClient);
+        m_entryVMLite = nullptr;
+        m_entryThreadClient = nullptr;
+        m_didInstallCarrierVMLite = false;
+    }
+
     if (m_entryAtomStringTable) {
         Thread::currentSingleton().setCurrentAtomStringTable(m_entryAtomStringTable);
         m_entryAtomStringTable = nullptr;
@@ -378,6 +1190,18 @@ void JSLock::uninstallVMLiteForVMDestruction()
     // SPEC-vmstate §6.4.4/I20. Caller: TOP of ~VM (M6), API lock held
     // (~VM asserts), m_vm still valid (runs BEFORE
     // m_apiLock->willDestroyVM(this) nulls it).
+    if (m_didInstallCarrierVMLite) {
+        // UNGIL A36 (U-T1 skeleton): the destroying thread's carrier tuple is
+        // restored here; the carrier itself stays in the TLS map and is
+        // collected by the ~VM walk / carrier-TLS-death path (U-T6 owns the
+        // full EXIT1.9 order).
+        VMLite::setCurrent(m_entryVMLite);
+        GCClient::Heap::setCurrentThreadClient(m_entryThreadClient);
+        m_entryVMLite = nullptr;
+        m_entryThreadClient = nullptr;
+        m_didInstallCarrierVMLite = false;
+        return;
+    }
     if (!m_didInstallVMLite)
         return;
     if (VMLite::currentIfExists() == m_vm->mainVMLite())
@@ -388,6 +1212,13 @@ void JSLock::uninstallVMLiteForVMDestruction()
 
 unsigned JSLock::unlockAllForThreadParking()
 {
+    // UNGIL §J.3 (U-T8 note; U-T11 carries the GILDroppedSection split):
+    // GIL-off this remains the MAIN/EMBEDDER park-site full release — it
+    // drops m_lock AND (via willReleaseLock) the entry token, releasing the
+    // carrier client's heap access, exactly the J.3 "release m_lock + token
+    // via the unlockAllForThreadParking shape". Spawned threads never own
+    // m_lock GIL-off, so their park sites must not reach this (the J.3
+    // spawned arm is token-only: access release + §A.3 park cooperation).
     RELEASE_ASSERT(currentThreadIsHoldingLock());
     unsigned droppedLockCount = static_cast<unsigned>(m_lockCount);
     // Suppress willReleaseLock()'s drainMicrotasks() (guarded on
@@ -474,6 +1305,20 @@ JSLock::DropAllLocks::DropAllLocks(VM* vm)
     // if the lock isn't already held, there's nothing to do, and that's fine.
     // See https://bugs.webkit.org/show_bug.cgi?id=139654#c11.
     RELEASE_ASSERT(!m_vm->currentThreadIsHoldingAPILock() || !m_vm->isCollectorBusyOnCurrentThread(), m_vm->currentThreadIsHoldingAPILock(), m_vm->isCollectorBusyOnCurrentThread());
+
+    // UNGIL §F.4 / ANNEX DAL2 (U-T8): on a SPAWNED thread GIL-off,
+    // DropAllLocks is a HEAP-ACCESS bracket, not a lock drop — token, entry
+    // depth, m_lock, m_lockDropDepth all untouched; 0 locks dropped (U14).
+    // DAL2.4 SUPERSESSION: INTEGRATE-api D1's phase-1 constraint (no
+    // DropAllLocks on the shared VM while spawned Threads are live) is
+    // LIFTED GIL-off by this bracket; GIL-on (gilOff() false) keeps the
+    // constraint until the flip — this branch is unreachable there, so the
+    // landed behavior is bit-identical.
+    if (m_vm->gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        spawnedDropAllLocksBracketEnter(*m_vm);
+        return; // m_droppedLockCount stays 0.
+    }
+
     m_droppedLockCount = protect(m_vm->apiLock())->dropAllLocks(this);
 }
 
@@ -491,6 +1336,13 @@ JSLock::DropAllLocks::~DropAllLocks()
 {
     if (!m_vm)
         return;
+    // UNGIL §F.4 / ANNEX DAL2 (U-T8): spawned arm — close the access
+    // bracket (gated re-acquire + deferred trap poll); never grabAllLocks
+    // (nothing was dropped, U14; LIFO/m_lockDropDepth uninvolved).
+    if (m_vm->gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        spawnedDropAllLocksBracketExit(*m_vm);
+        return;
+    }
     protect(m_vm->apiLock())->grabAllLocks(this, m_droppedLockCount);
 }
 

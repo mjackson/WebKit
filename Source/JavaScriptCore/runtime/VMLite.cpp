@@ -26,12 +26,21 @@
 #include "config.h"
 #include "VMLite.h"
 
+#include "JSCConfig.h"      // g_jscConfig.vmLiteTLSKey (Darwin mirror arm, UNGIL §A.1.1 / jit App. R5).
 #include "MicrotaskQueue.h" // Complete type for ~RefPtr<MicrotaskQueue> in ~VMLite + create() (§6.5).
 #include "VM.h"             // ScratchBuffer/VMMalloc (§6.6); currentThreadIsHoldingAPILock (I14).
 #include "VMLiteInlines.h"  // isInstalledOnCurrentThread (I11 asserts below).
 #include "VMLiteShared.h"   // VMLiteRegistry (debug registration asserts, I20).
 #include <atomic>
+#include <bit>
+#include <mutex>
+#include <wtf/FastMalloc.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
+
+#if OS(DARWIN)
+#include <pthread.h>
+#endif
 
 namespace JSC {
 
@@ -41,6 +50,73 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(VMLite);
 // pthread_getspecific. The accessor signatures in VMLite.h are frozen; this
 // backing store is replaceable in Phase B (pinned register/TLS base).
 static thread_local VMLite* t_currentVMLite { nullptr };
+
+// ===========================================================================
+// UNGIL §A.1.1 (U-T4a): the JIT/LLInt-visible mirror of t_currentVMLite.
+//
+// DEFINED in runtime/VM.cpp (full rationale block there); the gilOff-mode
+// `loadVMLite` emitter (jit/AssemblyHelpers.cpp, U-T3) bakes its initial-exec
+// TPOFF into Baseline/DFG/FTL code, and the LLInt offlineasm macro (U-T3
+// OPEN obligation) will read the same symbol. This TU re-declares it with
+// the IDENTICAL language linkage + TLS model so the stores below resolve to
+// the same thread-invariant slot.
+//
+// COHERENCE CONTRACT (VM.cpp:230-246, discharged HERE — the dedicated IU
+// obligation row VM.cpp demands, owner "the VMLite.cpp slice", is satisfied
+// by this hunk; record the row in INTEGRATE-ungil.md, which is outside this
+// task's writable set): VMLite::setCurrent — the SOLE writer of
+// t_currentVMLite — mirrors EVERY TLS write here (and, on Darwin,
+// pthread_setspecific's the same value into the g_jscConfig.vmLiteTLSKey
+// slot), immediately after the t_currentVMLite store and BEFORE the TID-tag
+// hook fires, INCLUDING null/uninstall writes (carrier teardown, thread
+// exit): an unmirrored clear would leave a reused thread's generated code
+// reading a stale/freed lite.
+//
+// Flag-off / GIL-on identity: the mirror is a plain TLS store on a path
+// (lite install/uninstall) that flag-off code reaches only at JSLock
+// acquire/release; no generated code reads the symbol except gilOff-mode
+// compilations (§A.1.3 COMPILED-FOR-VM-mode rule), and no shipping
+// configuration constructs a gilOff VM until the activation tasks land.
+// ===========================================================================
+#if OS(LINUX)
+extern "C" __attribute__((tls_model("initial-exec"))) thread_local VMLite* g_jscCurrentVMLite;
+#else
+extern "C" thread_local VMLite* g_jscCurrentVMLite;
+#endif
+
+static ALWAYS_INLINE void mirrorCurrentVMLiteForGeneratedCode(VMLite* lite)
+{
+    // ELF / generic arm: the thread_local mirror itself (generated code reads
+    // it via IE-TLS on Linux; inert elsewhere but kept coherent — it costs
+    // one TLS store and removes a per-OS divergence in the writer).
+    g_jscCurrentVMLite = lite;
+
+#if OS(DARWIN)
+    // Darwin arm (jit App. R5 mechanics): Mach-O TLV has no constant offset,
+    // so generated code reads a pthread TSD slot instead; the key is created
+    // at the P5-init point (jit slice) and published through the M4a-style
+    // JSCConfig slot. JSC_CONFIG_HAS_VMLITE_TLS_KEY is defined in
+    // JSCConfig.h BESIDE the vmLiteTLSKey member (the
+    // JSC_ASSEMBLYHELPERS_HAS_LOAD_VMLITE inversion pattern, see
+    // jit/AssemblyHelpers.cpp) — until that slot lands (outside this task's
+    // writable set; OPEN obligation escalated at the U-T3 amendment), this
+    // arm compiles away and the Darwin loadVMLite emitter keeps its
+    // RELEASE_ASSERT_NOT_REACHED fail-stop, so no torn contract is possible.
+#if defined(JSC_CONFIG_HAS_VMLITE_TLS_KEY)
+    // FAIL-STOP, not skip-if-absent: once this arm compiles in, the Darwin
+    // loadVMLite emitter emits unconditional TSD loads on the premise that
+    // EVERY install/uninstall reached this slot. A lite install racing ahead
+    // of pthread_key_create (P5-init ordering bug) must crash here, loudly —
+    // a silent skip would leave this thread's generated code reading a null
+    // or (on thread reuse after a skipped uninstall) stale/freed lite. This
+    // also ENFORCES the install-after-key-creation ordering the activation
+    // checklist otherwise only asserts in comments.
+    RELEASE_ASSERT(g_jscConfig.vmLiteTLSKey);
+    int result = pthread_setspecific(static_cast<pthread_key_t>(g_jscConfig.vmLiteTLSKey), lite);
+    RELEASE_ASSERT(!result);
+#endif
+#endif
+}
 
 // §6.7 TID-tag hook (jit CS3/I19 provider). Null default — Phase-A standalone
 // builds and flag-off runs never register one. Registration happens once at
@@ -60,9 +136,20 @@ VMLite::~VMLite()
     // §6.6: scratch buffers are VMMalloc'd raw blocks (mirrors ~VM,
     // VM.cpp:655-656). No lock: the lifetime contract (§6.5.1 — unregistered,
     // uninstalled) means no other thread can reach this carrier anymore.
+    // Buffers installed at A16 baked indices are owned by this same list
+    // (ensureScratchBufferAtIndex appends), so this loop frees them too.
     for (auto* scratchBuffer : scratchBuffers)
         VMMalloc::free(scratchBuffer);
     scratchBuffers.clear();
+
+    // A16: free the segment arrays (the buffers they pointed at were freed
+    // above via the ownership list).
+    for (auto& segmentSlot : scratchSegments) {
+        if (auto* segment = segmentSlot.load(std::memory_order_relaxed)) {
+            segmentSlot.store(nullptr, std::memory_order_relaxed);
+            fastFree(segment);
+        }
+    }
 #if ASSERT_ENABLED
     {
         // Lifetime contract (§6.5.1): unregister BEFORE destroy. Leaf lock —
@@ -114,6 +201,13 @@ VMLite* VMLite::setCurrent(VMLite* lite)
     VMLite* previous = t_currentVMLite;
     t_currentVMLite = lite;
 
+    // UNGIL §A.1.1 (U-T4a): mirror the write for generated code — after the
+    // t_currentVMLite store, before the TID-tag hook, including null
+    // (uninstall) writes. See the contract block above the mirror
+    // declaration; gilOff-mode Baseline/DFG emission (loadVMLite) is sound
+    // only because every writer path funnels through here.
+    mirrorCurrentVMLiteForGeneratedCode(lite);
+
     // §6.7: invoke the TID-tag hook AFTER the TLS write, with the new tid (0
     // for uninstall) — §6.4.4 install/restore and multi-VM switches keep
     // g_jscButterflyTIDTag coherent (jit I19). Null hook => no-op.
@@ -144,8 +238,40 @@ MicrotaskQueue& VMLite::ensureDefaultMicrotaskQueue()
 }
 
 // ---- §6.6 Group 5: per-thread scratch buffers (Phase A inert; frozen
-// Phase-B signature). Logic mirrors VM::scratchBufferForSize /
-// VM::clearScratchBuffers (VM.cpp:1595-1624). ----------------------------
+// Phase-B signature). ------------------------------------------------------
+//
+// ANNEX A16 NON-BAKED ARM (NORMATIVE, F9 re-freeze vs vmstate:534-539): the
+// reserved VMLite::scratchBufferForSize(size_t) is implemented "over the
+// segmented table by size-class index" — NOT by transplanting
+// VM::scratchBufferForSize's `scratchBuffers.last()` geometric series.
+// That transplant is memory-UNSAFE here: A16 repurposed `scratchBuffers` as
+// the lite's buffer-OWNERSHIP list, and ensureScratchBufferAtIndex appends
+// baked-index buffers to it too — including from OTHER threads via
+// VM::allocateBakedScratchBufferIndex's install fan and the registration
+// backfill — so `.last()` can be an arbitrarily small baked buffer that a
+// stale `size <= sizeOfLastScratchBuffer` check never re-validates
+// (undersized return => caller heap overflow). The ownership list must
+// never be a lookup structure.
+//
+// Size classes are powers of two (class c serves sizes in (2^(c-1), 2^c],
+// buffer size 2^c): at most one buffer per class per lite, total per-lite
+// non-baked footprint <= 2x the largest request — the same geometric-series
+// memory bound VM's policy targets. Each class lazily claims ONE
+// process-wide ScratchBufferRegistry index (monotonic, never freed), so the
+// per-lite storage is the ordinary A16 segmented table: registration
+// backfill pre-installs the classes other lites already use, and the
+// two-load read below serves repeats lock-free.
+//
+// s_scratchSizeClassLock rank: taken with NO other lock held (it is the
+// outermost acquisition on this path) and only ScratchBufferRegistry::m_lock
+// (via allocateIndex) is acquired under it — consistent with SBR sitting
+// outside VMLiteRegistry::lock (§LK.6); scratchBufferLock (inside
+// ensureScratchBufferAtIndex) is taken only after it is released.
+
+static constexpr unsigned numScratchSizeClasses = sizeof(size_t) * 8;
+static Lock s_scratchSizeClassLock;
+static uint64_t s_scratchSizeClassAllocated WTF_GUARDED_BY_LOCK(s_scratchSizeClassLock) { 0 };
+static unsigned s_scratchSizeClassIndices[numScratchSizeClasses] WTF_GUARDED_BY_LOCK(s_scratchSizeClassLock);
 
 ScratchBuffer* VMLite::scratchBufferForSize(size_t size)
 {
@@ -154,24 +280,43 @@ ScratchBuffer* VMLite::scratchBufferForSize(size_t size)
 
     ASSERT(isInstalledOnCurrentThread()); // I11.
 
-    // Leaf lock (§7): only fastMalloc/VMMalloc under it. Held even though
-    // Phase A is owner-only so the locking discipline is already the Phase-B
-    // one (GC root gathering will iterate registered lites' buffers).
-    Locker locker { scratchBufferLock };
+    // bit_ceil of a size above 2^63 is unrepresentable (UB); no plausible
+    // scratch request approaches it, so fail-stop first.
+    RELEASE_ASSERT(size <= (static_cast<size_t>(1) << (numScratchSizeClasses - 1)));
+    size_t classSize = std::bit_ceil(size); // Smallest power of two >= size.
+    unsigned sizeClass = std::countr_zero(classSize);
 
-    if (size > sizeOfLastScratchBuffer) {
-        // Protect against an N^2 memory usage pathology by ensuring that at
-        // worst, we get a geometric series, meaning that the total memory
-        // usage is somewhere around max(scratch buffer size) * 4.
-        sizeOfLastScratchBuffer = size * 2;
-
-        ScratchBuffer* newBuffer = ScratchBuffer::create(sizeOfLastScratchBuffer);
-        RELEASE_ASSERT(newBuffer);
-        scratchBuffers.append(newBuffer);
+    unsigned index;
+    {
+        Locker locker { s_scratchSizeClassLock };
+        if (!(s_scratchSizeClassAllocated & (1ull << sizeClass))) {
+            s_scratchSizeClassIndices[sizeClass] = ScratchBufferRegistry::singleton().allocateIndex(classSize);
+            s_scratchSizeClassAllocated |= 1ull << sizeClass;
+        }
+        index = s_scratchSizeClassIndices[sizeClass];
     }
 
-    return scratchBuffers.last();
+    // Fast path: the two-load lock-free read (repeat requests in this class,
+    // or a class another lite already claimed that our registration backfill
+    // / a racing install fan populated).
+    if (ScratchBuffer* buffer = scratchBufferAtIndex(index))
+        return buffer;
+
+    // Slow path: idempotent install under scratchBufferLock; appends to the
+    // `scratchBuffers` ownership list (GC scan + teardown free), exactly
+    // like the baked arm.
+    ensureScratchBufferAtIndex(index, classSize);
+    ScratchBuffer* buffer = scratchBufferAtIndex(index);
+    RELEASE_ASSERT(buffer);
+    return buffer;
 }
+
+// NOTE: VMLite::sizeOfLastScratchBuffer (VMLite.h L2 append, task 7) is
+// RETIRED by the size-class dispatch above: it stays 0 forever and no code
+// may consult it (a stale high-water check against the shared ownership
+// list is exactly the undersized-buffer hazard documented above). The field
+// itself is outside this task's writable set (VMLite.h); removing it is an
+// orchestrator-tracked cleanup, harmless meanwhile.
 
 void VMLite::clearScratchBuffers()
 {
@@ -194,6 +339,187 @@ ButterflyTID currentButterflyTID()
 void setVMLiteTIDTagHook(void (*hook)(uint16_t))
 {
     s_vmLiteTIDTagHook.store(hook, std::memory_order_release);
+}
+
+// ---- ANNEX A16 (UNGIL §A.1.6, U-T1): process-wide baked-index registry +
+// per-lite segmented table. Dark until U-T4 emission allocates indices. ----
+//
+// U-T4a STATUS (codegen-side contract, recorded here because this TU is the
+// runtime half the emission consumes). This TU is the RUNTIME HALF ONLY —
+// nothing below certifies U-T4a complete:
+//
+//   LANDED (runtime side, this TU + VM.cpp/JSLock.cpp): the registry
+//   (allocateIndex/sizeForIndex/indexCount), the per-lite segmented table
+//   (scratchBufferAtIndex two-load read / ensureScratchBufferAtIndex /
+//   backfillBakedScratchBuffers), VM::allocateBakedScratchBufferIndex's
+//   install fan (VM.cpp), the JSLock.cpp registration backfill, the §A.1.1
+//   g_jscCurrentVMLite mirror in setCurrent above, and the annex-A16
+//   non-baked arm (VMLite::scratchBufferForSize over the segmented table by
+//   size-class index — see the block above it).
+//
+//   NOT LANDED BY THIS SLICE (the U-T4a codegen half; jit/ + dfg/ are
+//   OUTSIDE this slice's writable file set — VMLite.cpp only): the
+//   Baseline/DFG mode-keyed (codeBlock->vm->m_gilOff, §A.1.3
+//   COMPILED-FOR-VM rule) Group-3 + scratch emission, the per-row A16-ext
+//   emission, and the golden-disasm re-baseline (shared with U-T4b). The
+//   only loadVMLite machinery in the tree is the U-T3 emitter in
+//   jit/AssemblyHelpers.cpp; U-T4a MUST NOT be marked complete until the
+//   emission slice lands against this runtime half.
+//
+//   NOT YET LANDABLE — A16 EXTENSION (AUD1.K4): the lite-resident copies of
+//   VM::m_megamorphicCache, VM::m_hasOwnPropertyCache,
+//   JSGlobalObject::m_regExpGlobalData (SD19) and JSGlobalObject::
+//   m_weakRandom (K4.VIII.10) require L2 member appends + offsetOf*
+//   accessors in VMLite.h, which is OUTSIDE this task slice's writable file
+//   set (VMLite.cpp only). Until those slots exist, gilOff-mode compilation
+//   MUST NOT emit lite-relative inline fast paths for those four rows — the
+//   emission slice keeps them dark (no gilOff VM is constructible before
+//   the activation tasks, so this is a sequencing constraint, not a live
+//   hole). Activation checklist (each item outside this file): (1) VMLite.h
+//   slot appends + offsets; (2) registration-time slot fill (lazy §K.3
+//   publish for ensure* contents) at the JSLock.cpp/spawn registration
+//   sites; (3) registry-walk root scan + ~VM walk for the cell-holding
+//   RegExpGlobalData copies (AUD1.K2); (4) the K4.VI.2 epoch-bump fan-out
+//   inside the firing stop; (5) the per-row Baseline/DFG emission keyed on
+//   the COMPILED-FOR VM's mode (codeBlock->vm->m_gilOff, §A.1.3).
+//   Flag-off/GIL-on keeps today's baked VM/global addresses (golden gates
+//   intact) regardless.
+
+ScratchBufferRegistry& ScratchBufferRegistry::singleton()
+{
+    static LazyNeverDestroyed<ScratchBufferRegistry> registry;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        registry.construct();
+    });
+    return registry;
+}
+
+unsigned ScratchBufferRegistry::allocateIndex(size_t size)
+{
+    Locker locker { m_lock };
+    unsigned index = m_sizes.size();
+    // The per-lite segmented table is fixed-capacity (L2 append; VMLite.h).
+    // Exceeding it would need a spec revision of the segment geometry, not a
+    // silent overflow.
+    RELEASE_ASSERT(index < VMLite::maxScratchSegments * VMLite::scratchSegmentSize);
+    m_sizes.append(size);
+    return index;
+}
+
+size_t ScratchBufferRegistry::sizeForIndex(unsigned index) const
+{
+    Locker locker { m_lock };
+    return m_sizes[index];
+}
+
+unsigned ScratchBufferRegistry::indexCount() const
+{
+    Locker locker { m_lock };
+    return m_sizes.size();
+}
+
+void VMLite::ensureScratchBufferAtIndex(unsigned index, size_t size)
+{
+    ASSERT(index < maxScratchSegments * scratchSegmentSize);
+    // scratchBufferLock is acquired under VMLiteRegistry::lock by the
+    // VM-side install fan — legal per the §LK.6 re-rank (see
+    // ScratchBufferRegistry's class comment). fastMalloc/VMMalloc only under
+    // it, as before.
+    Locker locker { scratchBufferLock };
+
+    auto& segmentSlot = scratchSegments[index >> scratchSegmentShift];
+    auto* segment = segmentSlot.load(std::memory_order_relaxed);
+    if (!segment) {
+        segment = static_cast<std::atomic<ScratchBuffer*>*>(
+            fastZeroedMalloc(scratchSegmentSize * sizeof(std::atomic<ScratchBuffer*>)));
+        // Release-publish the zeroed segment for the lock-free readers.
+        segmentSlot.store(segment, std::memory_order_release);
+    }
+
+    auto& entry = segment[index & (scratchSegmentSize - 1)];
+    if (entry.load(std::memory_order_relaxed))
+        return; // Idempotent: a racing fan/backfill already installed it.
+
+    ScratchBuffer* buffer = ScratchBuffer::create(size);
+    RELEASE_ASSERT(buffer);
+    // Ownership list FIRST (the repurposed Group 5: backs the jit-R2 GC scan
+    // and the dtor free above), then the release-publish readers load from.
+    scratchBuffers.append(buffer);
+    entry.store(buffer, std::memory_order_release);
+}
+
+void VMLite::backfillBakedScratchBuffers()
+{
+    auto& registry = ScratchBufferRegistry::singleton();
+    unsigned count = registry.indexCount();
+    for (unsigned index = 0; index < count; ++index)
+        ensureScratchBufferAtIndex(index, registry.sizeForIndex(index));
+}
+
+// ---- UNGIL §A.2.1 per-lite traps seam (U-T2). -----------------------------
+//
+// The §A.2.1 contract appends (L2, after Group 6) `VMThreadContext
+// threadContext` to VMLite, giving every thread its own VMTraps (trap word +
+// StackManager stack limits) that generated code reaches via the chained
+// offset lite->threadContext.traps().m_trapBits. VMLite.h is OUTSIDE U-T2's
+// owned file set, so the member append cannot land here; until it does, the
+// per-lite traps ALIAS the VM-level word:
+//   - rule-3 fan-outs (VMTraps::fireTrapVMWide) set the VM word exactly once
+//     (callers skip pointer-identical duplicates);
+//   - the token-acquisition OR (orVMWideTrapBitsIntoLite) is a no-op;
+//   - per-lite readers (D9 park-lite polls, the W1 captured-lite poll)
+//     observe VM-word — i.e. phase-1 — semantics;
+//   - the JIT chained-offset consumers are dark (U-T3/U-T4).
+//
+// NOT ACTIVATABLE BY A LOCAL FLIP: flipping the return below to
+// `&lite.threadContext.traps()` is necessary but NOT sufficient — the
+// VMLite.h member append, the §F.1 JSLock.cpp orVMWideTrapBitsIntoLite
+// wiring (currently ZERO callers), the §A.2.2 VM.cpp updateStackLimits
+// re-target (memory-safety grade under N-parallel entry), and the park-site
+// W1/D9 predicate split must all land first. The full activation checklist —
+// each item outside U-T2's owned file set, recorded with the orchestrator —
+// lives with the seam declaration in VMTraps.h. Until then, §A.2 clauses 1-2
+// are NOT in effect and N-mutator GIL-off entry must not be enabled;
+// VMTraps.cpp carries interim single-shared-word TERM1.2 semantics (the
+// sibling-visibility take rule + carrier re-entry shield) that keep VM-wide
+// termination delivered to every entered thread under the alias.
+
+VMTraps* perThreadTrapsIfExists(VMLite& lite)
+{
+    // Unregistered/poisoned lites carry no usable VM; callers only walk
+    // registered lites (under the registry lock), so this is belt-and-
+    // suspenders for pre-registration probes.
+    if (!lite.vm)
+        return nullptr;
+    return &lite.vm->traps();
+}
+
+// ---- UNGIL §A.3.6/ANNEX A36 carrier-TID hooks (U-T1). ----
+
+static std::atomic<uint16_t (*)()> s_allocateCarrierTIDHook { nullptr };
+static std::atomic<void (*)(uint16_t)> s_releaseCarrierTIDHook { nullptr };
+
+void setCarrierTIDHooks(uint16_t (*allocate)(), void (*release)(uint16_t))
+{
+    s_allocateCarrierTIDHook.store(allocate, std::memory_order_release);
+    s_releaseCarrierTIDHook.store(release, std::memory_order_release);
+}
+
+uint16_t allocateCarrierTID()
+{
+    auto* hook = s_allocateCarrierTIDHook.load(std::memory_order_acquire);
+    RELEASE_ASSERT_WITH_MESSAGE(hook,
+        "GIL-off carrier registration requires the ThreadManager carrier-TID provider (UNGIL annex A36; INTEGRATE-ungil.md)");
+    uint16_t tid = hook();
+    RELEASE_ASSERT(tid && tid != 0x7fff); // never tag 0 or notTTLTID (A36/TTL).
+    return tid;
+}
+
+void releaseCarrierTIDIfHooked(uint16_t tid)
+{
+    if (auto* hook = s_releaseCarrierTIDHook.load(std::memory_order_acquire))
+        hook(tid);
 }
 
 } // namespace JSC

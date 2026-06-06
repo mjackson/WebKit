@@ -87,6 +87,29 @@ void VMEntryScope::setUpSlow()
         }
     }
 
+    // UNGIL §A.1.5 (U-T1): the per-entry record lives on the CURRENT lite
+    // when gilOff. The VM member is ALSO written as a transitional shadow:
+    // raw `vm.entryScope` consumers (VMEntryScopeInlines.h's top-level-entry
+    // fast path, CallFrame.cpp, VMTraps.cpp, SamplingProfiler.cpp, ...) are
+    // enumerated in INTEGRATE-ungil.md and re-pointed by the activation
+    // tasks — until then the shadow keeps every GIL-on-shaped reader exact,
+    // and gilOff is unreachable (dark).
+    if (m_vm.gilOff()) [[unlikely]] {
+        VMLite& lite = VMLite::current();
+        RELEASE_ASSERT(lite.vm == &m_vm);
+        ASSERT(!lite.entryScope);
+        lite.entryScope = this;
+        // N-MUTATOR TRIPWIRE (U-T1): the transitional VM-member shadow below
+        // is single-writer ONLY while at most one thread is entered GIL-off.
+        // Dropping the shadow and re-keying every raw vm.entryScope consumer
+        // (VMEntryScopeInlines.h top-level-entry detection FIRST) on the
+        // per-lite record is a HARD precondition of N-mutator entry (IU
+        // obligation 1). Until then, a second concurrent top-level entry
+        // must fail-stop here rather than silently last-writer-win the
+        // shadow — or, worse, skip setUpSlow's per-thread services on the
+        // loser of a racy fast-path check.
+        RELEASE_ASSERT(!m_vm.entryScope);
+    }
     m_vm.entryScope = this;
 
 #if ASSERT_ENABLED
@@ -130,8 +153,23 @@ void VMEntryScope::tearDownSlow()
 
     ASSERT_WITH_MESSAGE(!m_vm.hasCheckpointOSRSideState(), "Exitting the VM but pending checkpoint side state still available");
 
+    // UNGIL §A.1.5: clear the per-lite record FIRST (the CURRENT lite is the
+    // one this scope was recorded on — dtor runs on the ctor's thread), then
+    // the transitional VM shadow (see setUpSlow).
+    if (m_vm.gilOff()) [[unlikely]] {
+        VMLite& lite = VMLite::current();
+        RELEASE_ASSERT(lite.vm == &m_vm);
+        ASSERT(lite.entryScope == this);
+        lite.entryScope = nullptr;
+        // N-mutator tripwire — see setUpSlow: GIL-off the shadow must still
+        // be ours when we null it (single entered thread until the shadow is
+        // dropped by the activation tasks, IU obligation 1).
+        RELEASE_ASSERT(m_vm.entryScope == this);
+    }
     m_vm.entryScope = nullptr;
 
+    // §A.1.5: executeEntryScopeServicesOnExit uses the CURRENT lite's bits
+    // when gilOff (VM::has/clearEntryScopeService route there).
     if (m_vm.hasAnyEntryScopeServiceRequest()) [[unlikely]]
         m_vm.executeEntryScopeServicesOnExit();
 }

@@ -27,6 +27,7 @@
 
 #include "JSExportMacros.h"
 #include "StackManager.h"
+#include <atomic>
 #include <wtf/AutomaticThread.h>
 #include <wtf/Box.h>
 #include <wtf/Lock.h>
@@ -40,6 +41,7 @@ namespace JSC {
 class CallFrame;
 class JSGlobalObject;
 class VM;
+class VMLite;
 
 class VMTraps {
 public:
@@ -183,6 +185,19 @@ public:
     static constexpr BitField NonDebuggerEvents = AllEvents & ~NeedDebuggerBreak;
     static constexpr BitField NonDebuggerAsyncEvents = AsyncEvents & ~NeedDebuggerBreak;
 
+    // UNGIL §A.2.3/§A.2.7/§A.2.8 (SPEC-ungil; GIL-off only): the carrier-only
+    // delivery class. The debugger bit (SD13) and the watchdog bit (annex W
+    // W0/SD14) are EXEMPT from the rule-3 VM-wide fan-out — they are
+    // delivered to and serviced by main/embedder CARRIER threads only;
+    // spawned Thread() threads never service them (handleTraps masks them
+    // out on a spawned thread; Watchdog/Debugger entry hooks additionally
+    // early-return — the W0/SD13 enforcement points). NeedShellTimeoutCheck
+    // joins the class conservatively: g_jscConfig.shellTimeoutCheckCallback
+    // is a shell-main-thread protocol and must not run on a spawned thread.
+    // GIL-on/flag-off: never consulted (the masking is gated on
+    // vm.gilOff() && ThreadManager::isJSThreadCurrent()).
+    static constexpr BitField CarrierOnlyServicedEvents = NeedShellTimeoutCheck | NeedWatchdogCheck | NeedDebuggerBreak;
+
     static constexpr bool isAsyncEvent(BitField event)
     {
         return AsyncEvents & event;
@@ -247,6 +262,45 @@ public:
             updateThreadStopRequestIfNeeded();
     }
 
+    // UNGIL §A.2.3 rule 3 / ANNEX TERM1 (TERM1.2): the VM-WIDE trap-raising
+    // form. Flag-off / GIL-on: byte-equivalent to fireTrap() (the VM-level
+    // word is the only storage). GIL-off (vm.gilOff()): under the
+    // VMLiteRegistry lock, sets the bit in EVERY registered lite OF THIS VM
+    // (§A.1.3 per-VM filter) AND in the VM-level word (this object), then
+    // runs the thread-stop machinery. Token acquisition ORs the VM word into
+    // the acquiring lite (orVMWideTrapBitsIntoLite below), so lites
+    // registered/entered after a raise still observe it. Termination is
+    // VM-WIDE ONLY in v1: there is NO mechanism to raise NeedTermination on
+    // exactly one lite (TERM1.2); per-lite raising exists only for genuinely
+    // per-thread traps (§A.3 stop tickets; carrier-only bits) and never
+    // carries the termination bit.
+    //
+    // MUST be called on the VM-level VMTraps only (vm.traps()) — the
+    // implementation uses VMTraps::vm()'s offset arithmetic, which is only
+    // valid for the VM-embedded instance.
+    JS_EXPORT_PRIVATE CONCURRENT_SAFE void fireTrapVMWide(Event);
+
+    // UNGIL annex W W1 terminate arm, interim single-shared-word form: raise
+    // VM-wide termination (rule 3) on behalf of a carrier that has ALREADY
+    // observed/serviced this termination itself (the §J.3-parked W1 servicer,
+    // whose park is about to fail per SD8/§E.5). Equivalent to
+    // fireTrapVMWide(NeedTermination) plus marking the raise consumed by this
+    // carrier, so the host's clear-and-re-enter after the failed park is not
+    // spuriously re-terminated by the shared word while spawned siblings are
+    // still draining (see m_carrierTookSharedTermination below). Collapses to
+    // plain fireTrapVMWide once the §A.2.1 per-lite words land.
+    JS_EXPORT_PRIVATE void fireTerminationVMWideAfterParkedCarrierService();
+
+    // UNGIL §A.2.3 "token acquisition ORs it in" (replaces
+    // notifyGrabAllLocks() as the late-joiner delivery edge GIL-off): copies
+    // the VM-level word's pending async bits into `lite`'s per-thread traps
+    // under the registry lock. Carrier-only bits (above) are filtered when
+    // the acquiring thread is a spawned Thread (W0/SD13). Caller: the §F.1
+    // GIL-off token-acquisition path, on the lite's owner thread, plus
+    // GIL-off lite-registration backfill. No-op while the per-lite traps
+    // word aliases the VM word (see perThreadTrapsIfExists below).
+    JS_EXPORT_PRIVATE void orVMWideTrapBitsIntoLite(VMLite&);
+
     // The following returns true if a trap was handled.
     bool handleTraps(BitField mask = AsyncEvents);
     bool handleTrapsIfNeeded(BitField mask = AsyncEvents);
@@ -265,6 +319,14 @@ public:
     ALWAYS_INLINE void* currentCLoopStackPointer() const { return m_stack.currentCLoopStackPointer(); }
 #endif
 
+    // UNGIL §A.2.2: the limits generated code checks live in m_stack
+    // (StackManager). GIL-off these are PER-THREAD state — each lite's
+    // VMThreadContext carries its own VMTraps/StackManager, set at that
+    // thread's VM entry from its own StackBounds (the GIL-on ownerThread
+    // handoff migration of limits is GIL-on-only; vmstate §2 rule 3 is
+    // preserved GIL-on). The VM-level instance keeps serving the carrier
+    // protocol until the §A.2.1 per-lite append activates (see
+    // perThreadTrapsIfExists below).
     ALWAYS_INLINE void* softStackLimit() const { return m_stack.softStackLimit(); };
     inline void setStackSoftLimit(void*);
 
@@ -291,6 +353,14 @@ private:
         return m_trapBits.exchangeAnd(~event);
     }
 
+    // UNGIL TERM1.2 (handleTraps' NeedWatchdogCheck->NeedTermination
+    // fall-through and direct NeedTermination service): GIL-off, a
+    // termination decision born on the servicing thread is propagated to the
+    // OTHER entered threads' lites (rule 3, self excluded — the servicing
+    // thread's own bit was already taken, and re-setting it would make the
+    // post-unwind re-entry spuriously terminate).
+    void fanOutTerminationToSiblingLites();
+
     CONCURRENT_SAFE void cancelThreadStopIfNeeded() WTF_REQUIRES_LOCK(m_trapSignalingLock);
     CONCURRENT_SAFE void requestThreadStopIfNeeded(Locker<Lock>&) WTF_REQUIRES_LOCK(m_trapSignalingLock);
     JS_EXPORT_PRIVATE CONCURRENT_SAFE void updateThreadStopRequestIfNeeded();
@@ -315,12 +385,41 @@ private:
 
     StackManager m_stack;
     Atomic<BitField> m_trapBits { 0 };
-    unsigned m_deferTerminationCount { 0 };
+
+    // UNGIL §A.2.1 interim (single shared trap word — see
+    // perThreadTrapsIfExists below): these three are PER-THREAD-BY-DESIGN
+    // scalars (DeferTermination / DeferTraps scopes are properties of one
+    // thread's stack), but until the per-lite VMTraps split lands, N GIL-off
+    // mutators reach this ONE instance through vm.traps()/the alias, and the
+    // DeferTermination/DeferTraps scopes run on spawned-reachable hot paths
+    // (LLIntSlowPaths, JITOperations, DFGOperations, JSObject, ...).
+    // std::atomic makes the counter ++/-- lost-update-free (no underflow /
+    // stuck-nonzero) and every access TSAN-clean (std::atomic, not
+    // WTF::Atomic, so the untouched VMTrapsInlines.h ++/-- forms keep
+    // compiling). The remaining SEMANTIC cross-talk — one thread's defer
+    // scope masking another thread's NeedTermination service, or two
+    // interleaved DeferTraps scopes restoring each other's saved
+    // m_trapsDeferred — is a bounded DELAY or one early/late poll, never a
+    // lost trap (the bits stay set and are serviced at the next unmasked
+    // poll site), and disappears with the §A.2.1 per-lite split.
+    std::atomic<unsigned> m_deferTerminationCount { 0 };
+    std::atomic<bool> m_suspendedTerminationException { false };
+    std::atomic<bool> m_trapsDeferred { false };
+
+    // UNGIL TERM1.2 interim (single shared trap word): set when a GIL-off
+    // CARRIER consumed a VM-wide NeedTermination but left the bit set in the
+    // shared word because other entered lites of this VM still had to observe
+    // it (sibling visibility). While set, handleTraps suppresses
+    // NeedTermination on carrier threads; once no OTHER lite of this VM is
+    // entered, the consumed raise is retired (bit + flag cleared, under the
+    // registry lock). A FRESH fireTrapVMWide(NeedTermination) clears the flag
+    // (also under the registry lock), so a new raise is never swallowed.
+    // Dead weight once the §A.2.1 per-lite words land.
+    std::atomic<bool> m_carrierTookSharedTermination { false };
+
     bool m_needToInvalidateCodeBlocks { false };
     bool m_isShuttingDown { false };
-    bool m_suspendedTerminationException { false };
     bool m_threadStopRequested { false };
-    bool m_trapsDeferred { false };
 
     // Protects against a race between VMManager::requestResumeAll() and VMManager::notifyVMActivation()
     // to increment their m_numberOfActiveVMs.
@@ -350,5 +449,47 @@ private:
     VMTraps& m_traps;
     bool m_previousTrapsDeferred;
 };
+
+// UNGIL §A.2.1 seam (U-T2; defined in VMLite.cpp): the per-thread VMTraps the
+// rule-3 fan-out and the token-acquisition OR write for `lite`. The §A.2.1
+// contract is a VMLite L2 append `VMThreadContext threadContext` (after
+// Group 6) whose traps generated code reaches via the chained offset
+// lite->threadContext.traps().m_trapBits — that append lives in VMLite.h,
+// which is OUTSIDE U-T2's owned file set. Until it lands, this returns the
+// VM-LEVEL word (vm.traps()) as the per-lite alias: fan-outs hit the VM word
+// exactly once (callers skip duplicates by pointer identity), per-lite
+// readers observe VM-word (phase-1) semantics, and the JIT consumers
+// (U-T3/U-T4 loadVMLite emission) are dark. Returns null for an unregistered
+// lite.
+//
+// ACTIVATION CHECKLIST — §A.2 clauses 1/2 are NOT in effect under the alias,
+// and N-mutator GIL-off entry MUST NOT be enabled until ALL of the following
+// land (each is outside U-T2's owned file set; recorded with the
+// orchestrator / INTEGRATE-ungil.md):
+//   (1) VMLite.h: the §A.2.1 `VMThreadContext threadContext` L2 append, then
+//       flip perThreadTrapsIfExists (VMLite.cpp) to
+//       &lite.threadContext.traps(). VMThreadContext (VMThreadContext.h)
+//       already exists and carries a VMTraps (trap word + StackManager).
+//   (2) JSLock.cpp (§F.1): the GIL-off token-acquisition edge must call
+//       vm.traps().orVMWideTrapBitsIntoLite(lite) (replacing the
+//       notifyGrabAllLocks() edge), and lite registration must backfill the
+//       VM word — orVMWideTrapBitsIntoLite currently has NO callers, so a
+//       bare alias flip would silently lose VM-wide bits for late-joining
+//       lites.
+//   (3) VM.cpp (§A.2.2): VM::updateStackLimits must target the ENTERING
+//       thread's lite StackManager GIL-off. Today it writes the single
+//       VM-level softStackLimit, so under N-parallel entry every entering
+//       thread would clobber the one limit all tiers' stack checks read —
+//       missed/spurious overflow checks, memory-safety grade.
+//   (4) The §J.3/D9 park sites (LockObject.cpp/ThreadObject.cpp/
+//       ConditionObject.cpp): split NeedWatchdogCheck out of
+//       jsThreadParkTerminationRequested GIL-off and drive annex W W1 via
+//       Watchdog::serviceCheckFromReacquiredParkedCarrier (Watchdog.h),
+//       including the r15 F2 old-node disposition; and re-point the D9
+//       predicate at the polling thread's PARK lite (TERM1.4/U31). Under the
+//       alias the re-point is a semantic no-op (park lite word == VM word),
+//       but the W1 split is NOT: today a parked thread treats the watchdog
+//       CHECK bit as termination (see Watchdog.h).
+JS_EXPORT_PRIVATE VMTraps* perThreadTrapsIfExists(VMLite&);
 
 } // namespace JSC

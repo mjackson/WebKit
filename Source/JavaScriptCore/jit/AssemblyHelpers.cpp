@@ -35,6 +35,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "BaselineJITCode.h"
 #include "JITOperations.h"
 #include "JSArrayBufferView.h"
+#include "JSCConfig.h"
 #include "JSCJSValueInlines.h"
 #include "JSDataView.h"
 #include "LinkBuffer.h"
@@ -43,6 +44,12 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "SuperSampler.h"
 #include "ThunkGenerators.h"
 #include "UnlinkedCodeBlock.h"
+#include <atomic>
+#include <mutex>
+
+#if OS(DARWIN) && ENABLE(FAST_TLS_JIT)
+#include <wtf/FastTLS.h>
+#endif
 
 #if ENABLE(WEBASSEMBLY)
 #include "JSWebAssemblyInstance.h"
@@ -99,6 +106,145 @@ static void emitTypedArrayButterflyTagMask(AssemblyHelpers& jit, GPRReg butterfl
 }
 
 }
+
+// ===========================================================================
+// UNGIL §A.1.1 (SPEC-ungil A.1.1; UNGIL-HANDOUT U-T3): loadVMLite — the
+// one-load read of the current thread's VMLite* (the §A.1.3 GIL-off Group-3
+// base; vmstate L4). Per-OS mechanics mirror SPEC-jit annex App. R5 exactly
+// (the loadButterflyTIDTag precedent, jit/CCallHelpers.cpp /
+// jit/ConcurrentButterflyOperations.cpp):
+//
+// - ELF (Linux glibc+musl, x86-64/arm64): one load off the thread register
+//   at the initial-exec TLS offset of g_jscCurrentVMLite (the JIT/LLInt-
+//   visible mirror of VMLite.cpp's `t_currentVMLite`, defined in
+//   runtime/VM.cpp; VMLite::setCurrent keeps it coherent — the same
+//   post-TLS-write discipline as the App. R5 CS3 TID-tag hook). IE-model
+//   offsets are link-time thread-invariant; we still latch the first
+//   computed value and RELEASE_ASSERT constancy at every emission (DFG/FTL
+//   emit from multiple compiler threads, so this re-checks the App. R5
+//   constancy property for free).
+// - Darwin: Mach-O TLV has no constant offset, so the mirror lives in a
+//   pthread TSD slot whose key is published through the M4a-style JSCConfig
+//   slot (g_jscConfig.vmLiteTLSKey, beside butterflyTIDTagTLSKey;
+//   JSC_CONFIG_HAS_VMLITE_TLS_KEY). pthread_key_create + per-thread
+//   pthread_setspecific are the VMLite::setCurrent side's duty, exactly as
+//   for the TID tag.
+// - Other (Windows): unsupported flag-on per App. R5 — no new story owed.
+//
+// REMATERIALIZATION is the correctness carrier (§A.1.2): every site needing
+// the lite may simply re-emit this load; prologue temps and the
+// VMEntryRecord::m_vmLite slot are optimizations only.
+//
+// Flag-off / GIL-on identity: nothing calls this emitter except gilOff-mode
+// compilations (§A.1.3 COMPILED-FOR-VM-mode rule, U-T4a/U-T4b) — flag-off
+// golden disasm is unchanged by this definition existing.
+// ===========================================================================
+
+#if OS(LINUX) && (CPU(X86_64) || CPU(ARM64))
+
+// Defined in runtime/VM.cpp (initial-exec model there too); declared with the
+// same language linkage + TLS model so the address-of below resolves to the
+// thread-invariant TPOFF the baked immediate relies on.
+extern "C" __attribute__((tls_model("initial-exec"))) thread_local VMLite* g_jscCurrentVMLite;
+
+namespace {
+
+ALWAYS_INLINE uintptr_t currentThreadPointerForVMLiteTLS()
+{
+    uintptr_t threadPointer;
+#if CPU(X86_64)
+    // x86-64 ELF TLS ABI (glibc and musl): the TCB self-pointer lives at
+    // %fs:0, so this single load yields the thread pointer the JIT's
+    // fs-prefixed loads are relative to.
+    asm volatile("movq %%fs:0, %0" : "=r"(threadPointer));
+#elif CPU(ARM64)
+    asm volatile("mrs %0, tpidr_el0" : "=r"(threadPointer));
+#endif
+    return threadPointer;
+}
+
+intptr_t currentVMLiteELFTLSOffset()
+{
+    intptr_t offset = static_cast<intptr_t>(
+        reinterpret_cast<uintptr_t>(&g_jscCurrentVMLite) - currentThreadPointerForVMLiteTLS());
+    // Both per-arch loadFromELFTLS64 emitters encode the offset as a
+    // (sign-extended) disp32.
+    RELEASE_ASSERT(offset == static_cast<intptr_t>(static_cast<int32_t>(offset)));
+    static std::once_flag onceFlag;
+    static intptr_t latchedOffset;
+    std::call_once(onceFlag, [&] {
+        latchedOffset = offset;
+    });
+    // App. R5 constancy property, re-verified per emission (and hence across
+    // every compiler thread that ever emits this load).
+    RELEASE_ASSERT(latchedOffset == offset);
+    return offset;
+}
+
+} // anonymous namespace
+
+#endif // OS(LINUX) && (CPU(X86_64) || CPU(ARM64))
+
+// Free-function form: self-contained in this TU (compiles in any tree
+// slice). The member spelling `jit.loadVMLite(reg)` — the surface U-T4a/b
+// emission calls, mirroring CCallHelpers::loadButterflyTIDTag — forwards
+// here once AssemblyHelpers.h (owned by the emission task per the U-T3/U-T4
+// file split) declares it and defines JSC_ASSEMBLYHELPERS_HAS_LOAD_VMLITE
+// beside the declaration (the JSC_CONFIG_HAS_BUTTERFLY_TID_TAG_TLS_KEY
+// inversion pattern).
+void loadVMLite(AssemblyHelpers&, GPRReg); // self-declaration (no header owns this form yet)
+void loadVMLite(AssemblyHelpers& jit, GPRReg destGPR)
+{
+#if OS(LINUX) && (CPU(X86_64) || CPU(ARM64))
+    // ARM64 note (mirrors loadFromTLS64): the offset is materialized through
+    // destGPR itself for encodable offsets; load64 falls back to the data
+    // temp for unencodable ones, so destGPR must not be the data temp.
+    jit.loadFromELFTLS64(currentVMLiteELFTLSOffset(), destGPR);
+#elif OS(DARWIN) && ENABLE(FAST_TLS_JIT)
+#if defined(JSC_CONFIG_HAS_VMLITE_TLS_KEY)
+    // TSD slots are uniform, so direct-offset reads via fastTLSOffsetForKey
+    // are valid for dynamically created keys (App. R5 Darwin mechanics). The
+    // key is created (and the per-thread copy maintained) by the
+    // VMLite::setCurrent side before any gilOff-mode compilation can run —
+    // U0c fixes the mode pre-codegen, and a gilOff compilation implies a
+    // registered, installed lite existed.
+    uint32_t key = g_jscConfig.vmLiteTLSKey;
+    RELEASE_ASSERT(key);
+    jit.loadFromTLS64(fastTLSOffsetForKey(key), destGPR);
+#else
+    // OPEN OBLIGATION (App. R5 Darwin mechanics, normative; escalated at
+    // the U-T3 amendment): the JSCConfig vmLiteTLSKey slot (+
+    // JSC_CONFIG_HAS_VMLITE_TLS_KEY beside it), its pthread_key_create at
+    // the P5-init point that creates the TID-tag key, and the
+    // VMLite::setCurrent-side per-thread pthread_setspecific are NOT YET
+    // LANDED — runtime/JSCConfig.h and runtime/VMLite.cpp are outside this
+    // slice's writable file set, and no IU obligation row yet names an
+    // owner. They MUST land (with an IU row) before any task emits this
+    // path on Darwin. Until then gilOff-mode compilation (the only caller)
+    // fail-stops here rather than emitting a wrong load.
+    UNUSED_PARAM(jit);
+    UNUSED_PARAM(destGPR);
+    RELEASE_ASSERT_NOT_REACHED();
+#endif
+#else
+    // App. R5: no JIT-visible TLS mechanism on this platform; useJSThreads
+    // (and a fortiori gilOffProcess) is unsupported here, so emission must
+    // never get this far.
+    UNUSED_PARAM(jit);
+    UNUSED_PARAM(destGPR);
+    RELEASE_ASSERT_NOT_REACHED();
+#endif
+}
+
+#if defined(JSC_ASSEMBLYHELPERS_HAS_LOAD_VMLITE)
+// Member surface (declared in AssemblyHelpers.h by the emission-task slice;
+// the macro is defined beside the declaration). §A.1.2: callers may
+// rematerialize freely — this is one TLS-relative load, no side effects.
+void AssemblyHelpers::loadVMLite(GPRReg destGPR)
+{
+    JSC::loadVMLite(*this, destGPR);
+}
+#endif
 
 AssemblyHelpers::Jump AssemblyHelpers::branchIfFastTypedArray(GPRReg baseGPR)
 {

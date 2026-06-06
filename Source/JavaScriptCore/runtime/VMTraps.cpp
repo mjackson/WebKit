@@ -36,8 +36,11 @@
 #include "LLIntPCRanges.h"
 #include "MachineContext.h"
 #include "MacroAssemblerCodeRef.h"
+#include "ThreadManager.h"
 #include "VMEntryScopeInlines.h"
 #include "VMInlines.h"
+#include "VMLite.h"
+#include "VMLiteShared.h"
 #include "VMManager.h"
 #include "VMTrapsInlines.h"
 #include "WaiterListManager.h"
@@ -48,6 +51,31 @@
 #include <wtf/threads/Signals.h>
 
 namespace JSC {
+
+// UNGIL TERM1.2 interim (single shared trap word; see perThreadTrapsIfExists
+// in VMTraps.h): "does any OTHER thread of this VM currently have a live
+// entry scope?" — the key for whether a serviced VM-wide termination must be
+// left visible in the shared word. §F.1 keeps main/embedder carriers mutually
+// excluded GIL-off, so any OTHER entered lite observed by an entered servicer
+// is either a spawned Thread or a §J.3-parked carrier — both poll the shared
+// word (D9 quanta / park predicates) and both are owed the bit (TERM1.2:
+// terminating the VM terminates EVERY entered thread).
+static bool anyOtherLiteOfVMEntered(const AbstractLocker&, VM& vm) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    VMLite* currentLite = VMLite::currentIfExists();
+    for (VMLite* lite : VMLiteRegistry::singleton().lites) {
+        if (lite->vm == &vm && lite != currentLite && lite->entryScope)
+            return true;
+    }
+    return false;
+}
+
+static bool anyOtherLiteOfVMEntered(VM& vm)
+{
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock }; // Leaf (§LK.6): nothing acquired under it.
+    return anyOtherLiteOfVMEntered(locker, vm);
+}
 
 #if ENABLE(SIGNAL_BASED_VM_TRAPS)
 
@@ -77,6 +105,13 @@ public:
 
 inline static bool NODELETE vmIsInactive(VM& vm)
 {
+    // UNGIL §A.2.5: GIL-off "inactive" means no registered lite of this VM is
+    // entered (per-lite entry records; the VM-member entryScope/ownerThread
+    // pair is the GIL-on protocol). Only consulted on the signal-delivery
+    // path, which is never started GIL-off, but the predicate is re-pointed
+    // per the annex so any future consumer inherits the right meaning.
+    if (vm.gilOff()) [[unlikely]]
+        return !vm.isAnyThreadEntered();
     return !vm.entryScope && !vm.ownerThread();
 }
 
@@ -403,7 +438,12 @@ CONCURRENT_SAFE void VMTraps::requestThreadStopIfNeeded(Locker<Lock>& locker)
     m_needToInvalidateCodeBlocks = true;
 
 #if ENABLE(SIGNAL_BASED_VM_TRAPS)
-    if (!Options::usePollingTraps()) {
+    // UNGIL §A.2.5: async (signal) delivery is OFF GIL-off. The SignalSender
+    // is never started for a gilOff VM: there is no single "ownerThread" to
+    // suspend, and trap-breakpoint installation assumes one mutator stack.
+    // Delivery GIL-off = the rule-3 bit fan-out (fireTrapVMWide) + the
+    // existing poll sites + the D9 park quanta. GIL-on/flag-off unchanged.
+    if (!Options::usePollingTraps() && !vm.gilOff()) {
         // sendSignal() can loop until it has confirmation that the mutator thread
         // has received the trap request. We'll call it from another thread so that
         // requestThreadStopIfNeeded() does not block.
@@ -415,6 +455,12 @@ CONCURRENT_SAFE void VMTraps::requestThreadStopIfNeeded(Locker<Lock>& locker)
     UNUSED_PARAM(locker);
 #endif
 
+    // ANNEX A26 + r6 F3 (UNGIL §A.2.6): under useJSThreads (BOTH GIL modes)
+    // this wake is BYPASSED, not deleted — TA/§C.3 sync parks use the SD6
+    // per-wait nodes and poll termination in D9 10ms quanta instead of
+    // waiting on vm.syncWaiter(), so this notify finds no waiter. It stays
+    // compiled AND LIVE for the flag-off configuration, whose landed
+    // waitForSync park still depends on it.
     if (hasTrapBit(NeedTermination))
         vm.syncWaiter()->condition().notifyOne();
 
@@ -443,11 +489,48 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     ASSERT(onlyContainsAsyncEvents(mask));
     // No ASSERT(needHandling(mask)): cancelStop() from resumeTheWorld() can race with this call.
 
+    // UNGIL §A.2.7/§A.2.8 (SD13/SD14/W0): GIL-off, a spawned Thread never
+    // services the carrier-only delivery class — spawned breakpoints are
+    // defined no-ops and spawned JS is watchdog-unobserved in v1. This mask
+    // trim is the servicing-side enforcement of the rule-3 carrier-only
+    // exemption (the bits also are not fanned into spawned lites).
+    bool isSpawnedGILOff = false;
+    if (vm.gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        isSpawnedGILOff = true;
+        mask &= ~CarrierOnlyServicedEvents;
+        if (!mask)
+            RELEASE_AND_RETURN(scope, false);
+    }
+
     if (m_trapsDeferred)
         RELEASE_AND_RETURN(scope, false); // We'll service them on the next opportunity after deferring has stopped.
 
     if (isDeferringTermination())
         mask &= ~NeedTermination;
+
+    // UNGIL TERM1.2 interim (single shared trap word): a GIL-off carrier that
+    // already consumed a VM-wide termination left the bit SET for its
+    // still-entered siblings (takeTopPriorityTrap / the fan-out below). Until
+    // those siblings exit, the bit must not re-terminate this carrier's host
+    // clear-and-re-enter; once they are gone, the consumed raise is retired
+    // here. Serialized against a FRESH fireTrapVMWide raise by the registry
+    // lock (the raise clears the flag under that lock), so a new raise is
+    // never swallowed: either it cleared the flag first (we service it
+    // normally below) or it re-sets the bit after the retire (serviced at the
+    // next poll).
+    if (vm.gilOff() && !isSpawnedGILOff && m_carrierTookSharedTermination.load()) [[unlikely]] {
+        auto& registry = VMLiteRegistry::singleton();
+        Locker locker { registry.lock };
+        if (m_carrierTookSharedTermination.load()) {
+            if (anyOtherLiteOfVMEntered(locker, vm))
+                mask &= ~NeedTermination; // Still being delivered to siblings.
+            else {
+                m_carrierTookSharedTermination.store(false);
+                clearTrapWithoutCancellingThreadStop(NeedTermination); // Retired; the scope exit below re-derives the stop request.
+                mask &= ~NeedTermination;
+            }
+        }
+    }
 
     {
         Locker codeBlockSetLocker { vm.heap.codeBlockSet().getLock() };
@@ -466,6 +549,33 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
         for (unsigned i = 0; i < NumberOfEvents; ++i) {
             Event event = static_cast<Event>(1 << i);
             if (hasTrapBit(event, mask)) {
+                // UNGIL TERM1.2 interim (single shared trap word; see
+                // perThreadTrapsIfExists): termination is VM-WIDE — EVERY
+                // entered thread must observe it, but GIL-off all threads
+                // poll this ONE word. The take therefore leaves the bit SET
+                // whenever any OTHER lite of this VM is still entered
+                // (spawned siblings spinning in JS, D9-parked waiters, a
+                // §J.3-parked carrier), and clears it only when this
+                // servicer is the last observer. A CARRIER that leaves the
+                // bit set records the consumption
+                // (m_carrierTookSharedTermination) so the host's
+                // clear-and-re-enter is not spuriously re-terminated while
+                // siblings drain (handleTraps trim above); a SPAWNED
+                // servicer needs no flag — it is about to close per §E.5
+                // and never re-enters. A bit stranded by the last spawned
+                // servicer racing a sibling's exit costs the host at most
+                // one extra termination on its next entry — inside the
+                // landed NeedTermination envelope (the bit deliberately
+                // survives VM exit; see the class comment). Once the
+                // §A.2.1 per-lite words land, every thread takes from its
+                // OWN word and this collapses to an unconditional clear.
+                if (event == NeedTermination && vm.gilOff()) [[unlikely]] {
+                    if (anyOtherLiteOfVMEntered(vm)) {
+                        if (!isSpawnedGILOff)
+                            m_carrierTookSharedTermination.store(true);
+                        return event; // Bit left set for the siblings.
+                    }
+                }
                 clearTrapWithoutCancellingThreadStop(event);
                 return event;
             }
@@ -494,11 +604,21 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
 
         case NeedWatchdogCheck:
             ASSERT(vm.watchdog());
-            if (!vm.watchdog()->isActive() || !vm.watchdog()->shouldTerminate(vm.entryScope->globalObject())) [[likely]]
+            ASSERT(!isSpawnedGILOff); // Masked above (annex W W0; SD14).
+            // UNGIL §A.1.5: the servicing thread's entry scope — per-lite
+            // GIL-off, the VM member (byte-identical) otherwise.
+            if (!vm.watchdog()->isActive() || !vm.watchdog()->shouldTerminate(vm.currentThreadEntryScope()->globalObject())) [[likely]]
                 continue;
             [[fallthrough]];
 
         case NeedTermination:
+            // UNGIL TERM1.2: a termination decision is VM-wide. GIL-off,
+            // propagate it to every OTHER entered thread's lite (rule-3
+            // form, self excluded — this thread is about to throw). Covers
+            // both the direct NeedTermination service and the watchdog
+            // fall-through on an entered carrier (annex W shape (c)).
+            if (vm.gilOff()) [[unlikely]]
+                fanOutTerminationToSiblingLites();
             vm.setHasTerminationRequest();
             scope.release();
             if (!isDeferringTermination())
@@ -527,6 +647,140 @@ bool VMTraps::handleTrapsIfNeeded(VMTraps::BitField mask)
     if (needHandling(mask))
         return handleTraps(mask);
     return false;
+}
+
+CONCURRENT_SAFE void VMTraps::fireTrapVMWide(Event event)
+{
+    ASSERT(!(event & ~AllEvents));
+    ASSERT(onlyContainsAsyncEvents(event));
+    VM& vm = this->vm(); // Valid: VM-level instance only (see header contract).
+
+    if (!vm.gilOff()) {
+        // GIL-on / flag-off: the VM-level word is the only storage —
+        // byte-equivalent to fireTrap().
+        fireTrap(event);
+        return;
+    }
+
+    // Rule-3 exemption (§A.2.7/§A.2.8): carrier-only bits are never raised
+    // through the VM-wide form — the debugger bit stays on the landed
+    // carrier protocol and the watchdog bit is carrier-delivered (annex W).
+    ASSERT(!(event & CarrierOnlyServicedEvents));
+
+    {
+        // §A.2.3 rule 3: under the registry lock, set the bit in every lite
+        // OF THIS VM (per-VM filter) + the VM word. The registry lock is a
+        // leaf — only lock-free atomic ORs happen under it; the stop-request
+        // machinery (m_trapSignalingLock) runs after release.
+        auto& registry = VMLiteRegistry::singleton();
+        Locker locker { registry.lock };
+        for (VMLite* lite : registry.lites) {
+            if (lite->vm != &vm)
+                continue;
+            VMTraps* liteTraps = perThreadTrapsIfExists(*lite);
+            if (liteTraps && liteTraps != this)
+                liteTraps->m_trapBits.exchangeOr(event);
+        }
+        m_trapBits.exchangeOr(event); // The VM word.
+
+        // TERM1.2 interim: a FRESH VM-wide termination supersedes any
+        // pending consumed-by-carrier state (handleTraps' retire trim);
+        // clearing the flag under the registry lock serializes against the
+        // trim so the new raise is never swallowed.
+        if (event & NeedTermination)
+            m_carrierTookSharedTermination.store(false);
+    }
+
+    // Poll sites + D9 park quanta are the delivery vehicle GIL-off (§A.2.5:
+    // the SignalSender is never started; requestThreadStopIfNeeded degrades
+    // to the stack-limit stop request + the flag-off-only syncWaiter wake).
+    if (isAsyncEvent(event))
+        updateThreadStopRequestIfNeeded();
+}
+
+void VMTraps::fanOutTerminationToSiblingLites()
+{
+    VM& vm = this->vm();
+    ASSERT(vm.gilOff());
+    VMLite* currentLite = VMLite::currentIfExists();
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+    bool anyOtherEnteredAliasedSibling = false;
+    for (VMLite* lite : registry.lites) {
+        if (lite->vm != &vm || lite == currentLite)
+            continue;
+        VMTraps* liteTraps = perThreadTrapsIfExists(*lite);
+        if (!liteTraps)
+            continue;
+        if (liteTraps != this) {
+            // Post-§A.2.1-activation shape: the sibling has its own word —
+            // deliver directly (rule 3, self excluded).
+            liteTraps->m_trapBits.exchangeOr(NeedTermination);
+            continue;
+        }
+        // Interim alias: the sibling's word IS the shared VM word.
+        if (lite->entryScope)
+            anyOtherEnteredAliasedSibling = true;
+    }
+    // TERM1.2 under the interim alias: a termination decision born on this
+    // servicing thread (the direct NeedTermination service, or the
+    // watchdog->termination fall-through on an entered carrier — annex W
+    // shape (c)) MUST reach the other entered threads, and the only channel
+    // they poll is the shared word. So when any other entered sibling
+    // exists, set the bit; if this servicer is a carrier, record the
+    // consumption so its host's clear-and-re-enter is shielded while the
+    // siblings drain (handleTraps trim; a spawned servicer closes per §E.5
+    // and needs no shield). With no other entered sibling there is no one
+    // owed delivery, and setting the word would only poison the host's next
+    // entry.
+    if (anyOtherEnteredAliasedSibling) {
+        if (!ThreadManager::isJSThreadCurrent())
+            m_carrierTookSharedTermination.store(true);
+        m_trapBits.exchangeOr(NeedTermination);
+    }
+}
+
+void VMTraps::fireTerminationVMWideAfterParkedCarrierService()
+{
+    VM& vm = this->vm();
+    ASSERT(vm.gilOff());
+    ASSERT(!ThreadManager::isJSThreadCurrent()); // W1 services on carriers only.
+    fireTrapVMWide(NeedTermination);
+    // Annex W W1: the firing carrier has ALREADY serviced this termination
+    // (its §J.3 park is about to fail per SD8/§E.5). Interim alias: shield
+    // its host's clear-and-re-enter from re-consuming the shared word —
+    // handleTraps' trim masks NeedTermination on this carrier while entered
+    // siblings drain and retires the bit once they are gone. fireTrapVMWide
+    // just cleared the flag (fresh-raise rule); a genuinely fresh raise
+    // racing this store re-clears it under the registry lock and is serviced
+    // normally.
+    m_carrierTookSharedTermination.store(true);
+}
+
+void VMTraps::orVMWideTrapBitsIntoLite(VMLite& lite)
+{
+    VM& vm = this->vm();
+    ASSERT_UNUSED(vm, vm.gilOff());
+    ASSERT(lite.vm == &vm);
+
+    // §A.2.3: serialized against a concurrent rule-3 fan-out by the registry
+    // lock, so the joiner observes either the pre-raise word (and then the
+    // fan-out sets its lite directly) or the post-raise word (ORed here).
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+
+    BitField word = m_trapBits.loadRelaxed() & AsyncEvents;
+    // W0/SD13: carrier-only bits never reach a spawned thread's lite. The
+    // token acquisition runs on the lite's owner thread, so the thread-kind
+    // probe identifies the lite's kind (TERM1.4: the C++ gate and the §I
+    // byte agree on every reachable path).
+    if (ThreadManager::isJSThreadCurrent())
+        word &= ~CarrierOnlyServicedEvents;
+    if (!word)
+        return;
+    VMTraps* liteTraps = perThreadTrapsIfExists(lite);
+    if (liteTraps && liteTraps != this)
+        liteTraps->m_trapBits.exchangeOr(word);
 }
 
 void VMTraps::deferTerminationSlow(DeferAction)
