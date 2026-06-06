@@ -754,6 +754,15 @@ void VMTraps::fireTerminationVMWideAfterParkedCarrierService()
     // just cleared the flag (fresh-raise rule); a genuinely fresh raise
     // racing this store re-clears it under the registry lock and is serviced
     // normally.
+    // CAVEAT (r15 F2 disposition (a)): the SD8-fail premise is falsified when
+    // a racing notify dequeued the parked waiter DURING the service window —
+    // the park then completes "ok" and the carrier has NOT serviced the
+    // termination. The park site is responsible for revoking this shield in
+    // that disposition by re-raising fireTrapVMWide(NeedTermination) (the
+    // fresh-raise rule clears the flag under the registry lock), so the
+    // termination is delivered at the caller's next trap poll instead of
+    // being trimmed and retired. Sole current caller-side revoke:
+    // waitSyncWithPerWaitNode (WaiterListManager.cpp).
     m_carrierTookSharedTermination.store(true);
 }
 
@@ -825,6 +834,82 @@ VMTraps::~VMTraps()
 #if ENABLE(SIGNAL_BASED_VM_TRAPS)
     ASSERT(!m_signalSender);
 #endif
+}
+
+// ============================================================================
+// UNGIL §A.2.4 rule 4 / TERM1 rule 4 — the D9 park-poll predicates, PARK-LITE
+// form (U-T11; U31). The landed jsThreadParkTerminationRequested
+// (LockObject.cpp) is the GIL-on D9 predicate; GIL-off it is wrong twice
+// over (VMTraps.h activation-checklist item 4):
+//   (a) it reads vm.traps() — the VM word — where the §A.2.4 rule-4 clause
+//       re-points the poll at the polling thread's PARK lite: spawned = the
+//       CURRENT lite; main/embedder park sites = the §J.3-CAPTURED lite
+//       (capturedParkLiteOfCurrentThreadIfAny, JSLock.cpp — the release path
+//       runs the §A.3.6 LIFO restore, so CURRENT is the prior lite for the
+//       whole park). Under the §A.2.1 interim alias (perThreadTrapsIfExists
+//       returns the VM word) the re-point is a semantic no-op, but every new
+//       park site must consume THESE predicates so the alias flip is a
+//       VMLite.cpp-only change;
+//   (b) it folds NeedWatchdogCheck into "termination" — GIL-on that is the
+//       landed behavior (a parked thread cannot service the check, and the
+//       watchdog's next step would be termination anyway), but GIL-off annex
+//       W W1 mandates the SPLIT: a parked CARRIER observing the check bit
+//       performs the full §J.3 exit reacquisition and SERVICES
+//       Watchdog::shouldTerminate (callback consulted, extension honored —
+//       the U-T2 corpus shape (a)), terminating only on a terminate verdict.
+// Consumers: the SD6 per-wait TA sync park (WaiterListManager.cpp, U-T11);
+// the remaining §J.3/D9 park sites (LockObject.cpp / ConditionObject.cpp /
+// ThreadObject.cpp / ThreadAtomics.cpp PWT — outside this task's owned-file
+// set) re-point with their owning tasks. Same-library seams; consumers
+// redeclare (the currentThreadHoldsEntryToken pattern).
+//
+// Quanta poll ONLY lock-free state (U2's bound): both predicates read atomic
+// trap words (+ the VM request flag) and take no lock — legal under a
+// rank-3 listLock per §J.3.
+// ============================================================================
+
+bool parkLitePollTerminationRequested(VM& vm, VMLite* parkLite)
+{
+    // hasTerminationRequest() is only ever set by trap handling on an
+    // executing mutator, so a park must read the trap bits themselves (the
+    // landed D9 rationale, LockObject.h).
+    if (vm.hasTerminationRequest())
+        return true;
+    if (!vm.gilOff()) {
+        // GIL-on rule-4 VM-WIDE form, landed semantics preserved (U19
+        // oracle): the watchdog-check bit is folded into termination —
+        // byte-equivalent to jsThreadParkTerminationRequested.
+        return vm.traps().needHandling(VMTraps::NeedTermination | VMTraps::NeedWatchdogCheck);
+    }
+    // GIL-off rule-4 PARK-LITE form, W1 split: termination ONLY. The
+    // watchdog-check bit is a carrier-serviced event
+    // (parkLitePollWatchdogCheckRequested below), never a termination
+    // verdict by itself.
+    VMTraps* traps = parkLite ? perThreadTrapsIfExists(*parkLite) : nullptr;
+    if (!traps)
+        traps = &vm.traps(); // No captured lite (e.g. a caller predating the §J.3 capture): the VM word is the fan-out source and strictly includes the lite's VM-wide bits.
+    return traps->needHandling(VMTraps::NeedTermination);
+}
+
+bool parkLitePollWatchdogCheckRequested(VM& vm, VMLite* parkLite)
+{
+    // Matching CLEAR site: Watchdog::serviceCheckFromReacquiredParkedCarrier
+    // consumes the bit on BOTH the carrier lite's word (the word this
+    // predicate reads — restored as current by the §J.3 reacquisition) and
+    // the VM word, so the §A.2.1 alias flip cannot strand the lite bit and
+    // livelock the W1 episode — the flip stays a VMLite.cpp-only change.
+    if (!vm.gilOff())
+        return false; // GIL-on: folded into the termination predicate above (landed shape; W1 is GIL-off-only).
+    // W0/SD14: spawned JS is watchdog-unobserved in v1 — the bit is never
+    // fanned into spawned lites, but under the interim single-word alias a
+    // spawned park lite's word IS the shared VM word, which can carry the
+    // carrier-only bit; mask it out on the reader side too.
+    if (ThreadManager::isJSThreadCurrent())
+        return false;
+    VMTraps* traps = parkLite ? perThreadTrapsIfExists(*parkLite) : nullptr;
+    if (!traps)
+        traps = &vm.traps();
+    return traps->needHandling(VMTraps::NeedWatchdogCheck);
 }
 
 } // namespace JSC

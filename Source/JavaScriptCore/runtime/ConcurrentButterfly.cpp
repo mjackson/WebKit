@@ -2762,7 +2762,28 @@ bool atomicSlotEvaluate(JSGlobalObject* globalObject, const AtomicSlotRequest& r
 // restarts the whole probe. The loop re-reads and re-EVALUATES on CAS
 // failure - the never-re-apply rule governs probe restarts, and no write has
 // landed when the CAS fails.
-JSValue atomicSlotLockFreeLoop(JSGlobalObject* globalObject, VM& vm, JSObject* owner, WriteBarrierBase<Unknown>* slot, const AtomicSlotRequest& request, AtomicSlotStatus& status)
+//
+// U-T10 amend (U5 hardening): the entry/I34 checks validate the
+// {offset, structureID} provenance ONCE, but the loop can spin across owner
+// transitions, so every iteration re-validates structureID between the
+// seq_cst slot load and the CAS. Without it, a flat->dictionary conversion
+// (the butterfly word is untouched) followed by a dictionary delete - or a
+// plain non-dictionary delete (structure-only transition, word untouched) -
+// could land its D1 jsUndefined quarantine store (I30) under the loop's
+// nose: a CompareExchangeSVZ with expected===undefined would CAS-"succeed"
+// on an ABSENT property (the exact U5 outcome the third arm's lock exists to
+// forbid), and Load / a failed CAS would surface undefined as a read of a
+// property that never held it. The ID check alone is NOT sufficient for
+// named slots: non-dictionary deletes D1-store the sentinel BEFORE the
+// structure publication (storeUndefinedIntoDoomedSlotConcurrent, "value
+// ordered before the edit that publishes its death"), so a named-slot
+// jsUndefined read is AMBIGUOUS while a delete is mid-window - those bounce
+// out with LockedRevalidate, and the named caller disambiguates under the
+// cell lock (both delete flavors run their sentinel-store -> publication
+// window entirely under it, §6 L4). Indexed callers pass
+// revalidateUndefined=false: indexed deletes/holes are EMPTY JSValue()s
+// (never the jsUndefined sentinel), which the !current check restarts.
+JSValue atomicSlotLockFreeLoop(JSGlobalObject* globalObject, VM& vm, JSObject* owner, WriteBarrierBase<Unknown>* slot, StructureID expectedStructureID, bool revalidateUndefined, const AtomicSlotRequest& request, AtomicSlotStatus& status)
 {
     Atomic<uint64_t>* atomicSlot = std::bit_cast<Atomic<uint64_t>*>(slot);
     while (true) {
@@ -2770,6 +2791,19 @@ JSValue atomicSlotLockFreeLoop(JSGlobalObject* globalObject, VM& vm, JSObject* o
         JSValue current = JSValue::decode(currentBits);
         if (!current) [[unlikely]] {
             status = AtomicSlotStatus::Restart;
+            return { };
+        }
+        // Provenance re-validation, ordered AFTER the slot load (the seq_cst
+        // load's acquire half keeps this read from hoisting above it): any
+        // published transition since the probe restarts the whole probe.
+        if (owner->structureID() != expectedStructureID) [[unlikely]] {
+            status = AtomicSlotStatus::Restart;
+            return { };
+        }
+        if (revalidateUndefined && current.isUndefined()) [[unlikely]] {
+            // Possible D1 quarantine sentinel (named slots only, see above):
+            // the caller re-validates under the cell lock. Nothing applied.
+            status = AtomicSlotStatus::LockedRevalidate;
             return { };
         }
         JSValue newValue;
@@ -2856,12 +2890,68 @@ JSValue JSObject::atomicSlotReadModifyWrite(JSGlobalObject* globalObject, Unique
     }
 
     // ---- Lock-free arms: inline, flat out-of-line, segmented fragment.
+    //
+    // U-T10 amend (U5): named lock-free loops bounce jsUndefined reads out as
+    // LockedRevalidate - a named jsUndefined can be the D1 quarantine
+    // sentinel of a delete whose structure publication has not landed yet
+    // (storeUndefinedIntoDoomedSlotConcurrent stores the sentinel BEFORE the
+    // header CAS / table edit, I30). Disambiguation runs under the cell
+    // lock: both delete flavors hold it across their whole sentinel-store ->
+    // publication window (§6 L4), so with the lock held and structureID()
+    // still == expectedStructureID (non-dictionary deletes always publish a
+    // NEW structureID; dictionary regimes never reach the lock-free arms,
+    // and a dictionary CONVERSION also changes the ID), no delete has
+    // published since the probe and none is mid-window - a re-read
+    // jsUndefined is the property's GENUINE value. The lock excludes
+    // deleters, NOT other lock-free CASers, so the write stays a seq_cst
+    // slot CAS (failure => Restart; nothing applied, never-re-apply holds).
+    // No allocation under the lock (I20): atomicSlotEvaluate is
+    // allocation-free and the slot is re-resolved by walking only.
+    auto lockedUndefinedArm = [&]() -> JSValue {
+        status = AtomicSlotStatus::Restart;
+        Locker locker { cellLock() };
+        CellLockDepthScope cellLockDepthScope; // O3/I20
+        if (structureID() != expectedStructureID)
+            return { }; // A delete (or any transition) published: re-probe classifies (a vanished property throws).
+        WriteBarrierBase<Unknown>* lockedSlot = nullptr;
+        if (isInlineOffset(offset))
+            lockedSlot = &inlineStorage()[offsetInInlineStorage(offset)];
+        else {
+            uint64_t lockedWord = taggedButterflyWord();
+            if (isSegmentedButterfly(lockedWord)) {
+                lockedSlot = segmentedOutOfLineSlotIfWithinBounds(butterflySpine(lockedWord), offset);
+                if (!lockedSlot)
+                    return { }; // Defensive: stale coverage => re-probe.
+            } else {
+                RELEASE_ASSERT(lockedWord & butterflyPointerMask); // I18
+                lockedSlot = &untaggedButterfly(lockedWord)->propertyStorage()[offsetInOutOfLineStorage(offset)];
+            }
+        }
+        Atomic<uint64_t>* atomicSlot = std::bit_cast<Atomic<uint64_t>*>(lockedSlot);
+        uint64_t currentBits = atomicSlot->load(std::memory_order_seq_cst);
+        JSValue current = JSValue::decode(currentBits);
+        if (!current || !current.isUndefined())
+            return { }; // The slot moved on while we acquired the lock: re-probe (nothing applied).
+        JSValue newValue;
+        if (!atomicSlotEvaluate(globalObject, request, current, newValue, status))
+            return current; // Load / NotEqual / NotNumber against a GENUINE undefined.
+        if (atomicSlot->compareExchangeStrong(currentBits, JSValue::encode(newValue), std::memory_order_seq_cst) == currentBits) {
+            vm.writeBarrier(this, newValue); // After success, as §9.5 orders.
+            status = AtomicSlotStatus::Applied;
+            return current;
+        }
+        status = AtomicSlotStatus::Restart; // A racing lock-free writer won: re-probe.
+        return { };
+    };
     if (isInlineOffset(offset)) {
         // Inline slots: the cell never resizes; there is no butterfly word,
         // hence no SW bit and no SW protocol (§3 - matching
         // putDirectConcurrent's inline arm). Attributes are pinned by
         // expectedStructureID (non-dictionary structures are immutable).
-        return atomicSlotLockFreeLoop(globalObject, vm, this, &inlineStorage()[offsetInInlineStorage(offset)], request, status);
+        JSValue result = atomicSlotLockFreeLoop(globalObject, vm, this, &inlineStorage()[offsetInInlineStorage(offset)], expectedStructureID, true, request, status);
+        if (status == AtomicSlotStatus::LockedRevalidate) [[unlikely]]
+            return lockedUndefinedArm();
+        return result;
     }
     WTF::loadLoadFence(); // M7(d): order the probe's structureID/offset provenance before the tagged-word load.
     uint64_t word = taggedButterflyWord();
@@ -2907,7 +2997,10 @@ JSValue JSObject::atomicSlotReadModifyWrite(JSGlobalObject* globalObject, Unique
         status = AtomicSlotStatus::Restart;
         return { };
     }
-    return atomicSlotLockFreeLoop(globalObject, vm, this, slot, request, status);
+    JSValue result = atomicSlotLockFreeLoop(globalObject, vm, this, slot, expectedStructureID, true, request, status);
+    if (status == AtomicSlotStatus::LockedRevalidate) [[unlikely]]
+        return lockedUndefinedArm();
+    return result;
 }
 
 JSValue JSObject::atomicSlotReadModifyWriteAtIndex(JSGlobalObject* globalObject, unsigned index, const AtomicSlotRequest& request, AtomicSlotStatus& status)
@@ -3016,8 +3109,39 @@ JSValue JSObject::atomicSlotReadModifyWriteAtIndex(JSGlobalObject* globalObject,
             if (taggedButterflyWord() != word)
                 continue;
         }
-        return atomicSlotLockFreeLoop(globalObject, vm, this, slot, request, status);
+        // U-T10 amend: pin the structure observed AFTER the payload was
+        // validated - the in-loop re-validation then restarts on any
+        // published transition (e.g. Contiguous -> ArrayStorage migration)
+        // instead of CASing through it. revalidateUndefined=false: indexed
+        // deletes/holes are EMPTY JSValue()s, never the D1 jsUndefined
+        // sentinel - the loop's !current check already restarts them.
+        StructureID pinnedStructureID = structureID(); // RAW read (M5): a nuked ID never matches in-loop, but never decode one.
+        if (pinnedStructureID.isNuked()) [[unlikely]]
+            return { }; // A racing publication is mid-flight: re-probe.
+        if (!hasContiguous(pinnedStructureID.decode()->indexingType())) [[unlikely]]
+            return { }; // Shape moved between the word validation and the pin: re-probe.
+        JSValue result = atomicSlotLockFreeLoop(globalObject, vm, this, slot, pinnedStructureID, false, request, status);
+        ASSERT(status != AtomicSlotStatus::LockedRevalidate);
+        return result;
     }
+}
+
+// U-T10 amend (§C.2 Missing arm conditional add): see the JSObject.h comment.
+// PutModePut (NOT PutModeDefineOwnProperty): the GIL-off probe->put window
+// means the key can materialize between the Missing probe and the put, and
+// define-own semantics would replace a racing accessor / strip ReadOnly via
+// an attribute-change transition to attributes 0 - a heap state no
+// sequential Atomics.store interleaving can produce. PutModePut's flag-on
+// body re-derives existence/extensibility INSIDE its §2 re-dispatch loop and
+// publishes adds through the E4 structureID CAS (a racing transition -
+// including preventExtensions, which always publishes a new structure -
+// fails the CAS and re-runs the iteration's checks), so the returned error /
+// success is linearizable against racing defines.
+ASCIILiteral JSObject::putDirectForAtomicsMissingAdd(VM& vm, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(!parseIndex(propertyName));
+    return putDirectInternal<PutModePut>(vm, propertyName, value, 0, slot);
 }
 
 #endif // USE(JSVALUE64)

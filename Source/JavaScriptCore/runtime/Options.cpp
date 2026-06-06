@@ -774,6 +774,25 @@ void Options::notifyOptionsChanged()
         Options::useStructureAllocationLock() = true;
     }
 
+    // UNGIL §0 U0 (config gate; landed at U-T14 with the default flip):
+    // GIL-off ("useJSThreads && !useThreadGIL") additionally requires the
+    // full trio {useVMLite, useSharedAtomStringTable, useSharedGCHeap}. A
+    // GIL-off shape without the trio is REFUSED at option validation by
+    // forcing useThreadGIL=1 (ANNEX U0C: gilOffProcess is OPTION-derived
+    // from this conjunction at Config finalization). This normalization is
+    // what keeps VM::isGILOffProcess() (VM.cpp) and every landed
+    // `useJSThreads() && !useThreadGIL()` derivation (ArrayBuffer.cpp,
+    // VMInspector.cpp, SamplingProfiler.h, Watchdog.h, JSLock.cpp)
+    // mutually equivalent. The M_opts2 normalization above already forces
+    // useVMLite/useSharedAtomStringTable under useJSThreads, so in practice
+    // this gates on the shared GC server. Flag-off (useJSThreads=0) is
+    // byte-identical: the condition is unreachable. The U19 GIL-on oracle
+    // (useJSThreads=1, useThreadGIL=1) is unaffected: an explicit
+    // useThreadGIL=1 never enters this branch.
+    if (Options::useJSThreads() && !Options::useThreadGIL()
+        && !(Options::useVMLite() && Options::useSharedAtomStringTable() && Options::useSharedGCHeap()))
+        Options::useThreadGIL() = true;
+
     unsigned thresholdForGlobalLexicalBindingEpoch = Options::thresholdForGlobalLexicalBindingEpoch();
     if (thresholdForGlobalLexicalBindingEpoch == 0 || thresholdForGlobalLexicalBindingEpoch == 1)
         Options::thresholdForGlobalLexicalBindingEpoch() = UINT_MAX;

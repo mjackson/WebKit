@@ -124,6 +124,7 @@ enum class AtomicSlotStatus : uint8_t {
     NotNumber, // arithmetic RMW read a non-number; no write; returned value = the value read
     NeedsStringResolution, // CAS needs a rope resolved; no write; caller resolves OUTSIDE any lock (§N.2 single-flight) and restarts the probe
     Restart, // validation failed (structure/shape/offset moved, slot vanished); caller re-runs the whole probe
+    LockedRevalidate, // INTERNAL to the §9.5 accessors (U-T10 amend): a named lock-free loop read jsUndefined, which may be a D1 delete-quarantine sentinel (I30); the accessor re-validates under the cell lock. Never escapes to ThreadAtomics callers.
 };
 
 struct AtomicSlotRequest {
@@ -987,6 +988,18 @@ public:
         request.replacement = replacement;
         return atomicSlotReadModifyWriteAtIndex(globalObject, index, request, status);
     }
+    // U-T10 amend (§C.2 Missing arm): conditional add for Atomics.store on a
+    // probed-Missing NAMED key. PutModePut semantics through the flag-on
+    // concurrent putDirectInternal machinery: the add publishes via the E4
+    // structureID CAS against the loop-iteration structure, extensibility is
+    // re-checked in the SAME iteration, and a property that materialized
+    // since the probe is never attribute-clobbered - an accessor/ReadOnly
+    // racer returns a non-null error (caller restarts its probe, which then
+    // throws the precise D3/D7/non-extensible TypeError); a plain writable
+    // data racer takes the value-only replace leg (attributes preserved -
+    // putExistingOwnDataPropertyForAtomics' hazard cannot occur). Defined in
+    // ConcurrentButterfly.cpp (U-T10-owned).
+    JS_EXPORT_PRIVATE ASCIILiteral putDirectForAtomicsMissingAdd(VM&, PropertyName, JSValue, PutPropertySlot&);
 #endif
 
     JS_EXPORT_PRIVATE bool putDirectNativeIntrinsicGetter(VM&, JSGlobalObject*, Identifier, NativeFunction, Intrinsic, unsigned attributes);

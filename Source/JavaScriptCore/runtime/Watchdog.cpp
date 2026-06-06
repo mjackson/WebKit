@@ -30,6 +30,8 @@
 #include "ThreadManager.h"
 #include "VM.h"
 #include "VMEntryScopeInlines.h"
+#include "VMLite.h"  // UNGIL annex W W1 (U-T11): clear the check bit on the carrier lite's word too.
+#include "VMTraps.h" // perThreadTrapsIfExists.
 #include <wtf/CPUTime.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -155,19 +157,49 @@ bool Watchdog::shouldTerminate(JSGlobalObject* globalObject)
 
 bool Watchdog::serviceCheckFromReacquiredParkedCarrier(VM& vm)
 {
-    // W1 (annex W; see the class comment for the wiring status): the caller
-    // is a main/embedder carrier that was parked under §J.3, observed the
-    // watchdog-check bit at a D9 quantum, and has already performed the FULL
+    // W1 (annex W): the caller is a main/embedder carrier that was parked
+    // under §J.3, observed the watchdog-check bit at a D9 quantum
+    // (parkLitePollWatchdogCheckRequested, VMTraps.cpp — the GIL-off W1
+    // split of the landed D9 predicate), and has already performed the FULL
     // exit reacquisition — so the W4 predicate (real JSLock held, not
     // spawned) holds here exactly as for an entered carrier.
+    //
+    // WIRING (U-T11): driven through the reacquire/service/re-release
+    // episode helper reacquireParkedCarrierAndServiceWatchdogCheck
+    // (JSLock.cpp), whose first consumer is the SD6 per-wait TA sync park
+    // (WaiterListManager.cpp), including the r15 F2 old-node disposition on
+    // the no-terminate return. The remaining §J.3 park sites (join,
+    // cond.wait, lock.hold, property Atomics.wait — LockObject.cpp/
+    // ConditionObject.cpp/ThreadObject.cpp/ThreadAtomics.cpp, outside this
+    // task's owned-file set) re-point with their owning tasks; until then
+    // they keep the landed fold-into-termination behavior GIL-off too
+    // (conservative: the watchdog's no-extension verdict is termination).
     ASSERT(vm.gilOff());
     ASSERT(!ThreadManager::isJSThreadCurrent()); // SD14: spawned threads never service the watchdog.
     ASSERT(vm.apiLock().currentThreadIsHoldingLock());
 
     // Take the bit first (mirrors takeTopPriorityTrap's take-then-service):
     // a false return means a racing entered service already consumed it —
-    // nothing to do, the caller just re-parks.
-    if (!vm.traps().clearTrap(VMTraps::NeedWatchdogCheck))
+    // nothing to do, the caller just re-parks. CLEAR ON BOTH WORDS: the
+    // predicate that triggered this episode
+    // (parkLitePollWatchdogCheckRequested) reads the CAPTURED park lite's
+    // word via perThreadTrapsIfExists — under today's §A.2.1 interim alias
+    // that IS the VM word, but once the alias flips to per-lite words a
+    // VM-word-only clear would leave the lite bit set forever and the parked
+    // carrier would re-run this W1 episode every D9 quantum (reacquisition +
+    // embedder callback hammered — an unbounded livelock with an
+    // extension-granting callback). The §J.3 reacquisition the caller just
+    // performed restored that same carrier lite as current, so clearing the
+    // CURRENT lite's word here clears exactly the word the predicate read;
+    // under the alias the two clears hit one word and the second is a no-op.
+    // This keeps the VMTraps.cpp banner promise that the alias flip stays a
+    // VMLite.cpp-only change — no Watchdog.cpp re-point needed at flip time.
+    bool tookBit = vm.traps().clearTrap(VMTraps::NeedWatchdogCheck);
+    if (VMLite* carrierLite = VMLite::currentIfExists(); carrierLite && carrierLite->vm == &vm) {
+        if (VMTraps* liteTraps = perThreadTrapsIfExists(*carrierLite); liteTraps && liteTraps != &vm.traps())
+            tookBit |= liteTraps->clearTrap(VMTraps::NeedWatchdogCheck);
+    }
+    if (!tookBit)
         return false;
 
     auto* watchdog = vm.watchdog();

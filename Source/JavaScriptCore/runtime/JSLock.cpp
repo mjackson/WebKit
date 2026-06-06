@@ -28,10 +28,12 @@
 #include "RaceAmplifier.h" // UNGIL EXIT1.8 (U-T6): carrier-TLS-death stall points.
 #include "SamplingProfiler.h"
 #include "ThreadManager.h" // UNGIL §F.1 (U-T8): isJSThreadCurrent keys the spawned token arm; (U-T6) carrier TIDs + the EXIT1.9 condition/wrapper.
+#include "TypedArrayController.h" // UNGIL §G (U-T11): the embedder-policy half of mayBlockSynchronously.
 #include "VMLite.h"
 #include "VMLiteInlines.h" // UNGIL §F.1 (U-T8): per-lite drain-on-release (I11).
 #include "VMLiteShared.h"
 #include "VMTrapsInlines.h"
+#include "Watchdog.h" // UNGIL annex W W1 (U-T11): the parked-carrier service episode.
 #include <wtf/Atomics.h>
 #include <wtf/Vector.h>
 #include <wtf/HashMap.h>
@@ -675,6 +677,149 @@ static void retireEntryTokenForLock(JSLock* lock)
 }
 
 // ============================================================================
+// UNGIL §J.3 captured-lite park records (r10 F5; U-T11). A main/embedder
+// park site (join, cond.wait, TA/property Atomics.wait) fully releases via
+// unlockAllForThreadParking — which runs the §A.3.6 LIFO tuple restore, so
+// for the whole park VMLite::current() is the PRIOR lite (null for a Bun
+// thread that entered from native), NOT this VM's carrier. Per-quantum park
+// polls must read the CAPTURED carrier lite's trap/stop bits + the
+// waiter-state atomic, never VMLite::current(). The capture happens HERE, at
+// the §J.3 full-release shape itself (unlockAllForThreadParking stashes the
+// lite that was current at the release), and park sites consume it through
+// capturedParkLiteOfCurrentThreadIfAny below (same-library seam; consumers
+// redeclare — the currentThreadHoldsEntryToken pattern; LockObject.h is
+// outside this task's owned-file set).
+//
+// Lifetime proof (r10 F5, recorded): a carrier dies only at owner TLS death
+// or the ~VM A36 walk; the owner is alive mid-park (it IS the parked
+// thread), and ~VM while this VM's JS frames are live on a parked thread is
+// an embedder error (vmstate M6 precondition) — the captured pointer cannot
+// dangle. §A.2.4's D9 clause is re-pointed accordingly (PARK lite; the
+// predicate itself lives in VMTraps.cpp, parkLitePollTerminationRequested).
+//
+// Episode accounting (annex W W1): a record is pushed at every §J.3 full
+// release of a gilOff carrier and popped at the matching outermost
+// reacquisition (didAcquireLock). The W1 early-service episode therefore
+// pops at its inner lock() and re-pushes at its inner
+// unlockAllForThreadParking — "exactly once per ACQUISITION EPISODE" is the
+// stack discipline, mechanically. GIL-on/flag-off never push (gated on
+// vm.gilOff()), so the flag-off cost is zero (no TLS write on those paths).
+// ============================================================================
+
+struct ParkedCarrierLiteRecord {
+    VM* vm { nullptr };
+    uint64_t vmEpoch { 0 }; // A36 staleness rule: a record never matches a reused VM address.
+    VMLite* lite { nullptr };
+};
+
+static Vector<ParkedCarrierLiteRecord, 2>& parkedCarrierLiteRecordsForCurrentThread()
+{
+    // Trivial-enough TLS, like entryTokensForCurrentThread: records are POD
+    // and the vector is EMPTY whenever the thread is not inside a §J.3 park
+    // bracket, so late TLS destruction touches no JSC state.
+    static thread_local Vector<ParkedCarrierLiteRecord, 2> records;
+    return records;
+}
+
+// §J.3 captured-lite seam (U-T11): the carrier lite this thread's innermost
+// live §J.3 release of `vm` captured, or null (not parked / GIL-on caller).
+// Park sites call this AFTER their unlockAllForThreadParking-shaped release
+// (the GILDroppedSection ctor) — equivalent to capturing "BEFORE the
+// release" per r10 F5, because the stash IS the value current at release.
+VMLite* capturedParkLiteOfCurrentThreadIfAny(VM& vm)
+{
+    auto& records = parkedCarrierLiteRecordsForCurrentThread();
+    for (size_t i = records.size(); i--;) {
+        if (records[i].vm == &vm && records[i].vmEpoch == vm.vmEpoch())
+            return records[i].lite;
+    }
+    return nullptr;
+}
+
+static void pushParkedCarrierLiteRecord(VM& vm, VMLite* lite)
+{
+    parkedCarrierLiteRecordsForCurrentThread().append({ &vm, vm.vmEpoch(), lite });
+}
+
+static void popParkedCarrierLiteRecordIfAny(VM& vm)
+{
+    auto& records = parkedCarrierLiteRecordsForCurrentThread();
+    if (records.isEmpty()) [[likely]]
+        return;
+    for (size_t i = records.size(); i--;) {
+        if (records[i].vm == &vm && records[i].vmEpoch == vm.vmEpoch()) {
+            records.removeAt(i);
+            return;
+        }
+    }
+}
+
+// ============================================================================
+// UNGIL §G — per-thread blocking policy (U-T11). Replaces the per-VM G11
+// gate jsThreadsCanBlockOnCurrentThread as the GIL-off authority:
+//   §G.1 spawned TS => true; main/embedder => embedder policy
+//        (isAtomicsWaitAllowedOnCurrentThread()).
+//   §G.2 governs ALL sync parks: TA/property Atomics.wait (the KEPT G11
+//        gate, §C.4), join, contended lock.hold, cond.wait; violations throw
+//        the existing TypeErrors (api I18 intact).
+//   §G.3 the D4 GIL-dropped main TA wait machinery is GIL-on-only; GIL-off a
+//        permitted main sync wait parks per §J.3. D8 per §C.6 (SD6).
+// GIL-on (and flag-off) this reduces EXACTLY to the landed
+// jsThreadsCanBlockOnCurrentThread body (the spawned arm is gilOff-gated),
+// so re-pointing a GIL-on caller at it is behavior-preserving. The G11
+// consumer re-points (ThreadAtomics.cpp:876 property-wait gate,
+// ThreadObject.cpp/ConditionObject.cpp/LockObject.cpp park gates,
+// ThreadObject.h's declaration) live OUTSIDE this task's owned-file set —
+// recorded for their owning tasks; this is the predicate of record
+// (same-library seam, consumers redeclare).
+// ============================================================================
+bool mayBlockSynchronously(VM& vm)
+{
+    if (vm.gilOff() && ThreadManager::isJSThreadCurrent())
+        return true; // §G.1: a spawned TS may always park synchronously (post-lift blocking is §G-only; deadlock = user error, ruling recorded r23).
+    return vm.m_typedArrayController->isAtomicsWaitAllowedOnCurrentThread();
+}
+
+// ============================================================================
+// UNGIL annex W W1 — the parked-carrier watchdog service episode (U-T11).
+// Caller: a main/embedder carrier parked under §J.3 (m_lock + token + access
+// all released by unlockAllForThreadParking) that observed the
+// watchdog-check bit on its CAPTURED park lite at a D9 quantum
+// (parkLitePollWatchdogCheckRequested, VMTraps.cpp). Contract:
+//   - the caller holds NO rank-3 waiter-list lock (W1: reacquisition happens
+//     only after the quantum wait returns; listLock is taken only AFTER the
+//     episode and dropped BEFORE any re-park) and no other api lock;
+//   - this performs the FULL §J.3 exit reacquisition — lock() runs the
+//     §A.3.6 carrier/tag/client swap, the §F.1 service-word + trap OR, and
+//     the §A.3.2b-gated acquireHeapAccess — then services
+//     Watchdog::shouldTerminate under the token on this thread (callback
+//     semantics + CPU re-arm identical to an entered carrier, via
+//     Watchdog::serviceCheckFromReacquiredParkedCarrier);
+//   - terminate => VM-wide termination was raised (rule 3, with the W1
+//     consumed-by-servicer shield) — returns true; the caller proceeds to
+//     its final park exit (the wait fails per SD8/§E.5);
+//   - no terminate => returns false AFTER re-releasing per §J.3
+//     (unlockAllForThreadParking — a NEW acquisition episode opens when the
+//     caller re-parks); the caller must then run the r15 F2 old-node
+//     disposition under its listLock before re-parking.
+// The release is unconditional either way: the caller is mid-§J.3 bracket
+// and its GILDroppedSection dtor performs the real exit re-lock.
+// ============================================================================
+bool reacquireParkedCarrierAndServiceWatchdogCheck(VM& vm)
+{
+    ASSERT(vm.gilOff());
+    ASSERT(!ThreadManager::isJSThreadCurrent()); // SD14/W0: spawned threads never service the watchdog.
+    JSLock& apiLock = vm.apiLock();
+    // The §J.3 release fully dropped m_lock; a holder reaching here would
+    // deadlock on itself below — fail-stop the protocol violation.
+    RELEASE_ASSERT(!apiLock.currentThreadIsHoldingLock());
+    apiLock.lock(); // FULL reacquisition: §A.3.6 swap + §F.1 OR + §A.3.2b-gated access (pops this VM's park record — episode end).
+    bool terminated = Watchdog::serviceCheckFromReacquiredParkedCarrier(vm);
+    apiLock.unlockAllForThreadParking(); // Re-release per §J.3 (re-pushes the park record — new episode).
+    return terminated;
+}
+
+// ============================================================================
 // UNGIL §F.5 exit-side completion (U-T6): the outer foreign gilOff carrier
 // whose gated access re-acquire + deferred trap poll must run AFTER the
 // inner VM's m_lock drops. willReleaseLock runs BEFORE m_lock.unlock(), and
@@ -1051,6 +1196,12 @@ void JSLock::didAcquireLock()
                 token.depth = 1;
                 entryTokensForCurrentThread().append(token);
             }
+            // §J.3 (U-T11): an outermost acquisition of a gilOff VM ends any
+            // open park episode for it — the only way control proceeds past
+            // a §J.3 full release is re-locking this VM (the GILDroppedSection
+            // dtor, or the W1 early-service reacquisition). Pop the
+            // captured-lite record; no-op when not parked.
+            popParkedCarrierLiteRecordIfAny(*m_vm);
         }
         // §6.4.4: install the main carrier iff this thread has no lite or a
         // foreign one (covers main thread, embedder threads, multi-VM per
@@ -1470,8 +1621,27 @@ unsigned JSLock::unlockAllForThreadParking()
     // via the unlockAllForThreadParking shape". Spawned threads never own
     // m_lock GIL-off, so their park sites must not reach this (the J.3
     // spawned arm is token-only: access release + §A.3 park cooperation).
+    // ORDERING CONSTRAINT (recorded; IU rows 28-29 below): the
+    // GILDroppedSection GIL-off-by-caller split (spawned arm = token-only +
+    // §A.3.2b post-wake poll, LockObject.cpp) has NOT landed yet; the §C.4
+    // 4.5-1a spawned-TA-wait lift (AtomicsObject.cpp) MUST NOT land before
+    // it. The RELEASE_ASSERT below is the fail-stop coupling: a spawned
+    // GIL-off caller never holds m_lock, so reaching here without the split
+    // crashes deterministically in ALL build types instead of corrupting the
+    // park protocol — landing the lift first is loudly unshippable, not a
+    // silent race.
     RELEASE_ASSERT(currentThreadIsHoldingLock());
     unsigned droppedLockCount = static_cast<unsigned>(m_lockCount);
+    // UNGIL §J.3 captured-lite capture (r10 F5; U-T11): record the gilOff
+    // carrier lite that is current at THIS release — willReleaseLock's
+    // §A.3.6 LIFO restore is about to swap it away, and the park site's
+    // per-quantum polls must read the CAPTURED lite's bits, never
+    // VMLite::current(). GIL-on/flag-off: no gilOff lite, nothing captured.
+    VMLite* parkLite = nullptr;
+    if (m_vm && m_vm->gilOff()) [[unlikely]] {
+        if (VMLite* current = VMLite::currentIfExists(); current && current->vm == m_vm)
+            parkLite = current;
+    }
     // Suppress willReleaseLock()'s drainMicrotasks() (guarded on
     // !m_lockDropDepth): a park site must not run user JS mid-host-call.
     // Every other willReleaseLock side effect (atom-table restore,
@@ -1486,6 +1656,11 @@ unsigned JSLock::unlockAllForThreadParking()
     m_lockCount = 0;
     m_hasOwnerThread.store(false, std::memory_order_release);
     m_lock.unlock();
+    // Push AFTER the full drop: the record exists exactly while the thread
+    // is released-and-parked (popped at the matching outermost re-lock in
+    // didAcquireLock — see the episode-accounting banner above).
+    if (parkLite) [[unlikely]]
+        pushParkedCarrierLiteRecord(*m_vm, parkLite);
     return droppedLockCount;
 }
 

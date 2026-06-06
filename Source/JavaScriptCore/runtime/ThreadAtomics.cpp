@@ -232,6 +232,22 @@ static ConcurrentAtomicsProbe probeOwnPropertyForAtomicsConcurrent(JSGlobalObjec
         throwTypeError(globalObject, scope, "Atomics property operations require a plain data property"_s);
         return probe;
     }
+    // U-T10 amend: the accessor-ness decision above was made against the
+    // structure the methodTable walk saw; THIS structure (re-read after it)
+    // is the one whose {offset, structureID} provenance the §9.5 accessor
+    // validates (I34). A racing data->accessor reconfiguration between the
+    // two reads would otherwise hand the LOCK-FREE arm a kind=Data probe
+    // whose structureID check PASSES while the slot holds a GetterSetter -
+    // an Exchange/RMW would CAS a primitive over it (type confusion). Reject
+    // non-plain attributes against the SAME structure the provenance is
+    // taken from, mirroring the third arm's under-lock re-check; this also
+    // keeps CustomValue slots (which can answer slot.isValue()) out of the
+    // lock-free arms, per ANNEX C1's "plain ... own NAMED data slots only".
+    if (structureAttributes & (PropertyAttribute::Accessor | PropertyAttribute::CustomAccessor | PropertyAttribute::CustomValue)) [[unlikely]] {
+        probe.attributes = structureAttributes;
+        probe.kind = OwnPropertyKind::Accessor;
+        return probe;
+    }
     probe.attributes = structureAttributes;
     probe.offset = offset;
     probe.structureID = structure->id();
@@ -301,11 +317,36 @@ static JSValue atomicsStoreOnPropertyGilOff(JSGlobalObject* globalObject, JSObje
                 throwTypeError(globalObject, scope, "Atomics.store: cannot add a property to a non-extensible object"_s);
                 return { };
             }
-            // Fresh data property (writable/enumerable/configurable): the
-            // generic concurrent add path - the OM transition machinery is
-            // the single-publication form for adds (see the header comment).
-            object->putDirectMayBeIndex(globalObject, propertyName, value);
-            RETURN_IF_EXCEPTION(scope, { });
+            if (std::optional<uint32_t> index = parseIndex(propertyName)) {
+                // Fresh INDEXED element: the generic concurrent add path
+                // (putDirectMayBeIndex's index leg, verbatim). KNOWN RESIDUAL
+                // (recorded in INTEGRATE-ungil, U-T10 amend): a racing
+                // indexed defineProperty (accessor / non-writable) forces a
+                // sparse-map/SlowPutAS conversion that putDirectIndex cannot
+                // be made conditional on; the named TOCTOU fix below does
+                // not cover this leg yet.
+                object->putDirectIndex(globalObject, index.value(), value);
+                RETURN_IF_EXCEPTION(scope, { });
+                return value;
+            }
+            // Fresh NAMED data property (writable/enumerable/configurable).
+            // U-T10 amend: NOT putDirect (define-own semantics) - GIL-off,
+            // a key that materialized between the Missing probe and the put
+            // would be attribute-clobbered (a racing accessor replaced, a
+            // racing ReadOnly stripped, via the attribute-change transition
+            // to attributes 0), and a racing preventExtensions could be
+            // overtaken - none of which any sequential interleaving of
+            // Atomics.store can produce. The conditional add re-derives
+            // existence/extensibility inside the OM's E4-published §2 loop:
+            // a non-null error means we LOST such a race - restart, and the
+            // fresh probe re-classifies and throws the precise D3/D7/
+            // non-extensible TypeError. A racing plain writable data add is
+            // absorbed as a value-only replace (attributes preserved), which
+            // linearizes as define-then-store.
+            PutPropertySlot addSlot(object, true);
+            ASCIILiteral error = object->putDirectForAtomicsMissingAdd(vm, propertyName, value, addSlot);
+            if (!error.isNull()) [[unlikely]]
+                continue;
             return value;
         }
         }
@@ -361,6 +402,7 @@ static JSValue atomicsCompareExchangeOnPropertyGilOff(JSGlobalObject* globalObje
         case AtomicSlotStatus::Restart:
             continue;
         case AtomicSlotStatus::NotNumber:
+        case AtomicSlotStatus::LockedRevalidate: // Accessor-internal; never escapes.
             break;
         }
         RELEASE_ASSERT_NOT_REACHED();
@@ -420,6 +462,7 @@ static JSValue atomicsRMWOnPropertyGilOff(JSGlobalObject* globalObject, JSObject
             continue;
         case AtomicSlotStatus::NotEqual:
         case AtomicSlotStatus::NeedsStringResolution:
+        case AtomicSlotStatus::LockedRevalidate: // Accessor-internal; never escapes.
             break;
         }
         RELEASE_ASSERT_NOT_REACHED();

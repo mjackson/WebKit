@@ -220,21 +220,245 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
   inline/OOL/Int32-converting/Double-converting/RMW + rope-SVZ contention),
   `property-cas-dictionary-delete-u5.js` (U5 dictionary arm: delete/re-add
   storm vs foreign CAS; no quarantined-slot resurrection).
-  **ENTRY GATE record (§D.2):** the OM Task-14 PRE-INT bench verdict is NOT
-  recorded anywhere in-tree (INTEGRATE-objectmodel §46 still instructs "record
-  the verdict here"; no PROMOTE record exists). This task cannot run the jit
-  Task-13 GIL-stub construction bench (docs+code round, no builds), so U-T10
+  **ENTRY GATE record (§D.2): NOT SATISFIED — DEFERRED.** The OM Task-14
+  PRE-INT bench verdict is NOT recorded anywhere in-tree
+  (INTEGRATE-objectmodel §46 still instructs "record the verdict here"; no
+  PROMOTE record exists), so the §D.2 HARD precondition of U-T10 ENTRY did
+  not hold when this task landed. This task cannot run the jit Task-13
+  GIL-stub construction bench (docs+code round, no builds), so U-T10
   proceeded on the no-PROMOTE arm — 8h ships as landed (cell-locked N2), which
-  is the only arm consistent with §C's third arm as frozen. OBLIGATION
-  (orchestrator, before U-T14 close): run the §L2.h bench, record the verdict
-  in INTEGRATE-objectmodel §46; a PROMOTE verdict retroactively requires
-  landing Task 14 and re-reviewing §C's third arm (this file's locked-arm
-  code is the surface to re-review).
+  is the only arm consistent with §C's third arm as frozen. This is a GATE
+  DEFERRAL, not gate satisfaction. OBLIGATION (orchestrator, HARD, before
+  **U-T11 ENTRY** — U-T11 is the first consumer of these accessors (§C.3(a)
+  routes the PWT pre-enqueue load through them), so "before U-T14 close" is
+  too late: run the §L2.h bench, record the verdict in INTEGRATE-objectmodel
+  §46, AND record an explicit gate-deferral ruling in SPEC-ungil-history.md
+  (not a U-T10-owned file — the U-T14 close audit must not count this as an
+  unrecorded supersession); a PROMOTE verdict retroactively requires landing
+  Task 14 and re-reviewing §C's third arm AND the amend-round locked
+  undefined-disambiguation arm (this file's locked-arm code is the surface
+  to re-review).
   OPEN (owned by U-T11 per the task split): §C.3 PWT pre-enqueue routing —
   atomicsWaitOnProperty/atomicsWaitAsyncOnProperty now reach the §9.5 atomic
   load via atomicsLoadOnProperty's gilOff branch (forcing conversions outside
   listLock, as §C.3(a) requires), but the under-listLock SVZ re-validation +
   dequeue-and-restart arm and the 4.5-1a/G11 gate edits are U-T11's.
+
+  **AMEND round (adversarial review, 2 reviewers) — LANDED:**
+  1. **U5 D1-sentinel hardening (blocker, CONFIRMED).** The lock-free
+     CAS/RMW loop validated {offset, structureID} provenance only at
+     entry/I34 time; flag-on named deletes D1-store jsUndefined into the
+     doomed slot BEFORE the structure publication (I30,
+     storeUndefinedIntoDoomedSlotConcurrent) and never touch the butterfly
+     word, so a loop iteration could read the quarantine sentinel through an
+     in-flight delete (flat→dictionary convert + dictionary delete, AND the
+     broader case the review missed: a plain non-dictionary delete, whose
+     sentinel lands before its header CAS) — a CompareExchangeSVZ with
+     expected===undefined would Apply on an ABSENT property (U5) and
+     Load/failed-CAS would surface impossible undefined reads. Fix
+     (ConcurrentButterfly.cpp): (a) atomicSlotLockFreeLoop re-validates
+     structureID every iteration, between the seq_cst slot load and the CAS;
+     (b) because the ID check alone cannot close the non-dictionary delete's
+     pre-publication window, named-slot jsUndefined reads bounce out as the
+     internal LockedRevalidate status and are disambiguated under the cell
+     lock (both delete flavors hold it across their whole sentinel-store →
+     publication window, §6 L4; the write stays a seq_cst slot CAS — the
+     lock excludes deleters, not other CASers); (c) the indexed Contiguous
+     call site pins a (nuke-checked) dispatch-time structureID
+     (revalidateUndefined=false there — indexed deletes/holes are empty
+     JSValue()s, caught by the !current restart, as the review itself
+     notes). Corpus: `property-cas-delete-undefined-sentinel-u5.js`.
+  2. **Probe accessor-attribute gap (blocker, CONFIRMED).**
+     probeOwnPropertyForAtomicsConcurrent decided accessor-ness from the
+     methodTable walk (structure S0) but recorded {offset, structureID}
+     provenance from a RE-READ structure S1 without re-checking S1's
+     attributes — a racing data→accessor reconfiguration between the reads
+     handed the lock-free arm a kind=Data probe whose I34 check passes while
+     the slot holds a GetterSetter (CAS-a-primitive-over-a-cell type
+     confusion). Fix (ThreadAtomics.cpp): the probe now rejects
+     Accessor|CustomAccessor|CustomValue against the SAME structure the
+     provenance is taken from (kind=Accessor ⇒ existing D3 TypeErrors),
+     mirroring the third arm's under-lock re-check; also closes a probe⇄
+     third-arm livelock for CustomValue slots that answer slot.isValue().
+  3. **Missing-arm TOCTOU (major, CONFIRMED for named adds; both reviewers).**
+     probe(Missing) → isExtensible → putDirectMayBeIndex was three steps;
+     a racing defineProperty(accessor / non-writable) or preventExtensions
+     between probe and put was silently clobbered/overtaken (putDirect's
+     define-own attribute-change transition to attributes 0). Fix: named
+     adds route through JSObject::putDirectForAtomicsMissingAdd
+     (ConcurrentButterfly.cpp; PutModePut through putDirectInternal's
+     flag-on §2 loop — existence/extensibility re-derived in the SAME
+     iteration whose E4 structureID-CAS publishes the add, so racing
+     defines/preventExtensions fail the publication and return a non-null
+     error; the GilOff store body then RESTARTS and the fresh probe throws
+     the precise D3/D7/non-extensible TypeError; a racing plain writable
+     data add is absorbed as a value-only, attribute-preserving replace =
+     define-then-store linearization). Corpus:
+     `property-store-missing-define-race.js`. **KNOWN RESIDUAL (OPEN):** the
+     INDEXED Missing add stays on putDirectIndex verbatim — a racing indexed
+     defineProperty forcing a sparse-map/SlowPutAS conversion cannot be made
+     conditional without new OM machinery; recorded here so U-T14's close
+     audit sees it (the GIL-on body has the identical shape, so flag-off/
+     GIL-on behavior is unchanged).
+  4. **ENTRY GATE finding (major, PARTIALLY CONFIRMED):** the claim that this
+     record "presents the gate as satisfied" was FALSE (the original entry
+     already recorded the missing verdict and the no-PROMOTE arm); CONFIRMED
+     that the obligation was mis-timed — re-scoped above from "before U-T14
+     close" to HARD before U-T11 ENTRY, with the SPEC-ungil-history
+     deferral-ruling requirement added.
+  GIL-on/flag-off after the amend: still byte-identical — every touched
+  body is reached only via the vm.gilOff() dispatch or
+  Options::useJSThreads() accessors; putDirectForAtomicsMissingAdd is
+  called only from the GilOff store body; AtomicSlotStatus gains the
+  accessor-internal LockedRevalidate value (never escapes to callers).
+
+- U-T14 (CLOSE) — LANDED in-tree. Code writes: `runtime/OptionsList.h`,
+  `runtime/Options.cpp`; ledger writes: this file. Runs LAST per the DAG.
+
+  1. **DEFAULT FLIP (handout §T U-T14).** `Options::useThreadGIL` default
+     true -> false (OptionsList.h), description updated. No shipping default
+     configuration changes AT ALL: the option is only consulted under
+     `useJSThreads` (every in-tree consumer is the paired
+     `useJSThreads() && !useThreadGIL()` / `!useJSThreads() || useThreadGIL()`
+     form — ArrayBuffer.cpp:180, JSLock.cpp:1237, SamplingProfiler.h:357,
+     VMInspector.cpp:95, Watchdog.h, Debugger.cpp, VM.cpp:2648), and
+     `useJSThreads` defaults false. Flag-off codegen and behavior:
+     byte-identical. The U19 GIL-on oracle remains reachable via explicit
+     `--useThreadGIL=1`.
+  2. **U0 option-validation gate (LANDED HERE — it had NOT landed).** The
+     VM.cpp:2646 and JSLock.cpp:1235 comments asserted "U0 option validation
+     refuses GIL-off without the trio upstream", but no such check existed
+     anywhere (grep useThreadGIL: zero hits in Options.cpp pre-close). With
+     the default flip that gap would have made plain
+     `--useJSThreads=1 --useSharedGCHeap=1`-less configs... still GIL'd only
+     by accident of the trio terms in isGILOffProcess(), while the
+     SHORT-FORM derivations (ArrayBuffer.cpp:180, VMInspector.cpp:95,
+     SamplingProfiler.h:357 — `useJSThreads && !useThreadGIL` WITHOUT trio
+     terms) would have DIVERGED from isGILOffProcess() (mixed-mode
+     inconsistency). Landed in Options::notifyOptionsChanged immediately
+     after the M_opts2 trio normalization: GIL-off without
+     {useVMLite, useSharedAtomStringTable, useSharedGCHeap} forces
+     useThreadGIL=1 (ANNEX U0C wording: "refused at option validation
+     (forced useThreadGIL=1)"). This makes every short-form derivation
+     equivalent to VM::isGILOffProcess() again. Flag-off: branch
+     unreachable. Explicit useThreadGIL=1 never enters it (U19 unaffected).
+  3. **Flag-off delta (a)/(b)/(b2) re-audit — EXECUTED (static).**
+     - (a) LLInt Group-3 gilOffProcess branches: **ZERO in tree** (grep
+       llint/ + offlineasm/ for gilOff|vmLite|loadVMLite: no matches; the
+       only LLInt thread branches are the PRE-ungil R1.e
+       useJSThreads/ifJSThreadsBranch set, LowLevelInterpreter64.asm:1609).
+       The delta-(a) budget is UNCONSUMED and no LLInt re-baseline was ever
+       consumed — flag-off LLInt codegen is trivially byte-identical.
+       Consequence recorded as ACTIVATION BLOCKER AB-1 below.
+     - (b) atomicsWaitImpl's useJSThreads branch present
+       (AtomicsObject.cpp:514ff consumers at :536/:603/:657/:748) —
+       sanctioned, unchanged.
+     - (b2) §N.5 twin intrinsics
+       (@atomicInternalFieldClaim/@atomicInternalFieldPublish): **NOT
+       landed** (zero matches repo-wide incl. builtins/ and bytecompiler/).
+       Delta (b2) unconsumed; its golden re-baseline never consumed; the
+       §N.5 flag-off microbench gate is vacuous. **r17 F5 rule ("no host-op
+       call reachable gilOffProcess=false") — VACUOUSLY SATISFIED** (the
+       mode-keyed lowering does not exist; nothing emits the gilOff host-op
+       arm). Recorded as part of AB-8 (U-T13 §N.5 leg absent).
+     - No OTHER flag-off codegen/bytecode-shape delta found: builtins/,
+       bytecompiler/, bytecode/ carry zero gilOff tokens; all ungil C++
+       branches are vm.gilOff()/VM::isGILOffProcess()-keyed host code (not
+       codegen shape); JIT-side emission (AssemblyHelpers loadVMLite, the
+       U-T4b FTL dual arms) is reached only from gilOff-mode compilation
+       per the U-T4a/U-T4b records. **VERDICT: permitted-delta-list
+       compliance PASS statically; byte-identity still requires the
+       golden-disasm gate at Build (no builds this round).**
+  4. **U0/U0b/U0c gate mechanisms — verified PRESENT in-tree.** U0 = item 2
+     + the ctor designation CAS (VM.cpp:392-401 ->
+     Heap::tryDesignateStickySharedServer, Heap.cpp:4166) +
+     verifyStickySharedServerDesignation (VM.cpp). U0b = loser spawn
+     refusal (ThreadManager.cpp:336-358, RangeError; fail-safe
+     over-refusal arm recorded there) + the loser main-carrier install
+     escape (JSLock.cpp:1237). U0c = ctor-top immutable m_gilOff + eager
+     winner noteSharedServerSticky at clientSet()==1. The U0b/U0c CORPUS
+     arms (obligations item 8(c): two-VM construction under gilOffProcess,
+     loser spawn RangeError, loser embedder entry EXECUTES JS,
+     compile-heavy-then-first-spawn) — EXECUTION DEFERRED TO BUILD.
+  5. **U19 full oracle / TSAN / amplifier battery — DEFERRED TO BUILD**
+     (this round is no-build by orchestration). Exact configs owed: U19 =
+     full corpus at {useJSThreads=1, useThreadGIL=1} green and UNCHANGED
+     except SD6/SD7; all GIL-off-only SDs via //@ runThreadsGILOff/GILOn
+     with OLD expectations GIL-on; TERM1 VM-wide terminate arms. Battery =
+     the per-task standing arms (handout PER-TASK GATE LIST + EXIT1.8
+     r28-r31 arms, SB1.6/ISB1.6/§N.5 arm64-hardware arms) plus the
+     U-T12-recorded deferred amplifiers. These are RECORDED AS DEFERRED,
+     NOT AS PASSES.
+  6. **U20 lint close.** No automated lock-order lint tool exists in tree
+     (Tools/Scripts has none; recorded residual, owner: Build/CI phase).
+     Manual close pass over the named rule set: outer-rank sibling rows
+     ftlOSRExitGenerationLock / ftlLazySlowPathGenerationLock recorded
+     (this file, U-T4b entry — the binding rank record); the §E.4
+     settle/wake-under-rank-3 table (JSLock.cpp:925-940) — all frozen rows
+     COMPLIANT as landed; job-slot / LZ2.5 / WS1.4 / SB1.6 rule markers
+     present at their owning sites (VMLite.cpp, VMManager.cpp normative
+     contract blocks). This is a marker-presence pass, not a proof; the
+     automated lint remains the discharge vehicle.
+  7. **IU disposition completeness — scan executed.** Tables (ii)-(v) were
+     EXECUTED IN CODE as doc-of-record comment blocks rather than as rows
+     here: (ii) §F.2 predicate split + consumer rulings — VM.cpp:271ff/
+     :796/:998 + JSLock.cpp token machinery; (iii) §E.4 settle-site
+     lock-context table — JSLock.cpp:925-940; (iv) §A.1.7 — seed rows here
+     + SamplingProfiler.h:323-360 carrier-only capture record; (v)
+     §E.1b.4 host-hook dispositions — JSGlobalObject.cpp:680ff (+ SD15
+     tracker rows :4267/:4289). Those blocks are the binding records; the
+     skeleton tables above now POINT at them instead of being unfilled
+     obligations.
+     **Residual OPEN list at close (activation blockers; each named):**
+     - **AB-1 (BLOCKER): LLInt Group-3 emission absent.** No JSCConfig
+       gilOffProcess byte (JSCConfig.h unmodified), no LLInt loadVMLite
+       emitter, no delta-(a) storage-selection branches (obligation 9b,
+       U-T3). Under gilOffProcess LLInt would read/write VM-block Group-3
+       state while C++/JIT use per-lite storage — UNSOUND, and unlike the
+       JIT tiers there is NO in-LLInt tripwire.
+     - AB-2: Darwin loadVMLite vmLiteTLSKey absent — gilOff JIT compilation
+       RELEASE_ASSERTs on Darwin (fail-stop, acceptable).
+     - AB-3: A16-ext lite-resident copies (U-T4b OPEN 1) —
+       RecordRegExpCachedResult gilOff FTL compile DFG_CRASHes (fail-stop);
+       ArithRandom/HasOwnProperty conservative fallbacks live.
+     - AB-4: DFG/Baseline scratch-bake legs untouched (U-T4a boundary).
+     - AB-5: HeapClientSet.cpp:69 RELEASE_ASSERT not wired (ledger row 6;
+       I13 inner-CAS interim backstop stands).
+     - AB-6: indexed Missing-add residual (U-T10 amend item 3) — GIL-on
+       shape identical; acknowledged per its own record.
+     - AB-7: OM Task-14 bench verdict + §D.2 gate-deferral ruling still
+       unrecorded in INTEGRATE-objectmodel §46 / SPEC-ungil-history.md
+       (U-T10 obligation, re-scoped to before U-T11 ENTRY — U-T11 has
+       landed, so this is now a RETROACTIVE bookkeeping breach to be
+       discharged at Build; the no-PROMOTE arm remains the landed shape).
+     - AB-8: §N.5 twin intrinsics + mode-keyed lowering absent (U-T13's
+       §N.5 leg) — GIL-off concurrent generator/async resume keeps the
+       UNSYNCHRONIZED landed plain sequences: a REAL race GIL-off, hidden
+       only while AB-1 blocks activation anyway.
+     **CLOSE RULING:** the default flip is safe-by-construction despite
+     AB-1..AB-5/AB-8 — no configuration reaches gilOffProcess=1 without
+     explicitly setting useJSThreads=1 AND useSharedGCHeap=1 (both default
+     false; U0 forces GIL back on otherwise) — but the Build/Verify phase
+     MUST treat AB-1 and AB-8 as LAUNCH BLOCKERS for actually running the
+     full-trio configuration. The flip + U0 landing now is what the
+     handout mandates; it does not weaken any invariant (every unsound
+     path is behind the explicit trio opt-in, and the JIT tiers fail-stop).
+  8. **§F.6 close items** — see table (vi) below (rewritten this round);
+     the in-code row table (JSLock.cpp:941-955) keeps its OPEN markers for
+     the Bun-side audits, which CANNOT be executed from this repository.
+  **Spec-conflict record (per task instructions):**
+  - (i) The orchestrator task card gave U-T14 an EMPTY owned-file list
+    while the handout mandates in-tree deliverables (the flip; the U0
+    gates). Resolved per the authority clause (handout > prompt) with the
+    minimal write set {OptionsList.h, Options.cpp, INTEGRATE-ungil.md}.
+  - (ii) VM.cpp/JSLock.cpp comments described U0 validation as already
+    landed; it was not. Landing it here makes those comments true — no
+    supersession, but the discrepancy is recorded (the comments were
+    written against the spec, not the tree).
+  - (iii) The handout's U-T14 RUN items (U19, TSAN, amplifiers, golden
+    disasm, §B.5 composite, arm64-hardware arms) cannot execute in a
+    no-build documentation+code round; recorded as DEFERRED-TO-BUILD
+    above, never as passes.
 
 ## (i) Supersession ledger (one row per SPEC-ungil SUPERSESSION; spec side already written, IU side written at landing)
 
@@ -248,7 +472,8 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
 | 6 | U0c vs heap §5.1 sticky trigger / §10D — designation CAS primitive; :4755 arm !gilOffProcess; HeapClientSet::add stays idempotent | LANDED except the HeapClientSet.cpp:69 RELEASE_ASSERT(gilOffProcess => server VM m_gilOff==1) — **OBLIGATION (U-T3 per handout task split; file outside U-T1's set)** | U-T1/U-T3 |
 | 7 | A36 r9 F4 TID supersessions (vmstate §6.7 tid-0 GIL-on-only; carrier TIDs from the 2^15 TM space) | PARTIAL: carrier creation consumes the hook pair; **OBLIGATION: ThreadManager must register a carrier-TID allocator (I17 accounting incl. carriers) at initialization — until then GIL-off first entry RELEASE_ASSERTs** | U-T1 → api/U-T6 |
 | 8 | heap §10A.1 re-stamp clause (SPEC-heap.md:281-283) vs §B.3 + A36C | PARTIAL: GIL-off install/restore re-stamp landed (tuple swap); GIL-on forwarding + re-stamp UNCHANGED; the {client, epoch} staleness upgrade of the §10A.1 slot itself is U-T6's | U-T1 → U-T6 |
-| 9-… | (rows added as later tasks land their supersessions: §A.3.7 atom asserts, §B.3, SB1 vs EXIT1, M6/§6.5.1 vs A36 ~VM, heap §13.5 vs §A.3.8, DAL2, EC1, …) | — | U-T2…U-T14 |
+| 9 | Phase-1 "useThreadGIL always on" (OptionsList.h text; SPEC-api phase-1 framing) vs handout §T U-T14 default flip + §0 U0 | LANDED: default false (OptionsList.h); U0 validation forces useThreadGIL=1 when {useVMLite, useSharedAtomStringTable, useSharedGCHeap} incomplete (Options.cpp, after the M_opts2 normalization) — restores equivalence of all short-form `useJSThreads && !useThreadGIL` derivations with VM::isGILOffProcess() | U-T14 |
+| 10-… | (mid-program supersessions by U-T2…U-T13 were recorded in their task-log entries and in-code doc-of-record blocks rather than as rows here; see the U-T14 close entry item 7 for the pointer map) | — | U-T2…U-T13 |
 
 ## (ii) §F.2 predicate-consumer table (~60 rows: assert / BRANCH / EXCLUSIVITY CONSUMER) — U-T8
 
@@ -258,7 +483,7 @@ SKELETON. Columns: consumer site | predicate form consumed | class
 
 | Site | Form | Class | Ruling | Landed |
 |------|------|-------|--------|--------|
-| (U-T8 fills ~60 rows) | | | | |
+| U-T14 CLOSE: executed IN CODE — the §F.2 predicate split and per-consumer rulings live as the doc-of-record comment blocks in JSLock.cpp (token machinery home) and VM.cpp (:271ff isEntered split, :796 row-21 citation, :998 token-meaning assert). This table intentionally stays a pointer, not a copy. | | | | U-T8 |
 
 ## (iii) §E.4 settle-site lock-context table — U-T8
 
@@ -267,7 +492,7 @@ SKELETON. Columns: settle site | lock context at settle | routing
 
 | Settle site | Lock context | Routing | Retirement |
 |-------------|--------------|---------|------------|
-| (U-T8 fills) | | | |
+| U-T14 CLOSE: executed IN CODE — the full settle-site lock-context table (LockObject.cpp:275/:521, ThreadObject.cpp:246/:435, ThreadManager.cpp:78; r17 F2 decide-under-lock/act-after-drop status per row) is the doc-of-record block at JSLock.cpp:925-940. All frozen rows COMPLIANT as landed; the GIL-off inbox routing row landed with U-T9. | | | |
 
 ## (iv) §A.1.7 off-thread-reader table (per rerouted Group-3 field) — U-T8d
 
@@ -283,7 +508,7 @@ Seed rows from U-T1 (dispositions to be ruled by U-T8d):
 | m_exception / m_lastException | Heap.cpp Msr/VMExceptions (GC visit thread) | RESOLVED at U-T1: registry walk, per-VM filter (r6 F5) — not via accessors |
 | exceptionForInspection() | inspector/debugger | U-T8d (currently routes to CURRENT lite when gilOff; off-thread use must go (i)/(ii)) |
 | VM-block fallback reads (group3Primitives with no lite) | compiler threads via C++ helpers | U-T8d enumerates; dark-safe today |
-| (U-T8d fills the rest per field) | | |
+| U-T14 CLOSE: the remaining per-field enumeration was executed IN CODE by U-T8d — the carrier-only capture ruling + SUSPEND-RULE record is the doc-of-record block at SamplingProfiler.h:323-360 (AUD1.K1/SD18, (i) carrier-only v1), with the inspector/debugger exceptionForInspection ruling at Debugger.cpp:54ff. | | |
 
 ## (v) §E.1b.4 host-hook disposition table — U-T8e
 
@@ -293,19 +518,43 @@ unreachable} | SD15 tracker handoff notes.
 
 | Hook slot | Spawned-reachable | Disposition | Notes |
 |-----------|-------------------|-------------|-------|
-| (U-T8e fills) | | | |
+| U-T14 CLOSE: executed IN CODE — the full per-slot enumeration ({inline-safe, carrier-queued, refused-with-error, unreachable-on-spawned(proof)}) is the doc-of-record block at JSGlobalObject.cpp:680ff (baseGlobalObjectMethodTable), with the SD15 promiseRejectionTracker carrier-handoff rows at JSGlobalObject.cpp:4267/:4289. | | | U-T8e |
 
 ## (vi) §F.6 embedder checklist (incl. (d) construction-order and (e) spawned-no-foreign-VM audits) — U-T8
 
-SKELETON.
-- (a) m_lock excludes only embedder threads — pending U-T8 (with §B.3
-  supersession at U-T6).
-- (b) SD10 continuation-affinity sign-off — recorded r21 (ALS slice by ALS1).
-- (c) blocking-site enumeration (Bun) — pending U-T8 (§F.6 delta (c)).
-- (d) construction-order audit — pending U-T8.
-- (e) spawned-no-foreign-VM audit — RELEASE_ASSERT mechanism specified
-  (TERM1.5/§F.5; message names §F.6(e)); landing at U-T6; death-test arm
-  U-T6/U27.
+CLOSED at U-T14. The binding obligation text is the in-code row table at
+JSLock.cpp:941-955 (U-T8 deliverable); this checklist records the CLOSE
+dispositions. (a)/(c)/(d) bind OUT-OF-TREE Bun code and cannot be executed
+from this repository — at close they are recorded as **BUN-INTEGRATION SHIP
+BLOCKERS** (conditional sign-off: the in-tree contract side is complete;
+the Bun-side enumerations must be discharged in the Bun repo before any
+Bun build enables the full trio), NOT as satisfied audits.
+
+- (a) JSLockHolder exclusivity (m_lock excludes only embedder threads,
+  §F.1) — in-tree side COMPLETE (F1B arm + spawned token entry,
+  JSLock.cpp; §B.3 supersession landed at U-T6). Bun-side critical-section
+  enumeration: SHIP BLOCKER, Bun repo.
+- (b) SD10 continuation-affinity sign-off — recorded r21 pre-close (ALS
+  slice discharged by ANNEX ALS1); was the U-T9 entry gate; nothing owed
+  at U-T14.
+- (c) blocking-site enumeration (§F.6 delta (c)/DAL2.5) — in-tree DAL/§J.3
+  /RHA-AHA mechanisms landed (U-T8/U-T11); the site CLASSES to audit are
+  enumerated in the JSLock.cpp row. Bun-side enumeration: SHIP BLOCKER,
+  Bun repo.
+- (d) FIRST-VM-WINS construction-order audit row — RECORDED (this row is
+  the U-T14 close item): normative requirements per ANNEX EC1 are (1)
+  main-VM-first construction, (2) boot-assert vm.gilOff()==true
+  immediately after constructing the intended spawner, (3) enumeration of
+  EVERY Bun VM-construction site incl. lazy helper VMs, (4) no
+  re-designation in v1. In-tree enforcement: U0c CAS + U0b spawn
+  RangeError + the ThreadManager.cpp:336 backstop make a violated order
+  fail loudly, not silently. Bun-side enumeration: SHIP BLOCKER, Bun repo.
+- (e) spawned-no-foreign-VM — ENFORCED in-tree, both arms landed
+  (JSLock.cpp:478 spawnedThreadEntryTokenLock scope check +
+  JSLock.cpp:1027 lock()-front gate; both process-abort naming §F.6(e)).
+  Death-test arm: deferred-to-Build with the U27 harness. Bun-side
+  native-code audit (no spawned-thread JSContext creation): SHIP BLOCKER,
+  Bun repo.
 
 ## (vii) Per-row call-site enumerations deferred by annex K4/N7 rows — U-T8b (+owners named in rows)
 
