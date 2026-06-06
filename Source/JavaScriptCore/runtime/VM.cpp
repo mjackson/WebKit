@@ -826,11 +826,22 @@ VMLite* carrierLiteOfCurrentThreadIfExists(VM&);
 // registration; the whole walk still strictly precedes the step-(3) wait,
 // so the wait never counts a carrier.
 // ============================================================================
-static void collectForeignCarriersForVMDestruction(VM& vm)
+// Returns the DESTROYING THREAD's own collected carrier when its client is
+// OWNED (a non-main destroyer) — that client's detach is DEFERRED to
+// detachDeferredOwnCarrierClientForVMDestruction, called later in ~VM right
+// before heap.lastChanceToFinalize(): the destroying thread's client access
+// must survive the access-requiring mid-~VM steps (Strong-clearing teardown
+// such as the SD15 purge and DWT shutdown mutate the HandleSet, which
+// requires an entered thread WITH access — GIL-on the destroyer holds
+// access through all of ~VM for the same reason). Null for a main-thread
+// destroyer (borrowed client, flipped in the walk) and when this thread has
+// no carrier.
+static VMLite* collectForeignCarriersForVMDestruction(VM& vm)
 {
     ASSERT(vm.gilOff());
     auto& registry = VMLiteRegistry::singleton();
     VMLite* ownCarrier = carrierLiteOfCurrentThreadIfExists(vm);
+    VMLite* deferredOwnCarrier = nullptr;
     Vector<VMLite*, 4> collected;
     {
         Locker locker { registry.lock };
@@ -855,6 +866,15 @@ static void collectForeignCarriersForVMDestruction(VM& vm)
     for (VMLite* lite : collected)
         unregisterVMLiteAndNotifyTeardown(*lite); // U20 r31: EVERY physical removal is the notifying call
     for (VMLite* lite : collected) {
+        // The destroying thread's own carrier with an OWNED client: detach
+        // deferred (see above) — it stays COLLECTED until the deferred
+        // detach flips it; its owner is THIS thread, so no TLS destructor
+        // can race the deferral, and the EXIT1.9 wait does not count it
+        // (already unregistered).
+        if (lite == ownCarrier && lite->clientHeap && lite->clientHeap != &vm.clientHeap) {
+            deferredOwnCarrier = lite;
+            continue;
+        }
         RaceAmplifier::perturb(); // EXIT1.8 CARRIER-TLS-DEATH-DURING-DETACH stall point: post-unregister, pre-detach.
         // Lock-free full server-side detach (see the banner). Borrowed
         // (main-thread) clients are the VM's own — skipped.
@@ -885,6 +905,31 @@ static void collectForeignCarriersForVMDestruction(VM& vm)
         // stale-epoch eviction on re-entry) runs the degenerate free after
         // observing DETACHED and retires the TID there.
     }
+    return deferredOwnCarrier;
+}
+
+// The deferred half of the own-carrier disposition (see
+// collectForeignCarriersForVMDestruction): runs on the destroying thread
+// right before heap.lastChanceToFinalize() — the last point at which the
+// server is fully alive and the latest the destroyer may keep client
+// access. Deletes the owned client (releasing this thread's access inside
+// the dtor) and flips the lite COLLECTED->DETACHED so this thread's own
+// eventual TLS destructor (or a stale-epoch eviction) takes the degenerate
+// path. Never called for a main-thread destroyer (borrowed client).
+static void detachDeferredOwnCarrierClientForVMDestruction(VM& vm, VMLite* lite)
+{
+    if (!lite)
+        return;
+    GCClient::Heap* client = lite->clientHeap;
+    ASSERT(client);
+    ASSERT_UNUSED(vm, client != &vm.clientHeap);
+    delete client; // live dtor against the still-alive server; releases this thread's access
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+    RELEASE_ASSERT(lite->state == VMLite::State::Collected);
+    lite->state = VMLite::State::Detached;
+    ASSERT(!lite->ownerHasNoTlsDtor); // own-deferred arm exists only for non-main destroyers
+    vmLiteTeardownCondition().notifyAll(); // protocol symmetry; no waiter can exist for this lite (its owner is this thread)
 }
 
 // EXIT1.9 step (3): THE NORMATIVE COMPLETION FENCE for the spawned T5
@@ -899,7 +944,7 @@ static void collectForeignCarriersForVMDestruction(VM& vm)
 // parking lot) — so it always reaches its unregisterLite and signals
 // (EXIT1.6 acyclicity; join-then-destroy-VM is safe in every build
 // configuration without any new embedder contract).
-static void waitForForeignLiteTeardownAtVMDestruction(VM& vm)
+static void waitForForeignLiteTeardownAtVMDestruction(VM& vm) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     ASSERT(vm.gilOff());
     auto& registry = VMLiteRegistry::singleton();
@@ -933,6 +978,7 @@ VM::~VM()
     // assert-only shape, bit-identical. Result: no thread's TLS dangles
     // across lastChanceToFinalize, and the T5 server-touching tail of any
     // just-joined spawned thread completes before the server Heap dies.
+    VMLite* deferredOwnCarrierLite = nullptr;
     if (m_mainVMLite) {
         // UNGIL §F.2 (U-T8): GIL-off this assert is the TOKEN meaning — the
         // destroying thread's entry token deliberately SURVIVES the carrier
@@ -944,7 +990,7 @@ VM::~VM()
         m_apiLock->uninstallVMLiteForVMDestruction(); // step (1)
         ASSERT(VMLite::currentIfExists() != m_mainVMLite.get());
         if (m_gilOff) [[unlikely]] {
-            collectForeignCarriersForVMDestruction(*this);    // step (2)
+            deferredOwnCarrierLite = collectForeignCarriersForVMDestruction(*this); // step (2)
             waitForForeignLiteTeardownAtVMDestruction(*this); // step (3): the fence
 #if ASSERT_ENABLED
             {
@@ -1024,6 +1070,12 @@ VM::~VM()
         purgePromiseRejectionHandoffRecordsAtVMDestruction(*this);
     m_apiLock->willDestroyVM(this);
     smallStrings.setIsInitialized(false);
+    // UNGIL A36/U-T6: the deferred own-carrier client detach (non-main
+    // destroyer only) — the last point with a fully-alive server; its
+    // allocator relinquishment must precede the server-side
+    // stopAllocatingForGood inside heap.lastChanceToFinalize() below.
+    if (deferredOwnCarrierLite) [[unlikely]]
+        detachDeferredOwnCarrierClientForVMDestruction(*this, deferredOwnCarrierLite);
     heap.lastChanceToFinalize();
 
     if (Options::useVMLite()) [[unlikely]] {

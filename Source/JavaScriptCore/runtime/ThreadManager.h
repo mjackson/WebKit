@@ -280,16 +280,18 @@ public:
     // carrier lites from spawned lites with a pure range check on the
     // immutable lite tid instead of probing m_threads under m_lock. Both
     // halves still exhaust against the one 2^15 space (the spawn cap is
-    // Options::maxJSThreads, far below either half); the Dev-10 TID-rebias
-    // task (U-T12) must preserve the partition.
+    // Options::maxJSThreads, far below either half); the §D.1 TID-rebias
+    // protocol (U-T12, below) PRESERVES the partition — retired TIDs are
+    // recycled into per-range free lists, never across the split.
     static constexpr uint16_t carrierTIDBase = 0x4000;
     static bool isCarrierTID(uint16_t tid) { return tid >= carrierTIDBase && tid < notTTLTID; }
 
     // Installs the VMLite.h carrier-TID provider pair (setCarrierTIDHooks).
     // Idempotent; called by the GIL-off carrier registration path
-    // (JSLock.cpp) before its first allocateCarrierTID(). Carrier TIDs are
-    // retired forever on release in v1 (the same Deviation-10 no-reuse rule
-    // as spawned TIDs; rebias is U-T12).
+    // (JSLock.cpp) before its first allocateCarrierTID(). U-T12: under
+    // gilOffProcess a released carrier TID is RETIRED into the §D.1 rebias
+    // pipeline below (Dev 10 lifted); GIL-on/flag-off the release hook stays
+    // the v1 no-op (retired forever — Deviation 10 stands there, U19).
     JS_EXPORT_PRIVATE static void installCarrierTIDHooksIfNeeded();
     // The provider body (the hook target; public so the file-scope hook
     // function in ThreadManager.cpp can reach it). Takes m_lock; RELEASE_
@@ -302,9 +304,140 @@ public:
 
     // Allocates a TID and registers a new spawned ThreadState. Returns null
     // on TID exhaustion or when the live-thread cap is exceeded (the caller
-    // throws RangeError).
+    // throws RangeError). UNGIL U0b BACKSTOP (U-T6): under gilOffProcess
+    // this VM-blind form ALWAYS returns null — it cannot prove the spawning
+    // VM is the m_gilOff winner, and a loser-VM spawn must be refused
+    // (U0b), not silently run GIL'd phase-1 semantics. Callers under
+    // gilOffProcess must use the VM-aware overload; the spawn host call
+    // (ThreadObject.cpp, outside U-T6's owned set) migrating to it is a
+    // recorded integration obligation — until then gilOffProcess
+    // OVER-refuses (winner spawns throw RangeError too), which is
+    // fail-safe and changes nothing GIL-on/flag-off.
     RefPtr<ThreadState> allocateSpawnedThreadState();
+    // UNGIL U0b (U-T6): the VM-aware overload — under gilOffProcess only
+    // the m_gilOff VM may spawn; any other (loser) VM returns null so the
+    // caller throws its RangeError (api 5.1 shape; the loser keeps the
+    // GIL-on single-migrating-client + real m_lock protocol for
+    // multi-embedder entry). Flag-off: identical to the unparameterized
+    // form. The U0b refusal is enforced today even at the unmigrated
+    // ThreadObject.cpp call site via the VM-blind overload's gilOffProcess
+    // backstop above.
+    RefPtr<ThreadState> allocateSpawnedThreadState(VM&);
     void unregisterThread(ThreadState&);
+
+    // ========================================================================
+    // UNGIL §D.1 TID rebias (ANNEXES D1 + D1R, BINDING; U-T12) — lifts Dev 10
+    // under gilOffProcess. GIL-on/flag-off: every member below is inert and
+    // TIDs stay retired forever (U19 keeps the old expectations).
+    //
+    // Protocol (two-phase vs §LK, r9 F2 — the conductor takes NO api lock and
+    // TM::m_lock is NOT excepted from that prohibition):
+    //
+    //   PHASE 1 (mutator-side, PRE-STOP, under m_lock): dead TIDs accumulate
+    //   in m_retiredSpawnedTIDs / m_retiredCarrierTIDs (unregisterThread /
+    //   retireCarrierTID). Once the rebias trigger arms (>=75% range
+    //   consumption — see maybeArmAndSealRebiasLocked for the recorded
+    //   per-partition refinement), the next mutator pass under m_lock SEALS
+    //   the retired sets into m_rebiasSnapshot (Idle -> Sealed, release
+    //   store). A sealed snapshot arms the shared server's next conducted
+    //   cycle as a FULL collection (Heap::shouldDoFullCollection probe).
+    //
+    //   PHASE 2 (conductor-side, IN-STOP, lock-free): inside the full
+    //   shared-GC stop (heap §10 barrier, WSAC set — NOT a §A.3 stop, jit
+    //   R1.h), the conductor reads the snapshot via
+    //   rebiasSnapshotForConductor() (acquire), restamps every live
+    //   butterfly tag and Structure::m_transitionThreadLocalTID holding a
+    //   snapshotted TID to 0, fires fireTransitionThreadLocal on every such
+    //   structure (D1R item 1: jettisons every DFG/FTL/IC body holding a
+    //   baked tid<<48 immediate BEFORE reissue becomes possible), then flips
+    //   Sealed -> Restamped (noteRebiasRestampComplete, release). The walk
+    //   lives in Heap.cpp (conductSharedCollection).
+    //
+    //   PHASE 3 (mutator-side, POST-RESUME, under m_lock): the next TID
+    //   allocation runs completeRebiasIfPendingLocked(): snapshot TIDs move
+    //   to the per-range free lists (Restamped -> Idle) and the SD9
+    //   RangeError exhaustion gate lifts AT THAT ALLOCATION — i.e. the
+    //   release is ordered before the gate lift by construction, and no
+    //   dead TID is reissuable before the in-stop restamp+fire completed.
+    //
+    // Soundness of late retires (D1 soundness paragraph): a TID retired
+    // AFTER the seal goes to the retired sets, never the sealed snapshot —
+    // it waits for the next cycle. Concurrent lazy-carrier creation in
+    // OTHER VMs (TM is process-global; their threads are NOT stopped) only
+    // ADDS live TIDs and cannot resurrect a snapshotted-dead TID: a dead
+    // TID has no lite, no TLS map entry, and TM never reissues before the
+    // post-resume release. An exiting thread's residual T5/A36 tail (which
+    // runs after its TID was retired, un-gated) never installs new tagged
+    // state: its last heap-access bracket is teardown-only finalization,
+    // and the §10.4 access barrier orders any such bracket entirely before
+    // or after the in-stop restamp.
+    //
+    // m_rebiasSnapshot ownership rotates with m_rebiasState: mutators write
+    // it under m_lock only while Idle (seal) or Restamped (release+clear);
+    // the conductor reads it lock-free only while Sealed. The acquire/
+    // release pairs on m_rebiasState publish the vector across the
+    // hand-offs; no state ever has two writers (Idle->Sealed and
+    // Restamped->Idle are mutator-only under m_lock; Sealed->Restamped is
+    // conductor-only, and at most one shared-GC conductor exists — not
+    // merely per-heap via GCL: shared-server-ness itself is PROCESS-unique.
+    // I13's s_stickySharedServer CAS (Heap.cpp; RELEASE_ASSERTed in
+    // noteSharedServerSticky, the sole m_isSharedServer=true site) admits at
+    // most one shared server per process, ever, and under gilOffProcess the
+    // U0c winner heap took that CAS in its VM ctor — so the one heap whose
+    // conductor can reach rebiasSnapshotForConductor()/
+    // noteRebiasRestampComplete() IS the gilOff winner's heap (RELEASE_
+    // ASSERTed at the consume site in Heap::conductSharedCollection). A
+    // loser VM cannot grow a second server: gilOffProcess is OPTION-derived
+    // and immutable for the process (VM::isGILOffProcess — it never "flips"
+    // mid-life, so no GIL-on phase-1 spawn epoch can precede it), U0b spawn
+    // refusal keeps loser clientSet() <= 1, and any path that tried
+    // noteSharedServerSticky on a second heap fail-stops on the I13 CAS
+    // assert rather than consuming a snapshot.
+    //
+    // RECORDED DEFERRAL (U-T12 verification arms; this amendment's owned
+    // file set is {ThreadManager.h, ThreadManager.cpp, heap/Heap.cpp} —
+    // JSTests/threads/** and Tools/** are NOT writable from it): the three
+    // handout-listed U-T12 arms — (1) the spawn-storm corpus test (TID
+    // exhaustion through SD9 RangeError -> rebias -> recovery, U18 shape),
+    // (2) the two-VM TM-churn amplifier run (rebias in VM A while an
+    // embedder lazily enters VM B, driving the retireCarrierTID and
+    // conductTIDRebiasUnderSharedStop stall points), and (3) the ANNEX D1R
+    // item-5 reissue/jettison arm (E4-specialized transition code vs a
+    // dying thread's structure; exit, force rebias + TID reissue,
+    // transition storm vs a foreign locked transitioner; instrumented I15
+    // assert + assert the specialized CodeBlock was jettisoned during the
+    // rebias stop) — land with the thread-ungil verification-ladder phase
+    // against the RaceAmplifier::perturb hooks already planted here and in
+    // Heap.cpp. They are still U-T12 deliverables (gate ledger), not
+    // dropped. Arm (2) is ADDITIONALLY blocked on the JSThreadsSafepoint
+    // R2-4 tripwire obligation recorded in Heap.cpp's rebias banner: until
+    // that lands, the D1R fire path RELEASE_ASSERTs in any multi-VM
+    // gilOffProcess process. Arms (1) and (3) are single-VM and unblocked.
+    // ========================================================================
+
+    enum class RebiasState : uint8_t { Idle, Sealed, Restamped };
+
+    // Mutator-side: retire a released A36 carrier TID into the rebias
+    // pipeline (gilOffProcess; otherwise a no-op — Dev 10 stands). Takes
+    // m_lock; every release-hook call site (JSLock.cpp carrier teardown,
+    // VM.cpp A36 walk tail) runs with NO lock held, so the rank-1 acquire is
+    // §LK-legal even when the exit tail runs mid-stop (exits are un-gated).
+    void retireCarrierTID(uint16_t);
+
+    // Conductor-side, lock-free: the sealed dead-TID snapshot if one is
+    // pending, else null. Read ONLY inside the full shared-GC stop.
+    const Vector<uint16_t>* rebiasSnapshotForConductor();
+    // Conductor-side, lock-free: Sealed -> Restamped. Call ONLY after every
+    // snapshot TID's instance tags + structure transition TIDs were
+    // restamped AND the D1R fires ran, still inside the stop.
+    void noteRebiasRestampComplete();
+
+    // Trigger probe for Heap::shouldDoFullCollection (D1: a sealed snapshot
+    // "arms the next full collection"). Lock-free.
+    bool rebiasSnapshotIsSealed() const
+    {
+        return m_rebiasState.load(std::memory_order_acquire) == static_cast<uint8_t>(RebiasState::Sealed);
+    }
 
     uint64_t allocateThreadLocalKey() { return ++m_nextThreadLocalKey; }
 
@@ -339,11 +472,41 @@ public:
     ThreadManager() = default; // for LazyNeverDestroyed only; use singleton()
 
 private:
+    // The shared allocation body behind both allocateSpawnedThreadState
+    // overloads (cap check, TID allocation, m_threads registration). The
+    // U0b gilOffProcess gating lives in the public overloads only.
+    RefPtr<ThreadState> allocateSpawnedThreadStateInternal();
+
+    // §D.1 phase-1 arming + seal. Requires m_lock; gilOffProcess-only
+    // callers (no-ops otherwise are enforced at the call sites).
+    void maybeArmAndSealRebiasLocked() WTF_REQUIRES_LOCK(m_lock);
+    // §D.1 phase-3 release: Restamped -> Idle, snapshot TIDs to the
+    // per-range free lists. The SD9 gate-lift site (run at the top of every
+    // TID allocation under m_lock, post-resume on a mutator).
+    void completeRebiasIfPendingLocked() WTF_REQUIRES_LOCK(m_lock);
+
     Lock m_lock; // rank 1 (SPEC-api 5.9)
     UncheckedKeyHashMap<uint16_t, Ref<ThreadState>> m_threads WTF_GUARDED_BY_LOCK(m_lock); // spawned only
-    Deque<uint16_t> m_freeTIDs WTF_GUARDED_BY_LOCK(m_lock); // empty until Dev-10 rebias lands
+    Deque<uint16_t> m_freeTIDs WTF_GUARDED_BY_LOCK(m_lock); // spawned-range recycle list; fed ONLY by §D.1 rebias phase 3 (U-T12; empty GIL-on/flag-off — Dev 10)
+    Deque<uint16_t> m_freeCarrierTIDs WTF_GUARDED_BY_LOCK(m_lock); // carrier-range recycle list, same protocol (the U-T6 partition is preserved)
     uint16_t m_nextTID WTF_GUARDED_BY_LOCK(m_lock) { 1 }; // 0 = main, 0x7fff = notTTLTID; spawned range tops out at carrierTIDBase (U-T6 split)
-    uint16_t m_nextCarrierTID WTF_GUARDED_BY_LOCK(m_lock) { carrierTIDBase }; // A36 carrier range [carrierTIDBase, notTTLTID); retired forever in v1
+    uint16_t m_nextCarrierTID WTF_GUARDED_BY_LOCK(m_lock) { carrierTIDBase }; // A36 carrier range [carrierTIDBase, notTTLTID)
+
+    // §D.1 retired-TID sets (dead: no thread, no lite, no TLS entry). Fed by
+    // unregisterThread / retireCarrierTID under gilOffProcess; drained into
+    // m_rebiasSnapshot at seal. GIL-on/flag-off: never appended to.
+    Vector<uint16_t> m_retiredSpawnedTIDs WTF_GUARDED_BY_LOCK(m_lock);
+    Vector<uint16_t> m_retiredCarrierTIDs WTF_GUARDED_BY_LOCK(m_lock);
+    // The sealed dead-TID snapshot (see the class banner for the ownership
+    // rotation; deliberately NOT m_lock-annotated — the conductor reads it
+    // lock-free while Sealed, licensed by the m_rebiasState acquire/release
+    // hand-off).
+    Vector<uint16_t> m_rebiasSnapshot;
+    std::atomic<uint8_t> m_rebiasState { static_cast<uint8_t>(RebiasState::Idle) };
+    // Sticky once set (range consumption is monotone): from then on every
+    // retire/allocate pass under m_lock may seal a fresh snapshot — the
+    // continuous-recycling regime past the 75% threshold.
+    std::atomic<bool> m_rebiasArmed { false };
 
     std::atomic<uint64_t> m_nextThreadLocalKey { 0 };
 

@@ -88,6 +88,33 @@ namespace JSC {
 // trusting a cached carrier (A36 staleness rule — a dead VM's address can
 // be reused).
 //
+// §10A.1 {client, epoch} CLAUSE — RECORDED REFINEMENT (ANNEX A36 BINDING
+// clause "heap §10A.1's TLS slot becomes {client, epoch}; stale epoch =>
+// null"; INTEGRATE-ungil ledger row 8 assigns the upgrade to U-T6). The slot
+// (GCThreadLocalCache.cpp, OUTSIDE U-T6's owned-file set) deliberately stays
+// a raw client pointer: the epoch was specified to exclude a reader
+// dereferencing a stale client after its VM died, and the restore discipline
+// implemented here makes that window unreachable —
+//   (a) the A36C install/restore swap is strictly LIFO and re-stamps the
+//       SAVED slot value at every depth-0 unlock / ~VM uninstall, so a
+//       thread that has left a VM holds no slot reference into it;
+//   (b) every live teardown path that deletes a client (carrier TLS-death
+//       LIVE arm above; spawned T5, ThreadManager.cpp) runs
+//       detachCurrentThread — which CLEARS the slot — strictly before the
+//       delete;
+//   (c) the ~VM A36 walk deletes only COLLECTED clients of NON-entered
+//       threads (an entered-at-~VM carrier fail-stops on the token-free
+//       RELEASE_ASSERT), and a non-entered owner's slot was already
+//       restored per (a) at its depth-0 unlock — the walk never deletes a
+//       client any thread's slot still names.
+// So the slot can never hold a stale client pointer and an epoch field
+// would be checked by no reachable reader. CONSTRAINT ON FUTURE WRITERS:
+// any new writer of the §10A.1 slot must preserve (a)-(c) or implement the
+// {client, epoch} pair as specified. The matching banner at the slot
+// definition + the ledger-row annotation are an orchestrator follow-up
+// (GCThreadLocalCache.cpp and INTEGRATE-ungil.md are outside this task's
+// owned-file set).
+//
 // U-T1 landed the install/restore tuple swap ({lite, TID-tag, §10A.1 client
 // slot} — A36C). U-T6 lands the full r31/r32 teardown protocol here:
 // per-thread clients (perThreadClientForCarrierEntry), the state-keyed
@@ -143,7 +170,7 @@ using CarrierMap = UncheckedKeyHashMap<VM*, CarrierMapEntry>;
 //                walk already deleted the owned GCClient::Heap (recorded
 //                refinement, see the VM.cpp walk banner): the deferred dtor
 //                here never dereferences lite->clientHeap.
-static void tearDownCarriersAtThreadDeath(CarrierMap& map)
+static void tearDownCarriersAtThreadDeath(CarrierMap& map) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     for (auto& mapEntry : map) {
         VMLite* lite = mapEntry.value.carrier.get();
@@ -184,7 +211,7 @@ static void tearDownCarriersAtThreadDeath(CarrierMap& map)
             if (client) {
                 RELEASE_ASSERT(!client->hasHeapAccess());
                 if (GCClient::Heap::currentThreadClient() == client)
-                    GCClient::Heap::setCurrentThreadClient(nullptr); // stale §10A.1 slot must not dangle past the delete
+                    client->detachCurrentThread(); // DCT: parks the epoch at MAX + clears the §10A.1 slot (must not dangle past the delete)
                 RaceAmplifier::perturb(); // EXIT1.8 stall point: pre-destroy.
                 // Destroy the OWNED client (the live dtor: access bracket +
                 // lastChanceToFinalize under MSPL + clientSet().remove
@@ -648,6 +675,49 @@ static void retireEntryTokenForLock(JSLock* lock)
 }
 
 // ============================================================================
+// UNGIL §F.5 exit-side completion (U-T6): the outer foreign gilOff carrier
+// whose gated access re-acquire + deferred trap poll must run AFTER the
+// inner VM's m_lock drops. willReleaseLock runs BEFORE m_lock.unlock(), and
+// the gated acquireHeapAccess PARKS if the outer VM is mid-stop — parking
+// there while still holding the inner mutex closes a deadlock cycle (outer
+// conductor waits on an access-holding client; the exiting nested thread
+// parks on the conductor's stop while holding the inner m_lock some entering
+// thread needs to make progress), and running the outer VM's trap handling
+// under the inner mutex is an api-lock-rank inversion besides. So
+// willReleaseLock only RE-STAMPS the §10A.1 slot (non-blocking TLS store,
+// preserving slot-correct-before-AHA) and stashes the restored lite here;
+// unlock() completes the restore after the drop. Thread-local by
+// construction (the LIFO restore is a current-thread tuple operation, so no
+// other thread's unlock can race the stash), and consumed in the SAME
+// unlock() call that set it: willReleaseLock runs exactly when m_lockCount
+// is about to reach 0, and that unlock() always proceeds to the m_lock drop.
+// The park-site rule this enforces: no api mutex is held at any gated
+// acquireHeapAccess park site (the DAL2 dtor and the spawned token paths
+// already satisfy it; this was the one violator).
+// ============================================================================
+static VMLite*& pendingForeignCarrierAccessRestore()
+{
+    static thread_local VMLite* pending { nullptr };
+    return pending;
+}
+
+static void completeDeferredForeignCarrierRestoreAfterUnlock()
+{
+    VMLite* restored = pendingForeignCarrierAccessRestore();
+    if (!restored) [[likely]]
+        return;
+    pendingForeignCarrierAccessRestore() = nullptr;
+    // Holding NO mutex here: the inner m_lock just dropped, and the outer
+    // VM cannot die under us — this thread still holds its outer entry
+    // (token + m_lock/lite), so the outer ~VM's EXIT1.9 fence cannot pass.
+    restored->clientHeap->acquireHeapAccess(); // gated; parks if the outer VM is mid-stop; ISB1.2 sync on the success path
+    if (VMTraps* liteTraps = perThreadTrapsIfExists(*restored))
+        liteTraps->handleTrapsIfNeeded();
+    else
+        restored->vm->traps().handleTrapsIfNeeded();
+}
+
+// ============================================================================
 // UNGIL §F.2 — predicate-consumer IU table (U-T8 deliverable; ~60 rows).
 //
 // Both predicates' consumers, classified {assert (token meaning) | BRANCH |
@@ -829,10 +899,47 @@ void JSLock::lock(intptr_t lockCount) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
             // re-parks/re-acquires here before JS resumes.
             if (m_vm && m_vm->gilOff()) [[unlikely]] {
                 VMLite* lite = VMLite::currentIfExists();
-                if (lite && lite->vm == m_vm && lite->clientHeap)
-                    lite->clientHeap->acquireHeapAccess();
+                // §F.5 v1 REFUSAL (recorded deviation, U-T6): recursive
+                // re-entry of a HELD gilOff VM while a FOREIGN lite is
+                // current — the A->B->A shape, JSLockHolder(A) {
+                // JSLockHolder(B) { JSLockHolder(A) } } — is fail-stopped,
+                // not honored. The m_lockCount recursion path performs no
+                // tuple swap, so honoring it would run A's JS under B's TID
+                // tag and B's §10A.1 client (unlocked flat-butterfly
+                // transitions under a wrong TID — SPEC-objectmodel §2/§3
+                // memory corruption) AND would silently skip the mandated
+                // gated acquire on A's client (JS access-released). GIL-on
+                // the same shape merely runs A's JS under B's atom table (a
+                // pre-existing upstream sharp edge embedders avoid via
+                // DropAllLocks); GIL-off the consequence escalates to heap
+                // corruption, so the supported nesting discipline is
+                // strictly LIFO per VM (§F.5): re-entering A from inside B
+                // needs a per-depth tuple-swap stack — not v1.
+                RELEASE_ASSERT(lite && lite->vm == m_vm && lite->clientHeap); // §F.5 LIFO nesting discipline (U-T6)
+                lite->clientHeap->acquireHeapAccess();
             }
             return;
+        }
+        // UNGIL §F.5 entry-side EARLY RELEASE (U-T6): this thread is about
+        // to BLOCK on a contended m_lock. If a FOREIGN gilOff VM A's carrier
+        // is current, the thread still holds A's client heap access, and a
+        // plain mutex wait polls none of A's stop machinery — holding access
+        // across it would stall A's heap §10.4 barrier and §A.3.2 conductor
+        // predicate for the unbounded duration of the inner-lock contention
+        // (B's holder can run JS indefinitely), and in the embedder ABBA
+        // shape (B's holder entering A) composes into a deadlock the §F.5
+        // release exists to break. Release A's access BEFORE the wait;
+        // didAcquireLock's §F.5 hook stays as the idempotent uncontended-
+        // path release (hasHeapAccess() guard), and the willReleaseLock/
+        // unlock LIFO restore re-acquires after the inner m_lock drops.
+        // Deliberately NOT on the recursion path above (no blocking there;
+        // a release would strand the outer VM access-released through the
+        // recursion's unlock, which never reaches depth 0).
+        if (Options::useVMLite() && m_vm) [[unlikely]] {
+            if (VMLite* outer = VMLite::currentIfExists(); outer && outer->vm && outer->vm != m_vm && outer->gilOff) {
+                if (outer->clientHeap && outer->clientHeap->hasHeapAccess())
+                    outer->clientHeap->releaseHeapAccess();
+            }
         }
         m_lock.lock();
     }
@@ -867,12 +974,18 @@ void JSLock::didAcquireLock()
         // in the nested window this thread counts access-released for A's
         // heap §10.4 barrier AND A's §A.3.2 conductor predicate (heap I4(b):
         // A's JS frames stay alive via the conservative machine-thread
-        // scan — the thread remains registered). A's trap/stop/termination
-        // delivery is DEFERRED to the LIFO restore in willReleaseLock (the
-        // gated re-acquire + re-stamp + poll there). Applies per nesting
-        // level (the restores form the LIFO stack of releases). A GIL-on
-        // outer lite (gilOff == 0, incl. any m_mainVMLite) keeps the landed
-        // handoff protocol — no release here.
+        // scan — the thread remains registered). "FIRST" is enforced at the
+        // BLOCKING site: lock()'s entry-side early release runs BEFORE any
+        // contended m_lock wait, so A's access is never held across an
+        // unbounded inner-lock contention — the release here is the
+        // uncontended-tryLock-path twin and an idempotent backstop
+        // (hasHeapAccess() guard). A's trap/stop/termination delivery is
+        // DEFERRED to the LIFO restore (willReleaseLock re-stamps; the gated
+        // re-acquire + poll complete in unlock() AFTER the inner m_lock
+        // drops — see completeDeferredForeignCarrierRestoreAfterUnlock).
+        // Applies per nesting level (the restores form the LIFO stack of
+        // releases). A GIL-on outer lite (gilOff == 0, incl. any
+        // m_mainVMLite) keeps the landed handoff protocol — no release here.
         if (VMLite* outer = VMLite::currentIfExists(); outer && outer->vm != m_vm && outer->gilOff) [[unlikely]] {
             if (outer->clientHeap && outer->clientHeap->hasHeapAccess())
                 outer->clientHeap->releaseHeapAccess();
@@ -898,9 +1011,10 @@ void JSLock::didAcquireLock()
                 m_didInstallCarrierVMLite = true;
                 m_entryThreadClient = GCClient::Heap::currentThreadClient();
                 // A36C: the §10A.1 client slot is stamped from the CARRIER's
-                // client (== &m_vm->clientHeap until U-T6's per-thread
-                // clients land; this line is the GIL-off stamping authority
-                // — see the banner above).
+                // client — the per-thread client (U-T6): the VM's original
+                // client for the main thread, this thread's own otherwise.
+                // This line is the GIL-off stamping authority — see the
+                // banner above.
                 GCClient::Heap::setCurrentThreadClient(carrier.clientHeap);
                 gilOffCarrierLite = &carrier;
             } else {
@@ -1180,6 +1294,11 @@ void JSLock::unlock(intptr_t unlockCount) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
     if (!m_lockCount) {
         m_hasOwnerThread.store(false, std::memory_order_release);
         m_lock.unlock();
+        // UNGIL §F.5 exit-side completion (U-T6): the outer foreign gilOff
+        // carrier's gated access re-acquire + deferred trap poll run HERE,
+        // with the inner m_lock dropped (no-op unless willReleaseLock's LIFO
+        // restore stashed a lite above; see the helper's banner).
+        completeDeferredForeignCarrierRestoreAfterUnlock();
     }
 }
 
@@ -1281,13 +1400,17 @@ void JSLock::willReleaseLock()
     // the m_didInstallCarrierVMLite arm restored the SAVED slot value, which
     // for a nested entry is exactly the outer client, so the explicit stamp
     // below is idempotent there and load-bearing for the GIL-on-inner-VM
-    // restore arm, which does not touch the slot), re-acquire the outer
-    // client's access §A.3.2b/§A.3.8-gated (parks if the outer VM is
-    // mid-stop; SB1 ordering inside acquireHeapAccess), then poll the outer
-    // lite's deferred trap bits BEFORE any outer-VM JS runs (same shape as
-    // the DAL2 dtor poll). m_vm may already be null here (~VM final unlock):
-    // the outer-VM re-acquire is exactly as required then. Flag-off/GIL-on:
-    // no gilOff lite exists, the branch is dead.
+    // restore arm, which does not touch the slot), then DEFER the gated
+    // re-acquire of the outer client's access + the outer lite's trap poll
+    // to unlock()'s post-m_lock-drop completion
+    // (completeDeferredForeignCarrierRestoreAfterUnlock — see its banner:
+    // the gated acquire can PARK on the outer VM's stop, and parking while
+    // the inner m_lock is still held deadlocks; the poll under the inner
+    // mutex is a rank inversion). The outer-VM JS cannot resume before the
+    // completion runs: both happen inside the same unlock() call, before it
+    // returns to the caller. m_vm may already be null here (~VM final
+    // unlock): the deferred outer-VM re-acquire is exactly as required then.
+    // Flag-off/GIL-on: no gilOff lite exists, the branch is dead.
     //
     // m_lockDropDepth gate: a DropAllLocks full drop / §J.3
     // unlockAllForThreadParking release of the INNER VM must leave the outer
@@ -1301,12 +1424,9 @@ void JSLock::willReleaseLock()
     if (Options::useVMLite() && !m_lockDropDepth) [[unlikely]] {
         if (VMLite* restored = VMLite::currentIfExists(); restored && restored->gilOff && restored->vm && restored->vm != m_vm) [[unlikely]] {
             RELEASE_ASSERT(restored->clientHeap); // EXIT1.4(b): stamped before the outer entry's first acquisition
-            GCClient::Heap::setCurrentThreadClient(restored->clientHeap); // A36C restore-side re-stamp
-            restored->clientHeap->acquireHeapAccess(); // gated; ISB1.2 sync on the success path
-            if (VMTraps* liteTraps = perThreadTrapsIfExists(*restored))
-                liteTraps->handleTrapsIfNeeded();
-            else
-                restored->vm->traps().handleTrapsIfNeeded();
+            GCClient::Heap::setCurrentThreadClient(restored->clientHeap); // A36C restore-side re-stamp (slot-correct-before-AHA: the gated acquire follows post-unlock)
+            ASSERT(!pendingForeignCarrierAccessRestore());
+            pendingForeignCarrierAccessRestore() = restored; // consumed by this unlock() after the m_lock drop
         }
     }
 

@@ -98,6 +98,8 @@
 #include "TypeProfilerLog.h"
 #include "UnlinkedEvalCodeBlock.h"
 #include "StopTheWorldCallback.h" // THREADS T5: StopTheWorldEvent for the §10.2 follower park.
+#include "Structure.h" // UNGIL §D.1 (U-T12): transition-TID restamp + D1R TTL fires in the rebias stop.
+#include "ThreadManager.h" // UNGIL §D.1 (U-T12): the dead-TID snapshot hand-off (two-phase vs §LK).
 #include "VM.h"
 #include "VMLite.h"
 #include "VMLiteShared.h"
@@ -109,6 +111,7 @@
 #include "WeakSetInlines.h"
 #include <algorithm>
 #include <wtf/AvailableMemory.h>
+#include <wtf/BitVector.h> // UNGIL §D.1 (U-T12): the in-stop dead-TID membership set.
 #include <atomic>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/ListDump.h>
@@ -3208,6 +3211,17 @@ bool Heap::shouldSweepSynchronously()
 
 bool Heap::shouldDoFullCollection()
 {
+    // UNGIL §D.1 / ANNEX D1 (U-T12): a SEALED dead-TID rebias snapshot "arms
+    // the next full collection" — upgrade the shared server's next conducted
+    // cycle to Full so the in-stop restamp + D1R fire can run and the SD9
+    // RangeError exhaustion window can close (liveness: without the upgrade
+    // an Eden-only workload would never rebias and exhausted spawns would
+    // RangeError forever). gilOffProcess-only — GIL-on keeps Dev 10 and the
+    // probe is never armed there (U19: GIL-on behavior unchanged); flag-off
+    // the branch is dead (isGILOffProcess() false).
+    if (VM::isGILOffProcess() && isSharedServer() && ThreadManager::singleton().rebiasSnapshotIsSealed()) [[unlikely]]
+        return true;
+
     if (!useGenerationalGC())
         return true;
 
@@ -4548,6 +4562,128 @@ bool Heap::tryConductSharedCollectionForPoll(GCClient::Heap& client) WTF_IGNORES
     return true;
 }
 
+// ============================================================================
+// UNGIL §D.1 TID rebias — conductor phase (ANNEXES D1 + D1R, BINDING; U-T12).
+//
+// Runs INSIDE the full shared-GC stop (heap §10 barrier, WSAC set; NOT a §A.3
+// stop — jit R1.h; re-entry blocked per §A.3.8), strictly BEFORE the step-8/9
+// resumes. Restamps every live cell's dead-TID state to 0 FROM THE SEALED
+// SNAPSHOT ONLY (two-phase vs §LK, r9 F2: the snapshot was sealed pre-stop by
+// a mutator under TM::m_lock; the conductor takes NO api lock — both
+// ThreadManager calls used here are lock-free state flips):
+//
+//   - instance butterfly tags (JSObject tagged words, Flat/FlatShared): dead
+//     tid -> 0, payload + SW bit preserved. Restamp-to-0 soundness (D1): the
+//     object becomes equivalent to main-allocated (the payload-0/TID-0
+//     regime; OM decode tests payload first). No fire needed for instance
+//     tags (D1R item 4): the jit read/write predicates load the instance tag
+//     at runtime against the R5 TLS tag — neither side is a baked immediate.
+//     Segmented words (TID == notTTLTID, reserved) are never dead and are
+//     skipped; aux/fragment allocations carry no TID tags, so the JSCell
+//     walk is the complete restamp surface (the D1 "precise + aux"
+//     enumeration is the forEachLiveCell coverage of MarkedBlocks +
+//     PreciseAllocations).
+//
+//   - Structure::m_transitionThreadLocalTID (the N1 butterfly-less
+//     transition key): dead tid -> 0, AND (D1R item 1) fireTransitionThread-
+//     Local on EVERY such structure before the stop resumes — jettisoning
+//     every DFG/FTL/IC body specialized on it (E4 emission bakes
+//     "R5 tag vs tid<<48 immediate" when specialized on a concrete S; the
+//     TTL fire kills it), so no baked dead-TID immediate survives to the
+//     post-resume m_freeTIDs release that makes reissue possible (OM
+//     I11/I15 hold by construction). Structures are JSCells in
+//     m_objectSpace, so the single walk IS the D1 "StructureID-table walk".
+//     I13 SUPERSESSION (D1R item 2, rebias-stop fires only): the §10 stop
+//     barrier provides equivalent quiescence; butterflyWorldIsStopped()'s
+//     worldIsStoppedForAllClients() disjunct routes the fires to the
+//     run-inline branch; the resume-side sync is the ISB1.1 generation bump
+//     in conductSharedCollection (which executes AFTER this, before the GSP
+//     clear); conservative scan R2 + I7 gate the jettisoned-code frees.
+//
+// The fires run AFTER the iteration scope closes (still in-stop): fire
+// bodies take ConcurrentJSLockers / rank-6b CodeBlock locks and run the F4
+// chain-fire — none of which belongs inside a forEachLiveCell functor. The
+// fired set = the restamped-structure set (D1R item 3 cost bound; chain-fire
+// per OM F4, covered by the jit Task-13 stop-budget gate — rebias is a rare,
+// exhaustion-driven event under SD9's spawn gate).
+//
+// RECORDED DEVIATION (file ownership, not semantics): Structure exposes no
+// transition-TID setter and Structure.h is outside U-T12's owned set, so the
+// restamp writes through the JIT-exported transitionThreadLocalTIDOffset().
+// A mechanical Structure::restampTransitionThreadLocalTIDForRebias() setter
+// is a follow-up once Structure.h is editable. Both pokes use relaxed Atomic
+// stores: mutators are stopped, but DFG/FTL compiler threads still run and
+// may concurrently read these words (their stale reads are killed by the
+// very fires this walk performs — any compilation specialized on a restamped
+// structure watches a set that is now fired and dies at link time).
+// ============================================================================
+static NEVER_INLINE void conductTIDRebiasUnderSharedStop(JSC::Heap& heap, const Vector<uint16_t>& deadTIDs)
+{
+    RELEASE_ASSERT(heap.worldIsStoppedForAllClients());
+    RELEASE_ASSERT(!deadTIDs.isEmpty());
+    VM& vm = heap.vm();
+
+    static_assert(static_cast<uint16_t>(JSC::notTTLTID) == ThreadManager::notTTLTID, "the OM butterfly TID space and the TM TID space are the same 2^15 space");
+
+    BitVector dead;
+    dead.ensureSize(ThreadManager::notTTLTID);
+    for (uint16_t tid : deadTIDs) {
+        RELEASE_ASSERT(tid && tid < ThreadManager::notTTLTID); // never 0 (main / restamp target), never the segmented sentinel
+        dead.quickSet(tid);
+    }
+
+    RaceAmplifier::perturb(); // U-T12 two-VM TM-churn stall point: pre-walk, in-stop (other VMs' threads are NOT stopped and may churn TM::m_lock).
+
+    Vector<Structure*> structuresToFire;
+    {
+        HeapIterationScope iterationScope(heap);
+        heap.objectSpace().forEachLiveCell(
+            iterationScope,
+            [&](HeapCell* heapCell, HeapCell::Kind kind) -> IterationStatus {
+                if (!isJSCellKind(kind))
+                    return IterationStatus::Continue; // aux storage carries no TID tags (see banner)
+                JSCell* cell = static_cast<JSCell*>(heapCell);
+
+                if (cell->type() == StructureType) {
+                    Structure* structure = static_cast<Structure*>(cell);
+                    uint16_t transitionTID = structure->transitionThreadLocalTID();
+                    if (transitionTID && transitionTID < ThreadManager::notTTLTID && dead.quickGet(transitionTID)) {
+                        // Restamp the N1 key to 0 (the offset poke — see the
+                        // banner's recorded deviation).
+                        reinterpret_cast<Atomic<uint16_t>*>(reinterpret_cast<char*>(structure) + Structure::transitionThreadLocalTIDOffset())->store(0, std::memory_order_relaxed);
+                        structuresToFire.append(structure);
+                    }
+                    return IterationStatus::Continue;
+                }
+
+                if (!cell->isObject())
+                    return IterationStatus::Continue;
+                if (cell->type() == WebAssemblyGCObjectType)
+                    return IterationStatus::Continue; // JSObject WITHOUT the butterfly word (the sole such family; offset 8 is not a tag word there)
+                JSObject* object = asObject(cell);
+                uint64_t word = object->taggedButterflyWord();
+                if (!(word & butterflyPointerMask))
+                    return IterationStatus::Continue; // None regime: all-zero word
+                ButterflyTID instanceTID = butterflyTID(word);
+                if (!instanceTID || instanceTID == JSC::notTTLTID || !dead.quickGet(instanceTID))
+                    return IterationStatus::Continue; // TID-0, segmented, or live-owner word
+                // Dead flat/flat-shared tag: tid -> 0, payload + SW preserved.
+                uint64_t restamped = word & ~butterflyTIDMask;
+                reinterpret_cast<Atomic<uint64_t>*>(reinterpret_cast<char*>(object) + JSObject::butterflyOffset())->store(restamped, std::memory_order_relaxed);
+                return IterationStatus::Continue;
+            });
+    }
+
+    RaceAmplifier::perturb(); // U-T12 D1R.5 stall point: post-restamp, pre-fire.
+
+    // D1R item 1: fire (and thereby jettison) BEFORE the stop resumes —
+    // hence strictly before the post-resume m_freeTIDs release.
+    for (Structure* structure : structuresToFire)
+        structure->fireTransitionThreadLocal(vm, "UNGIL D1R: TID rebias restamped this structure's transition TID inside the shared-GC stop");
+
+    RaceAmplifier::perturb(); // U-T12 D1R.5 stall point: post-fire, pre-Restamped flip.
+}
+
 void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     // §10 steps 3-9. Pre: GCL held (rank 2), GCA set; the conductor runs as
@@ -4639,6 +4775,10 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // as the mutator; drains ALL granted tickets (§10B.1). Deviation 4 keeps
     // the world suspended for the entire cycle (no Concurrent phase; see
     // runFixpointPhase). Parallel marking inside the stop stays (I5 helpers).
+    // U-T12: track whether any conducted cycle in THIS stop window was a
+    // FULL collection — §D.1 rebias may only run inside a full shared
+    // collection's stop (ANNEX D1).
+    bool sawFullCollectionThisStop = false;
     for (;;) {
         {
             Locker locker { *m_threadLock };
@@ -4648,6 +4788,8 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
             }
         }
         collectInMutatorThread();
+        if (m_lastCollectionScope && m_lastCollectionScope.value() == CollectionScope::Full)
+            sawFullCollectionThisStop = true;
     }
 
     // Step 7 tail — still stopped: shared mode fires the safepoint hooks
@@ -4656,6 +4798,32 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // §11 reclaim sequence (I11) under the reclaimer's own compiler-thread
     // suspension.
     runSafepointHooksAndReclaim();
+
+    // UNGIL §D.1 TID rebias (ANNEXES D1 + D1R; U-T12 — see the banner on
+    // conductTIDRebiasUnderSharedStop above). Runs HERE: still inside the
+    // §10 stop (WSAC set), after every conducted cycle and the quarantine/
+    // reclaim bar, strictly BEFORE the ISB1.1 generation bump (whose
+    // crossModifyingCodeFence + the F8 GSP-clear synchronizes-with edge are
+    // the D1R item-2 resume-side sync for the fires' jettisons) and the
+    // step-8/9 resumes. The Sealed -> Restamped flip below is what licenses
+    // the POST-RESUME mutator-side m_freeTIDs release (ThreadManager phase
+    // 3, the SD9 gate-lift site) — so restamp + fire are complete before
+    // any dead TID can be reissued. gilOffProcess-only; flag-off/GIL-on
+    // this block is dead (U19/golden-disasm: zero behavior delta).
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        auto& threadManager = ThreadManager::singleton();
+        if (const Vector<uint16_t>* deadTIDs = threadManager.rebiasSnapshotForConductor()) {
+            if (sawFullCollectionThisStop) {
+                conductTIDRebiasUnderSharedStop(*this, *deadTIDs);
+                threadManager.noteRebiasRestampComplete();
+            }
+            // else: the snapshot sealed mid-stop (un-gated carrier-exit
+            // retire under TM::m_lock) or only Eden tickets were granted —
+            // it stays Sealed, and shouldDoFullCollection()'s probe arms
+            // the NEXT conducted cycle as Full (the D1 trigger), which
+            // performs the rebias in ITS stop.
+        }
+    }
 
     // End of the conductor's main-VM teardown work. The conductor's own
     // AtomStringTable is restored by atomStringTableScopeExit at function

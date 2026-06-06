@@ -174,9 +174,17 @@ bool ThreadManager::isJSThreadCurrent()
     return state && state->isSpawned;
 }
 
-RefPtr<ThreadState> ThreadManager::allocateSpawnedThreadState()
+RefPtr<ThreadState> ThreadManager::allocateSpawnedThreadStateInternal()
 {
     Locker locker { m_lock };
+    // UNGIL §D.1 phase 3 (U-T12): a Restamped snapshot is released HERE —
+    // post-resume, on a mutator, under m_lock — strictly before the
+    // exhaustion check below, so the SD9 RangeError gate lifts at exactly
+    // the first allocation after the in-stop restamp+fire (ANNEX D1:
+    // "m_freeTIDs released POST-RESUME under TM::m_lock BEFORE the gate
+    // lifts"). GIL-on/flag-off: state is always Idle, the call no-ops.
+    if (VM::isGILOffProcess()) [[unlikely]]
+        completeRebiasIfPendingLocked();
     if (m_threads.size() >= Options::maxJSThreads())
         return nullptr;
     uint16_t tid;
@@ -186,20 +194,87 @@ RefPtr<ThreadState> ThreadManager::allocateSpawnedThreadState()
         // UNGIL U-T6 split: spawned TIDs stop at carrierTIDBase — the upper
         // half is the A36 carrier range (see ThreadManager.h; previously the
         // bound was notTTLTID).
-        if (m_nextTID >= carrierTIDBase)
-            return nullptr; // lifetime TID exhaustion (Dev 10: no reuse pre-rebias)
+        if (m_nextTID >= carrierTIDBase) {
+            // SD9 exhaustion window: the caller throws RangeError. U-T12:
+            // make sure the trigger is armed and any retired TIDs are
+            // sealed so the next full shared collection rebiases and the
+            // window closes (GIL-on keeps Dev 10: spawn fails forever).
+            if (VM::isGILOffProcess()) [[unlikely]] {
+                m_rebiasArmed.store(true, std::memory_order_relaxed);
+                maybeArmAndSealRebiasLocked();
+            }
+            return nullptr;
+        }
         tid = m_nextTID++;
     }
     Ref<ThreadState> state = ThreadState::create(tid, true);
     m_threads.add(tid, state.copyRef());
+    // UNGIL §D.1 trigger (U-T12): arm at >=75% consumption; seal eagerly if
+    // dead TIDs are already waiting (spawn-storm shape: arm + seal happen on
+    // the allocating mutator, pre-stop, under m_lock — the D1 phase-1 pass).
+    if (VM::isGILOffProcess()) [[unlikely]]
+        maybeArmAndSealRebiasLocked();
     return RefPtr<ThreadState> { WTF::move(state) };
+}
+
+RefPtr<ThreadState> ThreadManager::allocateSpawnedThreadState()
+{
+    // UNGIL U0b BACKSTOP (U-T6): under gilOffProcess a spawn may only be
+    // licensed by the VM-aware overload below — this VM-blind form cannot
+    // prove the spawning VM is the m_gilOff winner (U0c), and a LOSER VM's
+    // spawn must be REFUSED (U0b: the host call throws RangeError), never
+    // allowed to run GIL'd phase-1 semantics with no per-thread GCClient.
+    // Returning null here keeps U0b enforced even before the spawn host
+    // call (ThreadObject.cpp, outside U-T6's owned set) migrates to the
+    // VM-aware overload: until that recorded integration obligation lands,
+    // gilOffProcess refuses EVERY spawn — winner included — which is
+    // fail-safe over-refusal (a RangeError, not silent wrong semantics or
+    // the lite->clientHeap==null fail-stop a wired-but-clientless spawned
+    // entry would hit), removed by the call-site migration. Flag-off
+    // (every shipping configuration): isGILOffProcess() is false and this
+    // is byte-identical to the landed behavior.
+    if (VM::isGILOffProcess()) [[unlikely]]
+        return nullptr;
+    return allocateSpawnedThreadStateInternal();
+}
+
+RefPtr<ThreadState> ThreadManager::allocateSpawnedThreadState(VM& vm)
+{
+    // UNGIL U0b (U-T6): under gilOffProcess exactly ONE VM per process — the
+    // m_gilOff winner (U0c) — may hold per-thread clients, hence spawn.
+    // A loser VM's spawn returns null and the host call throws RangeError.
+    if (VM::isGILOffProcess() && !vm.gilOff()) [[unlikely]]
+        return nullptr;
+    RefPtr<ThreadState> state = allocateSpawnedThreadStateInternal();
+    // UNGIL §D.1 SD9 liveness (U-T12): an exhausted winner-VM spawn left a
+    // snapshot Sealed (the internal form armed + sealed under m_lock). The
+    // rebias only RUNS inside the next full shared collection — actually
+    // request one from this mutator (a host call holding heap access; the
+    // shouldDoFullCollection probe makes the granted cycle Full regardless
+    // of scope coalescing), so the RangeError window closes without waiting
+    // for organic allocation pressure. Pure liveness aid: arming/sealing/
+    // restamping are unchanged; gilOffProcess-only, dead flag-off/GIL-on.
+    if (!state && VM::isGILOffProcess() && vm.gilOff() && rebiasSnapshotIsSealed()) [[unlikely]]
+        vm.heap.collectAsync(CollectionScope::Full);
+    return state;
 }
 
 void ThreadManager::unregisterThread(ThreadState& state)
 {
     Locker locker { m_lock };
     m_threads.remove(state.tid);
-    // TIDs are retired forever in phase 1 (SPEC-api Deviation 10).
+    // UNGIL §D.1 (U-T12): under gilOffProcess the TID is retired into the
+    // rebias pipeline (dead from here: no m_threads entry, and TM never
+    // reissues before the post-resume release — ANNEX D1 soundness). The
+    // exiting thread's residual T5 tail still runs with its R5 TLS tag
+    // installed, but it executes no JS and installs no tagged state, and
+    // the §10.4 access barrier serializes its remaining access brackets
+    // against any rebias stop (see the ThreadManager.h banner).
+    // GIL-on/flag-off: TIDs stay retired forever (SPEC-api Deviation 10).
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        m_retiredSpawnedTIDs.append(state.tid);
+        maybeArmAndSealRebiasLocked();
+    }
 }
 
 // ---------------- UNGIL §A.3.6 carrier TIDs (ANNEX A36; U-T6) ----------------
@@ -207,13 +282,29 @@ void ThreadManager::unregisterThread(ThreadState& state)
 uint16_t ThreadManager::allocateCarrierTIDInternal()
 {
     Locker locker { m_lock };
-    // Carrier allocation runs at first VM entry on a thread (JSLock
-    // didAcquireLock / §F.1) — no throw context exists there, so range
-    // exhaustion is a fail-stop (I17 accounting; the range covers 16382
-    // carriers, far beyond any plausible embedder thread count; TIDs are
-    // retired forever pre-rebias, Dev 10/U-T12).
-    RELEASE_ASSERT(m_nextCarrierTID < notTTLTID);
-    return m_nextCarrierTID++;
+    // UNGIL §D.1 phase 3 (U-T12): release a Restamped snapshot before the
+    // exhaustion check — refilled carrier TIDs avert the fail-stop. This is
+    // also the carrier-side SD9 gate-lift site. The TM-churn interplay
+    // (another VM's embedder thread allocating here while the gilOff VM
+    // rebias-stops) is the sole sanctioned §LK negative-edge row: this path
+    // only ADDS live TIDs and never touches a Sealed snapshot.
+    if (VM::isGILOffProcess()) [[unlikely]]
+        completeRebiasIfPendingLocked();
+    uint16_t tid;
+    if (!m_freeCarrierTIDs.isEmpty())
+        tid = m_freeCarrierTIDs.takeFirst();
+    else {
+        // Carrier allocation runs at first VM entry on a thread (JSLock
+        // didAcquireLock / §F.1) — no throw context exists there, so range
+        // exhaustion is a fail-stop (I17 accounting; the range covers 16382
+        // carriers, far beyond any plausible embedder thread count, and
+        // U-T12 rebias recycles retired carrier TIDs ahead of this bound).
+        RELEASE_ASSERT(m_nextCarrierTID < notTTLTID);
+        tid = m_nextCarrierTID++;
+    }
+    if (VM::isGILOffProcess()) [[unlikely]]
+        maybeArmAndSealRebiasLocked();
+    return tid;
 }
 
 static uint16_t allocateCarrierTIDHook()
@@ -221,11 +312,121 @@ static uint16_t allocateCarrierTIDHook()
     return ThreadManager::singleton().allocateCarrierTIDInternal();
 }
 
-static void releaseCarrierTIDHook(uint16_t)
+static void releaseCarrierTIDHook(uint16_t tid)
 {
-    // Retired forever in v1 (Dev 10 no-reuse: recycling a TID without the
-    // U-T12 rebias protocol could alias a live butterfly TID tag). The hook
-    // exists so teardown call sites stay symmetric for the rebias landing.
+    // UNGIL §D.1 (U-T12): gilOffProcess retires the carrier TID into the
+    // rebias pipeline. GIL-on/flag-off: retired forever (Dev 10 no-reuse —
+    // recycling a TID without the rebias protocol could alias a live
+    // butterfly TID tag), preserving the landed v1 no-op byte-for-byte.
+    if (VM::isGILOffProcess()) [[unlikely]]
+        ThreadManager::singleton().retireCarrierTID(tid);
+}
+
+void ThreadManager::retireCarrierTID(uint16_t tid)
+{
+    ASSERT(isCarrierTID(tid));
+    if (!VM::isGILOffProcess())
+        return; // Dev 10 stands GIL-on/flag-off.
+    // Carrier exits are UN-GATED (EXIT1.3): this can run mid-stop. Taking
+    // rank-1 m_lock here is legal — every release-hook call site (JSLock.cpp
+    // tearDownCarriersAtThreadDeath tail / evictStaleCarrier, the VM.cpp A36
+    // walk tail) runs with no lock held — and a mid-stop retire only appends
+    // to the retired set or seals a NEW snapshot (state Idle), never touches
+    // a Sealed one the conductor may be reading.
+    RaceAmplifier::perturb(); // U-T12 TM-churn / D1R.5 stall point: pre-retire.
+    Locker locker { m_lock };
+    m_retiredCarrierTIDs.append(tid);
+    maybeArmAndSealRebiasLocked();
+}
+
+// ---------------- UNGIL §D.1 TID rebias state machine (U-T12) ---------------
+// See the ThreadManager.h banner for the full three-phase protocol and the
+// m_rebiasSnapshot ownership rotation.
+
+void ThreadManager::maybeArmAndSealRebiasLocked()
+{
+    ASSERT(VM::isGILOffProcess());
+    if (!m_rebiasArmed.load(std::memory_order_relaxed)) {
+        // Trigger (ANNEX D1: ">=75% of 2^15 arms the next full collection").
+        // RECORDED REFINEMENT (U-T12; required by the U-T6 partition, which
+        // this task must preserve): the threshold is evaluated PER PARTITION
+        // — 75% of the spawned range [1, carrierTIDBase) or 75% of the
+        // carrier range [carrierTIDBase, notTTLTID). A literal 75%-of-2^15
+        // combined threshold (24576) exceeds either partition's capacity
+        // (16383), so a spawn storm could exhaust its half and RangeError
+        // forever without ever arming — violating SD9's "until rebias
+        // completes" liveness and the U18/D1R.5 amplifier shapes. Per-
+        // partition arming is strictly earlier, never later (not a
+        // weakening); consumption cursors are monotone, so armed is sticky.
+        constexpr uint32_t spawnedCapacity = carrierTIDBase - 1;
+        constexpr uint32_t carrierCapacity = notTTLTID - carrierTIDBase;
+        uint32_t spawnedConsumed = m_nextTID - 1;
+        uint32_t carrierConsumed = m_nextCarrierTID - carrierTIDBase;
+        bool pressure = spawnedConsumed * 4 >= spawnedCapacity * 3
+            || carrierConsumed * 4 >= carrierCapacity * 3;
+        if (!pressure)
+            return;
+        m_rebiasArmed.store(true, std::memory_order_relaxed);
+    }
+    if (m_rebiasState.load(std::memory_order_relaxed) != static_cast<uint8_t>(RebiasState::Idle))
+        return; // A snapshot is Sealed/Restamped: TIDs retired after that seal wait for the next cycle (D1 soundness — they stay un-reissuable).
+    if (m_retiredSpawnedTIDs.isEmpty() && m_retiredCarrierTIDs.isEmpty())
+        return; // Nothing to recycle: do NOT seal (an empty snapshot would force full collections for no benefit).
+    ASSERT(m_rebiasSnapshot.isEmpty());
+    m_rebiasSnapshot.appendVector(m_retiredSpawnedTIDs);
+    m_rebiasSnapshot.appendVector(m_retiredCarrierTIDs);
+    m_retiredSpawnedTIDs.clear();
+    m_retiredCarrierTIDs.clear();
+    // Release: publishes the snapshot contents to the conductor's acquire
+    // load in rebiasSnapshotForConductor(). From here until Restamped ->
+    // Idle, no mutator writes m_rebiasSnapshot.
+    m_rebiasState.store(static_cast<uint8_t>(RebiasState::Sealed), std::memory_order_release);
+}
+
+void ThreadManager::completeRebiasIfPendingLocked()
+{
+    if (m_rebiasState.load(std::memory_order_acquire) != static_cast<uint8_t>(RebiasState::Restamped))
+        return;
+    // Phase 3: every snapshot TID's instance tags and structure transition
+    // TIDs were restamped to 0 and the D1R fires jettisoned every body with
+    // a baked tid<<48 immediate, all inside the stop that preceded this
+    // (the acquire above synchronizes with the conductor's Restamped
+    // release; the heap-word restamps themselves are published by the §10
+    // resume protocol). Reissue is sound from here (OM I11/I15 by
+    // construction, restamp-to-0 = the payload-0/TID-0 main-allocated
+    // regime). The U-T6 partition is preserved by the per-range routing.
+    for (uint16_t tid : m_rebiasSnapshot) {
+        ASSERT(tid && tid < notTTLTID);
+        if (isCarrierTID(tid))
+            m_freeCarrierTIDs.append(tid);
+        else
+            m_freeTIDs.append(tid);
+    }
+    m_rebiasSnapshot.clear();
+    m_rebiasState.store(static_cast<uint8_t>(RebiasState::Idle), std::memory_order_release);
+    // Continuous-recycling regime: TIDs retired while the completed
+    // snapshot was in flight seal the next one immediately.
+    maybeArmAndSealRebiasLocked();
+}
+
+const Vector<uint16_t>* ThreadManager::rebiasSnapshotForConductor()
+{
+    // Conductor-side, lock-free (§D.1: the conductor takes NO api lock;
+    // TM::m_lock is not excepted). Sound without the lock: the vector is
+    // immutable while Sealed, and the acquire pairs with the seal's release.
+    if (m_rebiasState.load(std::memory_order_acquire) != static_cast<uint8_t>(RebiasState::Sealed))
+        return nullptr;
+    return &m_rebiasSnapshot;
+}
+
+void ThreadManager::noteRebiasRestampComplete()
+{
+    ASSERT(m_rebiasState.load(std::memory_order_relaxed) == static_cast<uint8_t>(RebiasState::Sealed));
+    // D1R ordering: callers flip this strictly AFTER the in-stop restamps +
+    // fireTransitionThreadLocal jettisons, and the phase-3 release (which
+    // alone makes reissue possible) is gated on Restamped — so no baked
+    // dead-TID immediate survives to any reissue point.
+    m_rebiasState.store(static_cast<uint8_t>(RebiasState::Restamped), std::memory_order_release);
 }
 
 void ThreadManager::installCarrierTIDHooksIfNeeded()

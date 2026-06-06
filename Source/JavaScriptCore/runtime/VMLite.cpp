@@ -26,6 +26,9 @@
 #include "config.h"
 #include "VMLite.h"
 
+#include "Allocator.h"           // sizeof/triviality asserts on the §B.4 TLC table element (U-T7).
+#include "GCThreadLocalCache.h"  // offsetOfTable/offsetOfTableBound — the §B.4 chain's last hop (U-T7).
+#include "Heap.h"                // GCClient::Heap::offsetOfThreadLocalCache/currentThreadClient (§B.4, U-T7).
 #include "JSCConfig.h"      // g_jscConfig.vmLiteTLSKey (Darwin mirror arm, UNGIL §A.1.1 / jit App. R5).
 #include "MicrotaskQueue.h" // Complete type for ~RefPtr<MicrotaskQueue> in ~VMLite + create() (§6.5).
 #include "VM.h"             // ScratchBuffer/VMMalloc (§6.6); currentThreadIsHoldingAPILock (I14).
@@ -274,12 +277,216 @@ static Lock s_scratchSizeClassLock;
 static uint64_t s_scratchSizeClassAllocated WTF_GUARDED_BY_LOCK(s_scratchSizeClassLock) { 0 };
 static unsigned s_scratchSizeClassIndices[numScratchSizeClasses] WTF_GUARDED_BY_LOCK(s_scratchSizeClassLock);
 
+// ===========================================================================
+// UNGIL §B.4-6 (U-T7) — TLC lite-relative inline-allocation addressing:
+// the RUNTIME half (this TU is U-T7's sole writable file; everything not in
+// VMLite.cpp is recorded OPEN below for the owning slices/orchestrator).
+//
+// §B.4 FROZEN ADDRESSING CHAIN (supersedes the heap §5.3 "Status" PROVISIONAL
+// vm-relative chain FOR GIL-OFF COMPILATIONS ONLY — heap Dev 6: the
+// `vmGPR + OBJECT_OFFSETOF(VM, clientHeap) + offsetOfThreadLocalCache()`
+// chain stays the GIL-on/flag-off contract, byte-for-byte; SUPERSESSION
+// recorded for INTEGRATE-heap/INTEGRATE-ungil, both sides):
+//
+//   loadVMLite (the U-T3 emitter / LLInt offlineasm macro — §A.1.1 mirror)
+//     -> client = [lite + OBJECT_OFFSETOF(VMLite, clientHeap)]   (pointer load)
+//     -> tlc    = client + GCClient::Heap::offsetOfThreadLocalCache()
+//                                            (interior pointer, NO load —
+//                                             m_threadLocalCache is by-value)
+//     -> table  = [tlc + GCThreadLocalCache::offsetOfTable()]    (pointer load)
+//        bound  = [tlc + GCThreadLocalCache::offsetOfTableBound()] (32-bit load)
+//     -> slot = subspace tlcIndexBase + sizeClassIndex (baked constants);
+//        slot >= bound || !table[slot * sizeof(Allocator)] => SLOW PATH
+//        (CompleteSubspace::allocateForClient via the §10A.1 client slot);
+//        else table[slot] is the LocalAllocator the existing per-tier
+//        emitAllocate body consumes.
+//
+// Soundness of the lock-free loads: every word on the chain is written ONLY
+// by the lite's owner thread (clientHeap stamped at §B.1 spawn / §F.1 first
+// carrier entry BEFORE any allocation on that thread; m_table/m_tableBound
+// grow-only, owner-thread growTable, heap §5.3/I2), and generated code runs
+// only on the owning thread (I11), so plain loads observe program order. The
+// bound+null guard means there is NO install-fan/backfill analog to A16: a
+// missing slot is a branch to the slow path, never a wild load. Iso
+// subspaces NEVER appear in m_table (m_perDirectory lookup-only, §5.3) —
+// iso inline paths keep their per-client GCClient::IsoSubspace addressing.
+//
+// What LANDS here (runtime half):
+//   - the layout/stride static_asserts below (emission bakes them);
+//   - verifyVMLiteTLCAddressingChain(): an EXECUTABLE equivalence check of
+//     the baked byte-arithmetic chain against the C++ object graph (the M6
+//     equivalence-assert pattern, applied to the §B.4 chain). §B.1/§F.1
+//     entry sites (ThreadObject.cpp / JSLock.cpp — outside this file) MUST
+//     self-declare and call it right after EVERY stamp of lite->clientHeap
+//     (the loadVMLite self-declaration precedent,
+//     jit/AssemblyHelpers.cpp:195) — a HARD gate on the stamping slices, not
+//     a nicety: the layout half is process-wide, but the per-STATE half
+//     (client stamped, §10A.1 coherence) is a per-stamp property. Until they
+//     do, the in-file one-shot trigger in scratchBufferForSize (the first
+//     gilOff mutator slow path through this TU) keeps the check live, not
+//     dead code;
+//   - assertVMLiteClientCoherence(): the §10A.1 client-coherence debug
+//     assert (lite->clientHeap == GCClient::Heap::currentThreadClient()),
+//     run on EVERY pass through this TU's gilOff slow path — deliberately
+//     NOT folded into the one-shot. Generated code allocates into the LITE's
+//     client while C++ slow paths resolve the §10A.1 TLS slot; A36C's
+//     install/LIFO-restore re-stamp is what keeps them equal, and a re-stamp
+//     bug on a LATER carrier install would be invisible to a one-shot
+//     witness. Per-call here is still only a sampling witness on one slow
+//     path — the per-stamp entry-site calls above remain the real coverage.
+//
+// OPEN (outside VMLite.cpp — owners per the IM rows; orchestrator-tracked).
+// COMPLETION STATUS (the U-T4a precedent below applies verbatim): this TU is
+// the RUNTIME HALF ONLY. The handout's defining U-T7 clause — "TLC
+// lite-relative inline allocation, all tiers" — is item (1) below, and NO
+// tier emits the chain yet (the only loadVMLite machinery in the tree is the
+// U-T3 emitter). U-T7 MUST NOT be marked complete in the task ledger until
+// items (1), (2) and (4) land against this runtime half; until then a
+// gilOff mutator still inline-allocates via the GIL-on vm-relative §5.3
+// chain, §B.4 is NOT in effect, and the §B.5 budgets are unmeasurable.
+//   (1) Per-tier emission (IM row "llint/jit/dfg/ftl (+OSR-entry) = ... §B.4"):
+//       mode-keyed per §A.1.3 — DFG/FTL on the COMPILED-FOR VM's
+//       codeBlock->vm->m_gilOff at codegen time; LLInt/Baseline on the
+//       level-1 JSCConfig gilOffProcess byte + the level-2 lite->gilOff byte
+//       (offsetOfGilOff) — emitting the chain above; flag-off/GIL-on keeps
+//       today's vm-relative §5.3 chain so the golden-disasm gates stay
+//       byte-identical. An offsetOfClientHeap() accessor in VMLite.h is an
+//       L2-adjacent nicety for that slice (OBJECT_OFFSETOF(VMLite,
+//       clientHeap) is usable directly — the member is public).
+//   (2) §B.5 U21 bench (BENCH.md + Tools/threads/bench-gate.sh +
+//       JSTests/threads/bench): the {useJSThreads=1, sharedGC=1, GIL-off,
+//       1 thread} composite gated <=10% geomean vs the {1,0} flag-on
+//       baseline; the {1,0} <=5% gate STAYS; the 4-thread alloc microbench
+//       >=2.5x is RECORDED, not gated; the r9 async/generator microbench
+//       joins the flag-off suite GATED at 1% (its gilOff configuration is
+//       recorded under the composite, not separately gated).
+//   (3) §B.6 Dev-7 deferral gate: the heap:26 GC-throughput items
+//       (per-directory handout + out-of-lock sweep, concurrent marking /
+//       incremental sweep) stay DEFERRED post-ungil; a §B.5 composite miss
+//       PULLS THEM FORWARD pre-ship, and a {1,0} miss REQUIRES the jit §4.3
+//       LLInt-cache revival pre-ship. Nothing to code until a measured miss.
+//   (4) §F.3 sweep-storm amplifier (dead-lock-object-with-pending-asyncHold):
+//       JS scenario (JSTests/threads) — N JSLockObjects each given a
+//       never-notified asyncHold (pending AsyncTicket holding a still-set
+//       Strong<JSPromise>), references dropped, GC/sweep storms forced on
+//       one thread while siblings allocate — driving the §F.3 carve-out (a)
+//       chain JSLockObject::destroy -> ~NativeLockState -> ~AsyncTicket ->
+//       in-lock-sweep Strong free under m_strongLock's destructor-leaf
+//       classification; plus a RaceAmplifier::perturb() arm beside the
+//       ~AsyncTicket API-lock assert (ThreadManager.cpp:64 today — the
+//       handout's ":57" anchor has drifted), whose GIL-off reading is the
+//       §F.2 TOKEN meaning ("assert (token)" class). Both edits live in
+//       files owned by other tasks (ThreadManager.cpp = U-T8 wave;
+//       JSTests/** unowned here).
+// ===========================================================================
+
+// Emission stride contract: table[slot] is one pointer-sized, trivially
+// copyable word (Allocator wraps exactly one LocalAllocator*; a null word is
+// the "no allocator yet" slow-path sentinel the emitted null-check tests).
+static_assert(sizeof(Allocator) == sizeof(LocalAllocator*));
+static_assert(sizeof(Allocator) == sizeof(void*));
+static_assert(std::is_trivially_copyable_v<Allocator>);
+
+void verifyVMLiteTLCAddressingChain(VMLite&); // Self-declaration (no header owns this form yet — VMLite.h is outside U-T7's writable set; lift the declaration there when its owner next touches it).
+void verifyVMLiteTLCAddressingChain(VMLite& lite)
+{
+    // Only meaningful for a gilOff lite with a stamped client (§B.1 step 1 /
+    // §F.1 first entry both complete). Callers run on the owning thread.
+    ASSERT(lite.isInstalledOnCurrentThread()); // I11.
+    RELEASE_ASSERT(lite.gilOff);
+    GCClient::Heap* client = lite.clientHeap;
+    RELEASE_ASSERT(client);
+
+    // Hop 1: client = [lite + OBJECT_OFFSETOF(VMLite, clientHeap)]. VMLite is
+    // not standard-layout, so this doubles as the §0 __builtin_offsetof
+    // validity check for this member (the M6 pattern).
+    auto* chainClient = *std::bit_cast<GCClient::Heap* const*>(
+        std::bit_cast<uintptr_t>(&lite) + static_cast<uintptr_t>(OBJECT_OFFSETOF(VMLite, clientHeap)));
+    RELEASE_ASSERT(chainClient == client);
+
+    // Hop 2: tlc = client + offsetOfThreadLocalCache() — interior pointer,
+    // no load (m_threadLocalCache is a by-value member of GCClient::Heap).
+    auto* chainTLC = std::bit_cast<GCClient::GCThreadLocalCache*>(
+        std::bit_cast<uintptr_t>(client) + static_cast<uintptr_t>(GCClient::Heap::offsetOfThreadLocalCache()));
+    RELEASE_ASSERT(chainTLC == &client->threadLocalCache());
+
+    // Hop 3: the table/bound pair generated code loads. The pair's only
+    // cross-check available outside the class is its internal consistency
+    // (bound != 0 => table mapped and aligned for indexed Allocator loads);
+    // the slot CONTENTS are covered by the bound+null slow-path guard, never
+    // dereferenced blind. m_tableBound is the 32-bit unsigned the emitted
+    // 32-bit bound compare assumes (GCThreadLocalCache.h frozen layout §5.3).
+    auto* chainTable = *std::bit_cast<Allocator* const*>(
+        std::bit_cast<uintptr_t>(chainTLC) + static_cast<uintptr_t>(GCClient::GCThreadLocalCache::offsetOfTable()));
+    unsigned chainBound = *std::bit_cast<const unsigned*>(
+        std::bit_cast<uintptr_t>(chainTLC) + static_cast<uintptr_t>(GCClient::GCThreadLocalCache::offsetOfTableBound()));
+    RELEASE_ASSERT(!chainBound || chainTable);
+    if (chainTable)
+        RELEASE_ASSERT(!(std::bit_cast<uintptr_t>(chainTable) & (alignof(Allocator) - 1)));
+
+    // §10A.1 client coherence (A36C re-stamp witness): the lite-relative
+    // client generated code allocates into MUST be the client the C++ slow
+    // paths resolve via the TLS slot, or allocator state diverges per-call.
+    ASSERT(GCClient::Heap::currentThreadClient() == client);
+}
+
+// The chain equivalence is a process-wide LAYOUT property (every hop is a
+// compile-time offset); one successful pass proves it for all lites, so the
+// in-file trigger below is one-shot FOR THE LAYOUT HALF ONLY. The per-STATE
+// checks (client stamped, §10A.1 coherence) are per-stamp properties and are
+// NOT covered by the one-shot: they run per-call via
+// assertVMLiteClientCoherence below, and per-stamp via the §B.1/§F.1 entry
+// sites' MANDATORY verifyVMLiteTLCAddressingChain calls (a hard gate on the
+// stamping slices — see the block above).
+static std::atomic<bool> s_tlcAddressingChainVerified { false };
+
+static ALWAYS_INLINE void verifyTLCAddressingChainOnceIfNeeded(VMLite& lite)
+{
+    if (s_tlcAddressingChainVerified.load(std::memory_order_relaxed)) [[likely]]
+        return;
+    if (!lite.gilOff || !lite.clientHeap)
+        return; // Pre-stamp probe or GIL-on lite: nothing to verify yet.
+    verifyVMLiteTLCAddressingChain(lite);
+    s_tlcAddressingChainVerified.store(true, std::memory_order_relaxed);
+}
+
+// §10A.1 per-call coherence witness (A36C re-stamp): runs on EVERY pass
+// through this TU's gilOff slow path, not just the first — a re-stamp bug on
+// a later carrier install (the exact divergence this exists to catch) must
+// not be masked by the layout one-shot. Debug-only: the divergence it
+// witnesses is a correctness bug in the A36C swap/re-stamp protocol, and the
+// release-grade enforcement is the per-stamp entry-site verification, not a
+// hot-path release assert.
+static ALWAYS_INLINE void assertVMLiteClientCoherence(VMLite& lite)
+{
+#if ASSERT_ENABLED
+    if (lite.gilOff && lite.clientHeap)
+        ASSERT(GCClient::Heap::currentThreadClient() == lite.clientHeap);
+#else
+    UNUSED_PARAM(lite);
+#endif
+}
+
 ScratchBuffer* VMLite::scratchBufferForSize(size_t size)
 {
     if (!size)
         return nullptr;
 
     ASSERT(isInstalledOnCurrentThread()); // I11.
+
+    // U-T7 §B.4 in-file verification trigger: this is the first gilOff
+    // mutator slow path through this TU (VM::scratchBufferForSize dispatches
+    // here only when m_gilOff with a same-VM installed lite, VM.cpp:2350-2353),
+    // so the one-shot layout check cannot rot as dead code even before the
+    // §B.1/§F.1 entry sites wire their own calls. Cost when already verified:
+    // one relaxed load + predicted branch, on a non-baked SLOW path only.
+    // Flag-off identity: gilOff == 0 short-circuits inside (and flag-off
+    // never reaches VMLite::scratchBufferForSize at all).
+    verifyTLCAddressingChainOnceIfNeeded(*this);
+
+    // §10A.1 coherence: per-CALL, never one-shot (debug-only; gilOff-gated
+    // inside — flag-off/GIL-on identity preserved).
+    assertVMLiteClientCoherence(*this);
 
     // bit_ceil of a size above 2^63 is unrepresentable (UB); no plausible
     // scratch request approaches it, so fail-stop first.
