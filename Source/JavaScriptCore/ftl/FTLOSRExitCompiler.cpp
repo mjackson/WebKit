@@ -61,11 +61,19 @@ namespace FTL {
 using namespace DFG;
 
 // UNGIL U-T4b: gilOff, N threads can fire the SAME not-yet-compiled exit
-// concurrently; exit.m_code and the repatch must be published exactly once.
+// concurrently; exit.m_code must be published exactly once.
 // Coarse process-wide lock — exit-stub compilation is a once-per-exit slow
-// path; lock ordering: this lock is taken OUTSIDE codeBlock->m_lock (the
-// ConcurrentJSLocker inside compileStub) and nothing takes them in the
-// inverse order. GIL-on never takes it (flag-off identity).
+// path. Lock RANK (NOT a leaf — it is held across the whole of compileStub):
+// OUTERMOST of everything compileStub acquires, i.e. OUTER to
+// codeBlock->m_lock (ConcurrentJSLocker, getArrayProfile),
+// ScratchBufferRegistry::m_lock -> VMLiteRegistry lock -> per-lite
+// scratchBufferLock (via VM::allocateBakedScratchBufferIndex, §LK.6 chain),
+// and LinkBuffer/executable-allocator locks. It is acquired ONLY from the
+// exit-generation thunk's operation call with no other JSC lock held, and
+// must never be taken while holding any of the above. GIL-on never takes it
+// (flag-off identity). Sibling with the same rank:
+// ftlLazySlowPathGenerationLock (FTLOperations.cpp); the two are never
+// nested. Rank recorded in INTEGRATE-ungil.md (U-T4b entry).
 static Lock ftlOSRExitGenerationLock;
 
 // UNGIL §A.1.6 (ANNEX A16, U-T4b): addressing of the exit's scratch memory,
@@ -897,15 +905,18 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileFTLOSRExit, void*, (CallFrame*
 
     if (vm.gilOff()) [[unlikely]] {
         // UNGIL U-T4b: N threads can race to compile the SAME exit. Compile
-        // and repatch exactly once under the generation lock; losers reuse
-        // the winner's stub. (A racing thread that already passed the
-        // unpatched jump lands here too and takes the fast path below.)
+        // exactly once under the generation lock; losers reuse the winner's
+        // stub. We deliberately do NOT repatch the exit jump in this mode:
+        // other mutators may be concurrently EXECUTING that jump, and
+        // MacroAssembler::repatchJump rewrites an unaligned rel32 on x86_64
+        // with no atomicity guarantee (torn fetch -> wild jump); ISB1 only
+        // licenses patching performed inside a stop. The jump keeps pointing
+        // at the generation thunk, which calls back here and tail-calls our
+        // return value — the protocol stays data-only. Exits are rare and
+        // trigger reoptimization, so the extra thunk round-trips are noise.
         Locker locker { ftlOSRExitGenerationLock };
-        if (!exit.m_code) {
+        if (!exit.m_code)
             compileStub(vm, exitID, jitCode, exit, codeBlock);
-            MacroAssembler::repatchJump(
-                exit.codeLocationForRepatch(codeBlock), CodeLocationLabel<OSRExitPtrTag>(exit.m_code.code()));
-        }
         return exit.m_code.code().taggedPtr();
     }
 

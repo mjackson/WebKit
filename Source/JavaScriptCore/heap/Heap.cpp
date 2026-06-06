@@ -137,6 +137,18 @@
 
 namespace JSC {
 
+// ===== UNGIL §A.3 (U-T5) cross-TU seams =====
+// Defined in runtime/VMManager.cpp (window state + ticket park) and
+// runtime/VMLite.cpp (ANNEX ISB1 stop-generation sync). Their headers
+// (VMManager.h / VMLite.h) are OUTSIDE U-T5's writable file set; lifting
+// these declarations into those headers is an orchestrator-tracked cleanup.
+// Signatures must stay byte-identical to the definitions.
+bool jsThreadsStopPendingFor(VM&); // seq_cst stop-word load (SB1; sole accessor pair lives in VMManager.cpp — U20).
+bool jsThreadsCurrentThreadIsStopConductor(); // §A.3.3 tenure check (HBT3.2 self-exemption).
+void jsThreadsParkForStopWindow(VM&); // NVS ticket park; pre: caller holds NO heap access.
+void jsThreadsNotifyMutatorQuiesced(); // wakes the conductor's §A.3.2 predicate wait.
+void jsThreadsSyncToStopGenerationBeforeJITEntry(); // ANNEX ISB1.2 (VMLite.cpp).
+
 // NEVER_INLINE to prevent LTO from inlining this function, which can break
 // compiler barriers in MarkedBlock::isMarked on x86_64.
 NEVER_INLINE bool Heap::isMarked(const void* rawCell)
@@ -5013,7 +5025,22 @@ void Heap::gcWillParkInStopTheWorld(VM& vm)
     // again before each wait while the GC bit pends (annex 5g(i)).
     // Rule: iff ISS && GSP && this VM's client holds access -> RHA + set
     // m_releasedByGCPark; else no-op.
-    GCClient::Heap& client = vm.clientHeap;
+    //
+    // UNGIL §A.3.8 (U-T5; heap §13.5 re-rule): with N entered threads in ONE
+    // gilOff VM, each thread parks on its OWN ticket and §13.5a/g run on
+    // CURRENT THREAD's client — currentThreadClient() — with the per-client
+    // m_releasedByGCPark pairing. vm.clientHeap is the MAIN client only and
+    // would release/re-acquire the wrong client on every sibling thread.
+    // No current client (e.g. a VM-construction park on a thread that never
+    // attached) => nothing to release => no-op. GIL-on/flag-off: unchanged
+    // (the landed vm.clientHeap resolution is exact under the GIL).
+    GCClient::Heap* parkClient = &vm.clientHeap;
+    if (vm.gilOff()) [[unlikely]] {
+        parkClient = GCClient::Heap::currentThreadClient();
+        if (!parkClient)
+            return;
+    }
+    GCClient::Heap& client = *parkClient;
     JSC::Heap& server = client.server();
     if (!server.isSharedServer())
         return;
@@ -5037,7 +5064,18 @@ void Heap::gcDidResumeFromStopTheWorld(VM& vm)
     // Heap-owned impl; idempotent; called after notifyVMStop's final
     // decrement block. Rule: iff m_releasedByGCPark -> AHA (F8-blocking if a
     // NEW stop pends), then clear; else no-op (F8 step 0 backstops).
-    GCClient::Heap& client = vm.clientHeap;
+    //
+    // UNGIL §A.3.8 (U-T5): per-thread client resolution, mirroring
+    // gcWillParkInStopTheWorld above — the resume hook MUST re-acquire on
+    // the same client the park hook released (per-client m_releasedByGCPark
+    // pairing). GIL-on/flag-off unchanged.
+    GCClient::Heap* parkClient = &vm.clientHeap;
+    if (vm.gilOff()) [[unlikely]] {
+        parkClient = GCClient::Heap::currentThreadClient();
+        if (!parkClient)
+            return;
+    }
+    GCClient::Heap& client = *parkClient;
     if (!client.m_releasedByGCPark)
         return;
     client.acquireHeapAccess(); // F8: blocks while a (new) stop is pending.
@@ -5271,6 +5309,24 @@ void Heap::acquireHeapAccess()
     ensureCurrentThreadIsRegisteredForConservativeScan(currentThread);
     ASSERT(m_server.machineThreads().includesCurrentThread());
 
+    // UNGIL §A.3.2b (U-T5): thread-granular §A.3 stops gate FRESH access
+    // acquisition for clients of the gilOff VM. Resolved once: m_isStandalone
+    // and the VM's gilOff bit are immutable, and the stop word itself is
+    // re-polled seq_cst inside the loop (SB1.3). Standalone (harness) clients
+    // have no VM and no §A.3 windows.
+    bool threadGranularGated = !m_isStandalone && vm().gilOff();
+#if ASSERT_ENABLED
+    // ANNEX EXIT1.4(a): a TEARDOWN lite's access re-acquisition is FORBIDDEN
+    // — re-entry to JS would need it, and a TEARDOWN lite can never run JS
+    // again. State byte read under the registry lock only (r31).
+    if (threadGranularGated) {
+        if (VMLite* lite = VMLite::currentIfExists()) {
+            Locker registryLocker { VMLiteRegistry::singleton().lock };
+            ASSERT(lite->state == VMLite::State::Live);
+        }
+    }
+#endif
+
     for (;;) {
         // F8 step 1: seq_cst CAS NoAccess -> HasAccess. Only this client's
         // owning thread may attempt the transition (I2), so failure is a
@@ -5301,9 +5357,41 @@ void Heap::acquireHeapAccess()
             continue; // Retry from step 1.
         }
 
+        // UNGIL §A.3.2b(i) / ANNEX SB1 item 3 (U-T5): the §A.3 stop-word
+        // poll, positioned AFTER the F8 step-1 seq_cst CAS and BESIDE the
+        // step-2 GSP load, as a seq_cst load (inside jsThreadsStopPendingFor;
+        // the SB1.4 Dekker proof needs the CAS/poll pair in the single
+        // seq_cst total order — acq/rel is insufficient, both interleavings
+        // are SB litmus shapes). On set: F8 mandatory-revert
+        // (seq_cst exchange -> NoAccess), wake the conductor's predicate
+        // sampler, then park on this thread's own NVS ticket until resume.
+        // This leg CARRIES soundness for every unenumerable AHA/RHA bracket
+        // (heap §9) and is what makes the §A.3.2 access-released exemption
+        // and §A.3.4 entry gating sound: fresh acquisition never admits a
+        // mutator into an open window. The conductor itself is exempt
+        // (HBT3.2: a class-4 conductor re-acquires inside its own window
+        // before fanning; the default conductor re-acquires only after the
+        // word is cleared, so the exemption is a no-op for it).
+        if (threadGranularGated && jsThreadsStopPendingFor(vm()) && !jsThreadsCurrentThreadIsStopConductor()) [[unlikely]] {
+            uint8_t reverted = m_accessState.exchange(noAccessState, std::memory_order_seq_cst);
+            ASSERT_UNUSED(reverted, reverted == hasAccessState);
+            jsThreadsNotifyMutatorQuiesced();
+            jsThreadsParkForStopWindow(vm());
+            continue; // Retry from step 1 (a GC stop may have arrived meanwhile; GSP re-polls).
+        }
+
         // Re-stamp the owner (§10A; I2: JSLock migration transfers via the
         // server-side forwarding, which re-stamps before/instead of AHA).
         m_accessOwner.store(&currentThread, std::memory_order_relaxed);
+
+        // UNGIL ANNEX ISB1.2 (U-T5): AHA is a "may execute JIT code"
+        // transition that need not pass through an NVS exit (incl. the
+        // bit-already-clear path, §F token acquisition and ACT, the DAL2
+        // dtor and the §F.5 LIFO restore — all funnel through here).
+        // Compare the per-thread stop-generation copy; mismatch => ISB
+        // before any JIT entry. GIL-on/flag-off cost: zero (gated off).
+        if (threadGranularGated) [[unlikely]]
+            jsThreadsSyncToStopGenerationBeforeJITEntry();
         return;
     }
 }
@@ -5331,6 +5419,17 @@ void Heap::releaseHeapAccess()
     if (m_server.m_gcStopPending.load(std::memory_order_seq_cst)) [[unlikely]] {
         Locker locker { m_server.m_gcBarrierLock };
         m_server.m_gcBarrierCondition.notifyAll();
+    }
+
+    // UNGIL §A.3/SB1 (U-T5): a gilOff client's RHA is a conductor-predicate
+    // edge — the §A.3.2 predicate samples access states per EXIT1.2 walk, and
+    // a thread going access-released into native code is exactly what lets a
+    // window close without it. The seq_cst exchange above is the SB1 store;
+    // wake the conductor's sampler if a window is open (cheap: one seq_cst
+    // load when gilOff, nothing GIL-on/flag-off/standalone).
+    if (!m_isStandalone && vm().gilOff()) [[unlikely]] {
+        if (jsThreadsStopPendingFor(vm()))
+            jsThreadsNotifyMutatorQuiesced();
     }
 }
 
@@ -5364,5 +5463,47 @@ DEFINE_DYNAMIC_ISO_SUBSPACE_MEMBER_SLOW(moduleProgramExecutableSpace)
 #undef DEFINE_DYNAMIC_ISO_SUBSPACE_MEMBER_SLOW
 
 } // namespace GCClient
+
+// ===== UNGIL §A.3/§A.3.8 (U-T5): thread-granular park access pairing =====
+//
+// A gilOff thread parking at an NVS ticket for ANY stop reason releases its
+// own client's heap access and re-acquires it on resume. This is what makes
+// the §A.3.2 conductor predicate purely access-based for parked threads
+// ("parked" implies "access-released"), and it is the per-thread form of the
+// heap §13.5a/g rule under §A.3.8: each entered thread releases ITS OWN
+// client, so the shared-GC §10.4 barrier and a §A.3 conductor's predicate
+// both complete with N threads in one VM. Pairing is a thread_local (the
+// per-client pairing in the spec letter: gilOff clients are per-thread —
+// U-T6 — so per-thread == per-client; the GC-specific m_releasedByGCPark
+// member keeps its own, independent pairing for the §13.5 hooks above).
+// Callers: VMManager::notifyVMStop's gilOff ticket/side parks (U-T5).
+//
+// Re-entrancy note: gcClientDidResumeFromThreadGranularStop's AHA can itself
+// park (a NEW window opened) — that park happens INSIDE acquireHeapAccess's
+// §A.3.2b gate with access already reverted, and does not call back into
+// these helpers, so the pairing flag cannot be torn by recursion.
+
+static thread_local bool t_releasedByThreadGranularPark { false };
+
+void gcClientWillParkForThreadGranularStop()
+{
+    if (t_releasedByThreadGranularPark)
+        return; // Idempotent across re-fires within one park episode.
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    if (!client || !client->hasHeapAccess())
+        return; // Nothing to release (not attached, or already released).
+    client->releaseHeapAccess(); // seq_cst RHA; signals §10.4 + §A.3 samplers.
+    t_releasedByThreadGranularPark = true;
+}
+
+void gcClientDidResumeFromThreadGranularStop()
+{
+    if (!t_releasedByThreadGranularPark)
+        return; // Idempotent: nothing was released by the matching willPark.
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    RELEASE_ASSERT(client); // The releasing thread cannot lose its client while parked (teardown re-acquires first, EXIT1.3).
+    client->acquireHeapAccess(); // F8 + the §A.3.2b stop-word gate: blocks across any pending stop.
+    t_releasedByThreadGranularPark = false;
+}
 
 } // namespace JSC

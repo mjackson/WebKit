@@ -41,76 +41,46 @@
 
 namespace JSC {
 
-// Pre-M4 structural entered-VM tripwire (docs/threads/INTEGRATE-jit.md M7,
-// review rounds 3+4, R3-4/R4-12). Counts VMs with a live top-level entry
-// scope, permitting N clients of ONE shared GC server (the R3-11-legal
-// config) and crashing every other concurrent-entry shape deterministically
-// on the ENTERING thread. The shared-server slot is STICKY (mirrors the
-// heap's sticky ISS bit): it is never cleared, so the exit path needs no
-// counter/slot coordination and there is no clear-vs-install race; the
-// pointer is compared for identity only, never dereferenced. One shared
-// server per process is the supported pre-M4 envelope.
-// DELETE at integration manifest M4: real parking makes entry during a stop
-// park in notifyVMStop instead of crash, and the GIL-removal change replaces
-// the premise wholesale.
-static std::atomic<unsigned> s_jsThreadsEnteredLegacyVMs { 0 };
-static std::atomic<unsigned> s_jsThreadsEnteredSharedClients { 0 };
-static std::atomic<JSC::Heap*> s_jsThreadsEnteredSharedServer { nullptr };
+// UNGIL §A.3.4/§J.8 (U-T5): the pre-M4 M7 structural entered-VM tripwire
+// (the s_jsThreadsEntered* counters + sticky shared-server slot that used to
+// live here) is DELETED, as licensed by SPEC-ungil §A.3.4. GIL-off, entry
+// during a §A.3 stop PARKS instead of crashing: a thread completing entry
+// acquires heap access through GCClient::Heap::acquireHeapAccess, whose
+// §A.3.2b stop-word gate (SB1 seq_cst poll beside the F8 step-2 GSP load)
+// mandatory-reverts and parks the entrant on its own NVS ticket until the
+// conductor resumes — fresh acquisition is gated, so a §A.3 window never
+// admits a new mutator (annex SB1/EXIT1; VMManager.cpp owns the window).
+// The phase-1 single-entered-mutator premise the tripwire enforced is
+// replaced wholesale by the thread-granular protocol.
 
 void VMEntryScope::setUpSlow()
 {
-    if (Options::useJSThreads()) [[unlikely]] {
-        // M7/R3-4: the phase-1 stub runs stop-the-world closures inline on
-        // the premise that the requesting caller is the only RUNNING mutator.
-        // Enforce at entry: no entering while a stub stop window is open, and
-        // no second concurrently-entered VM — except clients of ONE shared GC
-        // server (R3-11/R4-12; their cross-client stops are conducted by the
-        // server and the phase-1 GIL serializes their execution). Two
-        // counters so concurrent same-server client entries (legal) cannot
-        // false-positive a single-counter "!previous" check, while each side
-        // still trips on the other (mixed legacy+shared is unsupported).
-        RELEASE_ASSERT(!JSThreadsSafepoint::worldIsStopped());
-        JSC::Heap& server = m_vm.clientHeap.server();
-        if (server.isSharedServer()) {
-            s_jsThreadsEnteredSharedClients.fetch_add(1, std::memory_order_acq_rel);
-            JSC::Heap* expected = nullptr;
-            if (!s_jsThreadsEnteredSharedServer.compare_exchange_strong(expected, &server, std::memory_order_acq_rel)) {
-                // One shared server per process pre-M4 (sticky slot,
-                // identity-compared only).
-                RELEASE_ASSERT(expected == &server);
-            }
-            RELEASE_ASSERT(!s_jsThreadsEnteredLegacyVMs.load(std::memory_order_acquire));
-        } else {
-            unsigned previouslyEntered = s_jsThreadsEnteredLegacyVMs.fetch_add(1, std::memory_order_acq_rel);
-            RELEASE_ASSERT(!previouslyEntered); // sole legacy entry, as in round 3
-            RELEASE_ASSERT(!s_jsThreadsEnteredSharedClients.load(std::memory_order_acquire));
-        }
-    }
-
-    // UNGIL §A.1.5 (U-T1): the per-entry record lives on the CURRENT lite
-    // when gilOff. The VM member is ALSO written as a transitional shadow:
-    // raw `vm.entryScope` consumers (VMEntryScopeInlines.h's top-level-entry
-    // fast path, CallFrame.cpp, VMTraps.cpp, SamplingProfiler.cpp, ...) are
-    // enumerated in INTEGRATE-ungil.md and re-pointed by the activation
-    // tasks — until then the shadow keeps every GIL-on-shaped reader exact,
-    // and gilOff is unreachable (dark).
+    // UNGIL §A.1.5 (re-frozen at U-T5): GIL-off, the per-entry record lives
+    // ONLY on the CURRENT lite — the transitional VM-member shadow is
+    // DROPPED (IU obligation 1). With N concurrently-entered threads a
+    // VM-wide shadow would be a last-writer-wins data race, and a stale
+    // shadow would make a sibling's exit invisible to VM-wide consumers.
+    // VM-wide "entered" consumers go through VM::isEntered()/
+    // isAnyThreadEntered() (registry walk) and per-thread consumers through
+    // VM::currentThreadEntryScope() (both routed by U-T1).
+    //
+    // OPEN-BLOCKER (cross-file, recorded for the orchestrator):
+    // VMEntryScopeInlines.h's ctor/dtor fast paths still gate setUpSlow/
+    // tearDownSlow on the raw `vm.entryScope` shadow. That header is outside
+    // U-T5's writable set; it must be re-keyed on the per-lite record when
+    // m_vm.gilOff() (ctor: `!VMLite::current().entryScope`; dtor:
+    // `VMLite::current().entryScope == this`) in the same wave. Until that
+    // lands, a gilOff NESTED entry would reach setUpSlow again — the
+    // RELEASE_ASSERT below fail-stops that shape loudly instead of letting
+    // the per-lite record be silently overwritten (and then leaked, because
+    // the un-rekeyed dtor gate would skip tearDownSlow).
     if (m_vm.gilOff()) [[unlikely]] {
         VMLite& lite = VMLite::current();
         RELEASE_ASSERT(lite.vm == &m_vm);
-        ASSERT(!lite.entryScope);
+        RELEASE_ASSERT(!lite.entryScope);
         lite.entryScope = this;
-        // N-MUTATOR TRIPWIRE (U-T1): the transitional VM-member shadow below
-        // is single-writer ONLY while at most one thread is entered GIL-off.
-        // Dropping the shadow and re-keying every raw vm.entryScope consumer
-        // (VMEntryScopeInlines.h top-level-entry detection FIRST) on the
-        // per-lite record is a HARD precondition of N-mutator entry (IU
-        // obligation 1). Until then, a second concurrent top-level entry
-        // must fail-stop here rather than silently last-writer-win the
-        // shadow — or, worse, skip setUpSlow's per-thread services on the
-        // loser of a racy fast-path check.
-        RELEASE_ASSERT(!m_vm.entryScope);
-    }
-    m_vm.entryScope = this;
+    } else
+        m_vm.entryScope = this;
 
 #if ASSERT_ENABLED
     // SPEC-vmstate I14: an installed VMLite always belongs to the VM whose
@@ -143,30 +113,19 @@ void VMEntryScope::setUpSlow()
 
 void VMEntryScope::tearDownSlow()
 {
-    if (Options::useJSThreads()) [[unlikely]] {
-        JSC::Heap& server = m_vm.clientHeap.server();
-        if (server.isSharedServer())
-            s_jsThreadsEnteredSharedClients.fetch_sub(1, std::memory_order_acq_rel);
-        else
-            s_jsThreadsEnteredLegacyVMs.fetch_sub(1, std::memory_order_acq_rel);
-    }
-
     ASSERT_WITH_MESSAGE(!m_vm.hasCheckpointOSRSideState(), "Exitting the VM but pending checkpoint side state still available");
 
-    // UNGIL §A.1.5: clear the per-lite record FIRST (the CURRENT lite is the
-    // one this scope was recorded on — dtor runs on the ctor's thread), then
-    // the transitional VM shadow (see setUpSlow).
+    // UNGIL §A.1.5 (U-T5): GIL-off, clear ONLY the per-lite record (the
+    // CURRENT lite is the one this scope was recorded on — the dtor runs on
+    // the ctor's thread). The VM-member shadow is dropped (see setUpSlow);
+    // GIL-on keeps the landed single write.
     if (m_vm.gilOff()) [[unlikely]] {
         VMLite& lite = VMLite::current();
         RELEASE_ASSERT(lite.vm == &m_vm);
-        ASSERT(lite.entryScope == this);
+        RELEASE_ASSERT(lite.entryScope == this);
         lite.entryScope = nullptr;
-        // N-mutator tripwire — see setUpSlow: GIL-off the shadow must still
-        // be ours when we null it (single entered thread until the shadow is
-        // dropped by the activation tasks, IU obligation 1).
-        RELEASE_ASSERT(m_vm.entryScope == this);
-    }
-    m_vm.entryScope = nullptr;
+    } else
+        m_vm.entryScope = nullptr;
 
     // §A.1.5: executeEntryScopeServicesOnExit uses the CURRENT lite's bits
     // when gilOff (VM::has/clearEntryScopeService route there).

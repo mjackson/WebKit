@@ -37,6 +37,7 @@
 #include "RegisterAtOffsetList.h"
 #include "VMInlines.h"
 #include "VMLite.h"
+#include <limits>
 #include <wtf/CommaPrinter.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

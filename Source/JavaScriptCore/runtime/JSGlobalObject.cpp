@@ -672,6 +672,147 @@ namespace JSC {
 
 const ClassInfo JSGlobalObject::s_info = { "GlobalObject"_s, &Base::s_info, &globalObjectTable, nullptr, CREATE_METHOD_TABLE(JSGlobalObject) };
 
+// =============================================================================
+// UNGIL §E.1b.4 (U-T8e): host-hook disposition table — EVERY
+// globalObjectMethodTable / host-callback slot JS-reachable on a spawned TS,
+// with its GIL-off disposition. This block is the doc-of-record enumeration
+// (transcribed to INTEGRATE-ungil.md §(v) at landing); GIL-on/flag-off
+// (useJSThreads=false) behavior is unchanged for every row.
+//
+// Disposition vocabulary: {inline-safe, carrier-queued, refused-with-error,
+// unreachable-on-spawned (proof)}. "inline-safe" = the hook runs on the
+// acting (possibly spawned) thread under that thread's entry token; for
+// embedder-INSTALLED hooks an inline-safe row additionally imposes the
+// §F.6 embedder contract (hook must be thread-safe / pure; Bun-side audit
+// U-T14). "carrier-queued" = the SD15 mechanism (VM.cpp, this change).
+// "ENFORCEMENT OPEN (U-T9, <site>)" marks refused rows whose call sites are
+// outside U-T8e's owned files; this table gates U-T9, which lands them.
+//
+// --- GlobalObjectMethodTable slots (GlobalObjectMethodTable.h:58-90) -------
+//
+// supportsRichSourceInfo — INLINE-SAFE. Pure const predicate (default
+//   JSGlobalObject.h:1228 returns true). Spawned-reachable via error-stack
+//   capture and the JSONP path (Interpreter.cpp:1056/:1059). Installed
+//   overrides: §F.6 pure/thread-safe contract.
+// shouldInterruptScript — UNREACHABLE-ON-SPAWNED. Proof: NO in-tree consumer
+//   in the JSCOnly port (grep: only the table initializers in jsc.cpp /
+//   JSAPIGlobalObject.cpp reference it); the WebCore-era consumer is the
+//   watchdog client, and watchdog enforcement is carrier-only by SD14
+//   (W1 carrier service episode; W3 timer-thread arm skips the callback).
+// javaScriptRuntimeFlags — INLINE-SAFE (pure; default JSGlobalObject.h:1234).
+//   Consulted only at global-object finishCreation (this file, both
+//   JSGlobalObject::finishCreation overloads);
+//   on a spawned TS that is reachable only through
+//   deriveShadowRealmGlobalObject, itself REFUSED below.
+// shouldInterruptScriptBeforeTimeout — UNREACHABLE-ON-SPAWNED (same proof as
+//   shouldInterruptScript).
+// moduleLoaderImportModule — REFUSED-WITH-ERROR (v1 ruling): dynamic import()
+//   evaluated on a spawned TS rejects with a TypeError before the hook is
+//   consulted. Rationale: installed loaders (jsc shell, Bun) drive
+//   embedder-side fetch/IO with main-loop affinity and per-VM loader maps;
+//   no SPEC-ungil section audits a spawned-initiated module graph, and the
+//   spawned entry point is a plain function (api §5.2), so refusal loses no
+//   chartered capability. ENFORCEMENT OPEN (U-T9, JSModuleLoader.cpp:492 —
+//   importModule's hook branch; reject the internal promise when
+//   vm.gilOff() && ThreadManager::isJSThreadCurrent()).
+// moduleLoaderResolve — UNREACHABLE-ON-SPAWNED GIVEN the importModule
+//   refusal. Proof: loader pipeline steps (resolve/fetch/meta/evaluate,
+//   JSModuleLoader.cpp:508/:534/:548/:557) run only inside a module graph
+//   load, which a spawned TS can no longer initiate; pipeline microtasks of
+//   carrier-initiated graphs are registered on the carrier and their loader
+//   promises are settled by the embedder — a spawned-thread settle of an
+//   embedder loader promise would migrate the continuation (SD10) onto the
+//   spawned TS, which the §F.6(b) embedder contract forbids for loader
+//   promises (recorded as an F.6 checklist row; Bun audit U-T14).
+// moduleLoaderFetch — UNREACHABLE-ON-SPAWNED (same proof).
+// moduleLoaderCreateImportMetaProperties — UNREACHABLE-ON-SPAWNED (same
+//   proof; import.meta materializes during carrier-driven evaluation).
+// moduleLoaderEvaluate — UNREACHABLE-ON-SPAWNED (same proof).
+// promiseRejectionTracker — CARRIER-QUEUED (SD15; the §E.1b.4 BINDING
+//   ruling). Machinery landed by THIS task in VM.cpp: spawned Reject/Handle
+//   events append {promise Strong, operation} records to a leaf-lock handoff
+//   queue (no JS, no allocation beyond the record); records are flushed and
+//   EXECUTED at the §F.1 carrier drain point (VM::didExhaustMicrotaskQueue)
+//   under the carrier's token; ordering vs carrier-side events unspecified;
+//   never lost while the carrier drains; no-carrier-ever-drains leaks are
+//   declared (bounded by ~VM purge). The DEFAULT hook below is gated TODAY
+//   through VM::promiseRejected; the four installed-hook call sites
+//   (JSPromise.cpp:405/:464/:502/:637) are re-pointed by U-T9 at
+//   notifyPromiseRejectionTrackerCrossThreadAware (VM.cpp seam).
+// reportUncaughtExceptionAtEventLoop — INLINE-SAFE for the default (no-op,
+//   below at JSGlobalObject::reportUncaughtExceptionAtEventLoop). Spawned-
+//   reachable: a spawned drain's microtask throw reports on the draining
+//   thread (MicrotaskQueue.cpp:66) — SD10-consistent (continuations and
+//   their failures surface on the settling thread). The DWT site
+//   (DeferredWorkTimer.cpp:157) is registrant-routed per §E.7.5 and so runs
+//   on the registrant. Installed hooks: §F.6 thread-safe contract (Bun
+//   routing audit U-T14; if Bun requires carrier affinity it reuses the SD15
+//   record/flush shape — mechanism generalizes, no new spec needed).
+// currentScriptExecutionOwner — INLINE-SAFE (default JSGlobalObject.h:1137
+//   returns the global; pure). Spawned-reachable sites:
+//   DeferredWorkTimer.cpp:197 (addPendingWork, spawned internal arm §E.7),
+//   JSFinalizationRegistry.cpp:62.
+// scriptExecutionStatus — INLINE-SAFE (default JSGlobalObject.h:1138 returns
+//   Running; pure). Spawned-reachable at DWT dispatch
+//   (DeferredWorkTimer.cpp:129). Installed overrides: §F.6 contract.
+// reportViolationForUnsafeEval — INLINE-SAFE (default no-op,
+//   JSGlobalObject.h:1139). Spawned-reachable via eval()/Function()
+//   (Interpreter.cpp:159, FunctionConstructor.cpp:204,
+//   DirectEvalExecutable.cpp:44, IndirectEvalExecutable.cpp:45,
+//   JSGlobalObjectFunctions.cpp:491). Installed (CSP/trusted-types): §F.6.
+// defaultLanguage — INLINE-SAFE (base slot null => JSC fallback). Spawned-
+//   reachable via Intl (IntlObject.cpp:844). Installed overrides must return
+//   an isolated String (§F.6).
+// compileStreaming / instantiateStreaming — INLINE on the acting thread when
+//   installed (presence-gated, JSWebAssembly.cpp:124/:126; invoked from the
+//   draining thread's microtask, JSMicrotask.cpp:1499-1500/:1512-1513, so
+//   spawned-reachable under SD10). The streaming result settles a promise
+//   whose DWT ticket follows §E.7.5 REGISTRANT routing — a spawned
+//   registrant's settlement never routes via carrier drains. Base table /
+//   Bun: slot null => UNREACHABLE (the non-streaming fallback runs instead).
+//   jsc-shell impls enqueue onto the Wasm worklist (thread-safe).
+// deriveShadowRealmGlobalObject — REFUSED-WITH-ERROR (v1 ruling): `new
+//   ShadowRealm()` on a spawned TS throws a TypeError before the hook runs.
+//   Rationale: fresh-realm creation (JSGlobalObject::init) mutates VM-wide
+//   caches/watchpoint sets whose §K/§N rulings audited EXISTING-global
+//   access, not off-carrier realm BOOT; deferring to v1 keeps the audit
+//   honest (earlier enablement is always legal post-audit). ENFORCEMENT OPEN
+//   (U-T9, ShadowRealmObject.cpp:65 — gate ahead of the hook call).
+// codeForEval — INLINE-SAFE (default JSGlobalObject.h:1140 nullString; pure).
+//   Spawned-reachable sites Interpreter.cpp:135,
+//   JSGlobalObjectFunctions.cpp:469. Installed (trusted types): §F.6.
+// canCompileStrings — INLINE-SAFE (default JSGlobalObject.h:1141 true; pure).
+//   Sites Interpreter.cpp:149, FunctionConstructor.cpp:192,
+//   JSGlobalObjectFunctions.cpp:482. Installed: §F.6.
+// trustedScriptStructure — INLINE-SAFE (default JSGlobalObject.h:1142 null).
+//   Consulted once at realm init (this file, JSGlobalObject::init's
+//   m_trustedScriptStructure stamp), carrier-side given the
+//   shadow-realm refusal; the cached read afterwards is an ordinary GC slot.
+//
+// --- Adjacent host-callback slots (not in the method table, same audit) ----
+//
+// ConsoleClient (m_consoleClient, per-global WeakPtr) — INLINE on the acting
+//   thread. Spawned-reachable via console.*; base default null => console
+//   falls back to dataLog (serialized internally). Installed clients
+//   (inspector, Bun): §F.6 thread-safe contract; Bun audit U-T14.
+// Debugger (m_debugger) — UNREACHABLE-ON-SPAWNED by SD13 (spawned
+//   breakpoints no-op GIL-off; §A.2.7 walks happen under a §A.3 stop).
+// CrossTaskToken::createMicrotaskDispatcher / JSMicrotaskDispatcher
+//   (JSGlobalObject::queueMicrotask, this file) — INLINE at enqueue on the
+//   acting thread; the per-lite queue reroute itself is §E.1b/I11 (U-T9).
+// VM Bun hooks m_onComputeErrorInfo / m_onComputeErrorInfoJSValue /
+//   m_computeLineColumnWithSourcemap (VM.h) — INLINE on the throwing thread
+//   (Error.stack capture is spawned-reachable); §F.6 contract, Bun audit
+//   U-T14.
+// VM::m_onEachMicrotaskTick (VM.h:1538) — INLINE on the draining thread
+//   (spawned drains included); §F.6 contract, Bun audit U-T14.
+// DeferredWorkTimer onAddPendingWork/onScheduleWorkSoon/onCancelPendingWork/
+//   onCrossThreadWorkEnqueued — ruled by §E.7 (hookManaged: main/embedder
+//   registrants only; spawned tickets always take the internal arm), owned
+//   by U-T9; listed here for enumeration closure only.
+// Watchdog embedder callback — carrier-only by SD14 (W1/W3); owned by U-T2's
+//   traps/watchdog work; listed for closure.
+// =============================================================================
 const GlobalObjectMethodTable* JSGlobalObject::baseGlobalObjectMethodTable()
 {
     static constexpr GlobalObjectMethodTable table = {
@@ -3871,6 +4012,15 @@ void JSGlobalObject::setMicrotaskQueue(Ref<MicrotaskQueue>&& queue)
     m_microtaskQueue = WTF::move(queue);
 }
 
+// UNGIL §E.1b.4/SD15 (U-T8e): the DEFAULT tracker. Disposition CARRIER-QUEUED
+// — but the gating lives in VM::promiseRejected (VM.cpp), the hook's only
+// effectful arm: a spawned caller's Reject event becomes a handoff record
+// there, and the carrier flush re-enters this hook on the carrier, where
+// promiseRejected appends to the carrier-confined
+// m_aboutToBeNotifiedRejectedPromises vector. Handle is a no-op for the
+// default tracker on any thread (didExhaustMicrotaskQueue re-checks
+// isHandled() at report time, so a late Handle is absorbed). This function
+// therefore stays bit-identical on every thread and in flag-off mode.
 void JSGlobalObject::promiseRejectionTracker(JSGlobalObject* globalObject, JSPromise* promise, JSPromiseRejectionOperation operation)
 {
     switch (operation) {
@@ -3884,6 +4034,10 @@ void JSGlobalObject::promiseRejectionTracker(JSGlobalObject* globalObject, JSPro
     }
 }
 
+// UNGIL §E.1b.4 (U-T8e): disposition INLINE-SAFE — the default is a no-op on
+// any thread. Spawned drains report on the draining thread (SD10-consistent);
+// installed hooks carry the §F.6 thread-safe contract (see the disposition
+// table at baseGlobalObjectMethodTable).
 void JSGlobalObject::reportUncaughtExceptionAtEventLoop(JSGlobalObject*, Exception*)
 {
 }

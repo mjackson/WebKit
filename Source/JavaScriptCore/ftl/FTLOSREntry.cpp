@@ -34,6 +34,7 @@
 #include "OperandsInlines.h"
 #include "VMInlines.h"
 #include "VMLite.h"
+#include <limits>
 
 #if ENABLE(FTL_JIT)
 

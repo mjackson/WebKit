@@ -34,6 +34,7 @@
 #include <atomic>
 #include <bit>
 #include <mutex>
+#include <wtf/Atomics.h> // crossModifyingCodeFence (ANNEX ISB1, U-T5).
 #include <wtf/FastMalloc.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -493,6 +494,82 @@ VMTraps* perThreadTrapsIfExists(VMLite& lite)
     if (!lite.vm)
         return nullptr;
     return &lite.vm->traps();
+}
+
+// ---- UNGIL §A.3.2c (ANNEX ISB1, U-T5): stop-generation counter +
+// per-thread context-sync on non-NVS JIT re-entry. ----
+//
+// ISB1.1 state: one process-wide seq_cst uint64 stop-generation counter.
+// EVERY §A.3 conductor (and every heap §10 conductor that patched/jettisoned
+// code — the cheap conservative form bumps for every conductor) increments it
+// INSIDE the stop window, before resume (the §A.3 conductor in VMManager.cpp
+// calls jsThreadsBumpStopGeneration() between the patcher-side
+// crossModifyingCodeFence and the stop-word clear).
+//
+// ISB1.2 consumption: every transition into "may execute JIT code" that did
+// NOT pass through an NVS exit — F8 AHA re-acquisition (including the
+// §A.3.2b bit-already-clear path), §F token acquisition and ACT (both funnel
+// through GCClient::Heap::acquireHeapAccess, which calls the sync below on
+// its success path), the DAL2 dtor and the §F.5 LIFO restore (both re-enter
+// through the same AHA) — loads the counter, compares the per-THREAD copy,
+// and on mismatch executes a context-synchronizing instruction
+// (WTF::crossModifyingCodeFence: ISB on arm64, a serializing instruction on
+// x86-64) BEFORE any JIT-code entry, then stores the new value. NVS exit
+// keeps the unconditional R1.d ISB and ALSO refreshes the copy
+// (jsThreadsNVSExitInstructionSync, called by the notifyVMStop/ticket-park
+// exits in VMManager.cpp).
+//
+// DEVIATION RECORDED (spec letter vs storage): ISB1.1 says "per-lite uint64
+// copy (L2 append)". The L2 append lives in VMLite.h, which is OUTSIDE
+// U-T5's writable file set, so the copy is a thread_local here instead. This
+// is a strict refinement, not a weakening: the guarantee ISB1 carries is
+// per-CPU-THREAD instruction-stream synchronization (an ISB synchronizes the
+// executing PE, not a carrier), and a thread that has synced for generation
+// G has synced for ALL its carriers at G — a per-lite copy would only force
+// redundant extra ISBs on multi-carrier threads. Lift into VMLite.h (L2
+// append + offsetOf accessor) if a JIT-inlined fast path ever wants it.
+//
+// ISB1.5 cost: GIL-on/flag-off zero (the counter never bumps — only gilOff
+// §A.3 conductors call the bump — and the compare sits on gilOff-only
+// paths). GIL-off steady state: one relaxed load + compare per access/token
+// transition; the seq_cst bump is conductor-only. Visibility of the bump to
+// re-acquirers needs no seq_cst load here: the bump is sequenced before the
+// conductor's seq_cst stop-word CLEAR, and a re-acquirer only reaches JIT
+// code after its seq_cst stop-word load observes that clear (the §A.3.2b
+// gate), which carries the synchronizes-with edge.
+
+static std::atomic<uint64_t> s_jsThreadsStopGeneration { 1 };
+static thread_local uint64_t t_jsThreadsStopGenerationSeen { 0 };
+
+void jsThreadsBumpStopGeneration()
+{
+    s_jsThreadsStopGeneration.fetch_add(1, std::memory_order_seq_cst);
+}
+
+void jsThreadsSyncToStopGenerationBeforeJITEntry()
+{
+    uint64_t generation = s_jsThreadsStopGeneration.load(std::memory_order_relaxed); // ISB1.5: relaxed + compare.
+    if (generation != t_jsThreadsStopGenerationSeen) [[unlikely]] {
+        WTF::crossModifyingCodeFence(); // arm64 ISB / x86-64 serializing instruction, BEFORE any JIT entry.
+        t_jsThreadsStopGenerationSeen = generation;
+    }
+}
+
+void jsThreadsNVSExitInstructionSync()
+{
+    // R1.d: every mutator leaving an NVS park executes an ISB
+    // unconditionally; ISB1.2: the NVS exit also refreshes the per-thread
+    // copy. ORDER IS LOAD-BEARING: sample the generation BEFORE the fence
+    // and record that pre-fence value. Recording a post-fence sample could
+    // mark a bump that landed between the fence and the load as "synced"
+    // although no ISB ran after its window's patch; with the pre-fence
+    // sample any such bump stays unrecorded and the next JIT-entry compare
+    // (jsThreadsSyncToStopGenerationBeforeJITEntry) issues the ISB. The
+    // conductor's patch is sequenced before its bump, so an observed value
+    // is always covered by the fence below.
+    uint64_t generation = s_jsThreadsStopGeneration.load(std::memory_order_relaxed);
+    WTF::crossModifyingCodeFence();
+    t_jsThreadsStopGenerationSeen = generation;
 }
 
 // ---- UNGIL §A.3.6/ANNEX A36 carrier-TID hooks (U-T1). ----

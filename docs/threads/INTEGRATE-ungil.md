@@ -94,6 +94,104 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
   (e) ledger row 3 + obligation 5 ownership corrected (U-T8 / U-T8b per the
   handout §T task list).
 
+- U-T4b (§A.1.3/6 FTL + OSR emission, DARK) — LANDED in-tree. All gilOff
+  arms are codegen-time keyed on the COMPILED-FOR VM's `vm.gilOff()` (per
+  §A.1.3; U0c fixes the mode pre-codegen); GIL-on/flag-off emission is
+  byte-for-byte unchanged at every touched site (explicit dual arms — no
+  shared restructuring of the GIL-on B3/assembly shapes). Files:
+  - `ftl/FTLSaveRestore.{h,cpp}`: `materializeBakedScratchBufferPointer` /
+    `...DataPointer` (the frozen A16 `loadVMLite -> segment -> [index]`
+    emitters; address-dependent loads, clobber only dest), ScopedLambda
+    base-materializer forms of save/restoreAllRegisters, and
+    `restoreCalleeSavesFromCurrentVMLiteEntryFrameCalleeSavesBuffer`.
+  - `ftl/FTLLowerDFGToB3.cpp`: per-site dual emission for ALL nine
+    scratchBufferForSize main-path sites (define-fields, 3x ArrayPush,
+    splice, unshift, NewArray, NewArrayWithSpread) via a per-site
+    patchpoint (`bakedScratchBufferPointer`); JITCode-RESIDENT
+    catchOSREntryBuffer set-site + ExtractCatchLocal/ClearCatchLocals +
+    ExtractOSREntryLocal read-backs via baked indices; A16-ext gilOff
+    fallbacks (see OPEN below) for ArithRandom (operationRandom call) and
+    HasOwnProperty (probe skipped).
+  - `ftl/FTLForOSREntryJITCode.{h,cpp}` (m_entryBuffer -> baked index),
+    `ftl/FTLOSREntry.cpp` + `dfg/DFGOSREntry.cpp` (per-lite fill/readback;
+    branch on bakedIndex != UINT_MAX so the same reader serves the future
+    U-T4a DFG-tier index), `dfg/DFGCommonData.h`
+    (catchOSREntryBufferBakedIndex append).
+  - `ftl/FTLOSRExitCompiler.cpp`: full ExitScratchAddressing dual-mode
+    compileStub/compileRecovery (every baked absolute — register dump,
+    materialization pointer/argument slots, unwind scratch, activeLength,
+    checkpoint tmps — becomes lite-resolved base + static offset,
+    rematerialized per use); per-lite Group-3 unwind-entry resolution
+    (callFrameForCatch/topEntryFrame); gilOff once-only exit compilation
+    under a new `ftlOSRExitGenerationLock`. LOCK RANK (corrected — this lock
+    is NOT a leaf, it is held across the whole of compileStub): OUTERMOST of
+    {codeBlock->m_lock (ConcurrentJSLocker, getArrayProfile),
+    ScratchBufferRegistry::m_lock -> VMLiteRegistry lock -> per-lite
+    scratchBufferLock (via VM::allocateBakedScratchBufferIndex, the §LK.6
+    chain), LinkBuffer/executable-allocator locks}; acquired ONLY from the
+    exit-generation thunk's operation call with no other JSC lock held; must
+    never be taken while holding any of the above; GIL-on never takes it.
+    Sibling with the same rank, never nested with it:
+    `ftlLazySlowPathGenerationLock` (FTLOperations.cpp). The U20 lock-order
+    lint owner must carry both as an explicit outer-rank row (§LK side is
+    frozen; this IU row is the binding rank record until then). gilOff, the
+    winner does NOT repatch the exit jump (other mutators may be executing
+    it; x86_64 rel32 repatch is not single-copy atomic and ISB1 only covers
+    in-stop patching) — the jump stays on the generation thunk and every
+    subsequent exit takes the locked fast path, returning the compiled stub
+    for the thunk's tail call (data-only protocol; GIL-on repatch unchanged).
+  - `ftl/FTLOperations.cpp` + `ftl/FTLLazySlowPath.cpp`: same once-only +
+    no-live-repatch treatment for FTL lazy slow paths.
+    operationCompileFTLLazySlowPath gilOff takes
+    `ftlLazySlowPathGenerationLock`, generates only if `!stub()` (generate()
+    RELEASE_ASSERTs !m_stub — N threads racing one unpatched jump would
+    otherwise crash or double-publish m_stub/double-repatch), losers return
+    the winner's stub; LazySlowPath::generate skips the repatchJump under
+    gilOff (thunk round-trip per traversal, data-only). GIL-on both paths
+    byte-for-byte unchanged.
+  - `ftl/FTLLocation.{h,cpp}`: base-GPR `restoreInto` overload.
+  - `ftl/FTLThunks.cpp` + `dfg/DFGOSRExitCompilerCommon.h`
+    (adjustFrameAndStackInOSRExitCompilerThunk; signature widened
+    MacroAssembler& -> AssemblyHelpers&, both callers are AssemblyHelpers):
+    per-lite register-dump buffers + lite-resolved callFrameForCatch in the
+    shared generation thunks.
+  - `dfg/DFGOSRExitCompilerCommon.cpp` (adjustAndJumpToTarget exception
+    tail, shared by DFG+FTL exits): lite-resolved
+    targetInterpreterPCForThrow (payload-only variant store, M6-identical
+    layout), topEntryFrame callee-save copy, callFrameForCatch.
+  - Amplifier: `JSTests/threads/jit/ftl-osr-entry-catch-loop-amplifier.js`
+    (concurrent catch + loop OSR entry, one CodeBlock; passes GIL'd).
+  U-T4b OPEN items (owners named):
+  1. **A16-ext lite-resident copies NOT landed** (no U-T1 L2 lite slots, no
+     K.3 publish): ArithRandom gilOff falls back to operationRandom (JIT-side
+     tear removed; the HOST-side shared WeakRandom advance remains the
+     K4.VIII.10 runtime row — owner of the per-lite stream: the K-rows
+     runtime task, with U-T4a/U-T4b re-pointing emission once the slot
+     exists); HasOwnProperty gilOff skips the inline probe (conservative);
+     RecordRegExpCachedResult gilOff FAIL-STOPS at codegen (DFG_CRASH in the
+     gilOff arm of compileRecordRegExpCachedResult — the shared
+     m_regExpGlobalData cachedResult is SEMANTIC state with no safe fallback,
+     so the activation gate is enforced in code, same precedent as the
+     Darwin loadVMLite RELEASE_ASSERT; GIL-on emission byte-for-byte
+     unchanged). **gilOff activation (U-T6/U-T9) MUST NOT ship before the
+     lite slots + re-pointed emission land** — for RecordRegExpCachedResult
+     this is now mechanical (FTL compiles of the node crash under gilOff
+     until the K4/U-T8b lite-resident copy lands and the tripwire is
+     replaced by the re-pointed emission). Megamorphic FTL
+     paths bake no VM cache address in FTLLowerDFGToB3 (they run through the
+     shared InlineCacheCompiler machinery — that surface's A16-ext leg
+     belongs to its owning task, not U-T4b).
+  2. **DFG/Baseline legs untouched** (U-T4a boundary): DFGJITCompiler.cpp:527
+     catch-buffer set-site, DFGSpeculativeJIT.cpp:17805/17812 catch
+     readbacks, DFG OSR exit compiler scratch buffers, and every
+     Baseline/DFG scratch bake still GIL-on-only. The shared read-side
+     (DFGOSREntry/DFGCommonData index) is already in place for them.
+  3. **Darwin loadVMLite gap inherited** (U-T3 OPEN): gilOff-mode emission
+     RELEASE_ASSERTs on Darwin until the JSCConfig vmLiteTLSKey lands.
+  4. handleExitCounts' CodeBlock-resident exit counters remain non-atomic
+     cross-thread increments under gilOff (profiling-only; CodeBlock/jit
+     rows own the ruling).
+
 ## (i) Supersession ledger (one row per SPEC-ungil SUPERSESSION; spec side already written, IU side written at landing)
 
 | # | Spec side | IU side (landing record) | Task |

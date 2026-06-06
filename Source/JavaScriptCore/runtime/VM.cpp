@@ -62,6 +62,7 @@
 #include "FunctionExecutableInlines.h"
 #include "GetterSetterInlines.h"
 #include "GigacageAlignedMemoryAllocator.h"
+#include "GlobalObjectMethodTable.h"
 #include "HasOwnPropertyCache.h"
 #include "Heap.h"
 #include "HeapInlines.h"
@@ -137,6 +138,7 @@
 #include "SymbolInlines.h"
 #include "SymbolTableInlines.h"
 #include "TestRunnerUtils.h"
+#include "ThreadManager.h"
 #include "ThunkGenerators.h"
 #include "TypeProfiler.h"
 #include "TypeProfilerLog.h"
@@ -159,6 +161,7 @@
 #include "WideningNumberPredictionFuzzerAgent.h"
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/MemoryPressureHandler.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/ProcessID.h>
 #include <wtf/ReadWriteLock.h>
 #include <wtf/SimpleStats.h>
@@ -196,6 +199,14 @@
 namespace JSC {
 
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(VM);
+
+// UNGIL §E.1b.4/SD15 (U-T8e) — forward declarations for the rejection-tracker
+// carrier-handoff machinery defined ahead of VM::callPromiseRejectionCallback
+// below; ~VM (purge) and the non-static seams are consumed before that point.
+void enqueuePromiseRejectionTrackerHandoffRecord(VM&, JSPromise*, JSPromiseRejectionOperation);
+void flushPromiseRejectionTrackerHandoffRecords(VM&);
+void notifyPromiseRejectionTrackerCrossThreadAware(JSGlobalObject*, JSPromise*, JSPromiseRejectionOperation);
+static void purgePromiseRejectionHandoffRecordsAtVMDestruction(VM&);
 
 // ===========================================================================
 // UNGIL §A.1.1 (U-T3): g_jscCurrentVMLite — the JIT/LLInt-visible mirror of
@@ -826,6 +837,13 @@ VM::~VM()
     m_perBytecodeProfiler = nullptr;
 
     ASSERT(currentThreadIsHoldingAPILock());
+    // UNGIL §E.1b.4/SD15 (U-T8e): free any never-drained spawned tracker
+    // records (and their Strongs) BEFORE lastChanceToFinalize, on the
+    // destroying thread, which still holds the token here (the §F.2
+    // lock-keyed retirement above keeps it live through teardown). Entries
+    // exist only for gilOff VMs; flag-off this is a no-op gate.
+    if (m_gilOff) [[unlikely]]
+        purgePromiseRejectionHandoffRecordsAtVMDestruction(*this);
     m_apiLock->willDestroyVM(this);
     smallStrings.setIsInitialized(false);
     heap.lastChanceToFinalize();
@@ -1693,6 +1711,225 @@ void VM::dumpTypeProfilerData()
     typeProfiler()->dumpTypeProfilerData(*this);
 }
 
+// =============================================================================
+// UNGIL §E.1b.4 / SD15 (U-T8e): promise-rejection-tracker carrier handoff.
+//
+// GIL-off, the promiseRejectionTracker host hook is invoked INLINE only when
+// the acting thread is a main/embedder carrier. Spawned-thread Reject/Handle
+// events are appended (no JS, no allocation beyond the record) to a
+// leaf-lock-guarded handoff queue as tracker records {promise Strong,
+// operation}, flushed and EXECUTED at the §F.1 carrier drain points
+// (VM::didExhaustMicrotaskQueue below — the same checkpoint that reports
+// unhandled rejections) like off-carrier DWT work. Ordering vs carrier-side
+// tracker events is unspecified (SD15): a report may arrive a drain late but
+// is never lost while the carrier still drains; process-exit-before-drain
+// drops are the same class as landed exit-before-microtask drains; a VM with
+// no carrier ever draining leaks reports — declared. No hooks installed =>
+// SAME routing (the queue is drain-owned, not hook-owned).
+//
+// Consequence for VM::m_aboutToBeNotifiedRejectedPromises (annex K4 table I
+// row "per-lite / SD15"): the vector becomes CARRIER-CONFINED GIL-off — only
+// carrier threads ever append to it (VM::promiseRejected gates below) or walk
+// it (didExhaustMicrotaskQueue returns early on spawned threads), so it needs
+// no lock and no per-lite copy; spawned events reach it via this queue.
+//
+// Strong discipline (§F.3): the ENQUEUER creates the record's Strong while
+// holding its entry token (asserted); the CARRIER clears it under its token
+// at flush; ~VM purges the queue on the destroying thread, which still holds
+// the token at that point (see ~VM). Strong create/destroy happens OUTSIDE
+// the queue lock so HandleSet::m_strongLock (also a leaf) is never nested
+// under it.
+//
+// Lock placement note (recorded spec delta, U-T8e summary): §E.1b.4 names
+// "the annex-E7 m_pendingLock-guarded handoff queue" — i.e. DWT::m_taskLock.
+// DeferredWorkTimer.{h,cpp} are owned by U-T9 (§E.4/§E.7) and have no handoff
+// queue yet, so this task lands the records under an equivalently-ranked §LK
+// leaf lock here instead (same contract: append/removal/emptiness reads under
+// the lock, never held across user JS, nothing taken under it). U-T9 may
+// re-home the records onto the DWT queue verbatim; the enqueue/flush API
+// below is the seam.
+//
+// No wake edge is required for SD15 (unlike annex-E7 DWT work): the spec only
+// promises delivery at the NEXT carrier drain, which the §E.1b settling-
+// thread microtask protocol already forces whenever a carrier drains.
+//
+// Call-site status (gates U-T9): the four installed-hook invocation sites
+// (JSPromise.cpp:405/:464/:502/:637) still call the methodTable hook
+// directly; U-T9 re-points them at notifyPromiseRejectionTrackerCrossThread-
+// Aware() below (same-library linkage — redeclare in JSPromise.cpp, no
+// header changes; the currentThreadHoldsEntryToken pattern, JSLock.cpp).
+// Until then the DEFAULT tracker is already safe (its only effect,
+// VM::promiseRejected, gates internally below); embedder-installed hooks at
+// those sites run inline-on-spawned only until U-T9 lands the re-point.
+// Flag-off (useJSThreads=false => m_gilOff false): every path below is
+// bit-identical to the landed code.
+// =============================================================================
+
+namespace {
+
+struct PromiseRejectionTrackerHandoffRecord {
+    Strong<JSPromise> promise;
+    JSPromiseRejectionOperation operation;
+};
+
+struct PromiseRejectionTrackerHandoffQueue {
+    WTF_MAKE_STRUCT_FAST_ALLOCATED;
+    Lock lock; // §LK leaf (spec home: DWT m_pendingLock; see block comment).
+    Vector<PromiseRejectionTrackerHandoffRecord> records WTF_GUARDED_BY_LOCK(lock);
+    bool flushing WTF_GUARDED_BY_LOCK(lock) { false }; // re-entrant carrier drain guard.
+};
+
+} // anonymous namespace
+
+// Per-VM side table (VM.h is not in U-T8e's owned file set, so no VM member;
+// U-T9 may fold this into DWT state). Entries are created only for gilOff VMs
+// and removed in ~VM; the registry lock is a leaf taken only around the tiny
+// vector scan — the per-queue lock is NOT nested under it.
+static Lock s_promiseRejectionHandoffRegistryLock;
+
+static Vector<std::pair<VM*, std::unique_ptr<PromiseRejectionTrackerHandoffQueue>>>& promiseRejectionHandoffRegistry() WTF_REQUIRES_LOCK(s_promiseRejectionHandoffRegistryLock)
+{
+    static NeverDestroyed<Vector<std::pair<VM*, std::unique_ptr<PromiseRejectionTrackerHandoffQueue>>>> registry;
+    return registry.get();
+}
+
+static PromiseRejectionTrackerHandoffQueue* promiseRejectionHandoffQueueFor(VM& vm, bool createIfMissing)
+{
+    Locker locker { s_promiseRejectionHandoffRegistryLock };
+    auto& registry = promiseRejectionHandoffRegistry();
+    for (auto& entry : registry) {
+        if (entry.first == &vm)
+            return entry.second.get();
+    }
+    if (!createIfMissing)
+        return nullptr;
+    registry.append({ &vm, makeUnique<PromiseRejectionTrackerHandoffQueue>() });
+    return registry.last().second.get();
+}
+
+// SD15 spawned-side append. No JS, no GC allocation beyond the Strong slot.
+// Exported within the library for U-T9's call-site re-point (redeclare, no
+// header).
+void enqueuePromiseRejectionTrackerHandoffRecord(VM& vm, JSPromise* promise, JSPromiseRejectionOperation operation)
+{
+    ASSERT(vm.gilOff());
+    ASSERT(ThreadManager::isJSThreadCurrent());
+    ASSERT(vm.currentThreadIsHoldingAPILock()); // §F.3: enqueuer holds its entry token across the Strong create.
+    // Strong created OUTSIDE the queue lock (leaf-vs-leaf, see block comment);
+    // moving it into the vector touches no HandleSet state.
+    PromiseRejectionTrackerHandoffRecord record { Strong<JSPromise>(vm, promise), operation };
+    auto* queue = promiseRejectionHandoffQueueFor(vm, /* createIfMissing */ true);
+    Locker locker { queue->lock };
+    queue->records.append(WTF::move(record));
+}
+
+// SD15 carrier-side flush + EXECUTE, run at the §F.1 carrier drain point
+// (didExhaustMicrotaskQueue). Invokes the CURRENT methodTable hook of each
+// promise's realm global under the carrier's token — the default hook lands
+// in VM::promiseRejected's carrier arm; installed (Bun-style) hooks run their
+// JS here, on the carrier, per SD15. Records are executed with the promise's
+// REALM global (the r33-class cross-realm settle rule: the spawned settle
+// site's lexical global identity is not carried across the hop; recorded in
+// the U-T8e summary).
+void flushPromiseRejectionTrackerHandoffRecords(VM& vm)
+{
+    if (!vm.gilOff())
+        return;
+    ASSERT(!ThreadManager::isJSThreadCurrent()); // carrier drain points only.
+    ASSERT(vm.currentThreadIsHoldingAPILock());
+    auto* queue = promiseRejectionHandoffQueueFor(vm, /* createIfMissing */ false);
+    if (!queue)
+        return;
+
+    Vector<PromiseRejectionTrackerHandoffRecord> records;
+    {
+        Locker locker { queue->lock };
+        if (queue->flushing || queue->records.isEmpty())
+            return;
+        queue->flushing = true;
+        records = std::exchange(queue->records, { });
+    }
+
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
+    size_t executed = 0;
+    bool terminated = false;
+    for (auto& record : records) {
+        JSPromise* promise = record.promise.get();
+        // The promise's realm global is kept alive by the Strong (cell ->
+        // structure -> global); the hook contract takes the global whose
+        // tracker fires (same realm choice as callPromiseRejectionCallback).
+        JSGlobalObject* globalObject = promise->realm();
+        globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, promise, record.operation);
+        ++executed;
+        record.promise.clear(); // §F.3: carrier clears under its token.
+        if (!scope.clearExceptionExceptTermination()) [[unlikely]] {
+            terminated = true;
+            break;
+        }
+    }
+
+    {
+        Locker locker { queue->lock };
+        queue->flushing = false;
+        if (terminated && executed < records.size()) {
+            // "Never lost while the carrier still drains": re-prepend the
+            // unexecuted tail ahead of anything enqueued during the flush.
+            Vector<PromiseRejectionTrackerHandoffRecord> requeued;
+            requeued.reserveInitialCapacity(records.size() - executed + queue->records.size());
+            for (size_t i = executed; i < records.size(); ++i)
+                requeued.append(WTF::move(records[i]));
+            for (auto& pending : queue->records)
+                requeued.append(WTF::move(pending));
+            queue->records = WTF::move(requeued);
+        }
+    }
+    // Executed records' (already-cleared) Strongs are destroyed here, outside
+    // the queue lock, still under the carrier's token.
+}
+
+// SD15 invocation gate: the shape U-T9 re-points the JSPromise.cpp call sites
+// at (redeclare in JSPromise.cpp; same-library linkage, no header). Carrier
+// (or GIL-on / flag-off): invoke the methodTable hook inline, bit-identical
+// to the landed call sites. Spawned GIL-off: append the tracker record.
+void notifyPromiseRejectionTrackerCrossThreadAware(JSGlobalObject* globalObject, JSPromise* promise, JSPromiseRejectionOperation operation)
+{
+    VM& vm = globalObject->vm();
+    if (vm.gilOff() && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        enqueuePromiseRejectionTrackerHandoffRecord(vm, promise, operation);
+        return;
+    }
+    globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, promise, operation);
+}
+
+// ~VM purge: drop this VM's registry entry and free the record Strongs on the
+// destroying thread (which still holds the token there — asserted at the call
+// site). Reports queued but never drained by a carrier are dropped — the
+// SD15 declared leak class, now bounded by VM lifetime.
+static void purgePromiseRejectionHandoffRecordsAtVMDestruction(VM& vm)
+{
+    std::unique_ptr<PromiseRejectionTrackerHandoffQueue> queue;
+    {
+        Locker locker { s_promiseRejectionHandoffRegistryLock };
+        auto& registry = promiseRejectionHandoffRegistry();
+        for (size_t i = 0; i < registry.size(); ++i) {
+            if (registry[i].first == &vm) {
+                queue = WTF::move(registry[i].second);
+                registry.removeAt(i);
+                break;
+            }
+        }
+    }
+    if (!queue)
+        return;
+    Vector<PromiseRejectionTrackerHandoffRecord> records;
+    {
+        Locker locker { queue->lock };
+        ASSERT(!queue->flushing);
+        records = std::exchange(queue->records, { });
+    }
+    records.clear(); // Strong dtors outside the queue lock, under the destroying thread's token.
+}
+
 void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 {
     JSObject* callback = promise->realm()->unhandledRejectionCallback();
@@ -1714,6 +1951,21 @@ void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 
 void VM::didExhaustMicrotaskQueue()
 {
+    // UNGIL §E.1b.4/SD15 (U-T8e): GIL-off this is the §F.1 carrier drain
+    // point for spawned tracker records. Spawned threads NEVER execute
+    // tracker events or unhandled-rejection reports and never touch the
+    // carrier-confined vector below — their events were carrier-queued at
+    // raise time (VM::promiseRejected / the SD15 invocation gate) and run at
+    // the next carrier drain (a report may arrive a drain late; never lost
+    // while the carrier drains). Flag-off/GIL-on: m_gilOff is false and this
+    // block vanishes.
+    if (m_gilOff) [[unlikely]] {
+        if (ThreadManager::isJSThreadCurrent())
+            return;
+        flushPromiseRejectionTrackerHandoffRecords(*this);
+        if (hasPendingTerminationException()) [[unlikely]]
+            return;
+    }
     while (!m_aboutToBeNotifiedRejectedPromises.isEmpty()) {
         auto unhandledRejections = WTF::move(m_aboutToBeNotifiedRejectedPromises);
         for (auto& promise : unhandledRejections) {
@@ -1729,6 +1981,16 @@ void VM::didExhaustMicrotaskQueue()
 
 void VM::promiseRejected(JSPromise* promise)
 {
+    // UNGIL §E.1b.4/SD15 (U-T8e): m_aboutToBeNotifiedRejectedPromises is
+    // CARRIER-CONFINED GIL-off (annex K4 table I). The default tracker
+    // (JSGlobalObject::promiseRejectionTracker) reaches here on whatever
+    // thread settles; a spawned settler routes through the handoff queue and
+    // the record lands in this vector when the carrier flush re-invokes the
+    // default hook on the carrier. GIL-on/flag-off: unchanged single append.
+    if (m_gilOff && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        enqueuePromiseRejectionTrackerHandoffRecord(*this, promise, JSPromiseRejectionOperation::Reject);
+        return;
+    }
     m_aboutToBeNotifiedRejectedPromises.constructAndAppend(*this, promise);
 }
 

@@ -3814,6 +3814,21 @@ private:
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
 
+        if (vm().gilOff()) [[unlikely]] {
+            // UNGIL A16 EXTENSION (AUD1.K4 / K4.VIII.10, U-T4b): the inline
+            // fast path below bakes the SHARED JSGlobalObject m_weakRandom
+            // low/high addresses — N threads would tear the 128-bit stream
+            // state. The mandated per-lite stream (lite-relative emission)
+            // needs the lite-resident slot, which is not yet landed (U-T1 L2
+            // appends carry no weakRandom slot; no K.3 publish exists). Until
+            // it lands, gilOff compilations take the operation call — this
+            // removes the JIT-side torn read-modify-write; the host-side
+            // advance still touches the shared stream and is covered by the
+            // K4.VIII.10 runtime row (OPEN, recorded in INTEGRATE-ungil.md).
+            setDouble(vmCall(Double, operationRandom, weakPointer(globalObject)));
+            return;
+        }
+
         // Inlined WeakRandom::advance().
         // uint64_t x = m_low;
         void* lowAddress = reinterpret_cast<uint8_t*>(globalObject) + JSGlobalObject::weakRandomOffset() + WeakRandom::lowOffset();
@@ -18314,21 +18329,35 @@ IGNORE_CLANG_WARNINGS_END
         // So we either get super lucky and use zero for the hash and somehow collide with the entity
         // we're looking for, or we realize we're comparing against another entity, and go to the
         // slow path anyways.
-        LValue hash = m_out.lShr(m_out.load32(uniquedStringImpl, m_heaps.StringImpl_hashAndFlags), m_out.constInt32(StringImpl::s_flagCount));
+        const bool bakedSharedCache = vm().gilOff();
+        ValueFromBlock fastResult;
+        if (bakedSharedCache) [[unlikely]] {
+            // UNGIL A16 EXTENSION (AUD1.K4 II.18, U-T4b): the inline probe
+            // below bakes the SHARED VM::m_hasOwnPropertyCache address —
+            // interleaved multi-word entry writes could pair one thread's key
+            // with another's result. The mandated lite-relative probe needs
+            // the lite-resident copy (K.3 publish), which is not yet landed
+            // (no U-T1 L2 slot). Until it lands, gilOff compilations skip the
+            // inline probe (conservative, dark-safe; OPEN, recorded in
+            // INTEGRATE-ungil.md).
+            m_out.jump(slowCase);
+        } else {
+            LValue hash = m_out.lShr(m_out.load32(uniquedStringImpl, m_heaps.StringImpl_hashAndFlags), m_out.constInt32(StringImpl::s_flagCount));
 
-        LValue structureID = m_out.load32(object, m_heaps.JSCell_structureID);
-        LValue index = m_out.add(hash, structureID);
-        index = m_out.zeroExtPtr(m_out.bitAnd(index, m_out.constInt32(HasOwnPropertyCache::mask)));
-        ASSERT(vm().hasOwnPropertyCache());
-        LValue cache = m_out.constIntPtr(vm().hasOwnPropertyCache());
+            LValue structureID = m_out.load32(object, m_heaps.JSCell_structureID);
+            LValue index = m_out.add(hash, structureID);
+            index = m_out.zeroExtPtr(m_out.bitAnd(index, m_out.constInt32(HasOwnPropertyCache::mask)));
+            ASSERT(vm().hasOwnPropertyCache());
+            LValue cache = m_out.constIntPtr(vm().hasOwnPropertyCache());
 
-        IndexedAbstractHeap& heap = m_heaps.HasOwnPropertyCache;
-        LValue sameStructureID = m_out.equal(structureID, m_out.load32(m_out.baseIndex(heap, cache, index, JSValue(), HasOwnPropertyCache::Entry::offsetOfStructureID())));
-        LValue sameImpl = m_out.equal(uniquedStringImpl, m_out.loadPtr(m_out.baseIndex(heap, cache, index, JSValue(), HasOwnPropertyCache::Entry::offsetOfImpl())));
-        ValueFromBlock fastResult = m_out.anchor(m_out.load8ZeroExt32(m_out.baseIndex(heap, cache, index, JSValue(), HasOwnPropertyCache::Entry::offsetOfResult())));
-        LValue cacheHit = m_out.bitAnd(sameStructureID, sameImpl);
+            IndexedAbstractHeap& heap = m_heaps.HasOwnPropertyCache;
+            LValue sameStructureID = m_out.equal(structureID, m_out.load32(m_out.baseIndex(heap, cache, index, JSValue(), HasOwnPropertyCache::Entry::offsetOfStructureID())));
+            LValue sameImpl = m_out.equal(uniquedStringImpl, m_out.loadPtr(m_out.baseIndex(heap, cache, index, JSValue(), HasOwnPropertyCache::Entry::offsetOfImpl())));
+            fastResult = m_out.anchor(m_out.load8ZeroExt32(m_out.baseIndex(heap, cache, index, JSValue(), HasOwnPropertyCache::Entry::offsetOfResult())));
+            LValue cacheHit = m_out.bitAnd(sameStructureID, sameImpl);
 
-        m_out.branch(m_out.notZero32(cacheHit), usually(continuation), rarely(slowCase));
+            m_out.branch(m_out.notZero32(cacheHit), usually(continuation), rarely(slowCase));
+        }
 
         m_out.appendTo(slowCase, continuation);
         ValueFromBlock slowResult;
@@ -18336,7 +18365,10 @@ IGNORE_CLANG_WARNINGS_END
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
-        setBoolean(m_out.phi(Int32, fastResult, slowResult));
+        if (bakedSharedCache) [[unlikely]]
+            setBoolean(m_out.phi(Int32, slowResult));
+        else
+            setBoolean(m_out.phi(Int32, fastResult, slowResult));
     }
 
     void compileParseInt()
@@ -20692,6 +20724,25 @@ IGNORE_CLANG_WARNINGS_END
 
     void compileRecordRegExpCachedResult()
     {
+        if (vm().gilOff()) [[unlikely]] {
+            // UNGIL A16 EXTENSION (AUD1.K2/SD19, U-T4b) — FAIL-STOP TRIPWIRE:
+            // the stores below are globalObject-relative writes into the
+            // SHARED m_regExpGlobalData cachedResult (multi-word SEMANTIC
+            // state read by RegExp.$1..$9); emitting them in a gilOff
+            // compilation would be a cross-thread torn-write race the moment
+            // N mutators run. The mandated lite-relative re-point needs the
+            // lite-resident copy (U-T1 L2 slot + K.3 publish), which is not
+            // yet landed, and no conservative fallback exists (skipping the
+            // stores is semantically wrong; no operation form exists). Until
+            // the slot + re-pointed emission land, gilOff-mode compilation of
+            // this node fail-stops — same precedent as the Darwin loadVMLite
+            // gap (AssemblyHelpers.cpp) — so the INTEGRATE-ungil.md
+            // activation gate is enforced in code, not just documented.
+            // GIL-on/flag-off emission below is byte-for-byte unchanged.
+            DFG_CRASH(m_graph, m_node, "RecordRegExpCachedResult gilOff emission requires the lite-resident m_regExpGlobalData copy (A16-ext, not landed)");
+            return;
+        }
+
         Edge globalObjectEdge = m_graph.varArgChild(m_node, 0);
         Edge regExpEdge = m_graph.varArgChild(m_node, 1);
         Edge stringEdge = m_graph.varArgChild(m_node, 2);
@@ -20704,6 +20755,10 @@ IGNORE_CLANG_WARNINGS_END
         LValue start = lowInt32(startEdge);
         LValue end = lowInt32(endEdge);
 
+        // GIL-on-only emission (gilOff fail-stops above): baked
+        // globalObject-relative cachedResult stores, byte-for-byte today's
+        // shape. The gilOff lite-relative re-point lands with the U-T1 L2
+        // slot + K.3 publish (OPEN, recorded in INTEGRATE-ungil.md).
         m_out.storePtr(regExp, globalObject, m_heaps.JSGlobalObject_regExpGlobalData_cachedResult_lastRegExp);
         m_out.storePtr(string, globalObject, m_heaps.JSGlobalObject_regExpGlobalData_cachedResult_lastInput);
         m_out.store32(start, globalObject, m_heaps.JSGlobalObject_regExpGlobalData_cachedResult_result_start);
