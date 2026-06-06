@@ -159,11 +159,31 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
     setCurrentThreadState(state.copyRef());
     // THREADS-INTEGRATE(api): VMLite + butterfly-TID-tag handshake
     // (SPEC-api 5.2 / vmstate 6.4.4 / jit P5+CS3), before the JSLockHolder.
+    const bool gilOff = vm.gilOff();
     auto lite = makeUnique<VMLite>();
     lite->tid = state->tid; // TM is the sole TID allocator; written before setCurrent (vmstate 6.7)
+    // UNGIL §A.1.3 level-2 byte: stamped BEFORE registerLite publishes the
+    // lite to registry walkers (same write-once-at-registration clause as
+    // VM.cpp's m_mainVMLite stamp and JSLock.cpp's carrier registration),
+    // and before the first JSLockHolder's spawnedThreadEntryTokenLock
+    // consults it (§F.1 U1 backstop, JSLock.cpp:523).
+    lite->gilOff = gilOff ? 1 : 0;
     VMLiteRegistry::singleton().registerLite(*lite, vm); // sole writer of lite->vm (vmstate 6.5.1)
     VMLite::setCurrent(lite.get());
     initializeButterflyTIDTagForCurrentThread(); // jit P5; after setCurrent, before any JS (CS3)
+    if (gilOff) {
+        // SPEC-ungil E2A integration shape (recorded in the ThreadManager.h
+        // banner; AB-12): §B.1 per-thread GC client attach — stamps
+        // lite->clientHeap (EXIT1.4(b) release-publish) and the §10A.1
+        // currentThreadClient slot, satisfying the §F.1 A36C clause checked
+        // at the first JSLockHolder (JSLock.cpp:524) — then the §E.1 inbox
+        // open, both BEFORE fn. attachCurrentThread's gated acquire parks
+        // across any in-flight stop-the-world, so a conductor mid-stop never
+        // observes this thread entering JS without heap access.
+        attachSpawnedThreadGCClient(vm, *lite);
+        openThreadInbox(state.get());
+    }
+    ThreadState::Phase phase = ThreadState::Phase::Failed;
     {
         // The GIL: all JS execution is serialized by the shared VM's JSLock
         // (SPEC-api 5.2). Atom table and stack limits migrate on acquisition.
@@ -172,7 +192,11 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
         // holder may have left pointers into another (possibly dead)
         // thread's stack in the VM (e.g. the EXCEPTION_SCOPE_VERIFICATION
         // scope chain); see GILParkSavedExecutionState (LockObject.h).
-        GILParkSavedExecutionState::resetForFreshThread(vm);
+        // GIL-on only: GIL-off there is no holder migration, per-thread
+        // execution state is per-lite (§A.1.4), and writing VM-wide fields
+        // here would race other running mutators.
+        if (!gilOff)
+            GILParkSavedExecutionState::resetForFreshThread(vm);
         auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
         JSThread* thread = uncheckedDowncast<JSThread>(state->jsThread.get());
@@ -192,7 +216,6 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
         state->argSlots.clear();
 
         JSValue resultValue;
-        ThreadState::Phase phase;
         if (exception) {
             resultValue = exception->value();
             phase = ThreadState::Phase::Failed;
@@ -202,65 +225,94 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
             phase = ThreadState::Phase::Finished;
         }
 
-        // 5.2 yield-point ordering for the completion drain below: let
-        // parked-but-releasable waiters resume first. Without this, this
-        // thread goes from its hold() epilogue (m_lock release) straight to
-        // the 4.6.1 drain while the waiter it just notified/unblocked is
-        // still inside its blocking host call, and the drain runs inside
-        // that waiter's park — the D11 violation
-        // park-no-microtask-drain.js asserts against. Bounded by the
-        // progress-reset deadline in jsThreadYieldForPendingParkResumptions
-        // (LockObject.cpp), so a join-under-hold cycle can only delay,
-        // never deadlock, completion. NOTE: this wait-before-drain is a
-        // GIL-stub deviation from the frozen SPEC-api 4.6.1 ordering of the
-        // same kind as the recorded D2 notify-yield deviation (the spec's
-        // "never waits" applies to tickets; this waits only on park
-        // resumptions, bounded).
-        jsThreadYieldForPendingParkResumptions(vm);
-        // Completion sequence (SPEC-api 4.6.1), still under the JSLock:
-        // drain the shared VM microtask queue once (GIL-phase rule;
-        // post-GIL: own queue until empty).
-        vm.drainMicrotasks();
-        if (scope.exception()) [[unlikely]]
-            scope.clearException();
+        if (gilOff) {
+            // E2A precondition (ThreadManager.h:806-811): F1 — the result
+            // Strong is stored under THIS thread's token, BEFORE the drain
+            // loop. Everything else the GIL tail does at fn-return — the
+            // Phase release-store + joinCondition.notifyAll, the F5 ticket
+            // settles, the 5.10 Strong clears, unregisterThread, and the
+            // lite/client teardown — happens at CLOSE (U7/SD1: a thread
+            // completes only when its inbox closes, not at fn-return),
+            // inside closeThreadInboxAndComplete /
+            // tearDownSpawnedThreadForExit, called below after the token
+            // drops. Doing them here would settle joins before queued
+            // ThreadTasks ran and unregister the lite while the drain loop
+            // still needs it.
+            state->result.set(vm, resultValue ? resultValue : jsUndefined());
+        } else {
+            // 5.2 yield-point ordering for the completion drain below: let
+            // parked-but-releasable waiters resume first. Without this, this
+            // thread goes from its hold() epilogue (m_lock release) straight to
+            // the 4.6.1 drain while the waiter it just notified/unblocked is
+            // still inside its blocking host call, and the drain runs inside
+            // that waiter's park — the D11 violation
+            // park-no-microtask-drain.js asserts against. Bounded by the
+            // progress-reset deadline in jsThreadYieldForPendingParkResumptions
+            // (LockObject.cpp), so a join-under-hold cycle can only delay,
+            // never deadlock, completion. NOTE: this wait-before-drain is a
+            // GIL-stub deviation from the frozen SPEC-api 4.6.1 ordering of the
+            // same kind as the recorded D2 notify-yield deviation (the spec's
+            // "never waits" applies to tickets; this waits only on park
+            // resumptions, bounded).
+            jsThreadYieldForPendingParkResumptions(vm);
+            // Completion sequence (SPEC-api 4.6.1), still under the JSLock:
+            // drain the shared VM microtask queue once (GIL-phase rule;
+            // post-GIL: own queue until empty).
+            vm.drainMicrotasks();
+            if (scope.exception()) [[unlikely]]
+                scope.clearException();
 
-        // F1: the result Strong is written BEFORE the Phase release-store
-        // below; join() readers load-acquire Phase first (redundant under
-        // the GIL, load-bearing post-GIL). Cleared only by the 5.10
-        // finalizer hook.
-        state->result.set(vm, resultValue ? resultValue : jsUndefined());
+            // F1: the result Strong is written BEFORE the Phase release-store
+            // below; join() readers load-acquire Phase first (redundant under
+            // the GIL, load-bearing post-GIL). Cleared only by the 5.10
+            // finalizer hook.
+            state->result.set(vm, resultValue ? resultValue : jsUndefined());
 
-        // F5 completion protocol: under joinLock — Phase release-store,
-        // joinCondition.notifyAll(), swap asyncJoiners out; drop joinLock;
-        // settle the moved tickets via the 5.5 schedule. Never waits for
-        // tickets (4.6.1).
-        Vector<Ref<AsyncTicket>> joiners;
-        {
-            Locker joinLocker { state->joinLock };
-            state->phase.store(phase, std::memory_order_release);
-            state->joinCondition.notifyAll();
-            joiners = std::exchange(state->asyncJoiners, { });
+            // F5 completion protocol: under joinLock — Phase release-store,
+            // joinCondition.notifyAll(), swap asyncJoiners out; drop joinLock;
+            // settle the moved tickets via the 5.5 schedule. Never waits for
+            // tickets (4.6.1).
+            Vector<Ref<AsyncTicket>> joiners;
+            {
+                Locker joinLocker { state->joinLock };
+                state->phase.store(phase, std::memory_order_release);
+                state->joinCondition.notifyAll();
+                joiners = std::exchange(state->asyncJoiners, { });
+            }
+            bool failed = phase == ThreadState::Phase::Failed;
+            for (auto& ticket : joiners)
+                settleJoinTicket(ticket, thread, failed);
+
+            // Clear owned Strongs (still under the JSLock; SPEC-api 5.10).
+            // TS::result is NOT cleared here — the finalizer hook is its sole
+            // clearer (it must survive for join()/asyncJoin() readers, who keep
+            // the JSThread cell, and hence the hook, alive).
+            state->threadLocals.clear();
+            state->jsThread.clear();
+            ThreadManager::singleton().unregisterThread(state);
+
+            // THREADS-INTEGRATE(api): VMLite teardown (SPEC-api 5.2 / vmstate
+            // N8; registry lock is a 5.9-legal leaf), still under the final
+            // JSLock. The TID is retired forever (Deviation 10).
+            VMLiteRegistry::singleton().unregisterLite(*lite);
+            VMLite::setCurrent(nullptr);
+            clearButterflyTIDTagForCurrentThread();
         }
-        bool failed = phase == ThreadState::Phase::Failed;
-        for (auto& ticket : joiners)
-            settleJoinTicket(ticket, thread, failed);
-
-        // Clear owned Strongs (still under the JSLock; SPEC-api 5.10).
-        // TS::result is NOT cleared here — the finalizer hook is its sole
-        // clearer (it must survive for join()/asyncJoin() readers, who keep
-        // the JSThread cell, and hence the hook, alive).
-        state->threadLocals.clear();
-        state->jsThread.clear();
-        ThreadManager::singleton().unregisterThread(state);
-
-        // THREADS-INTEGRATE(api): VMLite teardown (SPEC-api 5.2 / vmstate
-        // N8; registry lock is a 5.9-legal leaf), still under the final
-        // JSLock. The TID is retired forever (Deviation 10).
-        VMLiteRegistry::singleton().unregisterLite(*lite);
-        VMLite::setCurrent(nullptr);
-        clearButterflyTIDTagForCurrentThread();
     }
-    lite = nullptr; // destroy AFTER the JSLock release (SPEC-api 4.6.1); ~VMLite asserts uninstalled+unregistered
+    if (gilOff) {
+        // ANNEX E2A (AB-12): post-fn drain loop, §E.5 close (termination
+        // traps route through the same close block with Phase::Failed), F5
+        // completion against state, then the EXIT1.3 teardown via
+        // tearDownSpawnedThreadForExit — which ends with
+        // VMLite::setCurrent(nullptr) (the butterfly TID tag clears through
+        // the setCurrent hook) and unregisterVMLiteAndNotifyTeardown.
+        // Preconditions hold here: owning spawned thread, no lock and no
+        // token (the JSLockHolder scope above closed — its depth-0 unlock
+        // released heap access per §F.1; the loop re-acquires, gated),
+        // state->result already stored (F1), lite->clientHeap attached.
+        runSpawnedThreadDrainLoopAndClose(vm, *lite, state.get(), phase);
+    }
+    lite = nullptr; // freed AFTER teardown / the JSLock release (EXIT1.9 residual-tail rule / SPEC-api 4.6.1); ~VMLite asserts uninstalled+unregistered
     setCurrentThreadState(nullptr);
 }
 

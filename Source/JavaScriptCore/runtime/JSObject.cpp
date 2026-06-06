@@ -5534,8 +5534,36 @@ bool JSObject::putDirectIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* 
     // i should be a valid array index that is outside of the current vector.
     ASSERT(hasAnyArrayStorage(indexingType()));
     ASSERT(arrayStorage() == storage);
+#if USE(JSVALUE64)
+    // Flag-on, canSetIndexQuicklyForPutDirect reports AS receivers as
+    // "not quickly" (SPEC-objectmodel §Q), so in-vector attribute-0 puts
+    // legitimately arrive here; they are handled by the locked arm below.
+    ASSERT(i >= storage->vectorLength() || attributes || Options::useJSThreads());
+#else
     ASSERT(i >= storage->vectorLength() || attributes);
+#endif
     ASSERT(i <= MAX_ARRAY_INDEX);
+
+#if USE(JSVALUE64)
+    if (Options::useJSThreads() && !attributes) [[unlikely]] {
+        // I31: the flag-on §Q routing forwards in-vector attribute-0 AS
+        // stores into this slow path. Handle them here under the cell lock
+        // with the same store setIndexQuicklyConcurrent's AS arm uses, so the
+        // bound check and the store sit in one locked window: every AS
+        // reshape (increaseVectorLength, sparse conversion, AS-COPY) is
+        // I31 cell-locked, so vectorLength cannot move between them. This
+        // also matches upstream semantics exactly - flag-off, the same put is
+        // setIndexQuickly -> setIndexQuicklyForArrayStorageIndexingType.
+        Locker locker { cellLock() };
+        storage = arrayStorage();
+        if (i < storage->vectorLength()) {
+            setIndexQuicklyForArrayStorageIndexingType(vm, i, value);
+            return true;
+        }
+        // Still beyond the vector under the lock: fall through to the
+        // beyond-vector logic with the freshly re-read storage.
+    }
+#endif
 
     SparseArrayValueMap* map = storage->m_sparseMap.get();
 
@@ -5962,6 +5990,22 @@ bool JSObject::increaseVectorLength(VM& vm, unsigned newLength)
     }
 #endif
     ArrayStorage* storage = arrayStorage();
+
+#if USE(JSVALUE64)
+    if (Options::useJSThreads() && newLength <= storage->vectorLength()) [[unlikely]] {
+        // A racing locked grower already satisfied this bound (e.g. the
+        // I31 in-vector arm in putDirectIndexBeyondVectorLengthWithArrayStorage
+        // declined, the lock dropped, and a peer grew the vector past i before
+        // we reacquired it here). Without this guard the dense grow path would
+        // run with newLength <= vectorLength: debug trips
+        // ASSERT(newLength > vectorLength) below, and release could publish a
+        // SHRUNK vector when getNewVectorLength(stale newLength) is smaller
+        // than the fresh vectorLength, dropping in-vector elements. Both call
+        // sites re-read arrayStorage() under the cell lock before storing, so
+        // returning success here is safe.
+        return true;
+    }
+#endif
 
     unsigned vectorLength = storage->vectorLength();
     unsigned availableVectorLength = storage->availableVectorLength(structure(), vectorLength);

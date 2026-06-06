@@ -284,7 +284,13 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncAsyncWait, (JSGlobalObject* globalObj
     // dependency vector roots the lock cell for the promise's lifetime (5.5);
     // the registration's addPendingWork is what keeps the shell alive (I20).
     JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
-    Ref<AsyncTicket> ticket = AsyncTicket::create(globalObject, promise, { lockObject });
+    // U-T9-INT1 / UNGIL sec.E.3: cond.asyncWait is a COUNTED registration —
+    // a spawned registrant's outstanding asyncWait must hold its E2A drain
+    // loop open past fn-return so the notify-side settle is delivered to the
+    // registrant's inbox (sec.E.4/U22/I12) instead of falling back to main
+    // after the inbox closed. create() arms internally iff gilOff + spawned
+    // registrant; main/embedder and GIL-on/flag-off ignore the bit (sec.E.7).
+    Ref<AsyncTicket> ticket = AsyncTicket::create(globalObject, promise, { lockObject }, /* countsKeepalive */ true);
     ticket->grantWithFunction = false; // resolves with a fresh release fn on re-grant (no-fn contract, 4.3)
 
     Ref<CondWaiter> waiter = CondWaiter::create(CondWaiter::Kind::Async);

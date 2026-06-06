@@ -29,6 +29,7 @@
 #include "OptionsList.h"
 #include "SecureARM64EHashPins.h"
 #include "StopTheWorldCallback.h"
+#include <mutex>
 #include <wtf/PtrTag.h>
 #include <wtf/WTFConfig.h>
 
@@ -50,7 +51,53 @@ struct Config {
 
     static void disableFreezingForTesting() { g_wtfConfig.disableFreezingForTesting(); }
     JS_EXPORT_PRIVATE static void NODELETE enableRestrictedOptions();
-    static void finalize() { WTF::Config::finalize(); }
+    static void finalize()
+    {
+        // UNGIL SPEC-ungil sec.A.1.3 level (i) latch (closes AB-1, U-T3
+        // obligation 9b): derive the LLInt gilOffProcess byte from the
+        // finalized Options exactly once, BEFORE WTF::Config::finalize()
+        // freezes the Config page (a second store -- even same-value --
+        // would fault on the read-only page, hence the call_once; threads
+        // returning from the call_once have a happens-before edge to the
+        // store, and the freeze happens after it inside WTF's own
+        // call_once, so no thread can reach the store post-freeze).
+        // Reader-side visibility premise: every LLInt reader of this byte
+        // runs on a thread whose VM*/VMLite reached it through a
+        // synchronized publication (thread spawn, JSLock, registry lock)
+        // that happens-after the first VM ctor's Config::finalize(); a
+        // thread reading the byte without such a chain would already be
+        // racing the whole VM. A refactor that lets LLInt run
+        // before/outside VM entry breaks this visibility contract.
+        // Ordering contract: the first call happens after
+        // Options::finalize() (the only JSC caller is the VM ctor,
+        // runtime/VM.cpp ~693, which runs strictly after
+        // InitializeThreading's Options::finalize()), asserted below. The
+        // derivation MUST stay identical to VM::isGILOffProcess()
+        // (runtime/VM.cpp) and to the notifyOptionsChanged()
+        // RELEASE_ASSERT latch (runtime/Options.cpp), which forbids the
+        // derivation from flipping after options finalization.
+        static std::once_flag s_gilOffProcessLatchOnce;
+        std::call_once(s_gilOffProcessLatchOnce, [] {
+            Config& config = singleton();
+            // Intentionally fail-stops embedders that call
+            // JSC::Config::finalize() before Options::finalize().
+            RELEASE_ASSERT(config.options.isFinalized);
+            bool gilOffProcess = config.options.useJSThreads
+                && !config.options.useThreadGIL
+                && config.options.useVMLite
+                && config.options.useSharedAtomStringTable
+                && config.options.useSharedGCHeap;
+            if (gilOffProcess) {
+                // An embedder that froze the page directly via
+                // WTF::Config::finalize() before constructing the first VM
+                // would otherwise take a raw SIGSEGV on the store below;
+                // fail-stop with a diagnosable crash site instead.
+                RELEASE_ASSERT(!config.isPermanentlyFrozen());
+                config.gilOffProcess = 1;
+            }
+        });
+        WTF::Config::finalize();
+    }
 
     static void configureForTesting()
     {
@@ -122,12 +169,13 @@ struct Config {
     // Config::finalize() freezing the page; even a same-value store faults
     // once the page is read-only): OPTION-derived and latched exactly once
     // at Config finalization, derivation-identical to VM::isGILOffProcess()
-    // (see the contract comment beside it in runtime/VM.cpp). The latch is a
-    // runtime/ change outside the LLInt Group-3 cluster; until it lands this
-    // byte stays 0 and every LLInt discriminator keeps VM-block storage
-    // authoritative (pure flag-off shape, all previously-green rungs intact).
+    // (see the contract comment beside it in runtime/VM.cpp). The latch
+    // lives in Config::finalize() above: derived once under a call_once,
+    // strictly before WTF::Config::finalize() freezes the page. Flag-off
+    // and GIL-on processes derive 0, so every LLInt discriminator keeps
+    // VM-block storage authoritative there (pure flag-off shape).
     uint8_t gilOffProcess;
-#define JSC_CONFIG_HAS_GILOFF_PROCESS_BYTE 1 // consumed by llint/LowLevelInterpreter*.asm; written only by the Config-finalization latch (runtime/)
+#define JSC_CONFIG_HAS_GILOFF_PROCESS_BYTE 1 // consumed by llint/LowLevelInterpreter*.asm; written only by the Config::finalize() latch above
 
     using ShellTimeoutCheckCallback = void (*)(VM&);
     ShellTimeoutCheckCallback JSC_CONFIG_METHOD(shellTimeoutCheckCallback);
