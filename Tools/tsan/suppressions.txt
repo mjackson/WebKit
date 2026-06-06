@@ -22,7 +22,7 @@
 #   race:path/substring.cpp
 #   deadlock:FunctionNameSubstring
 #
-# STATUS: contains only the three pre-existing upstream parallel-GC entries
+# STATUS: contains only the six pre-existing upstream parallel-GC entries
 # at the bottom of this file (adjudicated under rule 1; see each entry's
 # justification). Historical note (Verify phase): the file started empty —
 # TSAN runs of hello-world and the single-layer corpus files
@@ -63,3 +63,30 @@ race:JSC::SlotVisitor::donateKnownParallel
 # itself incremented the counter under the lock, so nonzero is guaranteed.
 # Upstream WTF code untouched by the threads work.
 race:WTF::ParallelHelperClient::claimTask
+
+# Round-3 additions: next-layer upstream parallel-marking heuristics that were
+# masked behind the three entries above under halt_on_error=1. noteMarked
+# reproduces with the shared-heap option OFF (heap-option-off.js), i.e. pure
+# upstream behavior; the two Heap.cpp sites are adjudicated by code inspection
+# (upstream lock-free CAS loop and upstream sampling cache). None of these
+# three function bodies is touched by the threads workstreams.
+
+# Benign: upstream's own comment at the racy increment says "This is racy by
+# design. We don't want to pay the price of an atomic increment!"
+# (Source/JavaScriptCore/heap/MarkedBlockInlines.h:571-577); m_biasedMarkCount
+# is a heuristic where lost updates are tolerated by design.
+race:JSC::MarkedBlock::noteMarked
+
+# Benign: the flagged frame is the plain seed load `size_t oldSize = *counter;`
+# of upstream's lock-free CAS retry loop
+# (Source/JavaScriptCore/heap/Heap.cpp:3340-3355); a stale read fails the
+# atomicCompareExchangeWeakRelaxed and retries, so the extra-memory total
+# stays consistent. Upstream-intentional lock-free accounting.
+race:JSC::Heap::reportExtraMemoryVisited
+
+# Benign: upstream sampling cache — non-atomic
+# ++m_percentAvailableMemoryCachedCallCount and unsynchronized read of the
+# cached bool m_overCriticalMemoryThreshold
+# (Source/JavaScriptCore/heap/Heap.cpp:765-774); lost increments/stale reads
+# only delay a refresh of an approximate memory-pressure heuristic.
+race:JSC::Heap::overCriticalMemoryThreshold

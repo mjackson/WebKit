@@ -54,6 +54,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "VMTraps.h"
 #include "WeakGCMap.h"
 #include "WriteBarrier.h"
+#include <wtf/Atomics.h>
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/Compiler.h>
@@ -395,7 +396,20 @@ public:
     bool hasPendingTerminationException() const
     {
         // UNGIL §A.1.3: Group-3 exception state is per-lite when gilOff.
-        Exception* exception = group3Primitives().m_exception;
+        // tsan-vm-setexception-cross-thread-r3: under GIL'd useJSThreads
+        // (m_gilOff == 0 — U0 validation forces useThreadGIL=1 without the
+        // unsafe trio) this word is the shared VM block, and this predicate
+        // is the one sanctioned lock-free reader: jsc's runJSC result check
+        // runs after its JSLockHolder scope closes while a spawned thread
+        // may still be throwing under its own lock acquisition. Relaxed
+        // atomic load — codegen-identical to a plain load on all supported
+        // targets — makes the racing access tear-free. Sound at relaxed
+        // ordering because we only pointer-compare against the immutable,
+        // pre-created termination exception and never dereference; every
+        // dereferencing reader still holds the JSLock (SPEC-vmstate I15;
+        // carve-out for this lock-free, non-dereferencing predicate is
+        // pending the spec's next revision).
+        Exception* exception = WTF::atomicLoad(&const_cast<VM*>(this)->group3Primitives().m_exception, std::memory_order_relaxed);
         return exception && isTerminationException(exception);
     }
 
@@ -1510,7 +1524,12 @@ private:
         clearNativeStackTraceOfLastThrow();
         m_throwingThread = nullptr;
 #endif
-        group3Primitives().m_exception = nullptr; // UNGIL §A.1.3 mode split.
+        // UNGIL §A.1.3 mode split. Relaxed atomic store for the same reason
+        // as VM::setException (tsan-vm-setexception-cross-thread-r3): the
+        // word has one sanctioned lock-free reader,
+        // hasPendingTerminationException(); a plain nullptr store here would
+        // be the same TSAN race from the clearing side.
+        WTF::atomicStore(&group3Primitives().m_exception, static_cast<Exception*>(nullptr), std::memory_order_relaxed);
         traps().clearTrap(VMTraps::NeedExceptionHandling);
     }
 

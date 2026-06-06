@@ -1603,8 +1603,17 @@ void VM::setException(Exception* exception)
 #endif
     // UNGIL §A.1.3 mode split: the throwing thread's lite when gilOff (the
     // GC root walk picks these up per registered lite, r6 F5).
+    // tsan-vm-setexception-cross-thread-r3: GIL'd useJSThreads shares this
+    // word across threads, and hasPendingTerminationException() is a
+    // sanctioned lock-free pointer-compare reader (jsc's runJSC result check
+    // after its JSLockHolder scope closes while spawned threads still run).
+    // Publish with a relaxed atomic store — codegen-identical to a plain
+    // store on all supported targets, so GIL-on/flag-off perf is unchanged.
+    // No ordering is required: the lock-free reader never dereferences, and
+    // all dereferencing readers hold the JSLock (SPEC-vmstate I15).
+    // m_lastException stays a plain store — it has no lock-free reader.
     auto& primitives = group3Primitives();
-    primitives.m_exception = exception;
+    WTF::atomicStore(&primitives.m_exception, exception, std::memory_order_relaxed);
     primitives.m_lastException = exception;
     if (exception)
         traps().fireTrap(VMTraps::NeedExceptionHandling);

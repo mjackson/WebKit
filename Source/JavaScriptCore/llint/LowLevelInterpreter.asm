@@ -2916,7 +2916,23 @@ end)
 macro checkTraps(dispatch)
     loadp CodeBlock[cfr], t1
     loadp CodeBlock::m_vm[t1], t1
-    loadi VM::m_threadContext+VMThreadContext::m_traps+VMTraps::m_trapBits[t1], t0
+    if C_LOOP
+        # m_trapBits is updated with atomic RMWs from other threads
+        # (VMTraps::fireTrap, e.g. the watchdog timer thread). On hardware
+        # backends the plain aligned 32-bit load below is the intended racy
+        # poll, but in the CLoop it lowers to a plain C++ read, which is a
+        # data race under TSAN against fireTrap's exchangeOr. Match the C++
+        # readers (VMTraps::needHandling/maybeNeedHandling use loadRelaxed)
+        # by polling with a relaxed atomic load.
+        # NOTE: the "// ..." annotation below is emitted verbatim into
+        # LLIntAssembly.h by the cloop offlineasm backend (cloopDo) and MUST
+        # stay on the same physical line as cloopDo, or no load is emitted
+        # and t0 silently keeps the pointer value. Do not reformat.
+        leap VM::m_threadContext+VMThreadContext::m_traps+VMTraps::m_trapBits[t1], t0
+        cloopDo // t0 = WTF::atomicLoad(std::bit_cast<uint32_t*>(t0.i8p()), std::memory_order_relaxed);
+    else
+        loadi VM::m_threadContext+VMThreadContext::m_traps+VMTraps::m_trapBits[t1], t0
+    end
     andi VMTrapsAsyncEvents, t0
     btpnz t0, .handleTraps
 .afterHandlingTraps:
