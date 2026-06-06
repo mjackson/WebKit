@@ -1344,7 +1344,9 @@ microbench line; the CAS design is itself the named contingency.
  GIL modes - carrier = §J.3's lock-free lite-bit poll, NOT token
  reacq; terminate-while-parked (§A.2).
 - U3 lifecycle order (§B.1-2/E.2): lite -> ACT -> alloc; Strong
- clears -> access release -> DCT -> unregisterLite.
+ clears -> access release -> DCT -> unregisterLite. [r29: U3
+ amended - see ANNEX EXIT1 as amended by rev 29; this row's
+ order superseded.]
 - U4 §A.3 stop: every entered thread parked/not-entered/
  access-released; entry during stop parks; no access-released
  thread runs JS mid-stop (2b); wake-during-stop amplifier.
@@ -1929,6 +1931,12 @@ file were shortened to their history pointers).
  note perf-only (main butterflies carry the carrier tag, not an
  SD).
  ~VM teardown (SUPERSESSION: vmstate M6 + §6.5.1 assert vs this).
+ [r30: this clause is AMENDED - text of record: the rev-30 A36
+ amendment record (full server-side detach moves into the walk;
+ deferred dtor restricted to non-VM memory, degenerate
+ dead-detached path; M11/M12 no-op argument; collection ordered
+ BEFORE the EXIT1.9 ~VM wait). The clause below stands where the
+ amendment does not differ.]
  Foreign carriers may still be REGISTERED at ~VM => M6 replaced:
  ~VM COLLECTS this VM's carriers under the registry lock (each
  token-free, else RELEASE_ASSERT), unregisters them, releases the
@@ -5073,7 +5081,12 @@ the GIL; live exactly at GIL-off. DISPOSITION: ANNEX SB1.
 ### supersession row gains this ordering text only)
 1. Stop-bit fan-out stores (section A.2.3) are seq_cst. The
    VMLiteRegistry lock is retained for ENUMERATION only and
-   carries no ordering duty.
+   carries no ordering duty. [r28: "ENUMERATION only" SUPERSEDED
+   by ANNEX EXIT1.2, both sides - the registry lock also OWNS
+   the sampled set's membership/lifetime for every open
+   section-A.3 window (per-sample re-walks, no pointer caching);
+   the no-ordering-duty clause for the stop-bit/access pair
+   STANDS, item 4's proof unchanged.]
 2. The conductor's per-client/per-lite access-state samples in
    the section-A.3.2 predicate wait are seq_cst loads.
 3. The AHA stop-bit poll (section A.3.2b(i)) is positioned
@@ -5428,6 +5441,17 @@ close:
  F1/F5 as landed; access release at the landed T5 point (§B.2, U3)
 ```
 
+[r28: the tail's T5 line is AMENDED by ANNEX EXIT1.3, both sides
+- post-release T5 order is unregisterLite -> DCT -> destroy
+GCClient::Heap -> free lite (U3 as AMENDED, U32); the loop/close
+body above is unchanged.]
+
+[r29: the r28 order above is itself superseded by ANNEX EXIT1.3
+as AMENDED by rev 29 - post-release T5 order is TEARDOWN mark
+(registry lock) -> DCT -> destroy GCClient::Heap ->
+unregisterLite/free lite (U3 as re-AMENDED, U32); the loop/close
+body above is still unchanged.]
+
 ### Rev-25 section-T deltas (extends rev-9 annex 3 + r10-r24)
 - U-T9: + ALS1.4 corpus arm (foreign-thread resolve observes the
   registration-time ALS store; GILOn/GILOff variants) + the
@@ -5443,3 +5467,2546 @@ close:
 ### Rev-25 SD note
 No new SDs; IDs frozen. ALS preservation is recorded as an SD10
 clarification (§E.1b.5), corpus arms above.
+
+# REV 26 (2026-06-06) - audit execution round (U-T8b/U-T8c
+# EXECUTED; residue rulings; byte-budget compressions)
+
+Spec bumped rev 25 -> rev 26. The two §K.4/§N.7 inventory audits
+were EXECUTED against the tree and frozen as BINDING annexes:
+
+- annex K4 = SPEC-ungil-audit-K4.md (VM/JSGlobalObject/process-
+  global member inventory; rows K4.<table>.<row>; tables I-IX).
+- annex N7 = SPEC-ungil-audit-N7.md (shareable-cell non-property
+  multi-word state inventory; rows R1-R31 + §0 residue).
+
+Spec §K.4 and §N.7 now declare the audits EXECUTED + BINDING and
+re-scope U-T8b/U-T8c from "perform the audit" to "CONSUME the
+audit tables" (spec §T index updated). U-T9's audit gate is
+satisfied by annex closure: every formerly-UNRESOLVED row now
+carries a ruling (this annex) or a MECHANICAL reclassification
+recorded in the audit file itself.
+
+## ANNEX AUD1 (BINDING) - audit-residue rulings (spec §K.6/§N.9
+## index; this is the FULL text)
+
+### AUD1.K1 (K4-U1) SamplingProfiler under N mutators - SD18
+GIL-off the SamplingProfiler runs in §A.1.7 form (i) and samples
+ONLY the main/carrier thread's lite; spawned threads' frames are
+NEVER captured (consistent with §A.1.7 v1 "SamplingProfiler
+samples ONLY carrier lites", spec A.1.7). start()/stop()/
+shutdown/reports remain main-thread APIs (SD13/SD14 family);
+internals keep m_lock (SamplingProfiler.h:218). m_jscExecutionThread
+binds to the main carrier; the (i)-reader SUSPEND RULE (r24)
+applies to its stack walk. GIL-on unchanged. SD18 (GIL-off only):
+profiles omit spawned-thread samples. N-thread capture (per-lite
+frame buffers + registry iteration under a §A.3 stop) is
+chartered post-ungil, NOT v1. Corpus: profiler-on + 2 threads ->
+no crash, main-only samples; U-T2 arm.
+
+### AUD1.K2 (K4-U2 = N7-U7) RegExp legacy statics - SD19
+JSGlobalObject::m_regExpGlobalData (RegExpGlobalData.h:64-65,
+RegExpCachedResult.h:66-82) becomes a §K.1 per-lite member:
+each entered thread owns a private RegExpGlobalData stream;
+cell-holding copies join the §A.1.3 registry-walk root set; ~VM
+walk frees them (U-T8 walk). SEMANTICS (SD19, GIL-off only):
+RegExp.$1-$9 / lastMatch / leftContext / rightContext /
+input observe ONLY matches performed by the CURRENT thread.
+Rationale: these are deprecated Annex-B statics; a global-object
+lock would put a §LK acquisition on EVERY successful match (hot
+path) and still yield nondeterministic cross-thread values.
+TIERS: DFG/FTL RecordRegExpCachedResult + every
+offsetOfResult/offsetOfLastInput/offsetOfLastRegExp consumer is
+re-pointed through the lite per AUD1.K4 (A16 ext); gilOff-mode
+compilation emits loadVMLite -> liteRegExpGlobalData -> field;
+flag-off keeps the baked global-object-relative address. Reify
+flip (m_reified + 4 barriers) stays single-thread-private =>
+plain stores. Corpus: regexp legacy-statics arm, GILOn/GILOff
+variants (SD19); unblocks the regexp corpus arm flagged in
+annex K4 §0.
+
+### AUD1.K3 (K4-U3) module evaluation state
+(a) VM::m_moduleAsyncEvaluationCount (VM.h:1332): std::atomic
+fetch_add, relaxed. ECMA [[AsyncEvaluation]] ordering needs only
+uniqueness + monotonicity of issued values, which fetch_add
+gives globally; cross-thread interleaving of independent graphs
+is otherwise unobservable. No SD.
+(b) VM::m_synchronousModuleQueue (VM.h:1358, Bun addition):
+per-lite (§E.1 family) - each thread drains its OWN synchronous
+module jobs with its microtask queue; enqueue sites route via
+the CURRENT lite (same reroute shape as VM::queueMicrotask).
+(c) Cross-thread evaluation of ONE record: AbstractModuleRecord
+status advance (Linked -> Evaluating) is a CLAIM taken under the
+record's cell lock (the same lock already serializing
+m_dependencies/m_asyncParentModules, annex N7 R16). The winner
+evaluates (user JS OUTSIDE the lock); losers re-read status
+under the lock and (async graph) adopt the existing top-level
+promise per spec, or (sync completion required) PARK-CAPABLE
+wait access-released on the record's completion, §K.3-wait
+shape (bounded quanta, §A.2.4 polls; LZ2 preconditions apply to
+the waiting site: no api 1..3/heap 10a/10b lock held). Settled
+completion published release; errored => rethrow per spec.
+GIL-on unchanged. Confirms + supersedes annex K4's interim
+"main-thread evaluation" note (K4.V.18 reclassified: per-lite
+queue + claim protocol, NOT main-only).
+
+### AUD1.K4 (K4-U4) ANNEX A16 EXTENSION - JIT-baked per-lite
+### cache addresses
+Annex A16's loadVMLite -> segment -> index rework is EXTENDED
+beyond scratch buffers to every §K.1 per-lite member whose
+address is baked into Baseline/DFG/FTL inline paths, namely:
+VM::m_megamorphicCache (VM.h:960), VM::m_hasOwnPropertyCache
+(VM.h:956), JSGlobalObject::m_regExpGlobalData (AUD1.K2), and
+JSGlobalObject::m_weakRandom (annex K4 VIII.10, Math.random
+fast path). Mechanism: gilOff-mode compilation (the §A.1.3
+COMPILED-FOR-VM-mode rule) emits one loadVMLite (rematerialized
+per §A.1.2) + lite-relative offsets to the lite-resident copy;
+the lite holds the cache inline or via one indirection slot
+filled at lite registration (lazy §K.3 publish for ensure*
+contents). Flag-off/GIL-on: baked VM/global addresses unchanged
+(golden gates intact). Epoch/age bumps (MegamorphicCache
+invalidation) fan out via the registry walk INSIDE the stop
+that fires the corresponding watchpoints (annex K4 VI.2) - no
+new fence on the probe path. Per-lite caches are private =>
+probe/fill races vanish; no locked fallback needed. U-T4 owns
+the emission; disasm arm per A16.
+
+### AUD1.K5-K7 (K4-U5/U6/U7) - MECHANICAL reclassifications
+Recorded in annex K4 §0 with rationale; normative content:
+- K4-U5: spec §E.7.1's "m_pendingLock" IS the in-tree
+  DWT::m_taskLock (DeferredWorkTimer.h:116) - name equation
+  noted in §E.7/§LK.7; its coverage EXTENDS to m_pendingTickets
+  (:121), whose three-condition comment (:125-126) loses the
+  GIL leg. One lock, §LK.7 leaf; no second lock.
+- K4-U6: JSGlobalObject::m_canFastQueueMicrotask /
+  m_associatedContextIsFullyActive: writes main-only (debugger/
+  context attach, SD13 umbrella), reads relaxed-atomic from any
+  thread; stale-true window at most skips debugger microtask
+  observation for in-flight enqueues = SD13-class degradation,
+  no new SD.
+- K4-U7: SmallStrings verification PASSED: initializeCommonStrings
+  runs in the VM ctor (VM.cpp:335); the !m_isInitialized fallback
+  (SmallStrings.cpp:121-127) allocates a fresh AtomStringImpl and
+  writes NO member; setIsInitialized(false) is teardown-only
+  (VM.cpp:707). immutable-after-init CONFIRMED; gets the K4 §VIII
+  no-write-after-first-cross-thread-entry assert.
+
+### AUD1.N1 (N7-U1) AbstractModuleRecord::m_resolutionCache
+§N default: tryGetCachedResolution/cacheResolution take the
+record's JSCellLock (10a) - the SAME lock already used by the
+sibling maps (AbstractModuleRecord.cpp:1465/:1561) - §E.1b
+alloc-outside shape (HashMap add may rehash => the add runs
+under the lock but any resolution computation stays outside).
+No tier-inlined access exists (namespace loads IC on the
+namespace object). Fixes a GIL-off HashMap-rehash UAF (annex
+15.7 class). PRIORITY ruling; amplifier: 2-thread shared-
+namespace property storm (U28).
+
+### AUD1.N2 (N7-U2) RegExp::m_ovector
+Per-match output scratch moves OFF the shared cell GIL-off:
+matchInline (RegExpInlines.h) writes into the CURRENT lite's
+regexp match buffer - the §A.1.3 Group-3 "lazy regexp
+stack/match buffers" member (annex K4 table I row) - sized per
+match; ovectorSpan() consumers receive the lite buffer span.
+The RegExp cell retains compile-state only, already cell-locked
+in-tree (annex N7 R13). DFG/FTL RegExpExec/Match thunks land in
+matchInline and inherit the re-point; no inline JIT reads
+m_ovector directly. GIL-on keeps the cell vector. Fixes a
+racing-resize realloc UAF + torn capture reads. PRIORITY;
+amplifier: 2-thread exec() on one shared RegExp (U28).
+
+### AUD1.N3 (N7-U3/U4) arguments family publication
+- DirectArguments m_mappedArguments + GenericArgumentsImpl
+  m_modifiedArgumentsDescriptor: CAS-PUBLISH - allocate + fill
+  the bitmap/storage COMPLETELY, then ONE release-CAS of the
+  pointer word; losers discard (GC-collected); foreign readers
+  load-acquire (tier-inlined null-check is an address-dependent
+  load, jit F2 shape - stays inline).
+- ScopedArguments m_overrodeThings: release-store AFTER the
+  length/callee/caller OM puts complete; foreign slow-path
+  readers acquire.
+- ClonedArguments m_callee clear (the materialized flag):
+  release-store AFTER materializeSpecials' OM puts; readers
+  acquire on the slow path. Guarantees no lost callee/length
+  (THREAD.md "no lost properties").
+The property-materialization halves follow OM property rules
+unchanged. Amplifier: foreign reader vs owner override (U28).
+
+### AUD1.N4 (N7-U5) StructureRareData runtime caches
+All cache INSTALLS (cachedPropertyNameEnumerator + watchpoint
+vector + flag word; m_cachedPropertyNames slots; special-
+property caches) run under Structure::m_lock (the structure
+owns its rare data; OM GT lock order). Each JIT-read word
+(m_cachedPropertyNameEnumeratorAndFlag, m_cachedPropertyNames[i])
+is published by a SINGLE release store, LAST - the watchpoint
+FixedVector is fully constructed before the flag word publishes
+and is immutable thereafter; baseline/DFG readers consume one
+word (existing loads suffice on x86/arm64 with the release
+publish). m_specialPropertyCache pointer = §K.3 lazy-publish;
+its interior fill precedes publication. Watchpoint FIRING stays
+jit-spec/§K.5 territory (annex K4 VI.2). OM-annex cross-
+amendment noted: OM annex 15 gains a pointer row to this ruling
+(doc-only; no frozen OM text superseded). Amplifier: 2-thread
+for-in over one shared structure (U28).
+
+### AUD1.N5 (N7-U6) Intl cell family
+Default per §N: every member mutated post-construction
+(IntlNumberFormat::m_numberingSystem and peer lazy Strings;
+IntlSegmentIterator's UBreakIterator advance; IntlLocale lazy
+fields) is accessed under the owning cell's JSCellLock; lazy
+Strings are computed OUTSIDE the lock and published under it
+(two-word String => lock, not CAS). Construction-frozen ICU
+handles (UCollator, UNumberFormatter, ...) may be used
+concurrently WITHOUT the lock ONLY where the call site is
+verified against ICU's const/thread-safe contract; the
+verification checklist is consumed at implementation time per
+cell class (U-T8c consumption); unverified sites clone-per-use
+under the cell lock (ucol_safeClone class) or take the lock for
+the call. No foreign-thread TypeError, no SD. All host-call
+paths; no tier-inlined access.
+
+## Rev-26 reclassification record (audit files edited in place)
+Annex K4 §0: U1-U4 -> RESOLVED pointing at AUD1.K1-K4; U5-U7 ->
+MECHANICAL with rationale (AUD1.K5-K7); K4.V.18 re-ruled per
+AUD1.K3(b)/(c); K4.V.3 re-ruled per AUD1.K1; K4.II.18/II.19
+UNRESOLVED-4 arms discharged per AUD1.K4; K4.VIII.10 JIT note
+discharged per AUD1.K4. Annex N7 §0: U1-U6 -> RESOLVED pointing
+at AUD1.N1-N5; U7 -> RESOLVED cross-ref AUD1.K2; gate
+disposition updated (no blocking UNRESOLVED; U-T9 audit gate
+SATISFIED on the annex side).
+
+## Rev-26 SD note
+SD18 (sampling profiler main-thread-only capture) + SD19
+(per-thread RegExp legacy statics), both GIL-off only; corpus
+//@ runThreadsGILOff/GILOn variants per the SD1-SD17 pattern.
+IDs frozen.
+
+## Rev-26 section-T deltas (extends rev-9 annex 3 + r10-r25)
+- U-T8b/U-T8c re-scoped: CONSUME annexes K4/N7 (no enumeration
+  work remains); deliverables = the §K class implementations
+  per K4 rows, §N dispositions per N7 rows, the VIII
+  no-write-after-entry assert macro, ~VM per-lite walk, §F.2
+  consumer-row citations.
+- U-T4 gains the AUD1.K4 A16-ext emission rows.
+- U-T9 entry gate: annex-K4/N7 §0 closure (DONE at r26) replaces
+  the former "audits must close" wording.
+- U26/U28 amplifier arms gain: regexp legacy statics (SD19),
+  2-thread shared-namespace storm, 2-thread shared-RegExp exec,
+  arguments foreign-reader, shared-structure for-in (annex N7
+  list), profiler-on 2-thread arm (SD18).
+
+## Rev-26 spec-body wording compressions (byte budget; no
+## semantic change - every trimmed clause's FULL text stays in
+## the cited BINDING annex/rev)
+§K.3 (r25 ext/LZ1/LZ2), §N.5 (r11/r15 F1/r17 F5/r25 ext), §N.8
+(ANNEX CBI), §A.3.2c (ISB1), §A.3.5 (HBT2-4), §A.3.6 (A36),
+§A.3.8, §D.1 (D1/D1R), §E.1b.5 (ALS1), §E.2 (E2A), §C.1 (C1),
+§C.3 (C3), §F.4 (DAL2), §F.5, §F.6 (EC1), §A.2.8 (W/W ext), §I,
+§K.1/K.2 (lists -> annex K4 §II/§III), §LK.7 note, §E.4, §A.1.1.
+Pointer targets unchanged; supersession rows untouched.
+
+## rev 27 (2026-06-06) - fresh-implementer walkthrough repair
+## round: 6 findings (3 blocker, 3 major)
+
+A fresh-implementer walkthrough reconstructing the rules from the
+frozen documents alone hit six ambiguities/dead pointer chains.
+Each is resolved below; normative full text = ANNEX TERM1 (this
+rev). Spec bumped rev 26 -> rev 27. No new SD IDs (SD8 gains
+ext2, rides SD8's frozen ID).
+
+1. BLOCKER - "Thread.prototype.terminate" unreconstructible: the
+spec's terminate arms (SD6 terminate-parked, SD8, U19, sect T
+terminate-during-TA-wait, sect E.5) presupposed a termination
+request whose surface no frozen document defines, and api 4.1
+affirmatively excludes ("no detach/cancel"). RULING: no such API
+exists in v1 - TERM1.1; spec sect A.2.4 rewritten. No
+supersession needed: api 4.1 stands verbatim; the arms always
+meant VM-level termination (ambiguity, not contradiction).
+2. BLOCKER - termination granularity: sect A.2.3/A.2.4 (VM-wide
+fan-out) vs the sect E.5/SD8 narrative (which a reader could
+take as one-thread-dies-others-survive). RULING: VM-WIDE ONLY -
+TERM1.2; sect E.5 amended to say every entered thread closes and
+the VM survives via the carrier's host servicing.
+3. BLOCKER - sect F.5 (nested foreign-VM entry, generic wording)
+vs BINDING Annex A36 ("Spawned Threads single-VM in v1
+(foreign-VM token RELEASE_ASSERTs)"). RULING: TERM1.5 - F.5 is
+carrier-only; A36 stands; new embedder-contract item F.6(e).
+4. MAJOR - discriminator divergence (VMLite::isSpawned vs
+isJSThreadCurrent(); which gilOff level sect C.4 reads). RULING:
+TERM1.4; spec sect I + sect A.1.3 + sect C.4 annotated. Mostly
+moot given finding-3's resolution (no spawned nesting), recorded
+for clarity.
+5. MAJOR - join()/asyncJoin() outcome for a terminated thread
+unruled (which exception Phase::Failed carries; rethrow
+re-terminating the joiner). RULING: TERM1.3 = SD8 ext2 (fresh
+ordinary Error).
+6. MAJOR - IU (INTEGRATE-ungil.md) cited ~30 times but the file
+does not exist. RULING: TERM1.6; spec sect IM amended (IU is a
+U-T1 deliverable; this workflow's write set cannot create it).
+
+### ANNEX TERM1 (BINDING) - termination model, F.5 caller scope,
+### discriminators, IU creation (r27)
+
+TERM1.1 No thread-targeted termination surface in v1.
+Thread.prototype.terminate DOES NOT EXIST. The Thread surface
+stays api 4.1 VERBATIM (constructor, join, asyncJoin, id,
+current, restrict; Lifecycle Running->Finished(result)|
+Failed(exc); no detach/cancel) - NOT a supersession: nothing in
+the frozen set granted a terminate API. Every "terminate" arm in
+SPEC-ungil (SD6's terminate-parked arm, SD8, U19's
+terminate-parked arm, sect T's terminate-during-TA-wait flag-off
+gate, sect E.5's termination trap) means VM-LEVEL termination
+requested by one of: (a) Watchdog (annex W; corpus --watchdog,
+cf. SPEC-api-annex property-wait-termination.js), (b) the
+embedder's VMTraps termination request (NeedTermination class,
+api G23 anchor VMTraps.h:149-156), (c) shell/embedder teardown
+paths that route through (b). A thread-targeted terminate() (and
+any future Thread.prototype.terminate) is POST-UNGIL work and
+would require a new SD plus an api-4.1 supersession recorded
+both sides.
+
+TERM1.2 Granularity: VM-WIDE ONLY. Raising termination = the
+sect A.2.3 rule-3 VM-wide form: under the registry lock, set the
+termination bit in EVERY lite of the target VM (sect A.1.3
+filter) + the VM word; token acquisition ORs it in. The rule-3
+"Per-thread: one lite" arm exists for genuinely per-thread traps
+(per-lite stop tickets, sect A.3; debugger/watchdog carrier-only
+bits, sect A.2.7-8) and NEVER carries the termination bit - there
+is NO mechanism in v1 for raising termination on exactly one
+lite. Consequences (binds the SD8/U19 corpus arms): terminating
+the VM terminates EVERY entered thread; a sibling parked in
+Atomics.wait takes the Terminated arm (api 5.6-4
+throwTerminationException) and then ALSO closes per sect E.5;
+main's in-flight JS unwinds with the termination exception to
+the host. The VM is NOT destroyed: the carrier host services the
+termination (watchdog shouldTerminate callback / embedder clears
+the trap per the landed VMTraps protocol) and may re-enter;
+join()s performed after re-entry observe Phase::Failed. sect
+A.2.4's park-poll predicate re-pointing (PARK lite) is unchanged
+- the bit it polls was fanned VM-wide.
+
+TERM1.3 Failed payload + join (SD8 ext2). The sect E.5 close of
+a terminated thread publishes into the landed F1/F5 result
+Strong a FRESH ordinary Error with message "Thread terminated",
+allocated native-side at close (thread entered, with access, no
+JS runs) - NEVER vm.m_terminationException (deliberately
+cross-thread/sticky: vmstate "Deliberately NOT in
+VMLitePrimitives" list; K4 traps row "sticky release-publish";
+rethrowing IT would re-terminate the joiner, contradicting sect
+E.5's own main-fallback drain assumption). join() rethrows this
+Error as a NORMAL catchable exception (api F1/I3 identity rule
+applies to it); asyncJoin's promise rejects with it. If the
+close itself cannot allocate (OOM), fall back to the landed
+OOM-failure shape for F1/F5. Corpus (U19 terminate arms +
+U-T11): join-after-termination catches an ordinary Error
+(joiner continues executing); asyncJoin rejection observed;
+GILOn/GILOff variants per the SD8 pattern.
+
+TERM1.4 Discriminator notes (walkthrough finding 4).
+VMLite::isSpawned is written ONLY in the sect B.1 spawn path
+(=1 BEFORE setCurrent); carrier lites never set it. Because
+spawned threads are single-VM (TERM1.5), a spawned thread's
+CURRENT lite is always its own spawn lite, so the sect I JIT
+prologue byte check and the C++ isJSThreadCurrent() gates agree
+at every site, as does sect A.2.7's carrier-only exemption.
+Predicate keying: unqualified "gilOff" in SPEC-ungil's sect
+C/I/N rulings = vm.m_gilOff (the sect A.1.3 level (ii), per-VM);
+gilOffProcess (level (i)) is always NAMED where meant. sect
+C.4's lifted TA gate reads vm.m_gilOff; spawned threads exist
+only in the m_gilOff VM (U0b), so the two keyings coincide on
+every reachable path.
+
+TERM1.5 sect F.5 caller scope (walkthrough finding 3). The sect
+F.5 access-release/LIFO-restore protocol applies to
+MAIN/EMBEDDER CARRIERS ONLY. A spawned Thread that reaches
+JSLock::lock()/entry on ANY other VM RELEASE_ASSERTs, per annex
+A36's "Spawned Threads single-VM in v1 (foreign-VM token
+RELEASE_ASSERTs)" - A36 stands unamended [r30: A36's
+~VM-teardown clause has since been AMENDED (rev-30 A36 amendment
+record); THIS single-VM clause stands]. Reconciliation with
+r10 F2: F2's deadlock walk and its rejection of "option (b)
+(RELEASE_ASSERT)" concern the Bun JSContext-inside-host-call
+pattern, which executes on a main/embedder carrier thread;
+nothing in r10 F2 licenses SPAWNED nesting, and A36 (BINDING)
+forbids it. The refusal is a process-abort RELEASE_ASSERT (with
+message naming sect F.6(e)), NOT a catchable error: it is an
+embedder-contract violation - native modules must not
+create/enter other VMs/JSContexts on spawned Threads in v1 - and
+pure JS cannot reach it (a Thread fn cannot enter another VM
+without native code). Not an SD (no JS-observable behavior
+defined or changed). Post-ungil: revisit as a catchable
+TypeError if a real embedder pattern needs spawned nesting.
+Corpus: U27/U-T6 gain a spawned-foreign-VM death-test arm
+(EMBEDDER/API-level, expects the assert message).
+
+TERM1.6 IU creation rule (walkthrough finding 6).
+INTEGRATE-ungil.md does NOT exist in the frozen set (this
+design workflow's write set is {UNGIL-PLAN, SPEC-ungil,
+SPEC-ungil-history} only). IU is CREATED AT U-T1 as the landing
+ledger, schema per the INTEGRATE-* house pattern, and MUST
+contain at least: (i) the supersession ledger - one row per
+SPEC-ungil SUPERSESSION, citing both sides per the master rule
+(the spec side is already written; the IU side is written at
+landing); (ii) the sect F.2 predicate-consumer table (U-T8,
+~60 rows: assert/BRANCH/EXCLUSIVITY CONSUMER); (iii) the sect
+E.4 settle-site lock-context table (U-T8); (iv) the sect A.1.7
+off-thread-reader table (U-T8d, per rerouted field); (v) the
+sect E.1b.4 hook-disposition table (U-T8e: {inline,
+carrier-queued, refused, unreachable}); (vi) the sect F.6
+embedder checklist incl. the (d) construction-order and (e)
+spawned-no-foreign-VM audits; (vii) the per-row call-site
+enumerations that annex K4/N7 rows defer to IU. Until U-T1,
+every "IU row" citation in the spec and audits is an OBLIGATION
+on the landing task to write that row; the audits' "Implementation
+CONSUMES the ... table verbatim" refers to the EXECUTED K4/N7
+tables shipped at r26 - IU adds call-site enumeration only and
+NEVER re-rules a K4/N7/TERM1 disposition.
+
+### rev-27 spec deltas
+- sect A.2.4 REWRITTEN (VM-wide only; no terminate API; TERM1
+  pointer). sect E.5 gains the TERM1.2/1.3 paragraph (SD8 ext2).
+- sect F.5 gains CALLER SCOPE; sect F.6 "Four" -> "Five" deltas,
+  new (e), sign-off list (a)/(c)/(e).
+- sect I gains the isSpawned note; sect A.1.3 gains the
+  unqualified-gilOff rule; sect C.4 "gilOff-conditional" ->
+  "vm.m_gilOff-conditional".
+- sect IM gains the IU creation rule; sect N.7 "IU table" ->
+  "N7 table (sect IM: IU adds call sites)".
+- SD8 entry cites r27 ext2; per-rev SD attribution moved here:
+  r17/r19-r23 none; r18=SD16; r24=SD17; r25 none; r26=SD18+SD19;
+  r27 none (ext2 rides SD8).
+- Status header rev 27; sect T r10-r27.
+
+### rev-27 spec-body wording compressions (byte budget; no
+### semantic change - every trimmed clause's FULL text stays in
+### the cited BINDING annex/rev; pointer targets + supersession
+### rows untouched)
+sect A.2.8 (annex W/W ext: dropped "services shouldTerminate"
+detail + W4 assert predicate - annex W ext keeps both), sect
+K.6 + sect N.9 (ANNEX AUD1), sect LK WS rows (ANNEX WS1), sect
+A.3.5 (HBT2-HBT4), sect A.3.6 (A36/A36C), sect C.1 (annex C1),
+sect D.1 (D1/D1R: dropped arm-name parentheticals), sect E.2
+(E2A pseudocode VERBATIM: dropped listLock-dequeue/rank-3 +
+drop-poll-reacquire clauses), sect E.1b.5 (ALS1), sect E.7.3
+(r8/E7), sect E.7.5, sect K.3 (LZ1/LZ2), sect F.1 (F1B), sect
+F.4 (DAL2: dropped the RHA/AHA sentence - DAL2.5 keeps it,
+sect F.6(c) still cites it), sect A.1.7, sect A.1.1 (jit App.
+R5), sect A.3.7 (re-verify note), sect B.5 note, sect N.5/N.6
+cite tails, sect T index parentheticals, SD one-liner
+tightening, header line. Reminder: amplifier/arm details
+trimmed from sect D.1/sect N.5 remain normative in their
+annexes (D1R, N7) and the rev-26 section-T delta list.
+
+### rev-27 corpus/arm deltas (extends rev-9 annex 3 + r10-r26)
+- U19 terminate arms: assert VM-wide semantics (parked sibling
+  ALSO terminated + closes Failed), join-after-termination
+  rethrows ordinary Error "Thread terminated", asyncJoin
+  rejects with it; GILOn/GILOff variants per SD8.
+- U-T11: + terminated-join rethrow arm (SD8 ext2).
+- U27/U-T6: + spawned-foreign-VM RELEASE_ASSERT death test
+  (sect F.6(e)/TERM1.5).
+- U-T1: + IU skeleton creation w/ TERM1.6 tables (i)-(vii).
+
+# REV 28 (2026-06-06) - adversarial review round: 1 major
+# (exit-during-stop-window lifetime hole)
+
+Finding (fresh adversarial reviewer): sections A.3.1-.2 / B.2 /
+annex E2A's close path carried NO lifetime rule for a lite/client
+destroyed inside a live section-A.3 stop window. Thread EXIT was
+never gated on the stop bit - only ACQUISITION is (A.3.2b gates
+AHA/attach; A.3.4 gates entry) - and that is deliberate (no park
+point on exit). But after E2A's deadline harvest, the section-B.2
+T5 sequence (access release -> DCT -> destroy GCClient::Heap ->
+unregisterLite, which frees the VMLite) ran entirely
+access-released with no further coordination, so a spawned thread
+could complete teardown inside an open window while SB1.2 obliges
+the conductor to keep issuing seq_cst per-client/per-lite
+access-state samples - and SB1.1 said the VMLiteRegistry lock is
+"retained for ENUMERATION only". Nothing said (a) whether the
+conductor may cache lite/client pointers across predicate
+samples, (b) that destruction is forbidden/deferred while
+sampled, or (c) WHICH lock (VMLiteRegistry::lock vs
+VMManager::m_worldLock) owns the entered set the predicate
+samples. Interleaving killed: conductor C fans stop bits and
+snapshots the entered set with raw lite*/client* pointers; T_exit
+(already past its last gated re-acquire) releases access at T5
+(un-gated), DCTs, destroys its client, unregisterLite frees the
+lite; C's next seq_cst sample dereferences freed memory. Spec
+bumped rev 27 -> rev 28; sole change is ANNEX EXIT1 + its body
+pointers/compressions. No new SD.
+
+## ANNEX EXIT1 (BINDING) - exit-during-stop-window lifetime:
+## per-sample registry re-enumeration + deregister-before-destroy
+## (amends sections A.3.1, A.3.2, B.2, annex E2A's close tail and
+## INV U3; SUPERSEDES annex SB1 item 1's "ENUMERATION only"
+## clause, both sides - here and an [r28] marker at SB1.1)
+
+[r29: THIS ANNEX IS AMENDED - the annex of record is the "# REV
+29" ANNEX EXIT1 below. EXIT1.3-1.5 and 1.7-1.8 are superseded
+where they differ: the T5 PHYSICAL unregisterLite returns to
+LAST (after client destroy - restores the vmstate 6.5.1/A36 ~VM
+registration fence rev 28 silently stripped); the LOGICAL
+removal becomes the TEARDOWN mark (registry lock); TEARDOWN
+counts EXITED, its access re-acquire FORBIDDEN. EXIT1.1-1.2 and
+1.6 carry over verbatim modulo the TEARDOWN clauses.]
+
+EXIT1.1 Set identity (resolves ambiguity (c)). The entered-thread
+set the section-A.3.2 conductor predicate samples IS the
+VMLiteRegistry (vmstate 6.5.1), filtered lite->vm in the target
+VM set (section A.1.3 filter). forEachEnteredThread(VM&, f) /
+numberOfEnteredThreads are REGISTRY WALKS. VMManager::m_worldLock
+(heap rank 3) serializes world transitions and conductor tenure
+but owns NO membership: there is no second entered-thread
+structure, hence no two-structure consistency protocol to state.
+
+EXIT1.2 Per-sample re-enumeration (SUPERSESSION, both sides:
+annex SB1 item 1's "retained for ENUMERATION only and carries no
+ordering duty" - the registry lock now OWNS THE SAMPLED SET FOR
+THE LIFETIME OF EVERY OPEN section-A.3 WINDOW; its no-ordering
+duty for the stop-bit/access Dekker pair STANDS - the SB1.4
+seq_cst proof is unchanged and the lock carries the LIFETIME duty
+only). Normative: every conductor predicate sample RE-WALKS the
+registry UNDER VMLiteRegistry::lock; lite/client pointers are
+NEVER cached across samples (including from the section-A.2.3
+fan-out walk - the fan-out enumeration is one walk, each
+subsequent sample is a fresh walk); every SB1.2 seq_cst
+access-state load executes INSIDE the lock hold of the walk that
+found that lite; the walk is allocation-free, acquires nothing
+(section LK.6 inner set suffices for nothing here - the walk
+takes NO inner lock), and the registry lock is DROPPED before the
+conductor blocks/yields between samples (registry-lock holders
+never wait, vmstate I7 class).
+
+EXIT1.3 Deregister-before-destroy (amends section B.2 + annex
+E2A close tail + INV U3, both sides; NO exit gating added). On
+EVERY lite/client teardown path - spawned T5, carrier TLS-death,
+the ~VM walk (section A.3.6/M6 annex) - VMLiteRegistry::
+unregisterLite(lite) (under the registry lock) STRICTLY PRECEDES
+DCT, GCClient::Heap destruction, and the VMLite free. T5 order
+becomes: Strong clears -> access release (seq_cst RHA, F8) ->
+unregisterLite -> DCT -> destroy GCClient::Heap -> free lite.
+Exit remains UN-GATED: no stop-bit poll, no park point, no new
+deadlock edge; E2A's close sequence BEFORE T5 (deadline harvest,
+residue routing, F1/F5) is unchanged. vmstate 6.5.1's lifetime
+contract (unregistered before destroyed) is PRESERVED and
+strengthened (now also before CLIENT destroy); vmstate N8's
+"unregister under the final JSLock hold" clause is the GIL-on/
+carrier shape and is untouched (GIL-off spawned threads hold no
+m_lock, section F.1); ~VM (VM.cpp:659) already complies
+(unregisters before destroying m_mainVMLite).
+
+EXIT1.4 Predicate disposition of a removed/clientless lite.
+(a) A lite ABSENT from the current walk counts as EXITED.
+Soundness: unregisterLite is reachable only AFTER the exit path's
+seq_cst access release (EXIT1.3 order), and the unregisterLite
+unlock happens-before the missing-it walk's lock acquire, so a
+conductor that no longer sees the lite has its NoAccess
+release ordered before the sample; re-entry requires FRESH
+registration + section-A.3.4-gated token acquisition (the VM stop
+word, ORed in at acquisition per section A.2.3, gates entrants
+that registered AFTER the fan-out walk - they park before
+completing entry and appear in later walks as not-entered).
+(b) lite->clientHeap is written ONCE per registration epoch
+(section B.1 spawn / F.1 first carrier entry), with a release
+store, BEFORE the thread's first access acquisition, and is never
+nulled or repointed while the lite is registered. A sampler
+reading null counts the lite not-entered/no-access - sound:
+access cannot be held without a client, and acquisition is
+A.3.2b-gated. A sampler reading non-null under the walk's lock
+hold dereferences a live client (EXIT1.3: destroy is fenced
+behind removal, and removal waits for the walk's lock).
+
+EXIT1.5 Why the interleaving dies. Every conductor dereference of
+a lite/client happens inside a registry-lock hold of a walk that
+found the lite registered. T_exit's unregisterLite must WAIT for
+any in-progress walk to drop the lock; after it runs, no later
+walk sees the lite; DCT/client-destroy/lite-free are program-
+ordered after unregisterLite returns. So no sample ever touches
+freed memory - achieved with zero new park points on exit and no
+change to the SB1 ordering proof.
+
+EXIT1.6 Lock-order argument (section LK; no rank change). The
+conductor holds VMManager::m_worldLock (heap rank 3, inside the
+LK.5 frozen heap block) for the window (section A.3.1) and
+acquires VMLiteRegistry::lock (LK.6) per sample: strictly
+outer -> inner in the LK order, acyclic. Registry-lock holders
+acquire nothing and never wait (LK.6 inner set untouched by the
+walk; vmstate I7 class), so no new edge appears in either
+direction; the LK.6 fastMalloc-excluded-while-suspended carve-out
+is unaffected (section-A.3 conductors suspend nobody - that
+carve-out belongs to section-A.1.7 readers). Exit side:
+unregisterLite at T5 runs access-released holding NO api or heap
+lock (E2A close dropped inboxLock before T5) - no new edge. The
+section-A.2.3 fan-out walk already took the registry lock; its
+rank position is unchanged.
+
+EXIT1.7 INV + amendment record.
+- NEW INV U32: no VMLite or GCClient::Heap is freed while
+  reachable from any section-A.3 fan-out or predicate-sample
+  registry walk - registry removal precedes DCT/client-destroy/
+  lite-free on every teardown path, and conductors hold no
+  lite/client pointer across sample boundaries.
+- INV U3 AMENDED (both sides; rev-9 annex 1 text "Strong clears
+  -> access release -> DCT -> unregisterLite" superseded):
+  lifecycle order is now "lite -> ACT -> alloc; Strong clears ->
+  access release -> unregisterLite -> DCT -> destroy client ->
+  free lite" (EXIT1.3).
+- INV U4 gains the EXIT1.8 exit-storm arm.
+
+EXIT1.8 Tests + lint.
+- Corpus/litmus (U-T5 + U-T6, U4 arm): EXIT-STORM-UNDER-STOP-
+  STORM - N threads spawn, run briefly, and exit in a tight loop
+  while a conductor thread fires back-to-back section-A.3 stops
+  (Class-A fire or a synthetic test-only conductor); ASAN + TSAN
+  clean; race-amplifier variant injects delays between every T5
+  step (post-release, post-unregister, post-DCT) and inside the
+  conductor's between-sample gap. Carrier variant: embedder
+  TLS-death teardown racing a stop window.
+- U20 lint: section-A.3 conductor code must reach lites ONLY via
+  the forEachEnteredThread registry-walk helper; any lite*/
+  client* value in conductor code that crosses a sample boundary
+  (escapes the walk's lock scope) is flagged; unregisterLite
+  call sites are checked to precede DCT/client-destroy on their
+  path.
+
+### rev-28 spec deltas
+- sect A.3.1 gains the EXIT1 index (set = registry; per-sample
+  re-walk under VMLiteRegistry::lock, inner to m_worldLock; no
+  caching; absent => exited; clientHeap null => not-entered).
+- sect A.3.2b's SB1 cite -> "ANNEX SB1 as AMENDED by EXIT1".
+- sect B.2 T5 order rewritten per EXIT1.3 (unregisterLite before
+  DCT/destroy; free last; all teardown paths; un-gated).
+- sect INV gains U32 (+ U3 amendment pointer); sect SD per-rev
+  attribution gains "r28 none"; sect T cites r10-r28; header
+  rev 28.
+
+### rev-28 spec-body wording compressions (byte budget; no
+### semantic change - every trimmed clause's FULL text stays in
+### the cited BINDING annex/rev; pointer targets + supersession
+### rows untouched)
+- sect A.3.2b (ANNEX SB1): "acq/rel UNSOUND (store-buffering)"
+  -> "acq/rel UNSOUND" (SB1.4 keeps the SB shapes).
+- sect A.3.3 (ANNEX HBT4): "NEVER raw GCL (heap sect 10.4/sect
+  A.3.8 never wait on it - HBT4.3)" -> "NEVER raw GCL (HBT4.3)".
+- sect A.3.5 (ANNEXES HBT2-HBT4): (ii) "in-window GC FORBIDDEN;"
+  dropped (the clause name + annex carry it); (i) "own-client F8
+  AHA re-acquire BEFORE fanning bits" -> "own-client gated
+  re-acquire pre-fan".
+- sect A.3.6 (ANNEXES A36/A36C): "(nonzero TID, lazy)" ->
+  "(lazy)" (A36 keeps nonzero-TID); "BEFORE alloc/OM fast path +
+  gated AHA" -> "pre-fast-path + gated AHA".
+- sect 0/U0c (ANNEX U0C): "designation =
+  Heap::tryDesignateStickySharedServer() CAS" -> "the U0C CAS".
+- sect A.1.3 (r6 F5): GC-roots filter "ONLY lites with lite->vm
+  == collecting VM; same filter" -> "per-VM filter; ditto".
+  [r29: full-text cite corrected - the per-VM filter's home is
+  rev-8 item 11; r6 F5 carries the PRE-FIX unfiltered walk (cite
+  it for walk mechanics only). Spec body re-pointed.]
+- sect A.1.6 (ANNEX A16): "(all tiers incl. OSR-exit)" -> "(all
+  tiers)" (A16 keeps OSR-exit).
+- sect A.1.7 (r9 F7 + r24): "samples carrier lites via (i) only"
+  -> "= (i), carrier lites only"; "(fastMalloc incl.)" dropped.
+- sect A.2.6 (ANNEX A26): "(GIL-on: VM-wide rule-4 form;
+  GIL-off: the rule-4 PARK lite's bit)" -> "(rule-4; PARK lite
+  GIL-off)".
+- sect A.2.8 (ANNEX W/W ext): "tokenless timer + rule-3
+  termination" -> "tokenless timer" (W3 keeps the rule-3 form);
+  "the four Watchdog.cpp APILock asserts" -> "the four APILock
+  asserts" (W4 keeps the file + line cites).
+- sect C.1 (ANNEX C1): "indexed by shape (CoW I35; convert; sect
+  C.2 parseIndex)" -> "indexed by shape (C1)".
+- sect C.3 (ANNEX C3): "(NO alloc/STW under listLock)" dropped.
+- sect D.1 (ANNEXES D1/D1R): "(heap sect 10 barrier - NOT sect
+  A.3, jit R1.h)" -> "(heap sect 10, NOT sect A.3)";
+  "(conductor takes NO api lock; r9 F2)" -> "(r9 F2)".
+- sect E.1b.4 (r16 F3): "(no JS)" dropped.
+- sect E.2 (ANNEX E2A): EXPIRE "(r12; sect E.4 "timed-out",
+  rule-1 decrement)" -> "(sect E.4 "timed-out")"; close
+  "(closed => main fallback, SD8 ext)" -> "(SD8 ext)"; tail "F1/
+  F5 + T5 access release as landed (sect B.2, U3)" -> "F1/F5 as
+  landed; T5 per sect B.2 (EXIT1.3)" (also the EXIT1.3
+  amendment pointer).
+- sect E.3 (ANNEX E3): "(SD11; sect E.7.5 = PROPERTY only)" ->
+  "(SD11)".
+- sect E.4 (r17 F6/r18 F2): "(r18 F2; closure monotonic sect E.3
+  r3; sect E.7.3-4 apply)" -> "(r18 F2; sect E.7.3-4 apply)".
+- sect E.7.3 (r8/E7/r17 F3/r18 F2): wake constraints "no
+  rank-1..3 lock, no JS, never reenters JSC (boot-checked)" ->
+  "(constraints per annex)".
+- sect E.7.5 (SD16/r18 F4): "(sect E.1; expiry = sect E.2 EXPIRE
+  or close harvest; sect C.3 holds keepalive)" -> "(sect E.1;
+  sect C.3 holds keepalive)".
+- sect F.1 (ANNEX F1B): "gated AHA on THAT client (sect A.3.2b/
+  sect A.3.8)" -> "gated AHA on THAT client".
+- sect F.4 (ANNEX DAL2): ctor "(F8 mandatory-revert)" dropped.
+- sect F.5 (r10 F2): "(F8 mandatory-revert)" dropped.
+- sect F.6(d) (ANNEX EC1): "= the ONLY spawn-capable VM for
+  PROCESS LIFETIME (others spawn-RangeError, U0b)" -> "= sole
+  spawn-capable VM (U0b)".
+- sect J.3 (r10 F5): "(api 5.9(e); NLS::m_lock exempt, sect
+  E.2)" -> "(sect E.2 exemption)".
+- sect K.3 (LZ1/LZ2): "(GIL-off only, not an SD)" -> "(not an
+  SD)" (LZ1 keeps the mode scoping).
+- sect K.5 (ANNEX HBT): "isHavingABadTime() re-checked
+  post-arbitration" -> "re-check post-arbitration".
+- sect K.6 (ANNEX AUD1): "losers adopt/PARK-CAPABLE wait
+  access-released" -> "losers adopt/wait per AUD1.K3".
+- sect N.5 (r11/r15 F1/r25 ext): "(one CAS per await/yield)"
+  dropped.
+- sect N.6 (ANNEX N6): "DETACH length=0" -> "DETACH len=0".
+
+### rev-28 section-T deltas (extends rev-9 annex 3 + r10-r27)
+- U-T5: conductor predicate implemented as EXIT1.2 per-sample
+  registry walks (forEachEnteredThread helper; no pointer caching
+  across samples); + the EXIT1.8 exit-storm-under-stop-storm
+  litmus/amplifier arm; U20 lint extended per EXIT1.8.
+- U-T6: T5 teardown reordered per EXIT1.3 (unregisterLite ->
+  DCT -> destroy client -> free lite) on ALL paths - spawned T5,
+  carrier TLS-death, ~VM walk (audit: ~VM already complies);
+  clientHeap write-once release-publish (EXIT1.4(b)); + the
+  carrier TLS-death-vs-stop-window arm.
+- No other task scope changes; U4's arm list grows per EXIT1.7.
+
+### Rev-28 SD note
+No new SDs; IDs frozen. EXIT1 is lifetime/ordering only - no
+JS-observable behavior changes.
+
+# REV 29 (2026-06-06) - reviewed-findings round vs rev 28's
+# ANNEX EXIT1: 1 blocker + 3 majors, all fixed; nothing else
+# changed
+
+Round record (4 findings):
+
+F1 (BLOCKER, design change). rev 28's T5 order (Strong clears ->
+access release -> unregisterLite -> DCT -> destroy client -> free
+lite) silently stripped the registration-based VM-lifetime fence:
+pre-r28 the lite stayed registered through DCT/client-destroy, so
+vmstate §6.5.1's "~VM asserts registry empty for this VM"
+(SPEC-vmstate.md:519-521; the VM.cpp:654-658 walk; annex A36)
+fenced the whole heap-touching teardown tail. Post-r28, between
+unregisterLite and DCT, the exiting thread was invisible to that
+walk yet still dereferenced the server JSC::Heap (DCT,
+~GCClient::Heap) and VM::m_microtaskQueues (the M12 removal in
+the lite free). join() notifies BEFORE T5 (ThreadObject.cpp:
+236-244; unregister at :259) and api §4.6.1 has no implicit join
+- embedder-destroys-VM-after-join raced the T5 tail (UAF). FIX:
+LOGICAL removal (new TEARDOWN lite state, marked under
+VMLiteRegistry::lock at T5) supplies r28's conductor semantics;
+PHYSICAL unregisterLite returns to the old position, LAST (after
+client destroy), restoring the ~VM fence verbatim. Composition
+verified: the r28 conductor-UAF fix is preserved (r28's UAF was
+freed-lite memory; with the lite registered until after
+client-destroy, walk samples touch live memory by construction).
+Full amended text: ANNEX EXIT1 below - the annex of record;
+[r29] markers placed at the rev-28 annex and at E2A's [r28] tail
+marker, both sides. New test arm: T5 tail vs ~VM /
+join-then-destroy-VM (EXIT1.8; U-T6 gate list).
+
+F2 (major). The §A.1.3 GC-roots compression cited "history r6
+F5" as the full-text home of the per-VM filter, but r6 F5
+carries the PRE-FIX unfiltered walk; the filter's home is rev-8
+item 11. Spec-body cite fixed (r8 item 11; r6 F5 = walk
+mechanics only); the rev-28 compression-record row carries an
+in-place [r29] correction marker.
+
+F3 (major). rev-28 EXIT1.7 claimed the INV U3 amendment was
+recorded both sides, but rev-9 ANNEX 1's U3 row was unmarked. An
+in-place [r29] marker added there (SB1.1/E2A marker style).
+
+F4 (major). The handout's EXIT1 inline claimed "full text" but
+dropped 4 clauses vs the history annex (the §A.1.3-filter cite
+in EXIT1.1; EXIT1.2's "§LK.6 inner set ... walk takes NO inner
+lock" clause; EXIT1.3's "§A.3.6/M6 annex" cite +
+~VM-already-complies rationale; EXIT1.6's §A.2.3 fan-out
+sentence). Handout regenerated at rev 29: EXIT1 re-inlined
+VERBATIM from the amended annex below (diff-verified; heading
+level is the only permitted delta).
+
+Spec bumped rev 28 -> rev 29; sole normative change is ANNEX
+EXIT1 as amended + its body pointers/compressions. No new SD.
+
+## ANNEX EXIT1 (BINDING, as AMENDED by rev 29 - the annex of
+## record; the rev-28 text is superseded where they differ) -
+## exit-during-stop-window lifetime: per-sample registry
+## re-enumeration + TEARDOWN-mark-before-destroy + physical
+## removal LAST (amends §A.3.1, §A.3.2, §B.2, annex E2A's close
+## tail and INV U3; SUPERSEDES annex SB1 item 1's "ENUMERATION
+## only" clause, both sides)
+
+[r30: THIS ANNEX IS AMENDED - the annex of record is the "# REV
+30" ANNEX EXIT1 below. The fence claim here ("trips the
+registration fence, caught contract violation") was
+assert-only/debug-only; r30 adds the EXIT1.9 ~VM completion
+fence (a NORMATIVE blocking wait) and scopes EXIT1.3 to live-VM
+paths (the ~VM carrier collection follows A36 as AMENDED r30).
+EXIT1.1-1.2 and 1.4 carry over verbatim.]
+
+Closed holes. (r28) Thread EXIT is never gated on the stop bit -
+only acquisition is (§A.3.2b gates AHA/attach; §A.3.4 gates
+entry) - so without a lifetime rule a spawned thread could
+complete its §B.2 T5 teardown (free its GCClient::Heap and
+VMLite) inside an open §A.3 window while the conductor keeps
+issuing SB1.2 samples against cached pointers, dereferencing
+freed memory. (r29 review, BLOCKER) rev 28's fix ordered
+unregisterLite FIRST (before DCT/client-destroy), which silently
+stripped the REGISTRATION-BASED VM-LIFETIME FENCE: pre-r28 the
+lite stayed registered through the heap-touching teardown tail,
+so vmstate §6.5.1's ~VM assert ("registry empty for this VM";
+the VM.cpp:654-658 walk; annex A36) fenced it; post-r28, between
+unregisterLite and DCT, the exiting thread was invisible to that
+walk yet still dereferenced the server JSC::Heap (DCT,
+~GCClient::Heap) and VM::m_microtaskQueues (the M12 removal in
+the lite free). join() notifies BEFORE T5 (ThreadObject.cpp:
+236-244) and api §4.6.1 has no implicit join, so
+embedder-destroys-VM-after-join raced the T5 tail - UAF. rev 29
+splits LOGICAL from PHYSICAL removal: a TEARDOWN lite state
+supplies r28's conductor semantics; the physical removal returns
+to the old position (LAST), restoring the ~VM fence verbatim.
+
+EXIT1.1 Set identity. The entered-thread set the §A.3.2
+conductor predicate samples IS the VMLiteRegistry (vmstate
+§6.5.1), filtered lite->vm in the target VM set (§A.1.3 filter).
+forEachEnteredThread(VM&, f) / numberOfEnteredThreads are
+REGISTRY WALKS. VMManager::m_worldLock (heap rank 3) serializes
+world transitions and conductor tenure but owns NO membership:
+there is no second entered-thread structure, hence no
+two-structure consistency protocol to state.
+
+EXIT1.2 Per-sample re-enumeration (SUPERSESSION, both sides:
+annex SB1 item 1's "retained for ENUMERATION only and carries no
+ordering duty" - the registry lock now OWNS THE SAMPLED SET FOR
+THE LIFETIME OF EVERY OPEN §A.3 WINDOW; its no-ordering duty for
+the stop-bit/access Dekker pair STANDS - the SB1.4 seq_cst proof
+is unchanged and the lock carries the LIFETIME duty only).
+Normative: every conductor predicate sample RE-WALKS the
+registry UNDER VMLiteRegistry::lock; lite/client pointers are
+NEVER cached across samples (including from the §A.2.3 fan-out
+walk - the fan-out enumeration is one walk, each subsequent
+sample is a fresh walk); every SB1.2 seq_cst access-state load
+executes INSIDE the lock hold of the walk that found that lite;
+the walk is allocation-free, acquires nothing (§LK.6 inner set
+suffices for nothing here - the walk takes NO inner lock), and
+the registry lock is DROPPED before the conductor blocks/yields
+between samples (registry-lock holders never wait, vmstate I7
+class).
+
+EXIT1.3 TEARDOWN-mark-before-destroy, physical removal LAST
+(r29; amends §B.2 + annex E2A's close tail + INV U3, both sides;
+NO exit gating added; REPLACES rev 28's unregisterLite-first
+order). On EVERY lite/client teardown path - spawned T5, carrier
+TLS-death, the ~VM walk (§A.3.6/M6 annex) - LOGICAL removal
+precedes any destruction and PHYSICAL removal comes LAST: under
+VMLiteRegistry::lock the exiting thread marks its lite TEARDOWN
+(one registry-owned lite-state byte; the lite stays PHYSICALLY
+registered; conductors count it EXITED per EXIT1.4(a)); THEN DCT
+and GCClient::Heap destruction; THEN VMLiteRegistry::
+unregisterLite(lite) (under the registry lock), which frees the
+VMLite. T5 order becomes: Strong clears -> access release
+(seq_cst RHA, F8) -> TEARDOWN mark (registry lock) -> DCT ->
+destroy GCClient::Heap -> unregisterLite/free lite. The
+registration-based VM-lifetime fence is thereby restored
+VERBATIM: the registry stays non-empty for this VM until the
+heap-touching tail (DCT, ~GCClient::Heap, the M12
+m_microtaskQueues removal in the lite free) is done, so the ~VM
+registry walk / A36 "registry empty for this VM" assert
+re-covers the tail with NO new mechanism. Exit remains UN-GATED:
+no stop-bit poll, no park point, no new deadlock edge; E2A's
+close sequence BEFORE T5 (deadline harvest, residue routing,
+F1/F5) is unchanged. vmstate §6.5.1's lifetime contract
+(unregistered before destroyed) is PRESERVED (physical removal
+still strictly precedes the lite free); vmstate N8's "unregister
+under the final JSLock hold" clause is the GIL-on/carrier shape
+and is untouched (GIL-off spawned threads hold no m_lock, §F.1);
+~VM (VM.cpp:659) already complies (unregisters m_mainVMLite
+after the per-VM teardown walk, before destroying it; no
+TEARDOWN mark needed there - a VM inside ~VM has no live
+conductors, embedder contract §F.6).
+
+EXIT1.4 Predicate disposition of a TEARDOWN/absent/clientless
+lite. (a) A lite marked TEARDOWN - and a lite ABSENT from the
+current walk - counts as EXITED. Soundness (r29 re-stated): the
+TEARDOWN mark is set only AFTER the exit path's seq_cst access
+release (EXIT1.3 order), and the mark's registry-lock unlock
+happens-before any walk that observes it, so a conductor that
+sees TEARDOWN (or misses the lite) has the thread's NoAccess
+release ordered before the sample - the same argument as r28's
+absence rule, and STRONGER in one respect: because the lite
+stays registered until after client destroy, every walk sample
+touches LIVE memory by construction (walks never dereference
+beyond lite fields owned by the registry, and never the
+clientHeap of a TEARDOWN lite - counted EXITED at (a) before any
+client deref). A TEARDOWN lite's access RE-ACQUISITION IS
+FORBIDDEN (the §A.3.2b/SB1-gated acquire refuses it; asserted):
+re-entry to JS would need re-acquisition, so a TEARDOWN lite can
+never run JS again - re-entry requires FRESH registration +
+§A.3.4-gated token acquisition (the VM stop word, ORed in at
+acquisition per §A.2.3, gates entrants that registered AFTER the
+fan-out walk - they park before completing entry and appear in
+later walks as not-entered). (b) lite->clientHeap is written
+ONCE per registration epoch (§B.1 spawn / §F.1 first carrier
+entry), with a release store, BEFORE the thread's first access
+acquisition, and is never nulled or repointed while the lite is
+registered. A sampler reading null counts the lite
+not-entered/no-access - sound: access cannot be held without a
+client, and acquisition is §A.3.2b-gated. A sampler reading
+non-null on a NON-TEARDOWN lite under the walk's lock hold
+dereferences a live client (EXIT1.3: destroy is fenced behind
+the TEARDOWN mark, and the mark waits for the walk's lock).
+
+EXIT1.5 Why both interleavings die. Conductor-vs-T5 (r28's UAF -
+that fix is fully preserved): every conductor dereference of a
+lite/client happens inside a registry-lock hold of a walk that
+found the lite registered and NOT TEARDOWN; T_exit's TEARDOWN
+mark must WAIT for any in-progress walk to drop the lock; after
+it, every walk counts the lite EXITED and dereferences nothing
+further; DCT/client-destroy are program-ordered after the mark,
+unregisterLite/lite-free after those. No sample ever touches
+freed memory - zero new park points on exit, no change to the
+SB1 ordering proof. Embedder-destroy-vs-T5 (the r29 BLOCKER):
+the exiting thread stays registered through the whole
+heap-touching tail, so ~VM's per-VM registry walk (vmstate
+§6.5.1; VM.cpp:654-658) still sees the TEARDOWN lite and the
+fence holds - join-then-destroy-VM trips the registration fence
+(caught contract violation) instead of silently racing the tail.
+
+EXIT1.6 Lock-order argument (§LK; no rank change). The conductor
+holds VMManager::m_worldLock (heap rank 3, inside the LK.5
+frozen heap block) for the window (§A.3.1) and acquires
+VMLiteRegistry::lock (§LK.6) per sample: strictly outer -> inner
+in the LK order, acyclic. Registry-lock holders acquire nothing
+and never wait (LK.6 inner set untouched by the walk AND by the
+TEARDOWN mark; vmstate I7 class), so no new edge appears in
+either direction; the LK.6 fastMalloc-excluded-while-suspended
+carve-out is unaffected (§A.3 conductors suspend nobody - that
+carve-out belongs to §A.1.7 readers). Exit side: the TEARDOWN
+mark and unregisterLite at T5 run access-released holding NO api
+or heap lock (E2A's close dropped inboxLock before T5) - no new
+edge. The §A.2.3 fan-out walk already took the registry lock;
+its rank position is unchanged.
+
+EXIT1.7 INV + amendment record.
+- INV U32 (r29 form): no VMLite or GCClient::Heap is destroyed
+  or freed while observable to any §A.3 fan-out or
+  predicate-sample registry walk as a live (non-TEARDOWN) lite -
+  the TEARDOWN mark precedes DCT/client-destroy, physical
+  removal + lite free come LAST, and conductors hold no
+  lite/client pointer across sample boundaries; no lite leaves
+  the registry before its heap-touching teardown tail completes
+  (the ~VM fence).
+- INV U3 AMENDED (both sides; the rev-9 annex 1 row carries the
+  [r29] marker; rev 28's amended form re-amended): lifecycle
+  order is now "lite -> ACT -> alloc; Strong clears -> access
+  release -> TEARDOWN mark (registry lock) -> DCT -> destroy
+  client -> unregisterLite/free lite" (EXIT1.3).
+- INV U4 gains the EXIT1.8 exit-storm arm.
+
+EXIT1.8 Tests + lint.
+- Corpus/litmus (U-T5 + U-T6, U4 arm): EXIT-STORM-UNDER-STOP-
+  STORM - N threads spawn, run briefly, and exit in a tight loop
+  while a conductor thread fires back-to-back §A.3 stops
+  (Class-A fire or a synthetic test-only conductor); ASAN + TSAN
+  clean; the race-amplifier variant injects delays between every
+  T5 step (post-release, post-mark, post-DCT, post-destroy) and
+  inside the conductor's between-sample gap. Carrier variant:
+  embedder TLS-death teardown racing a stop window.
+- T5-TAIL-VS-~VM arm (r29; joins the U-T6 gate list): embedder
+  join()s a spawned thread then immediately destroys the VM
+  while the amplifier stalls the joined thread inside the T5
+  tail (post-mark pre-unregister; variants mid-DCT and
+  mid-client-destroy): the ~VM registry walk must observe the
+  still-registered TEARDOWN lite (fence holds; no UAF on the
+  server Heap or VM::m_microtaskQueues); ASAN clean.
+- U20 lint: §A.3 conductor code must reach lites ONLY via the
+  forEachEnteredThread registry-walk helper; any lite*/client*
+  value in conductor code that crosses a sample boundary
+  (escapes the walk's lock scope) is flagged; teardown paths are
+  checked for TEARDOWN-mark-precedes-DCT/client-destroy AND
+  unregisterLite-LAST (after client destroy, immediately before
+  the lite free).
+
+### rev-29 spec deltas
+- header rev 29; sect T cites r10-r29; sect SD per-rev
+  attribution "r27-r29 add none".
+- sect A.1.3 GC-roots cite -> "r8 item 11; walk r6 F5" (F2).
+- sect A.3.1 EXIT1 index: annex cite -> "as AMENDED r29"; "lite
+  absent OR TEARDOWN => EXITED (re-acquire FORBIDDEN)"; U4 arm
+  list gains the ~VM-race arm.
+- sect B.2 item 2 T5 order rewritten per EXIT1.3 as amended
+  (TEARDOWN mark -> DCT -> destroy client -> unregisterLite/free
+  LAST; ~VM fence restored).
+- INV U32/U3 text = EXIT1.7 as amended (IDs frozen).
+
+### rev-29 spec-body wording compressions (byte budget; no
+### semantic change - every trimmed clause's FULL text stays in
+### the cited BINDING annex/rev; pointer targets + supersession
+### rows untouched)
+- sect A.3.1 (ANNEX EXIT1): "(write-once release-publish per
+  registration, §B.1/§F.1)" -> "(write-once release-publish,
+  §B.1/§F.1)" (EXIT1.4(b) keeps the per-epoch form).
+- sect A.3.2b (ANNEX SB1): "stop-bit fan-out stores, conductor
+  access samples + the AHA/..." -> "fan-out stores, conductor
+  samples + AHA/..." (SB1.1-3 keep the full op list); "(r9 F3;
+  ordering per SB1)" -> "(r9 F3)" (SB1.3 keeps the position).
+- sect A.3.3 (ANNEX HBT4): "BINDING - promotes HBT3 item 3;
+  ALL..." -> "BINDING; ALL..." (HBT4 records its provenance).
+- sect B.2 (ANNEX EXIT1): "Exit stays UN-GATED (no stop-bit
+  poll/park point)" -> "Exit stays UN-GATED" (EXIT1.3 keeps the
+  clause).
+- sect 0/U0c (ANNEX U0C): "noteSharedServerSticky() (I13
+  UNCHANGED)" -> "noteSharedServerSticky()" (U0C keeps it).
+- sect E.2 (ANNEX E2A): "residue DWT retired + routed to main
+  (E.4 dead rule)" -> "residue per the E.4 dead rule" (E2A keeps
+  the retirement steps).
+- sect E.5 (ANNEX TERM1): "rethrows it NORMALLY (joiner not
+  re-terminated)" -> "rethrows it NORMALLY" (TERM1.3 keeps it).
+
+### rev-29 section-T deltas (extends rev-9 annex 3 + r10-r28)
+- U-T5: predicate disposition per EXIT1.4 as amended (TEARDOWN
+  counts EXITED; the forbidden-TEARDOWN-re-acquire assert); the
+  EXIT1.8 lint extension re-worded (TEARDOWN-mark-precedes-
+  destroy + unregisterLite-LAST).
+- U-T6: T5 teardown re-reordered per EXIT1.3 as amended
+  (TEARDOWN mark -> DCT -> destroy client -> unregisterLite/free
+  lite) on ALL paths - spawned T5, carrier TLS-death, ~VM walk
+  (audit: ~VM still complies); + the EXIT1.8 T5-TAIL-VS-~VM /
+  join-then-destroy-VM race arm joins the U-T6 gate list.
+- No other task scope changes; U4's arm list per EXIT1.7.
+
+### Rev-29 SD note
+No new SDs; IDs frozen. r29 is lifetime/ordering only - no
+JS-observable behavior changes.
+
+# REV 30 (2026-06-06) - reviewed-findings round vs rev 29's
+# ANNEX EXIT1: 1 blocker + 1 major, both fixed; nothing else
+# changed
+
+Round record (2 findings):
+
+F1 (BLOCKER, design change). rev 29's restored ~VM registration
+fence was ASSERT-ONLY and DEBUG-ONLY: EXIT1.5/1.8 claimed
+join-then-destroy-VM "trips the registration fence (caught
+contract violation)", but the cited ~VM walk (VM.cpp:651-657) is
+#if ASSERT_ENABLED - a RELEASE build retained the UAF verbatim
+(T_exit marks TEARDOWN, stalls mid-DCT; the embedder's join()
+already returned - settle precedes unregister,
+ThreadObject.cpp:240-246 vs :259, and api §4.6.1 has no implicit
+join; ~VM destroys the server Heap; T_exit resumes DCT against
+the freed heap, then the M12 removal against a destroyed VM),
+and a debug build aborted nondeterministically on a pattern the
+embedder cannot avoid (join is its only completion signal and
+fires pre-T5). The r29 EXIT1.8 T5-TAIL-VS-~VM arm was incoherent
+as written (release: walk compiled out, UAF, ASAN not clean;
+debug: "observing" = crashing). FIX (NEW EXIT1.9, NORMATIVE): ~VM
+BLOCKS until no registered lite other than m_mainVMLite has
+lite->vm == this - a WTF::Condition (vmTeardownCondition) on
+VMLiteRegistry, waited under VMLiteRegistry::lock, signaled by
+unregisterLite (already under that lock). The wait is the
+NORMATIVE completion fence; the assert walk is DEMOTED to a
+post-wait debug sanity check; ThreadObject's join settle order
+is UNCHANGED (no implicit join; embedders need no new contract).
+Acyclicity restated normatively in EXIT1.6: ~VM holds only the
+API lock there; the T5 tail runs access-released holding no api
+or heap lock and acquires only the leaf registry lock, which
+Condition::wait drops into the parking lot while parked - the
+waited-on thread always makes progress. The EXIT1.8
+T5-TAIL-VS-~VM arm is REWRITTEN coherently (release+ASAN
+load-bearing arm; debug adds the sanity walk). U-T6 scope + gate
+list updated.
+
+F2 (MAJOR, A36 reconciliation). rev 29's EXIT1.3 mandated its
+six-step order "on EVERY lite/client teardown path - spawned T5,
+carrier TLS-death, the ~VM walk", contradicting BINDING annex
+A36 ("stands unamended" at TERM1.5), whose ~VM foreign-carrier
+collection does unregister-FIRST with client+lite destruction
+DEFERRED to the owner's TLS destructor; the deferred lite's M12
+queue removal would run after the VM is gone, with no argument
+that M11 covers it. RESOLUTION (shape: scope EXIT1.3 + amend
+A36; both sides, [r30] marker at A36): EXIT1.3 is scoped to
+LIVE-VM paths (spawned T5, carrier TLS-death) and EXPLICITLY
+EXCLUDES the ~VM carrier collection; A36 is AMENDED because its
+deferral was NOT yet sound as written - ~GCClient::Heap's
+live-path dtor touches the server (Heap.cpp:5078-5110:
+acquireHeapAccess bracket, lastChanceToFinalize's
+shared-directory work under MSPL, m_server.clientSet().remove),
+so the amendment moves the FULL server-side detach into the ~VM
+walk (server alive) and restricts the deferred dtor to a
+degenerate dead-detached path touching only client-local memory.
+The deferred M12 removal IS covered: ~VM's M11 force-removal
+(VM.cpp:710-719) empties VM::m_microtaskQueues under the
+process-lifetime registry lock before any VM memory dies, so the
+deferred ~MicrotaskQueue (MicrotaskQueue.cpp:128-141,
+isOnList()-guarded under the same lock) is a no-op touching only
+its own node - quoted in EXIT1.9/the A36 amendment. CRUX
+interaction with F1: A36's carriers are PHYSICALLY UNREGISTERED
+by ~VM itself BEFORE the EXIT1.9 wait begins (EXIT1.9 step (2)),
+so the wait never counts a carrier whose TLS destructor runs at
+an unbounded future time - no deadlock; combined-protocol
+progress argument in EXIT1.6/1.9. Same M11/M12 argument also
+fixes an r29 imprecision: the spawned-path lite free (its M12
+removal) runs AFTER unregisterLite (registry lock not
+recursive), i.e. OUTSIDE the fence - covered by the EXIT1.9
+residual-tail rule, not the wait.
+
+Spec bumped rev 29 -> rev 30; normative changes are ANNEX EXIT1
+as amended (incl. new EXIT1.9) + the A36 amendment + their body
+pointers/compressions. No new SD.
+
+## ANNEX EXIT1 (BINDING, as AMENDED by rev 30 - the annex of
+## record; the rev-28/29 texts are superseded where they differ)
+## - exit-during-stop-window lifetime: per-sample registry
+## re-enumeration + TEARDOWN-mark-before-destroy + physical
+## removal LAST + the EXIT1.9 ~VM completion fence (amends
+## §A.3.1, §A.3.2, §B.2, annex E2A's close tail, INV U3 and
+## annex A36's ~VM-teardown clause; SUPERSEDES annex SB1 item
+## 1's "ENUMERATION only" clause and vmstate §6.5.1/§6.4.4's
+## assert-only ~VM fence, both sides)
+
+Closed holes. (r28) Thread EXIT is never gated on the stop bit -
+only acquisition is (§A.3.2b gates AHA/attach; §A.3.4 gates
+entry) - so without a lifetime rule a spawned thread could
+complete its §B.2 T5 teardown (free its GCClient::Heap and
+VMLite) inside an open §A.3 window while the conductor keeps
+issuing SB1.2 samples against cached pointers, dereferencing
+freed memory. (r29 review, BLOCKER) rev 28's fix ordered
+unregisterLite FIRST (before DCT/client-destroy), which silently
+stripped the REGISTRATION-BASED VM-LIFETIME FENCE: pre-r28 the
+lite stayed registered through the heap-touching teardown tail,
+so vmstate §6.5.1's ~VM assert ("registry empty for this VM";
+the VM.cpp walk; annex A36) fenced it; post-r28, between
+unregisterLite and DCT, the exiting thread was invisible to that
+walk yet still dereferenced the server JSC::Heap (DCT,
+~GCClient::Heap) and VM::m_microtaskQueues (the M12 removal in
+the lite free). join() notifies BEFORE T5 (ThreadObject.cpp:
+236-244) and api §4.6.1 has no implicit join, so
+embedder-destroys-VM-after-join raced the T5 tail - UAF. rev 29
+split LOGICAL from PHYSICAL removal: a TEARDOWN lite state
+supplies r28's conductor semantics; the physical removal returns
+to the old position (LAST). (r30 review, BLOCKER) rev 29's
+restored fence was ASSERT-ONLY and DEBUG-ONLY: the cited ~VM
+walk (VM.cpp:651-657) is #if ASSERT_ENABLED, so a RELEASE build
+retained the UAF verbatim - T_exit marks TEARDOWN, stalls
+mid-DCT; the embedder's join() has already returned (settle
+precedes unregister, ThreadObject.cpp:240-246 vs :259); ~VM
+proceeds, destroys the server Heap; T_exit resumes DCT against
+the freed heap, then the M12 removal against a destroyed VM. A
+debug build merely converted the UAF into a nondeterministic
+abort on a pattern the embedder cannot avoid (join is its ONLY
+completion signal and fires pre-T5). rev 30 makes ~VM BLOCK: the
+EXIT1.9 completion fence waits, under the registry lock, until
+no registered lite other than m_mainVMLite points at this VM;
+the assert walk is demoted to a post-wait debug sanity check.
+(r30 review, MAJOR) rev 29's EXIT1.3 bound its order to "EVERY
+teardown path - ... the ~VM walk", contradicting BINDING annex
+A36, whose ~VM foreign-carrier collection unregisters FIRST and
+DEFERS client+lite destruction to the owner's TLS destructor.
+rev 30 scopes EXIT1.3 to live-VM paths, AMENDS A36 (full
+server-side detach moves into the walk; deferred destruction
+restricted to non-VM memory; the deferred M12 removal proven a
+no-op), and pins the A36-collection-BEFORE-EXIT1.9-wait order so
+the fence never waits on a TLS destructor.
+
+EXIT1.1 Set identity. The entered-thread set the §A.3.2
+conductor predicate samples IS the VMLiteRegistry (vmstate
+§6.5.1), filtered lite->vm in the target VM set (§A.1.3 filter).
+forEachEnteredThread(VM&, f) / numberOfEnteredThreads are
+REGISTRY WALKS. VMManager::m_worldLock (heap rank 3) serializes
+world transitions and conductor tenure but owns NO membership:
+there is no second entered-thread structure, hence no
+two-structure consistency protocol to state.
+
+EXIT1.2 Per-sample re-enumeration (SUPERSESSION, both sides:
+annex SB1 item 1's "retained for ENUMERATION only and carries no
+ordering duty" - the registry lock now OWNS THE SAMPLED SET FOR
+THE LIFETIME OF EVERY OPEN §A.3 WINDOW; its no-ordering duty for
+the stop-bit/access Dekker pair STANDS - the SB1.4 seq_cst proof
+is unchanged and the lock carries the LIFETIME duty only).
+Normative: every conductor predicate sample RE-WALKS the
+registry UNDER VMLiteRegistry::lock; lite/client pointers are
+NEVER cached across samples (including from the §A.2.3 fan-out
+walk - the fan-out enumeration is one walk, each subsequent
+sample is a fresh walk); every SB1.2 seq_cst access-state load
+executes INSIDE the lock hold of the walk that found that lite;
+the walk is allocation-free, acquires nothing (§LK.6 inner set
+suffices for nothing here - the walk takes NO inner lock), and
+the registry lock is DROPPED before the conductor blocks/yields
+between samples (registry-lock holders never wait, vmstate I7
+class).
+
+EXIT1.3 TEARDOWN-mark-before-destroy, physical removal LAST
+(r29; path scope + fence wording AMENDED r30; amends §B.2 +
+annex E2A's close tail + INV U3, both sides; NO exit gating
+added; REPLACES rev 28's unregisterLite-first order). On every
+LIVE-VM lite/client teardown path - spawned T5 and carrier
+TLS-death - LOGICAL removal precedes any destruction and
+PHYSICAL removal comes LAST: under VMLiteRegistry::lock the
+exiting thread marks its lite TEARDOWN (one registry-owned
+lite-state byte; the lite stays PHYSICALLY registered;
+conductors count it EXITED per EXIT1.4(a)); THEN DCT and
+GCClient::Heap destruction; THEN VMLiteRegistry::
+unregisterLite(lite) (under the registry lock); the lite is
+freed by its owner AFTER unregisterLite returns (the registry
+lock is not recursive; the free - and the M12 default-queue
+removal inside it - runs outside the lock: the EXIT1.9
+residual-tail rule covers it). T5 order: Strong clears -> access
+release (seq_cst RHA, F8) -> TEARDOWN mark (registry lock) ->
+DCT -> destroy GCClient::Heap -> unregisterLite -> free lite.
+SCOPE (r30): the ~VM foreign-carrier collection is EXPLICITLY
+EXCLUDED from this order - it follows annex A36 as AMENDED r30
+(cross-ref both sides; the A36 annex carries the [r30] marker):
+unregister FIRST, full server-side detach inside the walk,
+client+lite destruction DEFERRED to the owner's TLS destructor
+and restricted to non-VM memory; EXIT1.9 step (2) pins its
+ordering against the ~VM wait. rev 29's "on EVERY teardown path
+incl. the ~VM walk" claim is WITHDRAWN (it contradicted BINDING
+A36). The registration-based VM-lifetime fence: the registry
+stays non-empty for this VM until the server-touching tail (DCT,
+~GCClient::Heap) is done, and rev 30's EXIT1.9 wait - NOT the
+debug assert walk - is what enforces it, in every build
+configuration. Exit remains UN-GATED: no stop-bit poll, no park
+point, no new deadlock edge; E2A's close sequence BEFORE T5
+(deadline harvest, residue routing, F1/F5) is unchanged. vmstate
+§6.5.1's lifetime contract (unregistered before destroyed) is
+PRESERVED (physical removal still strictly precedes the lite
+free); vmstate N8's "unregister under the final JSLock hold"
+clause is the GIL-on/carrier shape and is untouched (GIL-off
+spawned threads hold no m_lock, §F.1); ~VM's own m_mainVMLite
+handling already complies (unregistered after the EXIT1.9 wait +
+sanity walk, before being destroyed; no TEARDOWN mark needed
+there - a VM inside ~VM has no live conductors, embedder
+contract §F.6).
+
+EXIT1.4 Predicate disposition of a TEARDOWN/absent/clientless
+lite. (a) A lite marked TEARDOWN - and a lite ABSENT from the
+current walk - counts as EXITED. Soundness (r29 re-stated): the
+TEARDOWN mark is set only AFTER the exit path's seq_cst access
+release (EXIT1.3 order), and the mark's registry-lock unlock
+happens-before any walk that observes it, so a conductor that
+sees TEARDOWN (or misses the lite) has the thread's NoAccess
+release ordered before the sample - the same argument as r28's
+absence rule, and STRONGER in one respect: because the lite
+stays registered until after client destroy, every walk sample
+touches LIVE memory by construction (walks never dereference
+beyond lite fields owned by the registry, and never the
+clientHeap of a TEARDOWN lite - counted EXITED at (a) before any
+client deref). A TEARDOWN lite's access RE-ACQUISITION IS
+FORBIDDEN (the §A.3.2b/SB1-gated acquire refuses it; asserted):
+re-entry to JS would need re-acquisition, so a TEARDOWN lite can
+never run JS again - re-entry requires FRESH registration +
+§A.3.4-gated token acquisition (the VM stop word, ORed in at
+acquisition per §A.2.3, gates entrants that registered AFTER the
+fan-out walk - they park before completing entry and appear in
+later walks as not-entered). (b) lite->clientHeap is written
+ONCE per registration epoch (§B.1 spawn / §F.1 first carrier
+entry), with a release store, BEFORE the thread's first access
+acquisition, and is never nulled or repointed while the lite is
+registered. A sampler reading null counts the lite
+not-entered/no-access - sound: access cannot be held without a
+client, and acquisition is §A.3.2b-gated. A sampler reading
+non-null on a NON-TEARDOWN lite under the walk's lock hold
+dereferences a live client (EXIT1.3: destroy is fenced behind
+the TEARDOWN mark, and the mark waits for the walk's lock).
+
+EXIT1.5 Why both interleavings die. Conductor-vs-T5 (r28's UAF -
+that fix is fully preserved): every conductor dereference of a
+lite/client happens inside a registry-lock hold of a walk that
+found the lite registered and NOT TEARDOWN; T_exit's TEARDOWN
+mark must WAIT for any in-progress walk to drop the lock; after
+it, every walk counts the lite EXITED and dereferences nothing
+further; DCT/client-destroy are program-ordered after the mark,
+unregisterLite/lite-free after those. No sample ever touches
+freed memory - zero new park points on exit, no change to the
+SB1 ordering proof. Embedder-destroy-vs-T5 (the r29 BLOCKER;
+fence made REAL r30): the exiting thread stays registered
+through the whole server-touching tail, and ~VM BLOCKS in the
+EXIT1.9 wait until that thread's unregisterLite signals - so
+join-then-destroy-VM (join settles BEFORE T5,
+ThreadObject.cpp:240-246 vs :259; api §4.6.1 has no implicit
+join) completes WITHOUT UAF in release AND debug builds. rev
+29's assert-only form had left the release-build UAF intact and
+made debug builds abort on a pattern the embedder cannot avoid.
+
+EXIT1.6 Lock-order argument (§LK; no rank change). The conductor
+holds VMManager::m_worldLock (heap rank 3, inside the LK.5
+frozen heap block) for the window (§A.3.1) and acquires
+VMLiteRegistry::lock (§LK.6) per sample: strictly outer -> inner
+in the LK order, acyclic. Registry-lock holders acquire nothing
+and never wait (LK.6 inner set untouched by the walk AND by the
+TEARDOWN mark; vmstate I7 class), so no new edge appears in
+either direction; the LK.6 fastMalloc-excluded-while-suspended
+carve-out is unaffected (§A.3 conductors suspend nobody - that
+carve-out belongs to §A.1.7 readers). Exit side: the TEARDOWN
+mark and unregisterLite at T5 run access-released holding NO api
+or heap lock (E2A's close dropped inboxLock before T5) - no new
+edge. The §A.2.3 fan-out walk already took the registry lock;
+its rank position is unchanged. ~VM-wait side (r30): at the
+EXIT1.9 wait, ~VM holds the API lock (VM.cpp:650) and acquires
+the registry leaf - an EXISTING legal edge (api 5.9 leaf;
+ThreadObject.cpp:256-259 already takes the registry lock under
+the final JSLock). While parked, Condition::wait RELEASES the
+registry lock into the parking lot and re-acquires it before
+returning (WTF::Condition semantics - pinned), so no thread
+ever waits while OWNING the registry lock: vmstate I7's
+holders-never-wait class is preserved in the ownership sense,
+and unregisterLite can always acquire the lock and signal. The
+waited-on threads acquire only the leaf registry lock in the
+tail and never any api lock (§F.1: GIL-off spawned threads hold
+no m_lock, so the API lock the waiter holds is unreachable from
+them) - no edge back to the waiter: acyclic; the wait always
+makes progress.
+
+EXIT1.7 INV + amendment record.
+- INV U32 (r30 form): no VMLite or GCClient::Heap is destroyed
+  or freed while observable to any §A.3 fan-out or
+  predicate-sample registry walk as a live (non-TEARDOWN) lite -
+  the TEARDOWN mark precedes DCT/client-destroy, physical
+  removal comes LAST, and conductors hold no lite/client pointer
+  across sample boundaries; no lite leaves the registry before
+  its server-touching teardown tail completes; and ~VM BLOCKS
+  (EXIT1.9) until no registered lite other than its m_mainVMLite
+  has lite->vm == this - the NORMATIVE completion fence (the
+  assert walk is a post-wait debug sanity check).
+- INV U3 (unchanged from r29; the rev-9 annex 1 row's [r29]
+  marker stands): "lite -> ACT -> alloc; Strong clears -> access
+  release -> TEARDOWN mark (registry lock) -> DCT -> destroy
+  client -> unregisterLite/free lite" (EXIT1.3; the free runs
+  outside the registry lock per EXIT1.3/EXIT1.9).
+- INV U4 keeps the EXIT1.8 exit-storm arm.
+- ANNEX A36 AMENDED (r30, both sides; the A36 annex carries the
+  in-place [r30] marker; TERM1.5's "A36 stands unamended" gains
+  a [r30] scope note - its single-VM clause stands): carrier
+  collection unregisters BEFORE the EXIT1.9 wait; full
+  server-side detach inside the walk; deferred destruction
+  restricted to non-VM memory (degenerate dead-detached dtor;
+  M11/M12 no-op queue removal). Full text: the rev-30 A36
+  amendment record.
+- vmstate §6.5.1 SUPERSESSION extended (both sides; IV row):
+  VMLiteRegistry gains one WTF::Condition; unregisterLite
+  notifyAll()s it under the lock after removal; the §6.4.4 ~VM
+  assert becomes wait-then-debug-assert (EXIT1.9).
+
+EXIT1.8 Tests + lint.
+- Corpus/litmus (U-T5 + U-T6, U4 arm): EXIT-STORM-UNDER-STOP-
+  STORM - N threads spawn, run briefly, and exit in a tight loop
+  while a conductor thread fires back-to-back §A.3 stops
+  (Class-A fire or a synthetic test-only conductor); ASAN + TSAN
+  clean; the race-amplifier variant injects delays between every
+  T5 step (post-release, post-mark, post-DCT, post-destroy) and
+  inside the conductor's between-sample gap. Carrier variant:
+  embedder TLS-death teardown racing a stop window.
+- T5-TAIL-VS-~VM arm (r29; REWRITTEN r30; joins the U-T6 gate
+  list). RELEASE + ASAN build (load-bearing - the r29 form
+  "observed" a debug-only assert): embedder join()s a spawned
+  thread then immediately destroys the VM while the amplifier
+  stalls the joined thread inside the T5 tail (variants:
+  post-mark pre-DCT, mid-DCT, mid-client-destroy,
+  pre-unregister): ~VM must BLOCK in the EXIT1.9 wait and return
+  only after the stalled thread's unregisterLite (instrumented
+  ordering check), with no UAF on the server Heap or
+  VM::m_microtaskQueues; ASAN clean - the wait absorbs
+  arbitrarily long stalls. DEBUG variant additionally exercises
+  the post-wait sanity walk (passes: only m_mainVMLite remains).
+  CARRIER variant (r30, A36): a foreign carrier still registered
+  at ~VM is collected + unregistered BEFORE the wait (the wait
+  never counts it); the amplifier delays the owner's TLS
+  destructor past VM destruction; the deferred degenerate dtor +
+  the no-op M12 removal (isOnList() false after the M11
+  force-removal) touch no VM/server memory; ASAN clean.
+- U20 lint: §A.3 conductor code must reach lites ONLY via the
+  forEachEnteredThread registry-walk helper; any lite*/client*
+  value in conductor code that crosses a sample boundary
+  (escapes the walk's lock scope) is flagged; teardown paths are
+  checked for TEARDOWN-mark-precedes-DCT/client-destroy AND
+  unregisterLite-LAST (after client destroy, before the lite
+  free); ~VM is checked for EXIT1.9-wait-precedes-teardown (the
+  wait before notifyVMDestruction/heap teardown) and the A36
+  deferred-dtor path for naming NO m_server or VM member.
+
+EXIT1.9 ~VM completion fence (r30; NORMATIVE; SUPERSESSION, both
+sides: vmstate §6.5.1/§6.4.4's assert-only "registry empty for
+this VM" - the VM.cpp:651-657 #if ASSERT_ENABLED walk - and
+A36's assert wording vs this; IV row). Mechanism: VMLiteRegistry
+gains one WTF::Condition (vmTeardownCondition) beside lock;
+unregisterLite - already under the lock - notifyAll()s it after
+removing the lite. ~VM order at the §6.4.4 top:
+(1) uninstall the main carrier TLS (unchanged);
+(2) the A36 foreign-carrier collection (as AMENDED r30): each of
+this VM's carriers is token-free-asserted and PHYSICALLY
+UNREGISTERED under the registry lock, the lock is released, then
+the walk performs the full server-side detach of each collected
+client - ALL BEFORE step (3), so the wait never counts a carrier
+whose deferred TLS destructor runs at an unbounded future time
+(no deadlock on A36's deferral);
+(3) the WAIT: under VMLiteRegistry::lock, while any registered
+lite other than m_mainVMLite has lite->vm == this:
+vmTeardownCondition.wait(lock). THIS WAIT IS THE NORMATIVE
+COMPLETION FENCE for the T5 server-touching tail; the
+pre-existing assert walk is DEMOTED to a post-wait debug sanity
+check;
+(4) only after the wait: unregisterLite(m_mainVMLite) and the
+rest of ~VM (notifyVMDestruction, lastChanceToFinalize, the M11
+force-removal, heap/member teardown).
+Boundedness/progress: every lite counted at (3) belongs to a
+spawned thread past its F5 join-settle (or being driven to close
+by E2A/§E.5); its remaining work is straight-line teardown that
+runs access-released holding NO api or heap lock (EXIT1.6) and
+acquires ONLY the leaf registry lock, which the parked waiter
+does NOT own (Condition::wait drops it into the parking lot) -
+it always reaches unregisterLite and signals. ThreadObject's
+join settle order is UNCHANGED and api §4.6.1 still has NO
+implicit join: the embedder needs no new contract - the wait
+alone makes join-then-destroy-VM safe.
+Residual tail OUTSIDE the fence (r30 precision; amends r29's
+"M12 removal inside the fence" wording, both texts here): the
+lite free - and the M12 removal of the lite's default
+MicrotaskQueue inside it - runs AFTER unregisterLite returns
+(the registry lock is not recursive; ThreadObject.cpp:262
+already frees post-release), so the wait can return while it is
+still pending. It is safe by the M11/M12 protocol, not by the
+fence: the queue dtor (MicrotaskQueue.cpp:128-141) takes the
+PROCESS-LIFETIME registry lock (VMLiteRegistry is
+NeverDestroyed) and is isOnList()-guarded; ~VM's M11
+force-removal runs under the same lock before any VM memory dies
+(VM.cpp:710-719: "Locker locker {
+VMLiteRegistry::singleton().lock }; while
+(!m_microtaskQueues.isEmpty())
+m_microtaskQueues.begin()->remove();"). Lock-serialized cases:
+queue dtor first => the list is a live VM member (M11 has not
+yet run; ~VM destroys members only after M11) - a legal remove;
+force-removal first => isOnList() is false and the dtor touches
+ONLY its own SentinelLinkedList node - the landed comment
+anticipates exactly this race ("~VM's force-removal (M11) can
+race a dying queue's dtor on another thread post-GIL"). The same
+argument covers A36's deferred carrier queues (the rev-30 A36
+amendment record).
+
+## ANNEX A36 AMENDMENT (r30; BINDING; both sides - the rev-9
+## ANNEX A36 carries the in-place [r30] marker at its
+## ~VM-teardown clause; TERM1.5's "A36 stands unamended" gains a
+## [r30] scope note - its single-VM clause stands)
+
+A36's "~VM teardown" clause is AMENDED (text of record; the
+unamended clause is superseded where they differ): ~VM COLLECTS
+this VM's carriers under the registry lock (each token-free,
+else RELEASE_ASSERT), unregisters them, releases the lock, then
+performs the FULL SERVER-SIDE detach of each collected client
+while the server Heap is alive - everything in ~GCClient::Heap
+that names m_server: the access bracket, lastChanceToFinalize's
+shared-directory allocator relinquishment under MSPL,
+machineThreads removal, m_server.clientSet().remove()
+(Heap.cpp:5078-5110 is the live-path dtor doing exactly these
+against the server) - leaving each client dead-detached. ALL of
+this precedes the EXIT1.9 wait, so the wait never counts a
+carrier. Client + lite destruction stays DEFERRED to the owner's
+TLS destructor (immediate if the owner is dead), but the
+deferred dtor MUST take a degenerate dead-detached path: assert
+dead-detached, SKIP every m_server touch (all already done by
+the walk), destroy only client-local memory (TLC tables,
+m_perDirectory, the lite, the lite's default MicrotaskQueue).
+M12 story for the deferred queue (the VM is gone by then): sound
+by the M11/M12 protocol quoted in EXIT1.9's residual-tail rule -
+the M11 force-removal (VM.cpp:710-719) empties
+VM::m_microtaskQueues under the process-lifetime registry lock
+(VMLiteRegistry is NeverDestroyed) before any VM memory dies, so
+the deferred ~MicrotaskQueue (MicrotaskQueue.cpp:128-141) finds
+isOnList() false and touches only its own node. The {client,
+epoch} TLS staleness rule, the process-monotonic VM epoch, I20,
+the TID supersessions and the single-VM clause (TERM1.5) are
+UNCHANGED; "§6.5.1 assert => registry empty for this VM" is
+re-read through EXIT1.9 (wait-then-debug-assert). EXIT1.3's
+order EXPLICITLY EXCLUDES this path (live-VM paths only;
+cross-ref both sides). U27 gains the deferred-degenerate-dtor /
+delayed-TLS-destructor arm (= the EXIT1.8 CARRIER variant).
+
+### rev-30 spec deltas
+- header rev 30; sect T cites r10-r30; sect SD per-rev
+  attribution "r27-r30 add none".
+- sect A.3.1 EXIT1 index: annex cite -> "as AMENDED r30"; gains
+  "~VM BLOCKS until registry VM-empty (EXIT1.9)" (the NORMATIVE
+  marker lives in the sect B.2 fence parenthetical).
+- sect B.2 item 2 rewritten per EXIT1.3/1.9 as amended: order
+  scoped to LIVE-VM paths; ~VM carrier collection EXCLUDED (A36
+  as AMENDED r30); the ~VM blocking fence replaces the
+  assert-fence parenthetical.
+- sect A.3.6 item 6: A36 cite -> "as AMENDED r30".
+- INV U32 text = EXIT1.7 as amended (IDs frozen; U3 unchanged
+  from r29).
+
+### rev-30 spec-body wording compressions (byte budget; no
+### semantic change - every trimmed clause's FULL text stays in
+### the cited BINDING annex/rev; pointer targets + supersession
+### rows untouched)
+- sect A.3.1 (ANNEX EXIT1): "UNDER VMLiteRegistry::lock (§LK.6,
+  inner to m_worldLock; dropped between samples; walk
+  alloc-free, acquires nothing)" -> "UNDER VMLiteRegistry::lock
+  (§LK.6; dropped between samples)" (EXIT1.2/1.6 keep the
+  inner-to-m_worldLock + alloc-free/acquires-nothing clauses).
+- sect A.3.2 2b (ANNEX SB1): "ALL seq_cst; AHA poll AFTER the F8
+  step-1 CAS; acq/rel UNSOUND" -> "ALL seq_cst; acq/rel UNSOUND"
+  (SB1.3 keeps the AHA poll position).
+- sect A.3.1 (ANNEX EXIT1): "m_worldLock (heap rank 3, held for
+  the window)" -> "(heap rank 3)" (EXIT1.6 keeps the
+  held-for-the-window clause).
+- sect A.3.6 item 6: "(BINDING; r9 F4; IV/IH rows;
+  SUPERSESSIONs..." -> "(BINDING; r9 F4; SUPERSESSIONs..." (the
+  A36/A36C annexes keep their IV/IH row obligations).
+- sect B.2 item 2 (ANNEX EXIT1): the "(= the ~VM fence: registry
+  non-empty until the heap-touching tail done, vmstate
+  §6.5.1/A36...)" parenthetical replaced by the shorter EXIT1.9
+  pointer (EXIT1.3/1.9 keep the full fence statement; EXIT1.9
+  keeps the assert-demotion + M11/M12 no-op clauses the pointer
+  elides).
+- sect E.2 (ANNEX E2A): "deadlines => §E.4 'timed-out' (SD8
+  ext)" -> "deadlines => §E.4 'timed-out'" (E2A/SD8 keep the
+  ext); the close-tail T5 cite -> "(EXIT1.3/1.9)".
+- sect E.2 lock/access rule (§LK): "(§LK long-hold; r22 list)"
+  -> "(§LK long-hold)" (the §LK section keeps the r22 list
+  cite).
+
+### rev-30 section-T deltas (extends rev-9 annex 3 + r10-r29)
+- U-T6 (owns the teardown paths): implements the EXIT1.9 ~VM
+  completion fence (registry Condition; unregisterLite notify;
+  ~VM order steps (1)-(4); assert walk demoted to post-wait
+  sanity) and the A36 amendment (carrier collection unregisters
+  pre-wait; full server-side detach in the walk; degenerate
+  deferred dtor); EXIT1.3 order on LIVE-VM paths only. Gate
+  list: the r30-REWRITTEN EXIT1.8 T5-TAIL-VS-~VM arm (RELEASE +
+  ASAN join-then-destroy-VM under amplifier stalls, instrumented
+  wait-ordering check; DEBUG sanity-walk variant; the CARRIER
+  deferred-dtor variant) REPLACES the r29 arm.
+- U-T5: unchanged except the U20 lint extension per EXIT1.8 as
+  amended (~VM wait-precedes-teardown; A36 deferred-dtor
+  no-m_server check).
+- No other task scope changes; U27's arm list per the A36
+  amendment.
+
+### Rev-30 SD note
+No new SDs; IDs frozen. r30 is lifetime/ordering only - the ~VM
+wait blocks an embedder thread already destroying its VM; no
+JS-observable behavior changes.
+
+# REV 31 (2026-06-06) - reviewed-findings round vs rev 30's A36
+# AMENDMENT: 1 blocker fixed (the carrier-state handshake) + 3
+# citation nits
+
+Round record (1 finding + 3 nits):
+
+F1 (BLOCKER, design change). rev 30's amended A36 / EXIT1.9 step
+(2) collected carriers under VMLiteRegistry::lock (token-free
+RELEASE_ASSERT, unregister), then RELEASED the lock and
+performed the full server-side detach of each collected client
+lock-free. Nothing gates the carrier's OS-thread DEATH (re-entry
+is API-lock-gated; thread death is not). Interleaving: the walk
+unregisters carrier C's lite, releases the lock, is preempted;
+C's owner thread exits; its TLS destructor fires and cannot know
+it was collected - the dead-detached discriminator was written
+by the walk POST-lock-release and read by the dying owner (a
+data race on the discriminator itself). Either (a) the dtor
+takes the live carrier-TLS-death path - a live ~GCClient::Heap
+(access bracket, lastChanceToFinalize under MSPL,
+clientSet().remove, Heap.cpp:5078-5110) racing the walk's
+in-flight detach of the SAME client: double remove / racing MSPL
+- or (b) it keys on "unregistered" and the dead-detached assert
+fires spuriously; in release it frees client+lite while the walk
+still holds the pointers: UAF inside ~VM. (The window is
+inherited from pre-amendment A36, but rev 30 is the rev that
+claimed the deferral sound, so it is closed now.) Whole-detach-
+under-the-registry-lock was examined and is ILLEGAL: the detach
+acquires MSPL and can PARK in the access bracket
+(Heap.cpp:5078-5110), and LK.6 registry-lock holders acquire NO
+lock and never wait (vmstate I7) - both violated. FIX (shape A,
+claim-token handshake; NORMATIVE in EXIT1.9 + the r31 A36
+amendment): the registry-owned lite-state byte (EXIT1.3) gains
+COLLECTED and DETACHED - state machine LIVE -> TEARDOWN (owner's
+live path) | LIVE -> COLLECTED -> DETACHED (~VM walk), every
+transition AND read under the registry lock. The walk marks
+COLLECTED BEFORE unregistering (same hold; TEARDOWN lites
+skipped - still registered, the step-(3) wait covers them),
+detaches lock-free, then per client re-acquires the lock, flips
+COLLECTED->DETACHED and notifyAll()s vmTeardownCondition (short
+hold, acquires nothing). The owner's TLS destructor takes the
+registry lock FIRST and keys ONLY on the state: LIVE => mark
+TEARDOWN, live path; COLLECTED => predicate-wait on
+vmTeardownCondition for DETACHED, then the degenerate path;
+DETACHED => degenerate path. Progress: the COLLECTED wait
+depends only on the running, straight-line ~VM walk, which never
+holds the registry lock during MSPL/heap work; acyclic: no
+thread waits while OWNING the registry lock (Condition::wait
+drops it). The condition is now shared by two predicate-loop
+waiters (step (3) and the dtor) - cross-wakeups benign; recorded
+both sides at the vmstate §6.5.1 supersession row. Rejected: (B1)
+defer-the-unregister - a dtor seeing REGISTERED takes the live
+path and races the detach anyway (a COLLECTED state is needed
+regardless), and a still-registered carrier deadlocks the
+EXIT1.9 wait; (B2) pinning the carrier's ThreadState ref
+(ThreadManager.h:166-186 ThreadSafeRefCounted) - it defers only
+~ThreadState; the client+lite free lives in the TLS map
+destructor, which a ref pin does not defer. Corollary mandate:
+EVERY physical registry removal goes through unregisterLite (the
+notifying function) - the A36 collection and ~VM's m_mainVMLite
+removal INCLUDED - and the U20 lint flags hand-rolled removals
+and any lite-state access outside a registry-lock hold. New
+EXIT1.8 arm: CARRIER-TLS-DEATH-DURING-DETACH (amplifier stalls
+the walk inside the detach window; ASAN; DEBUG and RELEASE).
+
+N1-N3 (citation nits, annex-of-record texts corrected; the rev-30
+section retains its stale numbers as historical record): the ~VM
+ASSERT walk is VM.cpp:652-658 (r30 wrote :651-657); the ~VM
+API-lock assert is VM.cpp:649 (r30 wrote :650); the post-release
+lite free is ThreadObject.cpp:263 (r30 wrote :262).
+
+Spec bumped rev 30 -> rev 31; normative changes are ANNEX EXIT1
+as amended (the r31 carrier-state handshake in EXIT1.9 + the
+EXIT1.3 state-byte values + the EXIT1.8 arm/lint) + the r31 A36
+amendment + their body pointers/compressions. No new SD.
+
+## ANNEX EXIT1 (BINDING, as AMENDED by rev 31 - the annex of
+## record; the rev-28/29/30 texts are superseded where they
+## differ) - exit-during-stop-window lifetime: per-sample registry
+## re-enumeration + TEARDOWN-mark-before-destroy + physical
+## removal LAST + the EXIT1.9 ~VM completion fence + the r31
+## carrier-state handshake (amends
+## §A.3.1, §A.3.2, §B.2, annex E2A's close tail, INV U3 and
+## annex A36's ~VM-teardown clause; SUPERSEDES annex SB1 item
+## 1's "ENUMERATION only" clause and vmstate §6.5.1/§6.4.4's
+## assert-only ~VM fence, both sides)
+
+Closed holes. (r28) Thread EXIT is never gated on the stop bit -
+only acquisition is (§A.3.2b gates AHA/attach; §A.3.4 gates
+entry) - so without a lifetime rule a spawned thread could
+complete its §B.2 T5 teardown (free its GCClient::Heap and
+VMLite) inside an open §A.3 window while the conductor keeps
+issuing SB1.2 samples against cached pointers, dereferencing
+freed memory. (r29 review, BLOCKER) rev 28's fix ordered
+unregisterLite FIRST (before DCT/client-destroy), which silently
+stripped the REGISTRATION-BASED VM-LIFETIME FENCE: pre-r28 the
+lite stayed registered through the heap-touching teardown tail,
+so vmstate §6.5.1's ~VM assert ("registry empty for this VM";
+the VM.cpp walk; annex A36) fenced it; post-r28, between
+unregisterLite and DCT, the exiting thread was invisible to that
+walk yet still dereferenced the server JSC::Heap (DCT,
+~GCClient::Heap) and VM::m_microtaskQueues (the M12 removal in
+the lite free). join() notifies BEFORE T5 (ThreadObject.cpp:
+236-244) and api §4.6.1 has no implicit join, so
+embedder-destroys-VM-after-join raced the T5 tail - UAF. rev 29
+split LOGICAL from PHYSICAL removal: a TEARDOWN lite state
+supplies r28's conductor semantics; the physical removal returns
+to the old position (LAST). (r30 review, BLOCKER) rev 29's
+restored fence was ASSERT-ONLY and DEBUG-ONLY: the cited ~VM
+walk (VM.cpp:652-658) is #if ASSERT_ENABLED, so a RELEASE build
+retained the UAF verbatim - T_exit marks TEARDOWN, stalls
+mid-DCT; the embedder's join() has already returned (settle
+precedes unregister, ThreadObject.cpp:240-246 vs :259); ~VM
+proceeds, destroys the server Heap; T_exit resumes DCT against
+the freed heap, then the M12 removal against a destroyed VM. A
+debug build merely converted the UAF into a nondeterministic
+abort on a pattern the embedder cannot avoid (join is its ONLY
+completion signal and fires pre-T5). rev 30 makes ~VM BLOCK: the
+EXIT1.9 completion fence waits, under the registry lock, until
+no registered lite other than m_mainVMLite points at this VM;
+the assert walk is demoted to a post-wait debug sanity check.
+(r30 review, MAJOR) rev 29's EXIT1.3 bound its order to "EVERY
+teardown path - ... the ~VM walk", contradicting BINDING annex
+A36, whose ~VM foreign-carrier collection unregisters FIRST and
+DEFERS client+lite destruction to the owner's TLS destructor.
+rev 30 scopes EXIT1.3 to live-VM paths, AMENDS A36 (full
+server-side detach moves into the walk; deferred destruction
+restricted to non-VM memory; the deferred M12 removal proven a
+no-op), and pins the A36-collection-BEFORE-EXIT1.9-wait order so
+the fence never waits on a TLS destructor. (r31 review, BLOCKER)
+rev 30's amended A36/EXIT1.9 step (2) unregistered the carriers
+under the registry lock, then RELEASED the lock and ran each
+collected client's full server-side detach lock-free - but
+nothing gated the carrier OWNER's OS-thread DEATH (re-entry is
+API-lock-gated; thread death is not). A dying owner's TLS
+destructor could not learn it had been collected: the
+dead-detached discriminator was written by the walk AFTER the
+lock release and read by the dying owner - a data race on the
+discriminator itself - so the dtor either took the live
+carrier-TLS-death path (a live ~GCClient::Heap: access bracket +
+lastChanceToFinalize under MSPL + clientSet().remove racing the
+walk's in-flight detach of the SAME client - double remove /
+racing MSPL sections), or keyed on "unregistered" and fired the
+dead-detached assert spuriously (release: freed client+lite
+while the walk still held the pointers - UAF inside ~VM).
+Holding the registry lock across the whole detach is NOT a legal
+fix: the detach acquires MSPL and can PARK in the access bracket
+(Heap.cpp:5078-5110), and LK.6 registry-lock holders acquire NO
+lock and never wait (vmstate I7) - ILLEGAL on both counts. rev
+31 closes it with a LOCK-PUBLISHED carrier-state handshake: the
+registry-owned lite-state byte gains COLLECTED and DETACHED; the
+walk marks COLLECTED (under the lock, BEFORE unregistering),
+detaches lock-free, then flips COLLECTED->DETACHED under a short
+re-hold and notifyAll()s vmTeardownCondition; the owner's TLS
+destructor takes the registry lock FIRST and keys ONLY on the
+state - LIVE => live path, COLLECTED => predicate-wait for
+DETACHED, DETACHED => degenerate path. Rejected shapes:
+defer-the-unregister (a dtor seeing REGISTERED takes the live
+path and races the detach anyway - a COLLECTED state is needed
+regardless, and a still-registered carrier deadlocks the EXIT1.9
+wait); pinning the carrier's ThreadState ref
+(ThreadManager.h:166-186 ThreadSafeRefCounted defers only
+~ThreadState - the client+lite free lives in the TLS map
+destructor, which a ref pin does not defer). Also fixed (r31
+nits): the assert-walk cite is VM.cpp:652-658 (r30 wrote
+:651-657), the ~VM API-lock assert is VM.cpp:649 (r30 wrote
+:650), and the post-release lite free is ThreadObject.cpp:263
+(r30 wrote :262).
+
+EXIT1.1 Set identity. The entered-thread set the §A.3.2
+conductor predicate samples IS the VMLiteRegistry (vmstate
+§6.5.1), filtered lite->vm in the target VM set (§A.1.3 filter).
+forEachEnteredThread(VM&, f) / numberOfEnteredThreads are
+REGISTRY WALKS. VMManager::m_worldLock (heap rank 3) serializes
+world transitions and conductor tenure but owns NO membership:
+there is no second entered-thread structure, hence no
+two-structure consistency protocol to state.
+
+EXIT1.2 Per-sample re-enumeration (SUPERSESSION, both sides:
+annex SB1 item 1's "retained for ENUMERATION only and carries no
+ordering duty" - the registry lock now OWNS THE SAMPLED SET FOR
+THE LIFETIME OF EVERY OPEN §A.3 WINDOW; its no-ordering duty for
+the stop-bit/access Dekker pair STANDS - the SB1.4 seq_cst proof
+is unchanged and the lock carries the LIFETIME duty only).
+Normative: every conductor predicate sample RE-WALKS the
+registry UNDER VMLiteRegistry::lock; lite/client pointers are
+NEVER cached across samples (including from the §A.2.3 fan-out
+walk - the fan-out enumeration is one walk, each subsequent
+sample is a fresh walk); every SB1.2 seq_cst access-state load
+executes INSIDE the lock hold of the walk that found that lite;
+the walk is allocation-free, acquires nothing (§LK.6 inner set
+suffices for nothing here - the walk takes NO inner lock), and
+the registry lock is DROPPED before the conductor blocks/yields
+between samples (registry-lock holders never wait, vmstate I7
+class).
+
+EXIT1.3 TEARDOWN-mark-before-destroy, physical removal LAST
+(r29; path scope + fence wording AMENDED r30; state-byte values
++ cites AMENDED r31; amends §B.2 +
+annex E2A's close tail + INV U3, both sides; NO exit gating
+added; REPLACES rev 28's unregisterLite-first order). On every
+LIVE-VM lite/client teardown path - spawned T5 and carrier
+TLS-death - LOGICAL removal precedes any destruction and
+PHYSICAL removal comes LAST: under VMLiteRegistry::lock the
+exiting thread marks its lite TEARDOWN (the registry-owned
+lite-state byte - values LIVE/TEARDOWN/COLLECTED/DETACHED, r31;
+EVERY transition AND every read under VMLiteRegistry::lock; the
+lite stays PHYSICALLY registered;
+conductors count it EXITED per EXIT1.4(a)); THEN DCT and
+GCClient::Heap destruction; THEN VMLiteRegistry::
+unregisterLite(lite) (under the registry lock); the lite is
+freed by its owner AFTER unregisterLite returns (the registry
+lock is not recursive; the free - and the M12 default-queue
+removal inside it - runs outside the lock: the EXIT1.9
+residual-tail rule covers it). T5 order: Strong clears -> access
+release (seq_cst RHA, F8) -> TEARDOWN mark (registry lock) ->
+DCT -> destroy GCClient::Heap -> unregisterLite -> free lite.
+SCOPE (r30): the ~VM foreign-carrier collection is EXPLICITLY
+EXCLUDED from this order - it follows annex A36 as AMENDED r31
+(cross-ref both sides; the A36 annex carries the [r31] marker):
+COLLECTED-mark then unregister FIRST (one lock hold; TEARDOWN
+lites SKIPPED - their owner is mid-live-detach and the EXIT1.9
+step-(3) wait covers them), full server-side detach inside the
+walk, client+lite destruction DEFERRED to the owner's TLS
+destructor and restricted to non-VM memory; EXIT1.9 step (2)
+pins its ordering against the ~VM wait. rev 29's "on EVERY teardown path
+incl. the ~VM walk" claim is WITHDRAWN (it contradicted BINDING
+A36). The registration-based VM-lifetime fence: the registry
+stays non-empty for this VM until the server-touching tail (DCT,
+~GCClient::Heap) is done, and rev 30's EXIT1.9 wait - NOT the
+debug assert walk - is what enforces it, in every build
+configuration. Exit remains UN-GATED: no stop-bit poll, no park
+point, no new deadlock edge; E2A's close sequence BEFORE T5
+(deadline harvest, residue routing, F1/F5) is unchanged. vmstate
+§6.5.1's lifetime contract (unregistered before destroyed) is
+PRESERVED (physical removal still strictly precedes the lite
+free); vmstate N8's "unregister under the final JSLock hold"
+clause is the GIL-on/carrier shape and is untouched (GIL-off
+spawned threads hold no m_lock, §F.1); ~VM's own m_mainVMLite
+handling already complies (unregistered after the EXIT1.9 wait +
+sanity walk, before being destroyed; no TEARDOWN mark needed
+there - a VM inside ~VM has no live conductors, embedder
+contract §F.6).
+
+EXIT1.4 Predicate disposition of a TEARDOWN/absent/clientless
+lite. (a) A lite marked TEARDOWN - and a lite ABSENT from the
+current walk - counts as EXITED (r31: ANY non-LIVE state counts
+EXITED - defensive only for COLLECTED/DETACHED, which are
+unregistered in the same hold that marks them COLLECTED and are
+never conductor-visible; §F.6 - no conductors inside ~VM). Soundness (r29 re-stated): the
+TEARDOWN mark is set only AFTER the exit path's seq_cst access
+release (EXIT1.3 order), and the mark's registry-lock unlock
+happens-before any walk that observes it, so a conductor that
+sees TEARDOWN (or misses the lite) has the thread's NoAccess
+release ordered before the sample - the same argument as r28's
+absence rule, and STRONGER in one respect: because the lite
+stays registered until after client destroy, every walk sample
+touches LIVE memory by construction (walks never dereference
+beyond lite fields owned by the registry, and never the
+clientHeap of a TEARDOWN lite - counted EXITED at (a) before any
+client deref). A TEARDOWN lite's access RE-ACQUISITION IS
+FORBIDDEN (the §A.3.2b/SB1-gated acquire refuses it; asserted):
+re-entry to JS would need re-acquisition, so a TEARDOWN lite can
+never run JS again - re-entry requires FRESH registration +
+§A.3.4-gated token acquisition (the VM stop word, ORed in at
+acquisition per §A.2.3, gates entrants that registered AFTER the
+fan-out walk - they park before completing entry and appear in
+later walks as not-entered). (b) lite->clientHeap is written
+ONCE per registration epoch (§B.1 spawn / §F.1 first carrier
+entry), with a release store, BEFORE the thread's first access
+acquisition, and is never nulled or repointed while the lite is
+registered. A sampler reading null counts the lite
+not-entered/no-access - sound: access cannot be held without a
+client, and acquisition is §A.3.2b-gated. A sampler reading
+non-null on a NON-TEARDOWN lite under the walk's lock hold
+dereferences a live client (EXIT1.3: destroy is fenced behind
+the TEARDOWN mark, and the mark waits for the walk's lock).
+
+EXIT1.5 Why both interleavings die. Conductor-vs-T5 (r28's UAF -
+that fix is fully preserved): every conductor dereference of a
+lite/client happens inside a registry-lock hold of a walk that
+found the lite registered and NOT TEARDOWN; T_exit's TEARDOWN
+mark must WAIT for any in-progress walk to drop the lock; after
+it, every walk counts the lite EXITED and dereferences nothing
+further; DCT/client-destroy are program-ordered after the mark,
+unregisterLite/lite-free after those. No sample ever touches
+freed memory - zero new park points on exit, no change to the
+SB1 ordering proof. Embedder-destroy-vs-T5 (the r29 BLOCKER;
+fence made REAL r30): the exiting thread stays registered
+through the whole server-touching tail, and ~VM BLOCKS in the
+EXIT1.9 wait until that thread's unregisterLite signals - so
+join-then-destroy-VM (join settles BEFORE T5,
+ThreadObject.cpp:240-246 vs :259; api §4.6.1 has no implicit
+join) completes WITHOUT UAF in release AND debug builds. rev
+29's assert-only form had left the release-build UAF intact and
+made debug builds abort on a pattern the embedder cannot avoid.
+
+EXIT1.6 Lock-order argument (§LK; no rank change). The conductor
+holds VMManager::m_worldLock (heap rank 3, inside the LK.5
+frozen heap block) for the window (§A.3.1) and acquires
+VMLiteRegistry::lock (§LK.6) per sample: strictly outer -> inner
+in the LK order, acyclic. Registry-lock holders acquire nothing
+and never wait (LK.6 inner set untouched by the walk AND by the
+TEARDOWN mark; vmstate I7 class), so no new edge appears in
+either direction; the LK.6 fastMalloc-excluded-while-suspended
+carve-out is unaffected (§A.3 conductors suspend nobody - that
+carve-out belongs to §A.1.7 readers). Exit side: the TEARDOWN
+mark and unregisterLite at T5 run access-released holding NO api
+or heap lock (E2A's close dropped inboxLock before T5) - no new
+edge. The §A.2.3 fan-out walk already took the registry lock;
+its rank position is unchanged. ~VM-wait side (r30): at the
+EXIT1.9 wait, ~VM holds the API lock (VM.cpp:649) and acquires
+the registry leaf - an EXISTING legal edge (api 5.9 leaf;
+ThreadObject.cpp:256-259 already takes the registry lock under
+the final JSLock). While parked, Condition::wait RELEASES the
+registry lock into the parking lot and re-acquires it before
+returning (WTF::Condition semantics - pinned), so no thread
+ever waits while OWNING the registry lock: vmstate I7's
+holders-never-wait class is preserved in the ownership sense,
+and unregisterLite can always acquire the lock and signal. The
+waited-on threads acquire only the leaf registry lock in the
+tail and never any api lock (§F.1: GIL-off spawned threads hold
+no m_lock, so the API lock the waiter holds is unreachable from
+them) - no edge back to the waiter: acyclic; the wait always
+makes progress. Carrier-dtor side (r31): a TLS destructor parked
+in its COLLECTED->DETACHED wait OWNS nothing (Condition::wait
+drops the registry lock into the parking lot) and holds no api
+or heap lock (TLS-death runs outside any VM entry); the walk's
+per-client DETACHED-flip hold is short and acquires nothing
+(LK.6); the walk never parks while holding the registry lock -
+no new edge in either direction, acyclic.
+
+EXIT1.7 INV + amendment record.
+- INV U32 (r30 form): no VMLite or GCClient::Heap is destroyed
+  or freed while observable to any §A.3 fan-out or
+  predicate-sample registry walk as a live (non-TEARDOWN) lite -
+  the TEARDOWN mark precedes DCT/client-destroy, physical
+  removal comes LAST, and conductors hold no lite/client pointer
+  across sample boundaries; no lite leaves the registry before
+  its server-touching teardown tail completes; and ~VM BLOCKS
+  (EXIT1.9) until no registered lite other than its m_mainVMLite
+  has lite->vm == this - the NORMATIVE completion fence (the
+  assert walk is a post-wait debug sanity check).
+- INV U3 (unchanged from r29; the rev-9 annex 1 row's [r29]
+  marker stands): "lite -> ACT -> alloc; Strong clears -> access
+  release -> TEARDOWN mark (registry lock) -> DCT -> destroy
+  client -> unregisterLite/free lite" (EXIT1.3; the free runs
+  outside the registry lock per EXIT1.3/EXIT1.9).
+- INV U4 keeps the EXIT1.8 exit-storm arm.
+- Carrier-state machine (r31, NORMATIVE): LIVE -> TEARDOWN
+  (owner's live path) | LIVE -> COLLECTED -> DETACHED (~VM
+  walk); TEARDOWN and DETACHED terminal; no other transitions;
+  EVERY transition AND every read under VMLiteRegistry::lock.
+  The state byte - NEVER "is my lite registered" - is the sole
+  owner-vs-walk discriminator.
+- ANNEX A36 AMENDED (r30; re-AMENDED r31, both sides; the A36
+  annex carries the in-place [r31] marker; TERM1.5's "A36 stands
+  unamended" keeps its [r30] scope note - its single-VM clause
+  stands): carrier collection marks COLLECTED then unregisters
+  BEFORE the EXIT1.9 wait; full server-side detach inside the
+  walk, lock-free; per-client COLLECTED->DETACHED flip +
+  notifyAll under a short re-hold; deferred destruction
+  restricted to non-VM memory (degenerate path gated on
+  DETACHED; M11/M12 no-op queue removal). Full text: the rev-31
+  A36 amendment record.
+- vmstate §6.5.1 SUPERSESSION extended (both sides; IV row):
+  VMLiteRegistry gains one WTF::Condition; unregisterLite
+  notifyAll()s it under the lock after removal; the walk's
+  DETACHED flips notifyAll it too (r31); BOTH waiters - the
+  step-(3) ~VM wait and the COLLECTED dtor wait - are predicate
+  loops, so cross-wakeups are benign; the §6.4.4 ~VM
+  assert becomes wait-then-debug-assert (EXIT1.9).
+
+EXIT1.8 Tests + lint.
+- Corpus/litmus (U-T5 + U-T6, U4 arm): EXIT-STORM-UNDER-STOP-
+  STORM - N threads spawn, run briefly, and exit in a tight loop
+  while a conductor thread fires back-to-back §A.3 stops
+  (Class-A fire or a synthetic test-only conductor); ASAN + TSAN
+  clean; the race-amplifier variant injects delays between every
+  T5 step (post-release, post-mark, post-DCT, post-destroy) and
+  inside the conductor's between-sample gap. Carrier variant:
+  embedder TLS-death teardown racing a stop window.
+- T5-TAIL-VS-~VM arm (r29; REWRITTEN r30; joins the U-T6 gate
+  list). RELEASE + ASAN build (load-bearing - the r29 form
+  "observed" a debug-only assert): embedder join()s a spawned
+  thread then immediately destroys the VM while the amplifier
+  stalls the joined thread inside the T5 tail (variants:
+  post-mark pre-DCT, mid-DCT, mid-client-destroy,
+  pre-unregister): ~VM must BLOCK in the EXIT1.9 wait and return
+  only after the stalled thread's unregisterLite (instrumented
+  ordering check), with no UAF on the server Heap or
+  VM::m_microtaskQueues; ASAN clean - the wait absorbs
+  arbitrarily long stalls. DEBUG variant additionally exercises
+  the post-wait sanity walk (passes: only m_mainVMLite remains).
+  CARRIER variant (r30, A36): a foreign carrier still registered
+  at ~VM is collected + unregistered BEFORE the wait (the wait
+  never counts it); the amplifier delays the owner's TLS
+  destructor past VM destruction; the deferred degenerate dtor +
+  the no-op M12 removal (isOnList() false after the M11
+  force-removal) touch no VM/server memory; ASAN clean.
+- CARRIER-TLS-DEATH-DURING-DETACH arm (r31; joins the U-T6 gate
+  list; DEBUG AND RELEASE builds, ASAN): the amplifier stalls
+  the ~VM walk INSIDE a collected client's lock-free server-side
+  detach (variants: post-unregister pre-detach,
+  mid-lastChanceToFinalize, post-detach pre-flip) while the
+  owner thread exits; instrumented checks: the owner's TLS
+  destructor takes the registry lock, reads COLLECTED, parks on
+  vmTeardownCondition, and runs the degenerate path only AFTER
+  the walk's DETACHED flip (ordering check) - no double
+  clientSet().remove, no concurrent MSPL section on the same
+  client, no UAF; ASAN clean. Reverse variant: the dtor wins the
+  lock BEFORE collection - sees LIVE, marks TEARDOWN, takes the
+  live path; the walk SKIPS the TEARDOWN lite and the step-(3)
+  wait absorbs it.
+- U20 lint: §A.3 conductor code must reach lites ONLY via the
+  forEachEnteredThread registry-walk helper; any lite*/client*
+  value in conductor code that crosses a sample boundary
+  (escapes the walk's lock scope) is flagged; teardown paths are
+  checked for TEARDOWN-mark-precedes-DCT/client-destroy AND
+  unregisterLite-LAST (after client destroy, before the lite
+  free); ~VM is checked for EXIT1.9-wait-precedes-teardown (the
+  wait before notifyVMDestruction/heap teardown) and the A36
+  deferred-dtor path for naming NO m_server or VM member. r31:
+  EVERY physical removal from the registry must be a
+  VMLiteRegistry::unregisterLite call (the notifying function) -
+  the A36 collection and ~VM's m_mainVMLite removal INCLUDED;
+  any hand-rolled lites mutation is flagged; any lite-state read
+  or write outside a registry-lock hold is flagged.
+
+EXIT1.9 ~VM completion fence (r30; step (2) + the carrier
+disposition AMENDED r31; NORMATIVE; SUPERSESSION, both
+sides: vmstate §6.5.1/§6.4.4's assert-only "registry empty for
+this VM" - the VM.cpp:652-658 #if ASSERT_ENABLED walk - and
+A36's assert wording vs this; IV row). Mechanism: VMLiteRegistry
+gains one WTF::Condition (vmTeardownCondition) beside lock;
+unregisterLite - already under the lock - notifyAll()s it after
+removing the lite. ~VM order at the §6.4.4 top:
+(1) uninstall the main carrier TLS (unchanged);
+(2) the A36 foreign-carrier collection (as AMENDED r31 - the
+carrier-state handshake): under ONE registry-lock hold, each of
+this VM's carriers not marked TEARDOWN is
+token-free-RELEASE_ASSERTed, marked COLLECTED (the lite-state
+byte - the lock-published discriminator the owner's TLS
+destructor keys on), and PHYSICALLY UNREGISTERED via
+unregisterLite (U20: every physical removal is an unregisterLite
+call); TEARDOWN lites are SKIPPED (owner mid-live-detach, still
+registered - step (3) covers them). The lock is RELEASED; the
+walk performs the full server-side detach of each COLLECTED
+client lock-free (the detach acquires MSPL and can park in the
+access bracket - holding the registry lock across it is ILLEGAL,
+LK.6/I7); after EACH client's detach the walk re-acquires the
+registry lock, flips COLLECTED->DETACHED, notifyAll()s
+vmTeardownCondition, drops the lock (short hold; acquires
+nothing), and NEVER touches that lite/client again - if no TLS
+destructor will run for the owner, the walk itself then runs the
+degenerate free. ALL of step (2) precedes step (3), so the wait
+never counts a carrier whose deferred TLS destructor runs at an
+unbounded future time (no deadlock on A36's deferral);
+(3) the WAIT: under VMLiteRegistry::lock, while any registered
+lite other than m_mainVMLite has lite->vm == this:
+vmTeardownCondition.wait(lock). THIS WAIT IS THE NORMATIVE
+COMPLETION FENCE for the T5 server-touching tail; the
+pre-existing assert walk is DEMOTED to a post-wait debug sanity
+check;
+(4) only after the wait: unregisterLite(m_mainVMLite) and the
+rest of ~VM (notifyVMDestruction, lastChanceToFinalize, the M11
+force-removal, heap/member teardown).
+Boundedness/progress: every lite counted at (3) belongs to a
+spawned thread past its F5 join-settle (or being driven to close
+by E2A/§E.5); its remaining work is straight-line teardown that
+runs access-released holding NO api or heap lock (EXIT1.6) and
+acquires ONLY the leaf registry lock, which the parked waiter
+does NOT own (Condition::wait drops it into the parking lot) -
+it always reaches unregisterLite and signals. ThreadObject's
+join settle order is UNCHANGED and api §4.6.1 still has NO
+implicit join: the embedder needs no new contract - the wait
+alone makes join-then-destroy-VM safe.
+Carrier-TLS-death disposition (r31): the owner's TLS destructor
+takes the registry lock FIRST and keys ONLY on the
+lock-published lite-state - NEVER on whether its lite is still
+registered: LIVE => mark TEARDOWN in the same hold and take the
+live EXIT1.3 path; COLLECTED => predicate-wait on
+vmTeardownCondition until DETACHED (the wait drops the registry
+lock; unregisterLite notifies are tolerated - predicate loop),
+then the degenerate path; DETACHED => the degenerate path
+immediately. The lite (and its state byte) is freed ONLY by the
+path that observed DETACHED (or by the live path's own free),
+and the owner cannot pass its COLLECTED wait before the walk's
+DETACHED flip - the walk's LAST touch - so the byte is never
+read after free and the walk's pointers never dangle. Progress:
+the COLLECTED wait depends only on the ~VM walk, which is
+running, straight-line, and never blocks on the dtor (its
+collection and flip holds are short; its detach work is
+lock-free); acyclicity per EXIT1.6 (no thread waits while OWNING
+the registry lock). Shared condition (both sides with step (3)):
+vmTeardownCondition is notified by unregisterLite (r30) AND by
+the walk's DETACHED flips (r31); both waiters are predicate
+loops, so cross-wakeups are benign.
+Residual tail OUTSIDE the fence (r30 precision; amends r29's
+"M12 removal inside the fence" wording, both texts here): the
+lite free - and the M12 removal of the lite's default
+MicrotaskQueue inside it - runs AFTER unregisterLite returns
+(the registry lock is not recursive; ThreadObject.cpp:263
+already frees post-release), so the wait can return while it is
+still pending. It is safe by the M11/M12 protocol, not by the
+fence: the queue dtor (MicrotaskQueue.cpp:128-141) takes the
+PROCESS-LIFETIME registry lock (VMLiteRegistry is
+NeverDestroyed) and is isOnList()-guarded; ~VM's M11
+force-removal runs under the same lock before any VM memory dies
+(VM.cpp:710-719: "Locker locker {
+VMLiteRegistry::singleton().lock }; while
+(!m_microtaskQueues.isEmpty())
+m_microtaskQueues.begin()->remove();"). Lock-serialized cases:
+queue dtor first => the list is a live VM member (M11 has not
+yet run; ~VM destroys members only after M11) - a legal remove;
+force-removal first => isOnList() is false and the dtor touches
+ONLY its own SentinelLinkedList node - the landed comment
+anticipates exactly this race ("~VM's force-removal (M11) can
+race a dying queue's dtor on another thread post-GIL"). The same
+argument covers A36's deferred carrier queues (the rev-31 A36
+amendment record).
+
+
+## ANNEX A36 AMENDMENT (r31; BINDING; both sides - the rev-9
+## ANNEX A36 carries the in-place [r31] marker at its
+## ~VM-teardown clause; TERM1.5's "A36 stands unamended" keeps
+## its [r30] scope note - its single-VM clause stands; SUPERSEDES
+## the rev-30 amendment text where they differ)
+
+A36's "~VM teardown" clause is AMENDED (text of record): the
+registry-owned lite-state byte (EXIT1.3) gains two values - the
+carrier state machine is LIVE -> TEARDOWN (owner's TLS
+destructor, live path) | LIVE -> COLLECTED -> DETACHED (~VM
+walk); TEARDOWN and DETACHED are terminal; no other transitions;
+EVERY transition AND every read is under VMLiteRegistry::lock.
+The state byte - NEVER "is my lite registered" - is the sole
+owner-vs-walk discriminator. ~VM COLLECTS this VM's carriers
+under ONE registry-lock hold: each non-TEARDOWN carrier is
+token-free-RELEASE_ASSERTed, marked COLLECTED, and unregistered
+via unregisterLite (U20: EVERY physical registry removal - this
+collection and m_mainVMLite included - goes through
+unregisterLite, the notifying function); TEARDOWN carriers are
+SKIPPED (owner mid-live-detach, still registered - the EXIT1.9
+step-(3) wait covers them). The lock is released; the walk
+performs the FULL SERVER-SIDE detach of each COLLECTED client
+while the server Heap is alive - everything in ~GCClient::Heap
+that names m_server: the access bracket, lastChanceToFinalize's
+shared-directory allocator relinquishment under MSPL,
+machineThreads removal, m_server.clientSet().remove()
+(Heap.cpp:5078-5110 is the live-path dtor doing exactly these
+against the server) - leaving each client dead-detached. The
+detach runs LOCK-FREE of the registry lock NECESSARILY: it
+acquires MSPL and can PARK in the access bracket, and LK.6
+registry-lock holders acquire NO lock and never wait (vmstate
+I7) - whole-detach-under-the-lock is ILLEGAL. After EACH
+client's detach the walk re-acquires the registry lock, flips
+COLLECTED->DETACHED, notifyAll()s vmTeardownCondition, drops the
+lock (short hold; acquires nothing), and NEVER touches that
+lite/client again. ALL of this precedes the EXIT1.9 wait, so the
+wait never counts a carrier. Client + lite destruction stays
+DEFERRED to the owner's TLS destructor; if no TLS destructor
+will run for an owner, the walk runs the degenerate free itself
+AFTER its DETACHED flip. The deferred dtor takes the registry
+lock FIRST and keys ONLY on the lock-published state: LIVE =>
+mark TEARDOWN in the same hold and take the live EXIT1.3 path;
+COLLECTED => predicate-wait on vmTeardownCondition until
+DETACHED (Condition::wait drops the lock into the parking lot;
+unregisterLite notifies tolerated - predicate loop), then the
+degenerate path; DETACHED => the degenerate path immediately:
+assert DETACHED, SKIP every m_server touch (all already done by
+the walk), destroy only client-local memory (TLC tables,
+m_perDirectory, the lite, the lite's default MicrotaskQueue).
+Progress/acyclicity: the COLLECTED wait depends only on the
+running, straight-line ~VM walk; no thread waits while OWNING
+the registry lock; the lite is freed only by the path that
+observed DETACHED (or by the live path), strictly after the
+walk's last touch - the state byte is never read after free. M12
+story for the deferred queue (the VM is gone by then): sound by
+the M11/M12 protocol quoted in EXIT1.9's residual-tail rule -
+the M11 force-removal (VM.cpp:710-719) empties
+VM::m_microtaskQueues under the process-lifetime registry lock
+(VMLiteRegistry is NeverDestroyed) before any VM memory dies, so
+the deferred ~MicrotaskQueue (MicrotaskQueue.cpp:128-141) finds
+isOnList() false and touches only its own node. The {client,
+epoch} TLS staleness rule, the process-monotonic VM epoch, I20,
+the TID supersessions and the single-VM clause (TERM1.5) are
+UNCHANGED; "§6.5.1 assert => registry empty for this VM" is
+re-read through EXIT1.9 (wait-then-debug-assert). EXIT1.3's
+order EXPLICITLY EXCLUDES this path (live-VM paths only;
+cross-ref both sides). U27 gains the deferred-degenerate-dtor /
+delayed-TLS-destructor arm AND the r31
+CARRIER-TLS-DEATH-DURING-DETACH arm (= the EXIT1.8 CARRIER +
+r31 arms).
+
+### rev-31 spec deltas
+- header rev 31; sect T cites r10-r31; sect SD per-rev
+  attribution "r27-r31 add none".
+- sect A.3.1 EXIT1 index: annex cite -> "as AMENDED r31".
+- sect B.2 item 2 rewritten per EXIT1.3/1.9 + A36 as AMENDED
+  r31: the A36 parenthetical now carries the lock-published
+  state machine (LIVE->COLLECTED->DETACHED; COLLECTED-mark +
+  unregister pre-wait; detach lock-free; per-client DETACHED
+  flip notifies; the owner TLS dtor keys ONLY on the state) and
+  the ALL-physical-removals-via-unregisterLite mandate (U20).
+- sect A.3.6 item 6: A36 cite -> "as AMENDED r31".
+- INV U32/state-machine text = EXIT1.7 as amended (IDs frozen;
+  U3 unchanged from r29).
+
+### rev-31 spec-body wording compressions (byte budget; no
+### semantic change - every trimmed clause's FULL text stays in
+### the cited BINDING annex/rev; pointer targets + supersession
+### rows untouched)
+- sect A.3.1 (ANNEX EXIT1): "clientHeap null => not-entered
+  (write-once release-publish, §B.1/§F.1)" -> "(write-once,
+  §B.1/§F.1)" (EXIT1.4(b) keeps the release-publish clause).
+- sect A.3.1 (ANNEX EXIT1): "~VM BLOCKS until registry VM-empty
+  (EXIT1.9). U32; U20 lint; U4 exit-storm + ~VM-race arms" ->
+  "~VM BLOCKS until VM-empty (EXIT1.9). U32; U20; U4 arms"
+  (EXIT1.9 keeps the registry-walk predicate; EXIT1.8 keeps the
+  lint rule set and the arm names).
+- sect A.3.2 2b (ANNEX SB1): "fan-out stores, conductor samples
+  + AHA/§A.3.4/DAL2-dtor polls ALL seq_cst" -> "fan-out stores,
+  conductor samples + polls ALL seq_cst" (SB1.2/SB1.3 keep the
+  poll-site list).
+- sect B.2 item 2 (ANNEX EXIT1): "T5, after the Strong clears +
+  unregisterThread: release access" -> "T5 (full order EXIT1.3):
+  release access" (EXIT1.3 keeps the Strong-clears prefix);
+  "(registry lock; conductors count it EXITED)" -> "(registry
+  lock; counted EXITED)" (EXIT1.4 keeps the conductor
+  disposition); "(EXIT1.9 NORMATIVE fence: registry Condition,
+  signaled by unregisterLite; U3/U32)" -> "(EXIT1.9 NORMATIVE
+  fence; U3/U32)" (EXIT1.9 keeps the mechanism - now signaled by
+  unregisterLite AND the DETACHED flips, which the trimmed
+  wording understated); "Lazy carriers own the VM's original
+  client (main) or create one at first entry (embedder, §F.1)"
+  -> "Lazy carriers: the VM's original client (main) or created
+  at first entry (§F.1)" (A36/§F.1 keep the embedder
+  attribution).
+- sect A.3.6 item 6 (ANNEX A36): "I20 holds. U27 + teardown
+  storm" -> "I20 holds. U27 arms" (the r31 A36 amendment keeps
+  the teardown-storm + carrier arm list).
+
+### rev-31 section-T deltas (extends rev-9 annex 3 + r10-r30)
+- U-T6 (owns the teardown paths): implements the r31
+  carrier-state handshake (lite-state byte values
+  COLLECTED/DETACHED; COLLECTED-mark-before-unregister in the
+  ~VM walk; per-client DETACHED flip + notifyAll; the
+  state-keyed TLS destructor with the COLLECTED wait) and the
+  unregisterLite-only physical-removal mandate. Gate list: +the
+  r31 EXIT1.8 CARRIER-TLS-DEATH-DURING-DETACH arm (amplifier
+  stalls the walk inside a collected client's detach while the
+  owner exits; dtor must park until the DETACHED flip;
+  instrumented ordering check; no double clientSet remove, no
+  racing MSPL, no UAF; ASAN clean; DEBUG AND RELEASE; + the
+  reverse dtor-wins-LIVE variant).
+- U-T5: the U20 lint extension per EXIT1.8 as amended r31
+  (unregisterLite-only physical removals; lite-state access
+  under-lock-only).
+- No other task scope changes; U27's arm list per the r31 A36
+  amendment.
+
+### Rev-31 SD note
+No new SDs; IDs frozen. r31 is lifetime/ordering only - the
+carrier TLS destructor can now block briefly on ~VM's in-flight
+detach; no JS-observable behavior changes.
+
+# REV 32 (2026-06-06) - surgical round vs rev 31 (3 fixes, no
+# other changes)
+# RECORDING SCHEME (chosen and binding for this rev): ANNEX EXIT1
+# is amended via an AMENDMENT RECORD, not a full re-issue - the
+# rev-31 annex remains the annex of record EXCEPT for the THREE
+# paragraphs re-issued IN FULL below (EXIT1.9 step (2); EXIT1.9's
+# Carrier-TLS-death disposition; the EXIT1.8
+# CARRIER-TLS-DEATH-DURING-DETACH arm), which supersede their
+# rev-31 texts, plus one heading delta (EXIT1.9's heading now
+# reads "AMENDED r31/r32"). The handout's inline EXIT1 copy is
+# updated IN PLACE and equals the rev-31 annex AS SO AMENDED.
+# Correspondence check: the three re-issued paragraphs are
+# BYTE-IDENTICAL between this record and UNGIL-HANDOUT.md; every
+# other EXIT1 paragraph in the handout is the rev-31 annex
+# verbatim; "A36 as AMENDED r31" in unamended paragraphs reads
+# "as AMENDED r32". The ANNEX A36 AMENDMENT (r32) below is the
+# A36 text of record (supersedes the rev-31 amendment where they
+# differ); the handout's inline A36 copy is updated in place
+# under its standing em-dash/wrap normalization (wording
+# identical; same scheme as r31).
+
+Round record (1 major + 1 sub-major + 1 minor):
+
+F1 (MAJOR, design decision). rev 31's clause "if no TLS
+destructor will run for the owner, the walk itself then runs the
+degenerate free" (EXIT1.9 step (2); mirrored in the r31 A36
+amendment) keyed a free on a LIVENESS PROBE that is not
+lock-published - unimplementable soundly: the walk frees
+client+lite; a late-firing TLS destructor for that owner then
+reads the freed state byte, can observe garbage-DETACHED, and
+double-frees. Shape decision made on verified facts. Fact (i):
+the carrier TLS map's destructor is the carrier-TLS-death path
+(r31 record: "the client+lite free lives in the TLS map
+destructor"); the mechanism class is WTF::ThreadSpecific - a
+pthread-key TLS whose destructor is installed unconditionally at
+key creation (ThreadSpecific.h:122 pthread_key_create(&m_key,
+destroy); same mechanism as ThreadManager.cpp:157's existing
+slot). So for every NON-MAIN thread, §F.1/A36 registration
+ALWAYS installs the destructor. Fact (ii): pthread TLS
+destructors run only at pthread_exit - the PROCESS MAIN THREAD
+exits via exit()/return-from-main and never runs them
+(ThreadSpecific.h:31-40 documents the pthread/Windows cleanup
+split). A main thread that entered a foreign VM and still has
+its carrier registered at that VM's ~VM is therefore a REAL
+dtor-less owner: shape (a) (clause is dead code, delete) is
+FALSE; shape (b) ADOPTED, strengthened to kill platform variance
+(Windows FLS callbacks CAN run for the main thread at process
+exit and would re-read the walk-freed lite): §F.1 first-entry
+registration BRANCHES - non-main threads' carriers go in the
+destructor-BEARING ThreadSpecific map; the MAIN thread's
+carriers go in a destructor-FREE plain thread_local map over
+which NO cleanup is ever installed on ANY platform (entries leak
+at process exit unless a ~VM walk frees them - accepted). The
+choice is recorded per-lite as ownerHasNoTlsDtor, FIXED AT
+REGISTRATION TIME under the registry lock (set iff
+WTF::isMainThread() at §F.1 registration) - a STATIC STRUCTURAL
+FACT, NEVER a liveness probe; immutable; read under the registry
+lock like the state byte (the r31 U20 lite-state lint clause
+covers it - no new lint rule). The walk's degenerate free is
+gated ONLY on this bit; a bit-SET lite has no competing
+destructor BY CONSTRUCTION (no destructor exists over its
+storage); a bit-CLEAR lite is NEVER walk-freed (deferral
+unconditional). Dangling main-thread map entry post-walk-free:
+never consulted - lock() compares the process-monotonic VM epoch
+BEFORE the cached carrier (A36 staleness rule, unchanged), and
+re-entry during ~VM is excluded (F2). New EXIT1.8 WALK-FREE
+variant + U27 arm: walk-side disposition racing a late-firing
+TLS dtor; the r30 CARRIER delayed-dtor variant EXTENDED to
+assert no walk-side free occurred for the bit-clear lite.
+
+F2 (SUB-MAJOR). One sentence, previously round-record prose
+only, promoted into EXIT1.9's carrier-disposition paragraph
+(annex of record + handout inline + spec body §B.2 compressed
+form): "A COLLECTED owner's re-entry is excluded for the
+duration of ~VM: re-entry requires fresh §F.1 registration under
+m_lock, which ~VM holds (VM.cpp:649)."
+
+F3 (MINOR). The A36 amendment gains: "Cross-client detach
+concurrency (live dtor of carrier X vs the walk detaching Y) is
+the exit-storm case - serialized by MSPL and
+HeapClientSet::m_lock (heap §5.1/§6 ranks)." (HeapClientSet.h:45
+confirms rank 6; heap §6 table row 6.)
+
+Spec bumped rev 31 -> rev 32; normative changes are the three
+re-issued EXIT1 paragraphs + the r32 A36 amendment (registration
+clause + amended ~VM clause) + their body
+pointers/compressions. No new SD.
+
+## ANNEX EXIT1 AMENDMENT (r32; BINDING; amendment record - the
+## rev-31 annex remains the annex of record except as follows;
+## the handout inline EXIT1 equals the annex AS AMENDED, the
+## three paragraphs below byte-identical there)
+
+Heading delta: EXIT1.9's heading reads "EXIT1.9 ~VM completion
+fence (r30; step (2) + the carrier disposition AMENDED r31/r32;
+NORMATIVE; ...)" - the rest of the heading is unchanged.
+
+Re-issued paragraph 1 of 3 - EXIT1.9 step (2) (text of record;
+supersedes the rev-31 step (2)):
+
+(2) the A36 foreign-carrier collection (as AMENDED r32 - the
+carrier-state handshake): under ONE registry-lock hold, each of
+this VM's carriers not marked TEARDOWN is
+token-free-RELEASE_ASSERTed, marked COLLECTED (the lite-state
+byte - the lock-published discriminator the owner's TLS
+destructor keys on), and PHYSICALLY UNREGISTERED via
+unregisterLite (U20: every physical removal is an unregisterLite
+call); TEARDOWN lites are SKIPPED (owner mid-live-detach, still
+registered - step (3) covers them). The lock is RELEASED; the
+walk performs the full server-side detach of each COLLECTED
+client lock-free (the detach acquires MSPL and can park in the
+access bracket - holding the registry lock across it is ILLEGAL,
+LK.6/I7); after EACH client's detach the walk re-acquires the
+registry lock, flips COLLECTED->DETACHED, notifyAll()s
+vmTeardownCondition, drops the lock (short hold; acquires
+nothing), and NEVER touches that lite/client again - EXCEPT
+(r32) a lite whose ownerHasNoTlsDtor bit is set (FIXED AT
+REGISTRATION TIME under the registry lock, A36 as AMENDED r32:
+set iff the registering thread is the process main thread,
+whose carriers live in the destructor-FREE map - a static
+structural fact, NEVER a liveness probe): no destructor is ever
+installed over a bit-set lite's storage on any platform, so no
+competing dtor exists BY CONSTRUCTION, and the walk itself runs
+the degenerate free immediately after that lite's DETACHED flip
+(outside the lock; the flip is still made and notified - the
+bit changes only the freeing party, not the handshake). The
+main thread's TLS-map entry for this VM then dangles - never
+consulted: lock() compares the process-monotonic VM epoch
+BEFORE the cached carrier (A36 staleness rule), and re-entry
+during ~VM is excluded (the m_lock gate in the disposition
+paragraph below). A bit-CLEAR lite is NEVER walk-freed -
+destruction is unconditionally deferred to its owner's TLS
+destructor. ALL of step (2) precedes step (3), so the wait
+never counts a carrier whose deferred TLS destructor runs at an
+unbounded future time (no deadlock on A36's deferral);
+
+Re-issued paragraph 2 of 3 - EXIT1.9 Carrier-TLS-death
+disposition (text of record; supersedes the rev-31 paragraph):
+
+Carrier-TLS-death disposition (r31; AMENDED r32): the owner's
+TLS destructor takes the registry lock FIRST and keys ONLY on
+the lock-published lite-state - NEVER on whether its lite is
+still registered: LIVE => mark TEARDOWN in the same hold and
+take the live EXIT1.3 path; COLLECTED => predicate-wait on
+vmTeardownCondition until DETACHED (the wait drops the registry
+lock; unregisterLite notifies are tolerated - predicate loop),
+then the degenerate path; DETACHED => the degenerate path
+immediately. A TLS destructor exists ONLY for bit-CLEAR lites
+(r32: ownerHasNoTlsDtor set => destructor-free map; the walk
+freed that lite post-flip and no dtor will ever visit it). A
+COLLECTED owner's re-entry is excluded for the duration of ~VM:
+re-entry requires fresh §F.1 registration under m_lock, which
+~VM holds (VM.cpp:649). The lite (and its state byte) is freed
+ONLY by the path that observed DETACHED (the owner's dtor for a
+bit-CLEAR lite; the walk itself, post-flip, for a bit-SET lite)
+or by the live path's own free, and the owner cannot pass its
+COLLECTED wait before the walk's DETACHED flip - the walk's
+LAST touch of a bit-CLEAR lite - so the byte is never read
+after free and the walk's pointers never dangle. Progress: the
+COLLECTED wait depends only on the ~VM walk, which is running,
+straight-line, and never blocks on the dtor (its collection and
+flip holds are short; its detach work is lock-free); acyclicity
+per EXIT1.6 (no thread waits while OWNING the registry lock).
+Shared condition (both sides with step (3)):
+vmTeardownCondition is notified by unregisterLite (r30) AND by
+the walk's DETACHED flips (r31); both waiters are predicate
+loops, so cross-wakeups are benign.
+
+Re-issued paragraph 3 of 3 - the EXIT1.8
+CARRIER-TLS-DEATH-DURING-DETACH arm (text of record; supersedes
+the rev-31 bullet):
+
+- CARRIER-TLS-DEATH-DURING-DETACH arm (r31; +WALK-FREE variant
+  r32; joins the U-T6 gate list; DEBUG AND RELEASE builds,
+  ASAN): the amplifier stalls the ~VM walk INSIDE a collected
+  client's lock-free server-side detach (variants:
+  post-unregister pre-detach, mid-lastChanceToFinalize,
+  post-detach pre-flip) while the owner thread exits;
+  instrumented checks: the owner's TLS destructor takes the
+  registry lock, reads COLLECTED, parks on vmTeardownCondition,
+  and runs the degenerate path only AFTER the walk's DETACHED
+  flip (ordering check) - no double clientSet().remove, no
+  concurrent MSPL section on the same client, no UAF; ASAN
+  clean. Reverse variant: the dtor wins the lock BEFORE
+  collection - sees LIVE, marks TEARDOWN, takes the live path;
+  the walk SKIPS the TEARDOWN lite and the step-(3) wait
+  absorbs it. WALK-FREE variant (r32; walk-side disposition
+  racing a late-firing TLS dtor): the process MAIN thread
+  enters the VM (bit-SET carrier, destructor-free map) and an
+  embedder thread enters it too (bit-CLEAR); ~VM runs on a
+  third thread while the amplifier (i) stalls the walk between
+  the bit-set lite's DETACHED flip and its degenerate free and
+  (ii) fires the embedder owner's TLS destructor inside that
+  window; instrumented checks: the walk frees the bit-SET lite
+  exactly ONCE and no destructor ever visits it
+  (registration-time instrumentation: a bit-set lite never has
+  a destructor-bearing map entry, and vice versa); the
+  embedder's dtor parks on COLLECTED per the disposition
+  paragraph; the bit-CLEAR lite is NEVER walk-freed - the r30
+  CARRIER variant (dtor delayed past VM destruction) re-asserts
+  the unconditional deferral: no walk-side free occurred for
+  it; ASAN clean.
+
+## ANNEX A36 AMENDMENT (r32; BINDING; both sides - the rev-9
+## ANNEX A36 carries the in-place [r32] marker at its carrier
+## TLS-map and ~VM-teardown clauses; TERM1.5's "A36 stands
+## unamended" keeps its [r30] scope note - its single-VM clause
+## stands; SUPERSEDES the rev-31 amendment text where they
+## differ)
+
+Registration clause (NEW r32). A36's per-(thread,VM) TLS
+VM->carrier map is TWO slots, chosen ONCE at §F.1 first-entry
+registration: every NON-MAIN thread's carriers live in the
+destructor-BEARING WTF::ThreadSpecific map whose TLS destructor
+IS the carrier-TLS-death path - registration ALWAYS installs it
+for those threads; the process MAIN thread's carriers live in a
+destructor-FREE plain thread_local map - pthread TLS destructors
+run only at pthread_exit and never for a thread exiting via
+exit()/return-from-main (ThreadSpecific.h:31-40 documents the
+pthread/Windows cleanup split), and a late Windows FLS callback
+over the same storage would re-read a walk-freed lite, so NO
+cleanup is ever installed over the main-thread slot on ANY
+platform (entries leak at process exit unless a ~VM walk frees
+them - accepted). The choice is recorded per-lite as
+ownerHasNoTlsDtor, FIXED AT REGISTRATION TIME under the registry
+lock - set iff WTF::isMainThread() at §F.1 registration -
+immutable thereafter, read under the registry lock like the
+state byte (U20): a static structural fact, NEVER a liveness
+probe. rev 31's no-TLS-destructor-will-run liveness-probe
+clause is WITHDRAWN: it keyed a free on a non-lock-published
+liveness probe (the walk frees; a late-firing dtor then reads
+the freed state byte, can observe garbage-DETACHED, and
+double-frees) - the bit replaces it.
+
+A36's "~VM teardown" clause is AMENDED (text of record): the
+registry-owned lite-state byte (EXIT1.3) gains two values - the
+carrier state machine is LIVE -> TEARDOWN (owner's TLS
+destructor, live path) | LIVE -> COLLECTED -> DETACHED (~VM
+walk); TEARDOWN and DETACHED are terminal; no other transitions;
+EVERY transition AND every read is under VMLiteRegistry::lock.
+The state byte - NEVER "is my lite registered" - is the sole
+owner-vs-walk discriminator. ~VM COLLECTS this VM's carriers
+under ONE registry-lock hold: each non-TEARDOWN carrier is
+token-free-RELEASE_ASSERTed, marked COLLECTED, and unregistered
+via unregisterLite (U20: EVERY physical registry removal - this
+collection and m_mainVMLite included - goes through
+unregisterLite, the notifying function); TEARDOWN carriers are
+SKIPPED (owner mid-live-detach, still registered - the EXIT1.9
+step-(3) wait covers them). The lock is released; the walk
+performs the FULL SERVER-SIDE detach of each COLLECTED client
+while the server Heap is alive - everything in ~GCClient::Heap
+that names m_server: the access bracket, lastChanceToFinalize's
+shared-directory allocator relinquishment under MSPL,
+machineThreads removal, m_server.clientSet().remove()
+(Heap.cpp:5078-5110 is the live-path dtor doing exactly these
+against the server) - leaving each client dead-detached. The
+detach runs LOCK-FREE of the registry lock NECESSARILY: it
+acquires MSPL and can PARK in the access bracket, and LK.6
+registry-lock holders acquire NO lock and never wait (vmstate
+I7) - whole-detach-under-the-lock is ILLEGAL. After EACH
+client's detach the walk re-acquires the registry lock, flips
+COLLECTED->DETACHED, notifyAll()s vmTeardownCondition, drops the
+lock (short hold; acquires nothing), and NEVER touches that
+lite/client again. ALL of this precedes the EXIT1.9 wait, so the
+wait never counts a carrier. Remote detach (SUPERSESSION: heap
+I4 "lifecycle on the using thread" + §10A.1, both sides; r32):
+client + lite destruction is DEFERRED to the owner's TLS
+destructor for bit-CLEAR lites - unconditionally; a bit-clear
+lite is NEVER walk-freed; for a bit-SET lite (ownerHasNoTlsDtor,
+the r32 registration clause above) the walk itself runs the
+degenerate free immediately after its DETACHED flip - no
+competing dtor exists BY CONSTRUCTION, since no destructor is
+ever installed over the main-thread slot. The deferred dtor
+takes the registry lock FIRST and keys ONLY on the
+lock-published state: LIVE => mark TEARDOWN in the same hold and
+take the live EXIT1.3 path; COLLECTED => predicate-wait on
+vmTeardownCondition until DETACHED (Condition::wait drops the
+lock into the parking lot; unregisterLite notifies tolerated -
+predicate loop), then the degenerate path; DETACHED => the
+degenerate path immediately: assert DETACHED, SKIP every
+m_server touch (all already done by the walk), destroy only
+client-local memory (TLC tables, m_perDirectory, the lite, the
+lite's default MicrotaskQueue). Progress/acyclicity: the
+COLLECTED wait depends only on the running, straight-line ~VM
+walk; no thread waits while OWNING the registry lock; the lite
+is freed only by the path that observed DETACHED (or by the live
+path), strictly after the walk's last touch - the state byte is
+never read after free. Cross-client detach concurrency (live
+dtor of carrier X vs the walk detaching Y) is the exit-storm
+case - serialized by MSPL and HeapClientSet::m_lock (heap
+§5.1/§6 ranks). M12 story for the deferred queue (the VM is gone
+by then): sound by the M11/M12 protocol quoted in EXIT1.9's
+residual-tail rule - the M11 force-removal (VM.cpp:710-719)
+empties VM::m_microtaskQueues under the process-lifetime
+registry lock (VMLiteRegistry is NeverDestroyed) before any VM
+memory dies, so the deferred ~MicrotaskQueue
+(MicrotaskQueue.cpp:128-141) finds isOnList() false and touches
+only its own node. The {client, epoch} TLS staleness rule, the
+process-monotonic VM epoch, I20, the TID supersessions and the
+single-VM clause (TERM1.5) are UNCHANGED; "§6.5.1 assert =>
+registry empty for this VM" is re-read through EXIT1.9
+(wait-then-debug-assert). EXIT1.3's order EXPLICITLY EXCLUDES
+this path (live-VM paths only; cross-ref both sides). U27 gains
+the deferred-degenerate-dtor / delayed-TLS-destructor arm, the
+r31 CARRIER-TLS-DEATH-DURING-DETACH arm AND its r32 WALK-FREE
+variant (= the EXIT1.8 CARRIER + r31/r32 arms).
+
+### rev-32 spec deltas
+- header rev 32; sect T cites r10-r32; sect SD per-rev
+  attribution "r27-r32 add none".
+- sect A.3.1 item 1 + sect A.3.6 item 6 + sect B.2 item 2: annex
+  cites -> "as AMENDED r32".
+- sect B.2 item 2 gains the compressed r32 clause: "no-dtor bit
+  FIXED AT REGISTRATION (main: dtor-free slot) => walk frees
+  post-flip; ~VM holds m_lock => no re-entry (VM.cpp:649)" (full
+  text: the re-issued EXIT1.9 paragraphs + the r32 A36
+  amendment).
+
+### rev-32 spec-body wording compressions (byte budget; no
+### semantic change - every trimmed clause's FULL text stays in
+### the cited BINDING annex/rev; pointer targets + supersession
+### rows untouched)
+- sect A.3.1 item 1: "every predicate sample RE-WALKS" -> "every
+  sample RE-WALKS" (EXIT1.2 keeps "predicate sample");
+  "lite/client pointers" -> "lite/client ptrs".
+- sect A.3.2 item 2: "is parked / not-entered / access-released
+  (sampled per EXIT1) - the last sound ONLY with 2b" -> "is
+  parked/not-entered/access-released (per EXIT1) - sound ONLY
+  with 2b" (EXIT1.2/SB1 keep the sampling wording).
+- sect A.3.6 item 6: "every install AND restore re-stamps" ->
+  "installs/restores re-stamp" (A36C keeps the
+  every-install-AND-restore enumeration).
+- sect B.2 item 2: "DCT/destroy the client -> unregisterLite/
+  free the lite LAST" -> "DCT/destroy client -> unregisterLite/
+  free lite LAST" (EXIT1.3 keeps the full order); "Lazy
+  carriers: the VM's original client (main) or created at first
+  entry (§F.1)" -> "Lazy carriers per §F.1" (§F.1/A36 keep the
+  main-vs-embedder client attribution).
+- sect B.2 item 3: "(A36C EXTENDS this supersession to §10A.1's
+  re-stamp clause, both sides, IH row)" -> "(A36C extends it to
+  the re-stamp clause, both sides, IH row)" (A36C keeps the
+  full supersession wording).
+
+### rev-32 section-T deltas (extends rev-9 annex 3 + r10-r31)
+- U-T6: implements the r32 ownerHasNoTlsDtor bit
+  (registration-time-fixed under the registry lock; main thread
+  => destructor-free thread_local carrier map, all other threads
+  => the destructor-bearing ThreadSpecific map; the walk-frees-
+  bit-set / dtor-frees-bit-clear split). Gate list: + the r32
+  EXIT1.8 WALK-FREE variant (walk-side disposition racing a
+  late-firing TLS dtor; bit-set lite freed exactly once by the
+  walk, never dtor-visited; bit-clear lite never walk-freed) and
+  the r30 CARRIER variant's extension (asserts no walk-side free
+  for the bit-clear lite).
+- No other task scope changes; U27's arm list per the r32 A36
+  amendment.
+
+### Rev-32 SD note
+No new SDs; IDs frozen. r32 is lifetime/ordering only - the
+main thread's carrier client+lite for a destroyed VM are now
+freed by the ~VM walk instead of leaking until (a never-firing)
+main-thread TLS death; no JS-observable behavior changes.
