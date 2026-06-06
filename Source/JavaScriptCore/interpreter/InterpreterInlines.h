@@ -187,7 +187,7 @@ inline void UnwindFunctorBase::copyCalleeSavesToEntryFrameCalleeSavesBuffer(Stac
     CPURegister* frame = reinterpret_cast<CPURegister*>(callFrame->registers());
 
     unsigned registerCount = currentCalleeSaves->registerCount();
-    VMEntryRecord* record = vmEntryRecord(m_vm.topEntryFrame);
+    VMEntryRecord* record = vmEntryRecord(m_vm.group3Primitives().topEntryFrame); // UNGIL §A.1.3 mode split: callee-save restore must target the THROWING thread's entry record.
     for (unsigned i = 0; i < registerCount; i++) {
         RegisterAtOffset currentEntry = currentCalleeSaves->at(i);
         if (dontCopyRegisters.contains(currentEntry.reg(), IgnoreVectors))

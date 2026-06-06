@@ -372,7 +372,7 @@ void CallFrame::convertToZombieFrame(VM& vm, CodeBlock* codeBlockToKeepAliveUnti
     ASSERT(!isEmptyTopLevelCallFrameForDebugger());
     ASSERT(codeBlockToKeepAliveUntilFrameIsUnwound->inherits<CodeBlock>());
 
-    EntryFrame* entryFrame = vm.topEntryFrame;
+    EntryFrame* entryFrame = vm.group3Primitives().topEntryFrame; // UNGIL §A.1.3 mode split (matches the currentThreadEntryScope() re-point below).
     CallFrame* throwOriginFrame = this;
     do {
         throwOriginFrame = throwOriginFrame->callerFrame(entryFrame);

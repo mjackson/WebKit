@@ -540,7 +540,7 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
 {
     AssertNoGC assertNoGC;
     VM& vm = this->vm();
-    CallFrame* callFrame = vm.topCallFrame;
+    CallFrame* callFrame = vm.group3Primitives().topCallFrame; // UNGIL §A.1.3 mode split.
     if (!callFrame || !maxStackSize)
         return;
 
@@ -943,7 +943,7 @@ NEVER_INLINE CatchInfo Interpreter::unwind(VM& vm, CallFrame*& callFrame, Except
         deferScope.emplace(vm);
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
-    ASSERT(reinterpret_cast<void*>(callFrame) != vm.topEntryFrame);
+    ASSERT(reinterpret_cast<void*>(callFrame) != vm.group3Primitives().topEntryFrame); // UNGIL §A.1.3 mode split.
     CodeBlock* codeBlock = callFrame->isNativeCalleeFrame() ? nullptr : callFrame->codeBlock();
 
     JSValue exceptionValue = exception->value();
@@ -992,8 +992,9 @@ void Interpreter::notifyDebuggerOfExceptionToBeThrown(VM& vm, JSGlobalObject* gl
         ASSERT(!handler || handler->isCatchHandler());
         bool hasCatchHandler = !!handler;
         if (!hasCatchHandler) {
-            if (vm.topEntryFrame) {
-                auto* entryRecord = vmEntryRecord(vm.topEntryFrame);
+            EntryFrame* topEntryFrame = vm.group3Primitives().topEntryFrame; // UNGIL §A.1.3 mode split.
+            if (topEntryFrame) {
+                auto* entryRecord = vmEntryRecord(topEntryFrame);
                 if (entryRecord->m_context)
                     hasCatchHandler = true;
             }
