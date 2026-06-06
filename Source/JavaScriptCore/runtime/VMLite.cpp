@@ -255,7 +255,19 @@ VMLite* VMLite::setCurrent(VMLite* lite)
     // choke point every install passes, so this cannot be bypassed. Cost:
     // one byte test flag-off/GIL-on (lite->gilOff == 0 => skipped entirely);
     // gilOff installs pay one relaxed single-slot compare once noted.
-    if (lite && lite->gilOff && lite->vm && lite != lite->vm->mainVMLite()) [[unlikely]]
+    //
+    // MAIN-CARRIER KEY (GIL-removal review round 4, same re-key as
+    // VM::queueMicrotask / perLiteRealmRoutingLite — AB-23): GIL-off,
+    // m_mainVMLite is NEVER installed (A36 — the main thread gets a
+    // per-(thread,VM) carrier too), so `lite != mainVMLite()` alone noted
+    // the MAIN THREAD's own first install as a "cross-thread entry" and the
+    // K4 §VIII.9 immutable-after-init asserts (setGlobalThis/setName) fired
+    // on single-threaded gilOff boot. The main thread's carrier
+    // (ownerHasNoTlsDtor, A36 r32) is the gilOff main carrier and does not
+    // count; spawned lites and non-main embedder carriers do. (A VM used
+    // ONLY from non-main threads over-notes on its own first install —
+    // debug-only over-strictness, recorded under AB-23's residual.)
+    if (lite && lite->gilOff && lite->vm && lite != lite->vm->mainVMLite() && !lite->ownerHasNoTlsDtor) [[unlikely]]
         jsThreadsNoteCrossThreadEntry(*lite->vm);
 
     return previous;

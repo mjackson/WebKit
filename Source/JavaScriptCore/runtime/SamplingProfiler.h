@@ -348,10 +348,12 @@ public:
     // per-VM vm.m_gilOff — for a refusal-class tooling restriction the
     // process-level key is the conservative (strictly stronger) side; a
     // GIL-on VM inside a GIL-off process also samples carrier-only.
-    // noticeCurrentThreadAsJSCExecutionThreadWithLock must early-return
+    // noticeCurrentThreadAsJSCExecutionThreadWithLock early-returns
     // (keeping the existing binding) when this is false — that consult is
-    // the SamplingProfiler.cpp half of U-T8d (PENDING; see the table
-    // header note above).
+    // WIRED (GIL-removal review round). The takeSample suspend-scope half
+    // below remains PENDING, and takeSample stays DORMANT on gilOff VMs via
+    // its entryScope gate (AB-22) until the per-lite Group-3 registry
+    // resolve lands.
     static bool shouldBindCurrentThreadAsJSCExecutionThread()
     {
         if (!Options::useJSThreads() || Options::useThreadGIL())

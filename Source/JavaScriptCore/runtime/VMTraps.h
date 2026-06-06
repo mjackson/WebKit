@@ -481,6 +481,12 @@ private:
 //       VM-level softStackLimit, so under N-parallel entry every entering
 //       thread would clobber the one limit all tiers' stack checks read —
 //       missed/spurious overflow checks, memory-safety grade.
+//       INTERIM FAIL-STOP (GIL-removal review round 3): updateStackLimits
+//       now RELEASE_ASSERTs (gilOff arm) that no OTHER lite of this VM is
+//       entered before publishing the shared soft limit, so this checklist
+//       is ENFORCED in code — a second concurrent entry aborts at entry
+//       (even under useThreadGILOffUnsafe) instead of corrupting silently.
+//       Delete that assert in the same change that lands the reroute.
 //   (4) The §J.3/D9 park sites (LockObject.cpp/ThreadObject.cpp/
 //       ConditionObject.cpp): split NeedWatchdogCheck out of
 //       jsThreadParkTerminationRequested GIL-off and drive annex W W1 via

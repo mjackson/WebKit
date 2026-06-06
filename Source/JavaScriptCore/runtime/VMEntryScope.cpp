@@ -83,8 +83,27 @@ void VMEntryScope::setUpSlow()
         // decision, fanOutTerminationToSiblingLites, isAnyThreadEntered)
         // are serialized against entry/exit transitions. See the field's
         // comment in VMLite.h. GIL-on keeps the plain VM-member shadow.
-        Locker locker { VMLiteRegistry::singleton().lock };
+        auto& registry = VMLiteRegistry::singleton();
+        Locker locker { registry.lock };
         RELEASE_ASSERT(!lite.entryScope.load(std::memory_order_relaxed));
+        // UNGIL AB-17 interim fail-stop (GIL-removal review round 4): the
+        // no-other-entered check and the entered-record publication run
+        // under ONE registry-lock hold, so the SECOND concurrent top-level
+        // JS entry of this VM aborts HERE, deterministically. The earlier
+        // updateStackLimits-time walk (VM.cpp) is necessary but not
+        // sufficient: it samples sibling entryScopes BEFORE this store
+        // happens (TOCTOU — two entrants can both pass it pre-publication),
+        // and a token-holding thread RE-entering JS through a fresh
+        // VMEntryScope never re-runs updateStackLimits at all. Both holes
+        // close here because every gilOff outermost per-thread entry funnels
+        // through this store. Deleted by the same change that lands the
+        // §A.2.2 per-lite soft-stack-limit reroute (AB-17).
+        for (VMLite* other : registry.lites) {
+            if (other->vm == &m_vm && other != &lite) {
+                RELEASE_ASSERT_WITH_MESSAGE(!other->entryScope.load(std::memory_order_relaxed),
+                    "GIL-off second concurrent JS entry refused: VM-level soft stack limit is shared (AB-17 not landed)");
+            }
+        }
         lite.entryScope.store(this, std::memory_order_relaxed);
     } else
         m_vm.entryScope = this;

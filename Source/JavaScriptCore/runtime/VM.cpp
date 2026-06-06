@@ -765,12 +765,20 @@ void VM::setCrossTaskToken(RefPtr<CrossTaskToken>&& token)
 void VM::queueMicrotask(QueuedTask&& task)
 {
     // UNGIL §E.1/I11 (U-T9): GIL-off, enqueue re-routes to the CURRENT
-    // lite's queue on spawned/foreign-carrier threads — the VM default queue
-    // is the MAIN carrier's (vmstate §6.6). Flag-off/GIL-on/main carrier:
-    // the landed single-queue enqueue, byte-identical.
+    // lite's queue on spawned/non-main-carrier threads — the VM default
+    // queue is the MAIN carrier's (vmstate §6.6). MAIN-CARRIER KEY
+    // (GIL-removal review round): GIL-off, m_mainVMLite is NEVER installed
+    // (A36 — every thread gets a per-(thread,VM) carrier, the main thread
+    // included), so `lite != m_mainVMLite.get()` alone was constantly true
+    // and the default queue became an undrained sink. The gilOff main
+    // carrier is the MAIN THREAD's carrier — exactly the
+    // ownerHasNoTlsDtor==true lite (A36 r32, fixed at registration; it also
+    // borrows &vm.clientHeap, F1B) — and it keeps the default queue, paired
+    // with the same key in drainMicrotasks. Flag-off/GIL-on: the landed
+    // single-queue enqueue, byte-identical.
     if (m_gilOff) [[unlikely]] {
         VMLite* lite = VMLite::currentIfExists();
-        if (lite && lite->vm == this && lite != m_mainVMLite.get()) {
+        if (lite && lite->vm == this && lite != m_mainVMLite.get() && !lite->ownerHasNoTlsDtor) {
             lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
             return;
         }
@@ -2276,15 +2284,24 @@ void VM::drainMicrotasks()
     if (m_drainMicrotaskDelayScopeCount.load(std::memory_order_relaxed)) [[unlikely]]
         return;
 
-    // UNGIL §E.1/I11 (U-T9): GIL-off, a spawned/foreign-carrier thread
+    // UNGIL §E.1/I11 (U-T9): GIL-off, a spawned/non-main-carrier thread
     // drains ONLY its own per-lite queue (enqueued/drained by its owner —
     // I11; reaction jobs run on the SETTLING thread, SD10/§E.1b.1). The VM
     // default queue stays the main carrier's. didExhaustMicrotaskQueue
     // already gates its carrier-confined work internally (U-T8e).
+    // MAIN-CARRIER KEY (GIL-removal review round): same re-key as
+    // queueMicrotask above — m_mainVMLite is never installed GIL-off, so
+    // without the ownerHasNoTlsDtor arm the "main carrier: landed body"
+    // branch below was DEAD and m_defaultMicrotaskQueue (which every
+    // JSGlobalObject's m_microtaskQueue aliases at construction) was never
+    // drained gilOff. The main thread's carrier now falls through to the
+    // landed default-queue body. RESIDUAL (AB-20-adjacent, recorded in
+    // INTEGRATE-ungil.md): a gilOff VM whose threads are ALL non-main still
+    // has no default-queue drainer for no-lite-window enqueues.
     // Flag-off/GIL-on/main carrier: the landed body, byte-identical.
     if (m_gilOff) [[unlikely]] {
         VMLite* lite = VMLite::currentIfExists();
-        if (lite && lite->vm == this && lite != m_mainVMLite.get()) {
+        if (lite && lite->vm == this && lite != m_mainVMLite.get() && !lite->ownerHasNoTlsDtor) {
             MicrotaskQueue* queue = lite->defaultMicrotaskQueue.get();
             if (!queue) {
                 finalizeSynchronousJSExecution();

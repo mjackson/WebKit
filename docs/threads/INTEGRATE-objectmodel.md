@@ -1302,6 +1302,17 @@ before the build-fix loop closes and record the verdict here. The other
 ledger rows (a-g, i) are closed/record-only per annex §L/§L2; nothing further
 from this part.
 
+**VERDICT RECORD (GIL-removal review round 4 — DEFERRAL, not a verdict):**
+the §L2.h bench has NOT run (no build executed in any ungil round); the
+no-PROMOTE arm (cell-locked N2, §27) is the OPERATIVE INTERIM verdict and is
+what U-T10 (ConcurrentButterfly locked third arm) and U-T11 (§C.3 PWT
+pre-enqueue routing) landed against. The explicit gate-deferral ruling lives
+in SPEC-ungil-history.md ("GIL-removal review round 4", Ruling 2), which
+names those two landed surfaces as mandatory re-review on a PROMOTE outcome.
+Integrator action (owed at the FIRST Build round, tracked as
+INTEGRATE-ungil.md AB-7): run the jit Task-13 §L2.h bench and replace this
+deferral record with the actual verdict.
+
 ### 47. Task 11 self-checks performed (record)
 
 - App.-R8 grep re-run: list matches frozen annex EXACTLY (no new offenders,

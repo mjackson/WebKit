@@ -1240,12 +1240,22 @@ PerLiteRealmTable& perLiteRealmTable()
 // copy — gilOff VM, an installed same-VM lite that is not the main carrier.
 // Everything else (flag-off, GIL-on, main carrier, unentered probes) keeps
 // the in-object member, preserving flag-off identity.
+//
+// MAIN-CARRIER KEY (GIL-removal review round): GIL-off, m_mainVMLite is
+// NEVER installed (A36 — every thread, the main one included, gets a
+// per-(thread,VM) carrier from JSLock's TLS maps), so `lite ==
+// vm.mainVMLite()` alone never matched and the banner's "the main carrier's
+// stream IS the in-object one" claim was unsatisfiable. The gilOff main
+// carrier is the MAIN THREAD's carrier — the ownerHasNoTlsDtor==true lite
+// (A36 r32 registration clause; it also borrows &vm.clientHeap, F1B) — and
+// it keeps the in-object member, matching VM::queueMicrotask/
+// drainMicrotasks' identical re-key.
 ALWAYS_INLINE VMLite* perLiteRealmRoutingLite(VM& vm)
 {
     if (!vm.gilOff()) [[likely]]
         return nullptr;
     VMLite* lite = VMLite::currentIfExists();
-    if (!lite || lite == vm.mainVMLite() || lite->vm != &vm)
+    if (!lite || lite == vm.mainVMLite() || lite->ownerHasNoTlsDtor || lite->vm != &vm)
         return nullptr;
     return lite;
 }

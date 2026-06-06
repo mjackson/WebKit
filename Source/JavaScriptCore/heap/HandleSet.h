@@ -65,6 +65,14 @@ public:
 
     VM& vm();
 
+    // UNGIL §F.3 flag-off codegen seam (review fix): cached copy of the
+    // owning VM's immutable m_gilOff byte, stamped in the ctor
+    // (HandleSet.cpp), so the ALWAYS_INLINE strongHandle* wrappers below can
+    // test the mode without pulling VM's definition into this header (and
+    // without re-deriving from Options). Immutable for the VM's lifetime
+    // (U0c), exactly like VM::gilOff().
+    bool gilOff() const { return m_gilOff; }
+
     HandleSlot allocate();
     void deallocate(HandleSlot);
 
@@ -87,6 +95,7 @@ private:
 #endif
 
     VM& m_vm;
+    bool m_gilOff { false }; // Stamped from vm.gilOff() in the ctor; immutable (see gilOff()).
     DoublyLinkedList<HandleBlock> m_blockList;
 
     using NodeList = SentinelLinkedList<Node, BasicRawSentinelNode<Node>>;
@@ -94,20 +103,23 @@ private:
     SinglyLinkedList<Node> m_freeList;
 };
 
-// UNGIL §F.3 (U-T8 seams, wired by the review fix): the LOCKED Strong-handle
-// mutation entry points (HandleSet.cpp). GIL-off, Strong allocate / free /
+// UNGIL §F.3 (U-T8 seams, wired by the review fix; RE-INLINED by the
+// flag-off codegen review round): GIL-off, Strong allocate / free /
 // set-slot traffic is inherently cross-thread (AsyncTicket Strongs settled
 // and destroyed off-owner, ThreadObject completion Strongs, SD15 handoff
 // records created on spawned threads), and two threads mutating
 // m_freeList/m_strongList unlocked is heap corruption — so Strong.h /
-// StrongInlines.h route their three call-site shapes through these instead
-// of the raw inlines. GIL-on (every shipping configuration): vm().gilOff()
-// is false and all three are lock-free and bit-identical to the inlines
-// they wrap (one predicted-false byte test).
-JS_EXPORT_PRIVATE HandleSlot strongHandleAllocate(HandleSet&);
-JS_EXPORT_PRIVATE void strongHandleDeallocate(HandleSet&, HandleSlot);
+// StrongInlines.h route their three call-site shapes through the
+// strongHandle* wrappers (defined inline at the bottom of this header).
+// Each wrapper tests the HandleSet's cached gilOff byte and falls through
+// to the EXISTING inline list/free-list ops, so flag-off codegen is the
+// pre-ungil inline shape plus one predicted-false byte test — no cross-TU
+// call. Only the gilOff arm goes out of line, to the locked *Slow entry
+// points below (HandleSet.cpp, m_strongLock).
+JS_EXPORT_PRIVATE HandleSlot strongHandleAllocateSlow(HandleSet&);
+JS_EXPORT_PRIVATE void strongHandleDeallocateSlow(HandleSet&, HandleSlot);
 template<bool isCellOnly>
-JS_EXPORT_PRIVATE void strongHandleWriteBarrier(HandleSet&, HandleSlot, JSValue);
+JS_EXPORT_PRIVATE void strongHandleWriteBarrierSlow(HandleSet&, HandleSlot, JSValue);
 
 inline HandleSet* HandleSet::heapFor(HandleSlot handle)
 {
@@ -191,6 +203,36 @@ inline void HandleSet::writeBarrier(HandleSlot slot, JSValue value)
 #if ENABLE(GC_VALIDATION)
     RELEASE_ASSERT(isLiveNode(node));
 #endif
+}
+
+// §F.3 Strong-mutation wrappers (see the seam comment above the class).
+// GIL-on / flag-off: one predicted-false byte test, then the same inline
+// bodies the pre-ungil call sites compiled to. GIL-off: the locked slow
+// path (HandleSet.cpp).
+ALWAYS_INLINE HandleSlot strongHandleAllocate(HandleSet& set)
+{
+    if (set.gilOff()) [[unlikely]]
+        return strongHandleAllocateSlow(set);
+    return set.allocate();
+}
+
+ALWAYS_INLINE void strongHandleDeallocate(HandleSet& set, HandleSlot slot)
+{
+    if (set.gilOff()) [[unlikely]] {
+        strongHandleDeallocateSlow(set, slot);
+        return;
+    }
+    set.deallocate(slot);
+}
+
+template<bool isCellOnly>
+ALWAYS_INLINE void strongHandleWriteBarrier(HandleSet& set, HandleSlot slot, JSValue value)
+{
+    if (set.gilOff()) [[unlikely]] {
+        strongHandleWriteBarrierSlow<isCellOnly>(set, slot, value);
+        return;
+    }
+    set.writeBarrier<isCellOnly>(slot, value);
 }
 
 } // namespace JSC

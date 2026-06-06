@@ -82,9 +82,17 @@ ALWAYS_INLINE void VMLite::drainDefaultMicrotaskQueue()
         return;
     ASSERT(vm); // Registered (§6.5.1) before any facility use.
     ASSERT(vm->currentThreadIsHoldingAPILock()); // I14.
-    // No globalObject-switch bookkeeping in Phase A (that is the embedder's
-    // drainMicrotasks concern); pass a no-op callback.
-    defaultMicrotaskQueue->performMicrotaskCheckpoint<false>(*vm,
+    // No globalObject-switch bookkeeping (that is the embedder's
+    // drainMicrotasks concern); pass a no-op callback. useCallOnEachMicrotask
+    // = TRUE (GIL-removal review round): this drain is no longer
+    // unit-test-only — it is the spawned depth-0 token-release drain and the
+    // carrier willReleaseLock per-lite drain (JSLock.cpp), and the §E.1b.4
+    // host-hook disposition table (JSGlobalObject.cpp) rules
+    // VM::m_onEachMicrotaskTick "INLINE on the draining thread (spawned
+    // drains included)"; every other drain path (VM::drainMicrotasks, both
+    // arms) already fires the hook per task, so <false> here silently
+    // bypassed the embedder's per-tick callback at unlock-time drains.
+    defaultMicrotaskQueue->performMicrotaskCheckpoint<true>(*vm,
         [](JSGlobalObject*, JSGlobalObject*) { });
 }
 

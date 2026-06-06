@@ -75,8 +75,8 @@ namespace JSC {
 // ~HandleSet (legal: ~HandleSet runs at ~VM, after every mutator has exited).
 //
 // WIRING (U-T8): the LOCKED mutation entry points are landed BELOW in this
-// TU — strongHandleAllocate / strongHandleDeallocate /
-// strongHandleWriteBarrier<bool> — wrapping HandleSet's inline
+// TU — strongHandleAllocateSlow / strongHandleDeallocateSlow /
+// strongHandleWriteBarrierSlow<bool> — wrapping HandleSet's inline
 // allocate()/deallocate()/writeBarrier() (HandleSet.h:112/:122/:153) under
 // m_strongLock when the owning VM is gilOff (GIL-on: no lock, bit-identical
 // to the landed inlines). Strong.h/StrongInlines.h (allocate/free/set-slot
@@ -135,41 +135,38 @@ Lock& handleSetStrongLock(HandleSet& handleSet)
 // they wrap.
 // ============================================================================
 
-HandleSlot strongHandleAllocate(HandleSet& set)
+// Flag-off codegen review round: these are the gilOff-ONLY arms — the
+// ALWAYS_INLINE strongHandle* wrappers (HandleSet.h) dispatch here only
+// when the set's cached gilOff byte is set, so the per-call mode test no
+// longer lives in this TU and GIL-on traffic never crosses into it.
+HandleSlot strongHandleAllocateSlow(HandleSet& set)
 {
-    if (set.vm().gilOff()) [[unlikely]] {
-        Locker locker { handleSetStrongLock(set) };
-        return set.allocate();
-    }
+    ASSERT(set.gilOff());
+    Locker locker { handleSetStrongLock(set) };
     return set.allocate();
 }
 
-void strongHandleDeallocate(HandleSet& set, HandleSlot slot)
+void strongHandleDeallocateSlow(HandleSet& set, HandleSlot slot)
 {
-    if (set.vm().gilOff()) [[unlikely]] {
-        Locker locker { handleSetStrongLock(set) };
-        set.deallocate(slot);
-        return;
-    }
+    ASSERT(set.gilOff());
+    Locker locker { handleSetStrongLock(set) };
     set.deallocate(slot);
 }
 
 template<bool isCellOnly>
-void strongHandleWriteBarrier(HandleSet& set, HandleSlot slot, JSValue value)
+void strongHandleWriteBarrierSlow(HandleSet& set, HandleSlot slot, JSValue value)
 {
-    if (set.vm().gilOff()) [[unlikely]] {
-        Locker locker { handleSetStrongLock(set) };
-        set.writeBarrier<isCellOnly>(slot, value);
-        return;
-    }
+    ASSERT(set.gilOff());
+    Locker locker { handleSetStrongLock(set) };
     set.writeBarrier<isCellOnly>(slot, value);
 }
 
-template void strongHandleWriteBarrier<true>(HandleSet&, HandleSlot, JSValue);
-template void strongHandleWriteBarrier<false>(HandleSet&, HandleSlot, JSValue);
+template void strongHandleWriteBarrierSlow<true>(HandleSet&, HandleSlot, JSValue);
+template void strongHandleWriteBarrierSlow<false>(HandleSet&, HandleSlot, JSValue);
 
 HandleSet::HandleSet(VM& vm)
     : m_vm(vm)
+    , m_gilOff(vm.gilOff())
 {
     grow();
     // §F.3 (U-T8): eager registration so the in-lock-sweep lookup

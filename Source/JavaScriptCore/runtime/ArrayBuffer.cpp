@@ -226,10 +226,12 @@ GILOffDetachedBufferTable& gilOffDetachedBufferTable()
 // buffer that was never marked (destroying a buffer concurrently with
 // detaching it requires a happens-before edge from the detach to the final
 // deref — the detacher holds a Ref across detach() — and that edge also
-// publishes the increment). NOTE: cross-thread Ref/deref of ArrayBuffer
-// itself (DeferrableRefCounted's PLAIN refcount) is NOT atomicized by this
-// slice; this code deliberately adds no new cross-thread ref/deref pair (see
-// the quarantine-entry comment below).
+// publishes the increment). NOTE (updated, GIL-removal review round 3):
+// cross-thread Ref/deref of ArrayBuffer itself is now SAFE —
+// DeferrableRefCounted's count is atomic (wtf/DeferrableRefCounted.h;
+// ArrayBuffer via GCIncomingRefCounted is its only user), closing the gap
+// this comment used to record. This code still deliberately adds no new
+// cross-thread ref/deref pair (see the quarantine-entry comment below).
 std::atomic<uint64_t> s_gilOffDetachedPendingCount { 0 };
 
 // Returns the (nonzero) generation if this call newly marked the buffer

@@ -499,6 +499,162 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
        semantics; the §A.3 conductor re-fires every sample to compensate),
        and VM::updateStackLimits still writes the single VM-level
        softStackLimit (memory-safety grade under N-parallel entry).
+       *GIL-removal review round 3: item 3 is no longer a SILENT hole —
+       VM::updateStackLimits now RELEASE_ASSERTs (gilOff arm) that no
+       OTHER lite of this VM is entered before publishing the shared soft
+       limit. The assert is deleted by the same change that lands the
+       §A.2.2 per-lite soft-limit reroute.*
+       *CORRECTION (review round 4): the round-3 claim that the
+       updateStackLimits walk was "the process-wide interim fail-stop for
+       ANY second concurrent entry" was WRONG on two counts: (a) TOCTOU —
+       the walk samples sibling entryScopes at lock/token-acquisition
+       time, but the sibling-visible entered record is only published
+       later in VMEntryScope::setUpSlow, so two concurrent entrants could
+       both pass it pre-publication and then both run; (b) re-entry — a
+       token-holding thread that tore down its VMEntryScope and re-enters
+       JS through a fresh one never re-runs updateStackLimits at all. The
+       DETERMINISTIC fail-stop now lives in VMEntryScope::setUpSlow's
+       gilOff arm: the no-other-entered walk and the entered-record store
+       run under ONE VMLiteRegistry-lock hold, so the second concurrent
+       top-level entry aborts at publication regardless of interleaving.
+       The updateStackLimits walk is RETAINED as an earlier (advisory)
+       trip point only. Both asserts are deleted together by the §A.2.2
+       reroute.*
+     - **AB-18 (review round 3; was recorded ONLY in the
+       WaiterListManager.cpp banner and missing from this list): SD6
+       second half — the D8 single-flight gate deletion in
+       AtomicsObject.cpp.** SPEC-ungil §C.6 (SD6, a BOTH-GIL-MODE delta)
+       requires the per-wait-node allocation (LANDED, WaiterListManager.cpp)
+       AND deletion of the D8 gate; AtomicsObject.cpp:501ff still carries
+       syncTAWaitGateLock/vmsWithSyncTAWaitInFlight and still throws on a
+       second concurrent main-thread TA wait. Until the gate is deleted
+       (ordered AFTER the AB-13 split per the §C.4 constraint), the SD6
+       corpus/U19 expectation ("second waiter parks on its own node") is
+       NOT claimable in EITHER GIL mode, and the A26 termination-wake
+       bypass coexists with the gate it was paired against.
+     - **AB-19 (review round 3; was recorded ONLY in the Heap.cpp
+       conductTIDRebiasUnderSharedStop banner and missing from this list):
+       multi-VM gilOffProcess rebias tripwire re-key.** The §D.1 rebias
+       fire loop routes through fireAllUnderClassAStop, whose run-inline
+       branch runs assertAlreadyStoppedEvidenceCoversEveryMutator — a
+       phase-1 tripwire whose premise (single entered VM) U0b retires
+       (loser VMs may stay entered). In any multi-VM gilOffProcess
+       process the FIRST rebias is a deterministic process abort. Owner:
+       JSThreadsSafepoint.cpp (exempt entered loser-VM mutators when the
+       stopped server is the U0c winner's heap). Until it lands: rebias
+       (not just the two-VM amplifier arm) is only sound in SINGLE-VM
+       gilOffProcess processes.
+     - **AB-20 (review round 3): drainMicrotasksForGlobalObject sibling-
+       lite clears.** The Bun-additions VM entry point now clears the VM
+       default queue AND the CURRENT lite's queue when gilOff, but
+       SIBLING lites' per-thread queues cannot be cleared cross-thread
+       without breaking the I11 owner-only queue discipline. Needed: a
+       per-lite "clear for global G" request word serviced at each
+       owner's next drain (or a global-object liveness check at dequeue).
+       Until then, a gilOff embedder clearing a global on one thread can
+       still see stale-context microtasks drain on OTHER threads.
+     - ~~AB-21 (review round 3; found by the FIRST actual gilOff boot —
+       the U-T14 RUN items were DEFERRED-TO-BUILD and had never
+       executed): gilOff single-carrier boot dies at the first Class-A
+       watchpoint fire~~ **CLOSED by review round 4**: the §A.3
+       thread-granular conductor (VMManager.cpp
+       jsThreadsThreadGranularStopTheWorldAndRun) now RE-ACQUIRES its own
+       client's heap access for the window (after the quiescence
+       predicate is satisfied, before work(); released again before
+       resume publication) — the conductor is exempt from the AHA §A.3 /
+       Mode-stop gates and from allEnteredThreadsAreQuiescent (HBT2.1),
+       and GSP cannot be pending under the JSThreadsStopScope GCL
+       bracket, so the re-acquire neither parks nor invalidates the
+       predicate, and the Heap::deferralDepthSlot
+       `hasHeapAccess() || worldIsStoppedForAllClients()` asserts inside
+       Class-A fire bodies are satisfied the honest way (real access).
+       Debugger.cpp's runDebuggerWalkWithSpawnedThreadsStopped inherits
+       the fix. Original record: `--useJSThreads=1 --useSharedGCHeap=1
+       --useThreadGILOffUnsafe=1 -e 'print("hi")'` (debug) asserts
+       `client->hasHeapAccess() || worldIsStoppedForAllClients()`
+       (Heap::deferralDepthSlot, via DeferGCForAWhile) with stack:
+       DeferredStructureTransitionWatchpointFire dtor ->
+       WatchpointSet::fireAllSlow -> fireAllUnderClassAStop ->
+       JSThreadsSafepoint::stopTheWorldAndRun (the AB-9-closure reroute)
+       -> drainClassAFireQueue -> fireAllNow -> fireAllWatchpoints ->
+       DeferGCForAWhile. The thread-granular stop runs the queued fire
+       bodies at a point where the conductor's client has no heap access
+       and the world is not stopped-for-all-clients, so any fire body
+       that touches the heap trips the access assert. Owner:
+       JSThreadsSafepoint.cpp (hold/reacquire the conductor's heap
+       access across the fire-queue drain, or extend the stop witness to
+       satisfy the deferral-slot predicate). Even SINGLE-carrier gilOff
+       smoke runs are blocked until this lands.
+     - **AB-22 (review round 4; obligation-1 residue, was MISSING from
+       this list): raw vm.entryScope consumers.** The U-T5 shadow drop
+       (VMEntryScope.cpp) discharged "shadow dropped" but NOT "every raw
+       consumer re-pointed" (IU obligation 1). Round 4 re-pointed the
+       crash-grade sites through VM::currentThreadEntryScope() (GIL-on
+       byte-identical): CallFrame.cpp convertToZombieFrame (was a
+       deterministic null-deref on the gilOff exception-unwind
+       no-JS-throw-origin arm — reachable single-carrier, before
+       AB-11/12) and CallFrame.cpp globalObjectOfClosestCodeBlock (was a
+       silent nullptr GIL-off); SamplingProfiler.cpp noticeVMEntry's
+       ASSERT (fired on the first gilOff entry with the profiler on,
+       debug); and WIRED the SamplingProfiler.h
+       shouldBindCurrentThreadAsJSCExecutionThread consult into
+       noticeCurrentThreadAsJSCExecutionThreadWithLock (release-build
+       hole: a spawned thread could bind and later be suspend-and-walked
+       while free-running). REMAINING OPEN under this row: takeSample's
+       `m_vm.entryScope` gate is constantly false gilOff, so the profiler
+       is deliberately DORMANT on gilOff VMs (documented at the gate) —
+       AUD1.K1's "carrier-only v1" does NOT yet deliver carrier samples
+       gilOff; needs the per-lite Group-3 registry-resolve + the
+       WhileTargetSuspendedScope takeSample wiring (U-T8d .cpp half).
+       The U-T14 close item 7 claim that table (iv) was "executed IN
+       CODE" at SamplingProfiler.h:323-360 is corrected accordingly: that
+       block records the RULING; the .cpp halves were pending until this
+       round (bind consult) / remain pending (suspend scope).
+     - **AB-23 (review round 4): gilOff main-carrier identity re-key +
+       default-queue drainer residual.** GIL-off, m_mainVMLite is never
+       installed (A36), so every `lite != m_mainVMLite.get()` /
+       `lite == vm.mainVMLite()` "main carrier" predicate was dead and
+       VM::m_defaultMicrotaskQueue was an undrained sink. Round 4
+       re-keyed the three predicates (VM::queueMicrotask,
+       VM::drainMicrotasks, JSGlobalObject.cpp perLiteRealmRoutingLite)
+       on the MAIN THREAD's carrier (lite->ownerHasNoTlsDtor, the A36 r32
+       registration-fixed bit; that carrier also borrows &vm.clientHeap,
+       F1B), so the main thread's carrier owns the in-object realm stream
+       and the VM default queue — restoring the JSGlobalObject.cpp banner
+       claim and giving the default queue a drainer. RESIDUAL OPEN: a
+       gilOff VM entered ONLY from non-main threads still has no
+       default-queue drainer for no-lite-window/off-thread enqueues
+       (same service-request shape as AB-20's sibling-clear word; one
+       mechanism can serve both).
+     - **AB-24 (review round 4; found by the post-AB-21 smoke — the boot
+       now gets PAST the Class-A fire and trivial scripts run): gilOff
+       debug builds die at the first JIT-path allocation validation.**
+       `--useJSThreads=1 --useSharedGCHeap=1 --useThreadGILOffUnsafe=1 -e
+       'for (let i=0;i<1e5;i++){({}).x=i}'` (debug) asserts
+       `heap.worldIsStoppedForAllClients() ||
+       heap.mutatorSlowPathLock().isHeld()`
+       (BlockDirectory::assertIsMutatorOrMutatorIsStopped, the
+       isSharedServer arm) with stack operationNewObject ->
+       JSFinalObject::create -> JSObject::finishCreation ->
+       JSCell::classInfo validation -> the I5b lock-free directory-bits
+       funnel. Cause: gilOff the server is shared from BOOT (U0c eager
+       noteSharedServerSticky at clientSet()==1), so a FREE-RUNNING
+       mutator's lock-free bits reads reach the shared-server assert arm,
+       which only admits stopped-world or MSPL holders — phase-1 never
+       exercised this shape (the GIL kept mutators out of each other's
+       addBlock resize window by construction; single-client GIL-on runs
+       take the pre-sticky arm). For a SINGLE entered mutator (the only
+       shape AB-17's tripwire admits today) the read is benign and the
+       assert is over-strict; for N mutators the underlying race
+       (lock-free m_bits read vs a sibling addBlock resize, I5b) is REAL
+       and needs the heap workstream's ruling (admit an access-holding
+       client when the §A.3.1 entered count is 1? take MSPL on the
+       validation paths? bits-epoch?). Owner: heap workstream
+       (BlockDirectory.cpp is its surface). Until it lands: gilOff DEBUG
+       smoke is limited to scripts that stay off the assert-bearing
+       allocation validation paths (trivial boots pass post-AB-21);
+       release builds do not assert but inherit the open I5b question for
+       N>1. Fail-stop, not silent.
      **CLOSE RULING (re-stated against the complete list):** the default
      flip is safe-by-construction ONLY because the U0 validation now
      REFUSES the gilOff shape outright unless the explicit development
@@ -506,12 +662,24 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
      review round; previously `--useJSThreads=1 --useSharedGCHeap=1` —
      two flags, since M_opts2 auto-forces the other two — produced a live
      gilOff process against AB-1's silent LLInt split-brain with NO
-     in-code fail-stop). Build/Verify MUST treat AB-1, AB-8, AB-10..AB-13
-     and AB-15..AB-17 as LAUNCH BLOCKERS for running the full-trio
+     in-code fail-stop). Build/Verify MUST treat AB-1, AB-8, AB-10..AB-13,
+     AB-15..AB-20 (AB-21 closed at round 4), AB-24, and the OPEN residuals
+     of AB-22/AB-23 as LAUNCH BLOCKERS for running the full-trio
      configuration, and the U0 refusal clause (Options.cpp) is only
      deleted when this list is discharged and the §B verification ladder
      (U19 oracle, TSAN, amplifier battery, golden disasm, B.5 bench) has
      actually run.
+     **MILESTONE GATE STATUS (review round 3, explicit):** the GIL-removal
+     milestone deliverable — N mutators actually executing JS in parallel
+     in one VM — is **NOT MET** by this tree. With AB-11/AB-12 open, every
+     spawn under gilOffProcess is refused (RangeError), so the GIL-off
+     semantic deltas (SD1-SD5, SD8-SD19), the §E drain loop, §E.3
+     keepalive, and the GIL-off corpus are structurally unrunnable; and
+     the round-3 updateStackLimits fail-stop deliberately aborts any
+     second concurrent ENTRY while AB-17 is open. U-T9/U-T11 rows record
+     mechanism LANDED (code present, compiles, flag-off inert), not
+     behavior DELIVERED — the milestone must not be reported as met until
+     the AB list above is discharged and the §B ladder has run GIL-off.
   8. **§F.6 close items** — see table (vi) below (rewritten this round);
      the in-code row table (JSLock.cpp:941-955) keeps its OPEN markers for
      the Bun-side audits, which CANNOT be executed from this repository.
@@ -576,6 +744,73 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
     latch when it lands; the in-code comment records the replacement
     obligation. AB-1's JSCConfig leg remains open — this latch is the
     interim immutability backstop ANNEX U0C asks for, not the byte.
+
+  **Adversarial-review AMEND (round 4 — GIL-removal blocker/major sweep;
+  write set: CallFrame.cpp, SamplingProfiler.{h,cpp}, VMEntryScope.cpp,
+  VMManager.cpp, VM.cpp, JSGlobalObject.cpp, VMLiteInlines.h,
+  HandleSet.{h,cpp}, this file, SPEC-ungil-history.md,
+  INTEGRATE-objectmodel.md):**
+  - R4-1 (raw entryScope consumers; BLOCKER, CONFIRMED) — fixed + new row
+    AB-22 (re-points landed; profiler-dormant residual recorded there).
+  - R4-2 (updateStackLimits fail-stop TOCTOU + re-entry hole; MAJOR,
+    CONFIRMED) — fixed: the deterministic tripwire moved into
+    VMEntryScope::setUpSlow's registry-lock hold; AB-17 round-3 text
+    corrected in place.
+  - R4-3 (milestone structurally unreachable; BLOCKER as a REPORTING rule)
+    — TRUE FACTS, NO NEW CODE ACTION: this is exactly the round-3
+    MILESTONE GATE STATUS: NOT MET ruling above (AB-11/AB-12/AB-13/AB-17
+    open; mechanism-LANDED rows are code-present, not
+    function-delivered). The reporting rule stands.
+  - R4-4 (conductor runs Class-A fires with no heap access; BLOCKER,
+    CONFIRMED = AB-21) — fixed, AB-21 CLOSED (see the row).
+  - R4-5 (useThreadGIL default flipped before the milestone gate; MAJOR,
+    CONFIRMED as a recorded plan-ordering deviation) — discharged the
+    DOCS way: explicit orchestrator ruling appended to
+    SPEC-ungil-history.md superseding UNGIL-PLAN §J's flip-at-gate
+    ordering and naming the Options.cpp U0 refusal clause +
+    useThreadGILOffUnsafe hatch as the binding interim gate (deletable
+    only with the AB list, per the close ruling above).
+  - R4-6 (mainVMLite-keyed routing predicates dead GIL-off; MAJOR,
+    CONFIRMED) — fixed + new row AB-23 (ownerHasNoTlsDtor re-key;
+    non-main-only-VM default-queue residual recorded there). The smoke
+    run exposed a FOURTH site of the same class: VMLite::setCurrent's K4
+    §VIII cross-thread-entry noter keyed on `lite != mainVMLite()`, which
+    noted the MAIN THREAD's own first gilOff install and made the
+    setGlobalThis/setName immutable-after-init asserts fire on
+    single-threaded boot — same re-key applied (VMLite.cpp:259).
+  - R4-SMOKE (executed this round; the U-T14 RUN items were never
+    executed before round 3's AB-21 boot): debug gilOff single-carrier
+    `print("hi")` boot now PASSES end-to-end (AB-21 + the VMLite.cpp
+    re-key); uncaught-throw exits cleanly through the re-pointed unwind
+    path (R4-1); the GIL-on oracle (`--useJSThreads=1 --useThreadGIL=1`)
+    and flag-off smoke are unchanged-green. The first JIT-path-allocating
+    script exposes the NEXT pre-existing blocker — recorded as AB-24.
+  - R4-7 (AB-7 records absent; MAJOR, CONFIRMED) — discharged the DOCS
+    way: §D.2 gate-deferral ruling appended to SPEC-ungil-history.md and
+    the verdict-deferral record written into INTEGRATE-objectmodel §46
+    (naming U-T10's locked arm + U-T11 §C.3 PWT routing as the re-review
+    surfaces on a PROMOTE outcome; bench run itself stays owed at the
+    first Build round — AB-7 narrows to "run the bench", no longer
+    "records missing").
+  - R4-8 (Strong allocate/free/set-slot outlined + per-call gilOff branch
+    flag-off; MAJOR, CONFIRMED for the Strong seam) — fixed structurally:
+    strongHandle* are now ALWAYS_INLINE HandleSet.h wrappers testing a
+    ctor-stamped HandleSet gilOff byte and falling through to the
+    pre-ungil inline list ops; only the gilOff arm calls the out-of-line
+    locked *Slow entry points (HandleSet.cpp). Flag-off codegen returns
+    to the inline shape + one predicted-false byte test. The reviewer's
+    aggregate items (currentThreadIsHoldingAPILock de-inline, JSLock
+    isGILOffProcess Options loads, retireEntryTokenForLock thread_local,
+    group3Primitives branch, JSPromise/RegExp gilOff tests) remain
+    individually predicted-false host-C++ branches — ADJUDICATE TOGETHER
+    at the §B.5 flag-off bench + golden-disasm gate (already owed at
+    Build; the JSCConfig gilOffProcess byte (AB-1/U-T3) is the planned
+    replacement for the isGILOffProcess re-derivation).
+  - R4-9 (per-lite drains skip the per-tick hook; MAJOR, CONFIRMED) —
+    fixed: VMLite::drainDefaultMicrotaskQueue now drains with
+    performMicrotaskCheckpoint<true>, matching the §E.1b.4 disposition
+    row for VM::m_onEachMicrotaskTick ("INLINE on the draining thread,
+    spawned drains included"). Flag-off unreachable, unchanged.
 
 ## (i) Supersession ledger (one row per SPEC-ungil SUPERSESSION; spec side already written, IU side written at landing)
 

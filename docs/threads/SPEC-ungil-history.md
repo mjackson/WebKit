@@ -8010,3 +8010,43 @@ No new SDs; IDs frozen. r32 is lifetime/ordering only - the
 main thread's carrier client+lite for a destroyed VM are now
 freed by the ~VM walk instead of leaking until (a never-firing)
 main-thread TLS death; no JS-observable behavior changes.
+
+### GIL-removal review round 4 — orchestrator rulings (recorded here per the
+### supersession-completeness rule; cited by INTEGRATE-ungil.md R4-5/R4-7)
+
+**Ruling 1 (UNGIL-PLAN §J default-flip ordering — SUPERSEDED).**
+UNGIL-PLAN §J binds the `useThreadGIL` default flip to "the ungil milestone
+gate"; the handout §T U-T14 task card mandates the flip as a U-T14 close
+deliverable, and the milestone gate is NOT MET (INTEGRATE-ungil.md,
+MILESTONE GATE STATUS). Per the authority clause (handout > plan), the flip
+as landed (OptionsList.h:696, default false) STANDS, and this ruling
+supersedes §J's flip-at-gate ordering EXPLICITLY, on these binding terms:
+- The Options.cpp U0 refusal clause (notifyOptionsChanged: GIL-off without
+  the trio forces useThreadGIL=1; GIL-off WITH the trio still forces
+  useThreadGIL=1 unless useThreadGILOffUnsafe=1) is LOAD-BEARING SAFETY
+  CODE and is the binding interim milestone gate. It may be weakened or
+  deleted ONLY by the change that discharges the INTEGRATE-ungil.md AB
+  list and runs the §B verification ladder GIL-off (the close-ruling
+  deletion rule).
+- §J's GIL-on fallback oracle survives via explicit `--useThreadGIL=1`
+  (U19 unaffected; recorded at the flip, supersession ledger row 9).
+- The post-finalization write-once latch (Options.cpp, R2-3 fix) is part
+  of the gate: setOptions cannot re-derive gilOffProcess mid-process.
+
+**Ruling 2 (§D.2 / OM Task-14 bench gate — DEFERRAL made explicit).**
+SPEC-ungil §D.2 freezes the Task-14 promotion decision "PRE-INT on jit
+Task-13's GIL-stub construction bench" (SPEC-objectmodel.md:359), re-scoped
+by the U-T10 amend round to HARD before U-T11 ENTRY. U-T11 landed with no
+verdict recorded — a charter-ordering breach (INTEGRATE-ungil.md AB-7).
+This ruling records the deferral explicitly rather than leaving it implied:
+- The no-PROMOTE arm (cell-locked 8h, the landed shape) remains the
+  operative interim verdict.
+- The §L2.h bench MUST run at the first Build round; the verdict is
+  recorded in INTEGRATE-objectmodel §46 (deferral record now present
+  there).
+- On a PROMOTE outcome, TWO landed surfaces are named for mandatory
+  re-review: U-T10's ConcurrentButterfly locked third arm (incl. the
+  amend-round LockedRevalidate undefined-disambiguation) and U-T11's §C.3
+  PWT pre-enqueue load routing.
+- The U-T14 close audit's supersession-completeness claim is repaired by
+  this record; AB-7 narrows to the bench run itself.

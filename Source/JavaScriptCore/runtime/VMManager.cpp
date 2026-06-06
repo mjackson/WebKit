@@ -596,6 +596,28 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
             s_jsThreadsParkCondition.waitFor(s_jsThreadsParkLock, Seconds::fromMilliseconds(1));
         }
 
+        // AB-21 fix (GIL-removal review round): re-acquire the conductor's
+        // OWN client access for the window before running the fire bodies.
+        // Class-A fire bodies (WatchpointSet::fireAllSlow via
+        // drainClassAFireQueue, Debugger walk closures) take
+        // DeferGC/DeferGCForAWhile and run write barriers, whose per-client
+        // slots assert `client->hasHeapAccess() ||
+        // worldIsStoppedForAllClients()` (Heap::deferralDepthSlot, Heap.h) —
+        // the §A.3 thread-granular witness is invisible to them, so a
+        // no-access conductor aborted at the FIRST Class-A fire (the AB-21
+        // gilOff boot crash). Sound and non-blocking here: the AHA §A.3 and
+        // Mode-stop legs exempt the conductor (jsThreadsCurrentThreadIs-
+        // StopConductor — tenure was published above), GSP cannot be
+        // pending while the JSThreadsStopScope GCL bracket is held, and
+        // allEnteredThreadsAreQuiescent exempts the conductor's own lite
+        // (HBT2.1), so the satisfied predicate stays satisfied.
+        GCClient::Heap* windowClient = GCClient::Heap::currentThreadClient();
+        bool reacquiredForWindow = false;
+        if (windowClient && !windowClient->hasHeapAccess()) {
+            windowClient->acquireHeapAccess();
+            reacquiredForWindow = true;
+        }
+
         // World stopped: run `work` on this stack. Default-conductor closure
         // rules stand (R1.i): allocation-free, own client only. HBT2.2
         // NO-GC-IN-WINDOW: bracket the window in heap I14's STW-forbidden
@@ -608,6 +630,13 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         work();
         server.decrementSTWForbiddenScope();
         --t_jsThreadsConductorDepth;
+
+        // AB-21 fix: drop the window-scoped access BEFORE resume publication
+        // so a sibling observing the cleared word never samples the
+        // conductor as an access-holding mutator mid-resume; the R1.i tail
+        // below re-acquires for the requester iff it held access on entry.
+        if (reacquiredForWindow)
+            windowClient->releaseHeapAccess();
 
         // Resume (R1.i order): patcher-side data->ifetch publication first,
         // then the ISB1.1 stop-generation bump INSIDE the window before
