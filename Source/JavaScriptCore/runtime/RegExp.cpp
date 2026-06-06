@@ -295,14 +295,87 @@ void RegExp::compile(VM* vm, Yarr::CharSize charSize, std::optional<StringView> 
     }
 }
 
+// =============================================================================
+// UNGIL annex N7 RESOLVED-2 (AUD1.N2, BINDING; U-T8b) — per-thread match
+// scratch. PRIORITY: memory-unsafe today under any GIL-off interleaving.
+//
+// The cell-resident m_ovector is per-MATCH scratch handed out raw via
+// ovectorSpan() (RegExp.h:103) and written by every mutator-side match with
+// NO lock (compile state, by contrast, IS cell-locked in this branch — the
+// §N default, N7 row R13). Two threads exec()ing one shared RegExp race a
+// resize against a capture-walk: realloc UAF + torn capture reads — the OM
+// annex 15.7 SparseArrayValueMap defect class.
+//
+// RULING (consumed verbatim): the per-match scratch moves OFF the cell
+// GIL-off — a per-lite buffer (§K.1 class; cell-locking the match was
+// REJECTED: §N forbids parking under a cell lock across long-running Yarr
+// JIT execution). regExpGilOffPerThreadMatchOvector() below is that buffer
+// (per-CPU-THREAD thread_local — the ISB1 storage-deviation precedent in
+// VMLite.cpp: a thread serves one installed lite at a time, so per-thread IS
+// per-lite for scratch; lift to a VMLite L2 slot when VMLite.h's owner needs
+// a JIT-addressable home). The buffer is GC-invisible (plain ints), grow-only
+// per thread, and stable across the post-match ovectorSpan() re-reads the
+// consumers do (RegExpGlobalDataInlines.h:60-105, RegExpMatchesArray.h:110,
+// StringPrototypeInlines.h:812) BECAUSE those re-reads happen on the
+// matching thread before its next match.
+//
+// OPEN (outside U-T8b's owned files; the AUD1.N2 routing half):
+//   (1) RegExp.h ovectorSpan()/offsetVectorSize() must route gilOff to this
+//       buffer (`vm.gilOff() ? regExpGilOffPerThreadMatchOvector(*this) :
+//       m_ovector.mutableSpan()`), keeping the cell vector for flag-off/
+//       GIL-on byte-identically — RegExp.h is unowned here.
+//   (2) DFG/FTL RegExpExec/RegExpMatchFast thunks land in matchInline and
+//       inherit the caller-passed span — they are covered by (1)'s routing
+//       at their ovectorSpan() call sites (jit slice; A16-ext family).
+// Until (1) lands, the gilOff RELEASE_ASSERTs in RegExp::match /
+// matchConcurrently below FAIL-STOP the unsafe aliasing path in ALL build
+// configurations (release gilOff builds fail loudly instead of corrupting
+// memory; flag-off/GIL-on identical — the predicate is vm.m_gilOff, false in
+// both, one predicted-false byte test). CONSEQUENCE recorded for the
+// orchestrator: routing (1) is a HARD U-T9 ENTRY GATE — without it every
+// gilOff global match fail-stops, so the SD19 regexp corpus arms cannot run.
+// =============================================================================
+
+std::span<int> regExpGilOffPerThreadMatchOvector(RegExp&); // Self-declaration (RegExp.h is outside U-T8b's writable set; lift there with routing (1) above).
+std::span<int> regExpGilOffPerThreadMatchOvector(RegExp& regExp)
+{
+    // Grow-only per thread; sized like the cell vector so every
+    // offsetVectorSize() contract (matchInline's >= assert, named-capture
+    // tail) holds unchanged. thread_local with a non-trivial destructor is
+    // deliberate: the buffer dies with the thread (no ~VM walk entry needed —
+    // it holds no cells and no VM state).
+    static thread_local Vector<int> buffer;
+    size_t needed = static_cast<size_t>(regExp.offsetVectorSize());
+    if (buffer.size() < needed)
+        buffer.grow(needed);
+    return buffer.mutableSpan().first(needed);
+}
+
 int RegExp::match(JSGlobalObject* globalObject, StringView s, unsigned startOffset, std::span<int> ovector)
 {
+    // AUD1.N2 fail-stop: GIL-off, no mutator-side match may write the
+    // cell-resident scratch (see the banner above). Trips only when a
+    // genuinely gilOff VM reaches here through an un-rerouted ovectorSpan()
+    // — the exact memory-unsafe path the ruling retires. RELEASE_ASSERT
+    // (not ASSERT): until the RegExp.h routing (OPEN (1) above) lands,
+    // release gilOff builds must fail loudly here rather than run the
+    // realloc-UAF the ruling retires. Flag-off/GIL-on cost: one
+    // predicted-false byte test (m_gilOff is false).
+    if (globalObject->vm().gilOff()) [[unlikely]]
+        RELEASE_ASSERT(ovector.empty() || ovector.data() != m_ovector.mutableSpan().data());
     return matchInline(globalObject, globalObject->vm(), s, startOffset, ovector);
 }
 
 bool RegExp::matchConcurrently(
     VM& vm, StringView s, unsigned startOffset, int& position, std::span<int> ovector)
 {
+    // AUD1.N2: compiler-thread callers (DFGStrengthReductionPhase) pass
+    // caller-local vectors; the cell scratch must never be the target here
+    // either (same banner and same RELEASE_ASSERT rationale as
+    // RegExp::match).
+    if (vm.gilOff()) [[unlikely]]
+        RELEASE_ASSERT(ovector.empty() || ovector.data() != m_ovector.mutableSpan().data());
+
     Locker locker { cellLock() };
 
     if (!hasCodeFor(s.is8Bit() ? Yarr::CharSize::Char8 : Yarr::CharSize::Char16))

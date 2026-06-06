@@ -44,6 +44,34 @@ class RegExp;
 // Following a successful match, m_result, m_lastInput and m_lastRegExp
 // can be used to reify the results from the match, following reification
 // m_reifiedResult and m_reifiedInput hold the cached results.
+//
+// =============================================================================
+// UNGIL AUD1.K2 / annex N7 RESOLVED-7 / SD19 (BINDING; U-T8b) — per-lite
+// carrier. This struct is a multi-word cache {m_result (2 words),
+// m_lastInput, m_lastRegExp} rewritten on EVERY global-flag match — by
+// DFG/FTL INLINE (RecordRegExpCachedResult consumes offsetOfResult/
+// offsetOfLastInput/offsetOfLastRegExp below) — plus a lazy reify flip
+// {m_reified + 4 reified barriers}. It is NOT lockable without putting a
+// §LK acquisition on every successful match, so the ruling is §K.1 per-lite:
+//
+//   - GIL-OFF: each entered thread owns a PRIVATE RegExpGlobalData stream
+//     (carrying one RegExpCachedResult) — the per-lite side table in
+//     JSGlobalObject.cpp (threadRegExpGlobalData), GC-rooted via the
+//     global's visitChildren registry walk and freed by the lite-teardown
+//     purge (~VMLite -> purgePerLiteRealmStateForLite). SEMANTICS (SD19,
+//     GIL-off only): RegExp.$1-$9 / lastMatch / leftContext / rightContext /
+//     input observe ONLY matches performed by the CURRENT thread.
+//   - Every member access on a given copy is then single-thread-private:
+//     the reify flip and all stores stay PLAIN (no atomics needed) — per
+//     AUD1.K2's "the reify flip stays single-thread-private => plain
+//     stores".
+//   - TIERS: gilOff-mode compilation must emit
+//     loadVMLite -> liteRegExpGlobalData -> field for every offsetOf*
+//     consumer (AUD1.K4 / A16 ext; jit slice — see the activation checklist
+//     in VMLite.cpp). FLAG-OFF/GIL-ON: the baked global-object-relative
+//     address (offsetOfCachedResult chain) stays byte-identical; the
+//     offsetOf* accessors below therefore MUST NOT change meaning or layout.
+// =============================================================================
 class RegExpCachedResult {
 public:
     inline void record(VM&, JSObject* owner, RegExp*, JSString* input, MatchResult, bool oneCharacterMatch);

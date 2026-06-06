@@ -38,8 +38,12 @@
 #include <bit>
 #include <mutex>
 #include <wtf/Atomics.h> // crossModifyingCodeFence (ANNEX ISB1, U-T5).
+#include <wtf/Condition.h> // §K.3 foreign-waiter wakeups (ANNEX LZ1, U-T8b).
 #include <wtf/FastMalloc.h>
+#include <wtf/HashMap.h> // §K.3/LZ1 owner side table (U-T8b).
+#include <wtf/HashSet.h> // K4 §VIII cross-thread-entry set (U-T8b).
 #include <wtf/NeverDestroyed.h>
+#include <wtf/Seconds.h>
 #include <wtf/TZoneMallocInlines.h>
 
 #if OS(DARWIN)
@@ -49,6 +53,13 @@
 namespace JSC {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(VMLite);
+
+// U-T8b forward declarations (definitions later in this TU / in
+// JSGlobalObject.cpp; see the §K.3/LZ1 and K4 §VIII banners below).
+void purgePerLiteRealmStateForLite(VMLite&); // Defined in JSGlobalObject.cpp (per-lite §K.1 realm duplicates).
+void assertVMLiteOwnsNoInFlightLazyInit(VMLite*);
+void jsThreadsNoteCrossThreadEntry(VM&);
+void jsThreadsForgetCrossThreadEntry(VM&);
 
 // L4 (frozen, SPEC-vmstate §6.3): plain C++ thread_local, NOT
 // pthread_getspecific. The accessor signatures in VMLite.h are frozen; this
@@ -137,6 +148,26 @@ VMLite::~VMLite()
     // rest (an installed lite is always registered — setCurrent asserts it).
     ASSERT(t_currentVMLite != this);
 
+    // UNGIL §K.1 ~VM/lite-teardown walk (U-T8b, K4 binding consequence 3):
+    // EVERY lite teardown path — owner TLS destructor, EXIT1.9 walk-free,
+    // deferred own-carrier detach, GIL-on ~VM — funnels through this dtor,
+    // so freeing the per-lite §K.1 duplicates here makes the walk total: the
+    // (global, lite)-keyed RegExpGlobalData/asyncContextData copies
+    // (JSGlobalObject.cpp side table) die with their lite. Leaf-lock only;
+    // entry destruction happens after release inside the callee. Safe for
+    // never-entered/flag-off lites (empty-table scan).
+    purgePerLiteRealmStateForLite(*this);
+
+    // LZ1.3 exit/~VM assert: a dying lite owns no in-flight §K.3 init and
+    // parks on none (abandonment must have run on every unwind path).
+    assertVMLiteOwnsNoInFlightLazyInit(this);
+
+    // K4 §VIII bookkeeping: the main carrier dies exactly at ~VM (after the
+    // EXIT1.9 fence) — retire the VM's cross-thread-entry note so a later VM
+    // at a recycled address cannot inherit a stale positive.
+    if (vm && vm->mainVMLite() == this)
+        jsThreadsForgetCrossThreadEntry(*vm);
+
     // §6.6: scratch buffers are VMMalloc'd raw blocks (mirrors ~VM,
     // VM.cpp:655-656). No lock: the lifetime contract (§6.5.1 — unregistered,
     // uninstalled) means no other thread can reach this carrier anymore.
@@ -217,6 +248,15 @@ VMLite* VMLite::setCurrent(VMLite* lite)
     // g_jscButterflyTIDTag coherent (jit I19). Null hook => no-op.
     if (auto* hook = s_vmLiteTIDTagHook.load(std::memory_order_acquire))
         hook(lite ? lite->tid : 0);
+
+    // UNGIL annex K4 §VIII (U-T8b): note the owning VM's FIRST cross-thread
+    // entry — any gilOff install of a lite other than the VM's main carrier
+    // (spawned thread or foreign embedder carrier). setCurrent is the single
+    // choke point every install passes, so this cannot be bypassed. Cost:
+    // one byte test flag-off/GIL-on (lite->gilOff == 0 => skipped entirely);
+    // gilOff installs pay one relaxed single-slot compare once noted.
+    if (lite && lite->gilOff && lite->vm && lite != lite->vm->mainVMLite()) [[unlikely]]
+        jsThreadsNoteCrossThreadEntry(*lite->vm);
 
     return previous;
 }
@@ -782,6 +822,411 @@ void jsThreadsNVSExitInstructionSync()
     WTF::crossModifyingCodeFence();
     t_jsThreadsStopGenerationSeen = generation;
 }
+
+// ===========================================================================
+// UNGIL §K.3 + ANNEXES LZ1/LZ2 (U-T8b) — lazy-publication owner side table.
+//
+// r16 F2: the initializing CAS RECORDS the owner; this is the spec-named
+// "per-VM side table {property address -> carrier TID} under a leaf lock"
+// (implemented process-wide keyed by property address — sound because
+// property addresses are VM-unique and U0b admits one gilOff VM; the owner
+// is recorded as the VMLite*, which IS the carrier identity). LZ1.1 adds the
+// per-in-flight waiter edges; LZ1.2 the cycle escape; LZ1.3 abandonment.
+//
+// CONSUMPTION CONTRACT (the LazyProperty/LazyClassStructure/ensure* slow
+// paths — LazyPropertyInlines.h and peers, OUTSIDE this task's owned set —
+// call these in this order; the declarations lift into a header with that
+// slice):
+//
+//   WINNER (won the initializingTag CAS):
+//     lazyInitRecordOwnerForCurrentThread(P);
+//     <unwind scope — LZ1.3: ANY non-normal exit (JS/C++ exception,
+//      termination poll, §E.5 thread termination) must, BEFORE propagating:
+//      (1) lazyInitReleaseOwnerForCurrentThread(P) — erase the entry and
+//      wake waiters FIRST, then
+//      (2) CAS lazyTag initializing->empty (caller's word).
+//      ORDER IS LOAD-BEARING (release-FIRST). The reverse order opens a
+//      window where the property word is publicly `empty` while the stale
+//      in-flight record persists: a fresh toucher wins a new initializingTag
+//      CAS, calls lazyInitRecordOwnerForCurrentThread, and trips its
+//      isNewEntry RELEASE_ASSERT on a legal interleaving — and the LZ1.1/
+//      LZ1.2 graph meanwhile carries stale edges (wrong cycle answers,
+//      waiterCount bumps on a dead window). Release-first is benign on the
+//      waiter side: a waiter that observes entry-gone while the tag still
+//      reads `initializing` simply loops (waitQuantum returns true
+//      immediately, the load-acquire re-test sees initializing, it
+//      re-registers) — a bounded busy-loop for exactly the abandoning
+//      owner's one-CAS window. Foreign waiters then observe empty and a
+//      later toucher re-runs the initializer (sound: publication only on
+//      success). The COMMIT arm needs no such care: the result is
+//      release-stored (word != empty/initializing) BEFORE the release call,
+//      so no new winner can start while the entry is still present.
+//      A conductor MUST NOT abandonment-CAS a parked owner's init (LZ2.3 —
+//      owner-unwind-only).>
+//       run initializer (lock-free); release-store result;
+//     lazyInitReleaseOwnerForCurrentThread(P);   // commit arm — same call
+//
+//   FOREIGN TOUCHER (lost the CAS / observed initializing):
+//     loop {
+//       if (lazyInitWaiterWouldSelfDeadlock(P)) return nullptr; // LZ1.2
+//       lazyInitRegisterWaiter(P);                              // LZ1.1
+//       <release heap access — §E.2 order, NO lock held>
+//       lazyInitWaitQuantum(P, quantum);  // bounded; spurious wakes benign
+//       <poll BOTH stop families (lite §A.3 bit + heap §10 stopIfNecessary);
+//        re-acquire access via the §A.3.2b-gated path>
+//       lazyInitUnregisterWaiter(P);
+//       re-test the load-acquire; break when published or empty;
+//     }
+//
+//   OWNER RE-ENTRY on the same property returns null — the LANDED contract
+//   (LazyProperty.h:75-76); the table is not consulted for it.
+//
+// LZ2 PRECONDITIONS (normative; enforcement = the U20 LZ2.5 lint, U-T14):
+// no first-touch site may run holding api rank-1..3, heap 10a/10b, a §N cell
+// lock, or a §LK.8 destructor-leaf hold; no first-touch from a CONDUCTOR
+// inside its own stop window (LZ2.1).
+//
+// LZ2.2 CONDUCTOR-CLOSURE-REACHABLE COLUMN (U-T8b deliverable; dispositions
+// (a) proven pre-initialized / (b) conductor pre-resolves before arbitration
+// / (c) re-ruled class 1/2 — per K4 §IV rows):
+//   K4.IV.1-3 (LazyClassStructure / LazyProperty / linkTimeConstants): (a)
+//     for the haveABadTime conductor — the HBT conversion walk allocates
+//     ArrayStorage butterflies and transitions EXISTING structures
+//     (nonPropertyTransition; originalArrayStructures are ctor-initialized
+//     VM.h roots, K4.VIII.1) and touches no LazyProperty; (a) for
+//     deleteAllCode/watchpoint-fire conductors — jettison walks executable/
+//     watchpoint state only. Any NEW conductor closure must re-derive this
+//     row (LZ2.2 is per-call-site).
+//   K4.IV.4 (VM ensure* containers): (a) — no conductor closure calls
+//     ensureWatchdog/ensureHeapProfiler/ensureShadowChicken/ensure*Cache;
+//     profiler/debugger attach is main-only (K4 §V) and never a conductor.
+//   K4.IV.5-7 (bound/remote executables, emptyPropertyNameEnumerator): (a)
+//     — reachable only from JS-visible host paths (bind/remote-function/
+//     for-in), never from a stop-window closure.
+//   K4.IV.8 (m_exceptionFuzzBuffer): fuzz-option only; conductors never
+//     touch it. (a).
+//   K4.IV.9 (JSGlobalObject::m_rareData): (a) — the HBT body touches
+//     m_structureCache (clear rides the VI.2 stop) and watchpoint sets, not
+//     the rareData lazy pointer.
+//
+// EXIT/~VM ASSERTS (LZ1.3 tail): thread exit (§E.2 T5 — JSLock/ThreadObject
+// slices, recorded for those owners) and EVERY lite teardown (~VMLite above
+// in this TU) assert the thread/lite owns no in-flight init and waits on
+// nothing.
+// ===========================================================================
+
+namespace {
+
+struct LazyInitOwnerTable {
+    Lock lock; // §LK.7 leaf: nothing is acquired while it is held.
+    Condition condition; // waiters re-test under the lock; notifyAll on every erase.
+    struct InFlight {
+        VMLite* owner { nullptr };
+        unsigned waiterCount { 0 };
+    };
+    HashMap<const void*, InFlight> inFlight WTF_GUARDED_BY_LOCK(lock); // property -> in-flight record
+    // LZ1.1 wait-for edges. A thread parks on AT MOST one property at a time
+    // => this map is a function, which is what makes the LZ1.2 walk bounded
+    // and sound. (A thread MAY own several nested in-flight inits — P's
+    // initializer first-touching Q — so ownership is scanned, not mapped.)
+    HashMap<VMLite*, const void*> waiterToProperty WTF_GUARDED_BY_LOCK(lock);
+};
+
+LazyInitOwnerTable& lazyInitOwnerTable()
+{
+    static NeverDestroyed<LazyInitOwnerTable> table;
+    return table;
+}
+
+} // anonymous namespace
+
+// Self-declarations (header lift travels with the LazyPropertyInlines.h
+// consuming slice; see the consumption contract above).
+void lazyInitRecordOwnerForCurrentThread(const void* property);
+void lazyInitReleaseOwnerForCurrentThread(const void* property);
+bool lazyInitWaiterWouldSelfDeadlock(const void* property);
+void lazyInitRegisterWaiter(const void* property);
+void lazyInitUnregisterWaiter(const void* property);
+bool lazyInitWaitQuantum(const void* property, Seconds quantum);
+void assertVMLiteOwnsNoInFlightLazyInit(VMLite*);
+
+void lazyInitRecordOwnerForCurrentThread(const void* property)
+{
+    VMLite* self = &VMLite::current(); // §K.3 touches run entered, lite installed (I11).
+    auto& table = lazyInitOwnerTable();
+    Locker locker { table.lock };
+    auto result = table.inFlight.add(property, LazyInitOwnerTable::InFlight { self, 0 });
+    // The initializingTag CAS already arbitrated: exactly one winner per
+    // in-flight window may record. Sound ONLY because abandonment releases
+    // the entry BEFORE re-emptying the tag (release-FIRST, contract above):
+    // a new winner can exist only after the old entry is gone.
+    RELEASE_ASSERT(result.isNewEntry);
+}
+
+void lazyInitReleaseOwnerForCurrentThread(const void* property)
+{
+    VMLite* self = &VMLite::current();
+    auto& table = lazyInitOwnerTable();
+    {
+        Locker locker { table.lock };
+        auto it = table.inFlight.find(property);
+        RELEASE_ASSERT(it != table.inFlight.end());
+        RELEASE_ASSERT(it->value.owner == self); // LZ2.3: owner-unwind-only; foreign resets are PROHIBITED.
+        table.inFlight.remove(it);
+        // Commit AND abandonment wake; waiters re-test the load-acquire.
+        // On ABANDONMENT this call runs BEFORE the caller's tag CAS back to
+        // empty (release-FIRST — see the contract block above): the entry
+        // must be gone before the property word can re-arbitrate, or a new
+        // winner's record call collides with the stale entry.
+        table.condition.notifyAll();
+    }
+}
+
+bool lazyInitWaiterWouldSelfDeadlock(const void* property)
+{
+    VMLite* self = VMLite::currentIfExists();
+    if (!self)
+        return false; // Un-installed probes never park (callers gate on entry anyway).
+    auto& table = lazyInitOwnerTable();
+    Locker locker { table.lock };
+    // LZ1.2: follow owner-of -> waits-on edges from P. waiterToProperty is a
+    // function (one park per thread), so the chain is a path; bounded by the
+    // in-flight population. Cycle membership is stable while all
+    // participants wait, so a positive answer cannot go stale before the
+    // caller acts on it (returns null instead of parking).
+    const void* cursor = property;
+    unsigned bound = table.inFlight.size() + 1;
+    while (bound--) {
+        auto it = table.inFlight.find(cursor);
+        if (it == table.inFlight.end())
+            return false; // Published or abandoned: caller re-tests; no park needed.
+        VMLite* owner = it->value.owner;
+        if (owner == self)
+            return true; // Cycle reaches us (possible only if we OWN some in-flight Q): the landed owner-null contract, extended cross-thread.
+        auto edge = table.waiterToProperty.find(owner);
+        if (edge == table.waiterToProperty.end())
+            return false; // Owner is RUNNING its initializer: progress guaranteed.
+        cursor = edge->value;
+    }
+    ASSERT_NOT_REACHED(); // The walk is bounded by construction; fail open to a bounded park.
+    return false;
+}
+
+void lazyInitRegisterWaiter(const void* property)
+{
+    VMLite* self = &VMLite::current();
+    auto& table = lazyInitOwnerTable();
+    Locker locker { table.lock };
+    auto it = table.inFlight.find(property);
+    if (it != table.inFlight.end())
+        it->value.waiterCount++;
+    // LZ1.1: publish (self -> ownerOf(P)) BEFORE the first park quantum.
+    auto result = table.waiterToProperty.add(self, property);
+    RELEASE_ASSERT(result.isNewEntry); // One park per thread at a time.
+}
+
+void lazyInitUnregisterWaiter(const void* property)
+{
+    VMLite* self = &VMLite::current();
+    auto& table = lazyInitOwnerTable();
+    Locker locker { table.lock };
+    auto it = table.inFlight.find(property);
+    if (it != table.inFlight.end() && it->value.waiterCount)
+        it->value.waiterCount--;
+    bool removed = table.waiterToProperty.remove(self);
+    RELEASE_ASSERT(removed);
+}
+
+// One bounded park quantum. Returns true when the in-flight window is GONE
+// (published or abandoned — the caller's load-acquire re-test
+// disambiguates). The caller brackets this with §E.2-ordered heap-access
+// release and BOTH stop-family polls (§K.3's three-way-deadlock rule, r6
+// F2); this function itself holds ONLY the leaf lock and parks in the
+// parking lot (Condition::waitFor drops it).
+bool lazyInitWaitQuantum(const void* property, Seconds quantum)
+{
+    auto& table = lazyInitOwnerTable();
+    Locker locker { table.lock };
+    if (!table.inFlight.contains(property))
+        return true;
+    table.condition.waitFor(table.lock, quantum); // Spurious/cross wakes benign: predicate re-checked.
+    return !table.inFlight.contains(property);
+}
+
+void assertVMLiteOwnsNoInFlightLazyInit(VMLite* lite)
+{
+#if ASSERT_ENABLED
+    auto& table = lazyInitOwnerTable();
+    Locker locker { table.lock };
+    ASSERT(!table.waiterToProperty.contains(lite));
+    for (auto& entry : table.inFlight)
+        ASSERT(entry.value.owner != lite);
+#else
+    UNUSED_PARAM(lite);
+#endif
+}
+
+// ===========================================================================
+// UNGIL annex K4 §VIII (U-T8b) — the shared
+// no-write-after-first-cross-thread-entry assert machinery.
+//
+// Every K4 §VIII immutable-after-init row (VM structure roots, sentinels,
+// propertyNames, smallStrings, embedder hooks VIII.8, JSGlobalObject
+// configuration VIII.9, ...) gets a debug assert that no write happens after
+// the owning VM's FIRST cross-thread entry. "First cross-thread entry" is
+// noted HERE, in VMLite::setCurrent — the single choke point every gilOff
+// install passes — when a gilOff lite other than the VM's main carrier is
+// installed (spawned threads AND foreign embedder carriers).
+//
+// The assert call is jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(&vm):
+// release builds and flag-off/GIL-on VMs are exact no-ops (the predicate is
+// vm.m_gilOff). The "one shared macro" wrapper the annex names —
+//   #define JSC_ASSERT_NO_WRITE_AFTER_FIRST_CROSS_THREAD_ENTRY(vm) \
+//       jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(vm)
+// — must live in a header beside the VIII-row setters (VM.h /
+// JSGlobalObject.h), both OUTSIDE this task's owned set: recorded OPEN for
+// their owners. Wired NOW in owned code: JSGlobalObject::setGlobalThis
+// (VIII.9, JSGlobalObject.cpp). VIII.8's VM.cpp setters (:1091-1094) are the
+// VM.cpp owner's wiring row.
+// ===========================================================================
+
+static Lock s_crossThreadEntryLock;
+static std::atomic<VM*> s_lastNotedCrossThreadVM { nullptr }; // single-slot fast path (U0b: one gilOff VM)
+
+static HashSet<VM*>& crossThreadEnteredVMs() WTF_REQUIRES_LOCK(s_crossThreadEntryLock)
+{
+    static NeverDestroyed<HashSet<VM*>> set;
+    return set;
+}
+
+// Self-declarations (macro/header lift recorded OPEN above; JSGlobalObject.cpp
+// self-declares the assert form identically).
+void jsThreadsNoteCrossThreadEntry(VM&);
+bool jsThreadsHasSeenCrossThreadEntry(VM&);
+void jsThreadsForgetCrossThreadEntry(VM&);
+void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM*);
+
+void jsThreadsNoteCrossThreadEntry(VM& vm)
+{
+    if (s_lastNotedCrossThreadVM.load(std::memory_order_relaxed) == &vm)
+        return; // Already noted; install fast path.
+    Locker locker { s_crossThreadEntryLock };
+    crossThreadEnteredVMs().add(&vm);
+    s_lastNotedCrossThreadVM.store(&vm, std::memory_order_relaxed);
+}
+
+bool jsThreadsHasSeenCrossThreadEntry(VM& vm)
+{
+    if (s_lastNotedCrossThreadVM.load(std::memory_order_relaxed) == &vm)
+        return true;
+    Locker locker { s_crossThreadEntryLock };
+    return crossThreadEnteredVMs().contains(&vm);
+}
+
+// Bookkeeping at VM death (address reuse must not leave a stale positive);
+// called from the main carrier's ~VMLite (the one lite that dies exactly at
+// ~VM, after the EXIT1.9 fence).
+void jsThreadsForgetCrossThreadEntry(VM& vm)
+{
+    Locker locker { s_crossThreadEntryLock };
+    crossThreadEnteredVMs().remove(&vm);
+    VM* expected = &vm;
+    s_lastNotedCrossThreadVM.compare_exchange_strong(expected, nullptr, std::memory_order_relaxed);
+}
+
+void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM* vm)
+{
+#if ASSERT_ENABLED
+    if (vm && vm->gilOff())
+        ASSERT(!jsThreadsHasSeenCrossThreadEntry(*vm));
+#else
+    UNUSED_PARAM(vm);
+#endif
+}
+
+// ===========================================================================
+// UNGIL U-T8b CONSUMPTION RECORD — annexes K4 + N7 (doc-of-record block;
+// SPEC-ungil-audit-K4.md / -N7.md stay the BINDING tables).
+//
+// §F.2 CONSUMER-ROW CITATIONS (K4 binding consequence 1): every §F.2
+// EXCLUSIVITY consumer must cite its K4 row. Rows landed by THIS task:
+//   - K4 §0 U2 / AUD1.K2 (m_regExpGlobalData, SD19) + ALS1.3
+//     (m_asyncContextData): per-lite side table + accessors + registry-walk
+//     rooting + teardown purge — JSGlobalObject.cpp (threadRegExpGlobalData /
+//     threadAsyncContextData / purgePerLiteRealmStateForLite).
+//   - N7 RESOLVED-2 / AUD1.N2 (RegExp::m_ovector): per-thread match scratch
+//     provider + gilOff aliasing fail-stops — RegExp.cpp.
+//   - N7 RESOLVED-3 / AUD1.N3 (modified-arguments bitmap): release-CAS
+//     publish + acquire readers — GenericArgumentsImplInlines.h.
+//   - N7 RESOLVED-5 / AUD1.N4 (StructureRareData caches): §K.3 CAS-publish
+//     of m_specialPropertyCache + Structure::m_lock'd entry installs —
+//     StructureRareData.cpp.
+//   - K4 §VIII: the no-write-after-first-cross-thread-entry machinery above
+//     (noted in setCurrent; wired at JSGlobalObject::setGlobalThis AND
+//     JSGlobalObject::setName — the two VIII.9 post-init setters in this
+//     task's owned files; the remaining VIII.9 setters
+//     (setEvalEnabled/setWebAssemblyEnabled/quirks/disabled-error messages,
+//     JSGlobalObject.h:1249-1255) and the VIII.8 embedder-hook setters
+//     (VM.h:1091-1094) live in unowned headers — recorded for their owning
+//     slices).
+//   - §K.3/LZ1/LZ2: the owner side table above.
+// Rows ruled by K4/N7 but whose code sites are OUTSIDE this task's owned
+// files keep their owners (K4 §II per-lite VM caches = VM.h/VM.cpp rows;
+// K4 §III leaf locks = their cache TUs; K4 §V main-only gating = option
+// validation/U-T14; K4 §VI class-4 = U-T13; N7 RESOLVED-4 =
+// ScopedArguments/ClonedArguments TUs; RESOLVED-6 Intl = IntlObject TUs).
+//
+// HARD U-T9 ENTRY GATES recorded by this task (NOT mere open items — each
+// is a normative U-T8b clause whose code site is outside this file set; no
+// landable-now alternative exists inside it; U-T9 MUST NOT start until the
+// orchestrator charters each slice):
+//   GATE-1 — N7 RESOLVED-1/AUD1.N1: AbstractModuleRecord::m_resolutionCache
+//     cell lock (AbstractModuleRecord.cpp/.h). PRIORITY, memory-unsafe
+//     TODAY (two threads reading ns.x race a HashMap rehash against a
+//     bucket walk = UAF). Mechanical fix: take the record's cellLock() in
+//     cacheResolution()/tryGetCachedResolution(), the same lock the sibling
+//     maps already use; §E.1b alloc-outside shape. No mitigation exists in
+//     tree until that slice lands; N mutators MUST NOT touch shared module
+//     namespaces before it.
+//   GATE-2 — N7 RESOLVED-2/AUD1.N2 routing half: RegExp.h
+//     ovectorSpan()/offsetVectorSize() gilOff reroute to the per-thread
+//     buffer (RegExp.cpp banner OPEN (1)/(2)). Until it lands every gilOff
+//     global match RELEASE_ASSERTs (upgraded from debug-only ASSERT) — fail
+//     loudly, never corrupt — so the SD19 regexp corpus arms cannot run.
+//   GATE-3 — §K.3/LZ1/LZ2 consuming slice: LazyPropertyInlines.h + peers
+//     must call the lazyInit* machinery below (and host the LZ1.3 winner
+//     unwind scope — an RAII type is NOT definable usefully in this TU:
+//     consumers in other TUs need the complete class type, which must live
+//     in the lifted header; its required semantics, including the
+//     release-FIRST abandonment order, are normative in the contract block
+//     below). Until that slice lands, GIL-off LazyProperty first-touch
+//     remains the un-arbitrated landed slow path; LZ1.4/LZ2.4 corpus arms
+//     cannot pass.
+//
+// WS1.4 HANDLE-CREATION LOCK-CONTEXT COLUMN (Weak/Strong construction sites
+// in THIS task's owned files — the audit column; WS(i): no Weak construction
+// under api rank-1..3 or §LK.7 leaves):
+//   - VMLite.cpp / RegExp.cpp / RegExpCachedResult.h /
+//     GenericArgumentsImplInlines.h / StructureRareData.cpp: ZERO Weak or
+//     Strong constructions (verified: no Weak<>/Strong<>/JSWeakValue use).
+//   - JSGlobalObject.cpp (this task's additions): ZERO Weak/Strong
+//     constructions; the per-lite side table holds WriteBarriers (no
+//     handles) and allocates cells OUTSIDE its leaf lock (WS1(i)-conforming
+//     by construction).
+// WS1.2 RE-SHAPES — OPEN, files unowned here (verified still in violation):
+//   - ThreadManager::restrictObject (ThreadManager.cpp:621-642) still
+//     constructs the affinity entry's Weak via makeAffinityEntry UNDER
+//     m_affinityLock (api rank 2) on both the ensure and stale-replace arms
+//     => WS1.1 violation; re-shape per WS1.2 (build entry before the lock,
+//     move/replace under it, destroy stale entries after release).
+//   - RegExpCache::lookupOrCreate (RegExpCache.cpp:62-65) still constructs
+//     Weak<RegExp> inside the second Locker { m_lock } => same; hoist
+//     construction before the Locker, weakAdd under it, discard a racing
+//     duplicate after release.
+// WS1.5 churn corpus (restrict/collect + regexp-cache churn, TSAN): JSTests
+// is outside this file set — recorded for the orchestrator with the WS1.2
+// re-shapes (they gate together).
+// ===========================================================================
 
 // ---- UNGIL §A.3.6/ANNEX A36 carrier-TID hooks (U-T1). ----
 

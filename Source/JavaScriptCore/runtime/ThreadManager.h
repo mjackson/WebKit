@@ -32,8 +32,10 @@
 #include <wtf/Condition.h>
 #include <wtf/Deque.h>
 #include <wtf/FastMalloc.h>
+#include <wtf/Function.h>
 #include <wtf/HashMap.h>
 #include <wtf/Lock.h>
+#include <wtf/MonotonicTime.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/Threading.h>
@@ -145,8 +147,69 @@ public:
 
     std::atomic<uint8_t> state { 0 }; // Waiting = 0, Notified = 1, TimedOut = 2.
 
+    // ========================================================================
+    // UNGIL §E.3 keepalive accounting (ANNEX E3, BINDING; U-T9).
+    //
+    // m_keepaliveReleased is CONSTRUCTED true (= released; r6 F1 — the safe
+    // default mirrors the landed m_settled CAS): a never-armed ticket
+    // (asyncJoin, TA waitAsync, main/embedder registrations, any future
+    // non-counted registration) loses every claim CAS and never decrements,
+    // so the uint64 keepalive counter can never wrap below zero.
+    //
+    // armKeepalive() is the SOLE site that stores false (= armed): called
+    // once at registration (I20 addPendingWork time), on the REGISTERING
+    // (spawned, inbox-OPEN) thread, BEFORE the ticket is visible to any
+    // settler — every spawned-TS AsyncTicket EXCEPT asyncJoin (asyncHold,
+    // cond.asyncWait, property Atomics.waitAsync; §E.3 INCREMENT rule).
+    // Increments the registrant's keepaliveCount under its inboxLock and
+    // asserts spawned+OPEN (U25).
+    //
+    // claimKeepaliveRelease() is the exactly-once gate every DECREMENT site
+    // must win first (false->true CAS); losers do nothing. Decrement sites
+    // (§E.3): (1) settle-enqueue, in the SAME inboxLock section as the
+    // ThreadTask append, iff inboxOpen; (2) VM-shutdown cancelPendingWork.
+    // Inbox-close performs NO claim step: a post-close settle wins its CAS,
+    // observes inboxOpen == false, SKIPS the decrement (the counter is dead)
+    // and takes the main fallback.
+    //
+    // INTEGRATION OBLIGATION (recorded; registration host calls live in
+    // ThreadObject.cpp / LockObject.cpp / the property-atomics TU, outside
+    // U-T9's owned set): until those sites call armKeepalive(), every ticket
+    // stays never-armed — keepalive reads 0, so a spawned thread's E2A loop
+    // exits at fn-return + queue-empty and late settles take the declared
+    // main fallback (the api 4.6.2 class), which is safe (no hang, no wrap)
+    // but does not yet hold the loop alive for pending asyncHold/waitAsync.
+    // GIL-on/flag-off: armKeepalive is never called and nothing here runs.
+    // ========================================================================
+    JS_EXPORT_PRIVATE void armKeepalive();
+    bool claimKeepaliveRelease()
+    {
+        bool expected = false;
+        return m_keepaliveReleased.compare_exchange_strong(expected, true);
+    }
+
+    // §E.4 "DWT retirement on the task-queue path": runs a queued ThreadTask
+    // body on the registrant under its §F token — (a) the settle task,
+    // (b) cancelPendingWork (fires the §E.7.4 wake), (c) m_promise clear.
+    // E2A-loop only.
+    void runQueuedSettleTaskOnRegistrant(DeferredWorkTimer::Task&&);
+
+    // E2A close residue rule (§E.4 dead=>main): re-routes a harvested,
+    // already-CAS-settled ThreadTask to the landed scheduleWorkSoon path.
+    // Called with no api rank-1..3 lock held.
+    void routeQueuedTaskToMainFallback(DeferredWorkTimer::Task&&);
+
 private:
     AsyncTicket(VM&, Ref<DeferredWorkTimer::TicketData>&&, Ref<ThreadState>&& registrant, JSObject* extraDependency);
+
+    // §E.4 helper: the post-CAS settle body (open-arm inbox append with the
+    // rule-1 decrement, or the r17 F6 main fallback after the drop).
+    void settleViaRegistrantRouting(DeferredWorkTimer::Task&&);
+
+    // The landed GIL-on/flag-off settle tail (and the GIL-off main-fallback
+    // arm): wraps the task to keep `this` alive and clear m_promise, then
+    // DWT scheduleWorkSoon.
+    void scheduleViaDeferredWorkTimer(DeferredWorkTimer::Task&&);
 
     VM& m_vm;
     Ref<DeferredWorkTimer::TicketData> m_ticket;
@@ -156,6 +219,41 @@ private:
     std::atomic<bool> m_settled { false };
     std::atomic<bool> m_consumed { false };
     std::atomic<bool> m_grantDelivered { false };
+    std::atomic<bool> m_keepaliveReleased { true }; // §E.3: constructed RELEASED; armKeepalive() alone stores false.
+};
+
+// One queued cross-thread settlement (§E.1: "ThreadTask = settle task +
+// Ref<AsyncTicket>"). The task body runs on the registrant under its §F
+// token: (a) the settle task, (b) DWT retirement (cancelPendingWork — fires
+// the §E.7.4 wake), (c) m_promise clear (§E.4 "DWT retirement on the
+// task-queue path"; thread keepalive supersedes DWT shell-liveness for
+// spawned registrants).
+struct ThreadTask {
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(ThreadTask);
+
+    DeferredWorkTimer::Task task;
+    Ref<AsyncTicket> ticket;
+};
+
+// One §C.3/§E.7.5 finite-timeout deadline parked on a spawned registrant TS
+// (SD16: the 5.6 run-loop timer becomes a registrant-local deadline; the
+// §E.2 wait sleeps min(quantum, earliest deadline) and expires it locally).
+// Guarded by the registrant's inboxLock.
+//
+// tryDequeue: dequeues the waiter under ITS list lock (api rank 3) and
+// returns whether this expirer won — an already-notified/dequeued waiter
+// returns false (the in-flight settle wins; §E.5 harvest rule). Called with
+// NO lock held; takes and DROPS the list lock internally (rank-3 locks are
+// never held together, §LK).
+// settleTimedOut: the §E.4 settle "timed-out" (rule-1 decrement applies).
+// Called strictly AFTER tryDequeue returned true, with NO api rank-1..3
+// lock held (r17 F2).
+struct ThreadWaitDeadline {
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(ThreadWaitDeadline);
+
+    MonotonicTime deadline;
+    Function<bool()> tryDequeue;
+    Function<void()> settleTimedOut;
 };
 
 // Native state of one JS thread (SPEC-api 5.1). Main/embedder threads get a
@@ -178,6 +276,16 @@ public:
         RELEASE_ASSERT(argSlots.isEmpty());
         RELEASE_ASSERT(threadLocals.isEmpty());
         RELEASE_ASSERT(!jsThread);
+        // UNGIL §E.2/§E.5 (U-T9): the E2A close block routed every residue
+        // ThreadTask to main and harvested every waitDeadline before the
+        // last ref can drop; a lazy main/embedder TS never opens its inbox
+        // (§E.1), so both stay empty there.
+        {
+            Locker inboxLocker { inboxLock };
+            RELEASE_ASSERT(!inboxOpen);
+            RELEASE_ASSERT(taskQueue.isEmpty());
+            RELEASE_ASSERT(waitDeadlines.isEmpty());
+        }
         // asyncJoiners must have been drained too: by the completion
         // sequence (spawned threads) or by the 5.10 finalizer hook
         // (never-completing lazy/embedder ThreadStates, VM teardown) —
@@ -222,12 +330,40 @@ public:
     Strong<Unknown> fnSlot;
     Vector<Strong<Unknown>> argSlots;
 
-    // Post-GIL async-ticket inbox (SPEC-api 5.1/5.5). Phase 1: inert — the
-    // GIL relaxation (I12) settles tickets on whichever thread drains the
-    // single shared VM queue, so nothing reads or writes these yet.
+    // ========================================================================
+    // UNGIL §E.1 per-thread macrotask queue (U-T9; supersedes the inert
+    // phase-1 inbox vector — "the landed inbox vector IS the task queue").
+    // ALL fields below are guarded by the EXISTING inboxLock (api rank 3).
+    //
+    //  - inboxOpen: set true EXACTLY ONCE, on the owning spawned thread,
+    //    under inboxLock, post-§B.1 attach, BEFORE fn (openThreadInbox below;
+    //    happens-before any registration vs this TS — r22). Main/embedder
+    //    NEVER open theirs (§E.4's closed arm routes their settles through
+    //    the landed scheduleWorkSoon path, r17 F6). Monotonic: true exactly
+    //    once pre-fn, false forever at close — the r18 F2 act-after-drop
+    //    fallback is sound only because of this monotonicity.
+    //  - taskQueue: appended by §E.4 open-arm settles; drained ONLY by the
+    //    owner's E2A loop.
+    //  - keepaliveCount: §E.3/ANNEX E3 — outstanding armed registrations
+    //    that may still enqueue a task here; transitions under inboxLock,
+    //    exactly-once via AsyncTicket::m_keepaliveReleased. DEAD once
+    //    inboxOpen flips false (close): later claims skip the decrement.
+    //  - runLoopCondition: the E2A wait/wake edge (wakeups: task append,
+    //    stop, termination, quantum — §E.2).
+    //  - waitDeadlines: §C.3/§E.7.5 deadline-ordered-by-scan list of
+    //    finite-timeout PROPERTY waitAsync deadlines registered while this
+    //    spawned TS was open (SD16); expired by the owner's E2A EXPIRE step
+    //    or the §E.5 close harvest (r16 F5).
+    //
+    // GIL-on/flag-off: nothing reads or writes any of these (the E2A loop
+    // only runs gilOff; §E.4 routing is gilOff-gated) — flag-off identity.
+    // ========================================================================
     Lock inboxLock; // rank 3
-    Vector<Ref<AsyncTicket>> inbox WTF_GUARDED_BY_LOCK(inboxLock);
     bool inboxOpen WTF_GUARDED_BY_LOCK(inboxLock) { false };
+    Deque<ThreadTask> taskQueue WTF_GUARDED_BY_LOCK(inboxLock);
+    uint64_t keepaliveCount WTF_GUARDED_BY_LOCK(inboxLock) { 0 };
+    Condition runLoopCondition;
+    Vector<ThreadWaitDeadline> waitDeadlines WTF_GUARDED_BY_LOCK(inboxLock);
 
 private:
     ThreadState(uint16_t tid, bool isSpawned)
@@ -585,5 +721,72 @@ JS_EXPORT_PRIVATE void attachSpawnedThreadGCClient(VM&, VMLite&);
 // default-queue removal run outside the registry lock). Exit stays
 // UN-GATED: no stop-bit poll, no park point.
 JS_EXPORT_PRIVATE void tearDownSpawnedThreadForExit(VM&, VMLite&);
+
+// ============================================================================
+// UNGIL §E.2/§E.3/§E.5 — the per-thread event loop (ANNEXES E2A + E3, BINDING;
+// U-T9). GIL-off only; nothing below is reachable GIL-on/flag-off.
+//
+// INTEGRATION POINT (recorded; threadMain lives in ThreadObject.cpp, outside
+// U-T9's owned set): the GIL-off threadMain shape is
+//
+//   register lite + setCurrent + TID-tag init
+//   attachSpawnedThreadGCClient(vm, lite)        (U-T6, §B.1)
+//   openThreadInbox(state)                        (E.1: BEFORE fn, post-attach)
+//   run fn under a JSLockHolder token (as landed)
+//   runSpawnedThreadDrainLoopAndClose(vm, lite, state, phase, resultValue-already-stored)
+//     -> drains/waits per E2A, then runs the close block (§E.5 shares it),
+//        the F5 completion protocol against state, and the EXIT1.3 teardown
+//        via tearDownSpawnedThreadForExit. The caller frees the lite after.
+//
+// Thread completes — and join/asyncJoin settle (F5) — ONLY at close (U7),
+// not at fn-return (SD1). Park sites inside fn do NOT service the task queue.
+// ============================================================================
+
+// §E.1: flips inboxOpen true, exactly once, under inboxLock. Must run on the
+// owning spawned thread, after §B.1 attach, before fn. Asserts spawned and
+// not-yet-open.
+JS_EXPORT_PRIVATE void openThreadInbox(ThreadState&);
+
+// §C.3/§E.7.5 registration helper: appends a finite-timeout deadline to the
+// CURRENT spawned TS's waitDeadlines under inboxLock (asserts spawned+OPEN;
+// the §C.3 site calls this only when the registrant TS is spawned and the
+// timeout is finite — r12 F3). Signals runLoopCondition so an idle E2A loop
+// re-computes its sleep bound.
+JS_EXPORT_PRIVATE void addThreadWaitDeadline(ThreadState&, MonotonicTime deadline, Function<bool()>&& tryDequeue, Function<void()>&& settleTimedOut);
+
+// ============================================================================
+// UNGIL §E.7 (ANNEX E7 + r17 F3 + r18 F2; U-T9) — cross-thread DWT work under
+// embedder hooks. Declared here (this header is U-T9-owned; DeferredWorkTimer.h
+// is not — recorded placement deviation), defined in DeferredWorkTimer.cpp.
+// ============================================================================
+
+// The FOURTH embedder hook, onCrossThreadWorkEnqueued (REQUIRED with the
+// other three under gilOff — boot-checked at the first internal-arm enqueue;
+// absent => the vm.runLoop().dispatch fallback drives the work, so a
+// parked-main settle still cannot deadlock). Contract: invoked with NO JSC
+// lock held; must not reenter JSC; never runs JS — it only wakes the
+// embedder's loop so a carrier reaches a §F.1 drain point.
+JS_EXPORT_PRIVATE void jsThreadsSetOnCrossThreadWorkEnqueued(VM&, Function<void()>&&);
+
+// §F.1 carrier drain point: flushes the m_pendingLock-guarded handoff queue
+// into the DWT task queue and runs it under the calling carrier's token
+// (incl. the E.4(b) retire + m_promise clear inside each task). Requires the
+// caller to hold the VM's token on a main/embedder carrier. No-op GIL-on/
+// flag-off and when the queue is empty.
+JS_EXPORT_PRIVATE void jsThreadsFlushCrossThreadDeferredWork(VM&);
+
+// ~VM purge (called by ~VM under the destroying thread's token, before the
+// DWT dies): drops queued cross-thread work and the internal-arm marks.
+JS_EXPORT_PRIVATE void jsThreadsPurgeCrossThreadDeferredWorkAtVMDestruction(VM&);
+
+// ANNEX E2A: the post-fn drain loop + close + F5 completion + EXIT1.3
+// teardown, verbatim against the annex pseudocode (see the .cpp). `phase` is
+// the fn outcome (Finished/Failed); a termination trap observed by the loop
+// (or already pending from fn) takes the §E.5 path through the SAME close
+// block with Phase::Failed. PRECONDITIONS: caller is the owning spawned
+// thread, holds NO lock and NO JSLock token (the loop brackets its own token
+// per task), state->result was already stored (F1), lite.clientHeap is the
+// thread's attached client.
+JS_EXPORT_PRIVATE void runSpawnedThreadDrainLoopAndClose(VM&, VMLite&, ThreadState&, ThreadState::Phase);
 
 } // namespace JSC

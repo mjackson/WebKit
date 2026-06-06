@@ -37,6 +37,7 @@
 #include "StructureChain.h"
 #include "StructureInlines.h"
 #include "StructureRareDataInlines.h"
+#include <wtf/Atomics.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -110,19 +111,66 @@ private:
 
 SpecialPropertyCacheEntry::~SpecialPropertyCacheEntry() = default;
 
+// =============================================================================
+// UNGIL annex N7 RESOLVED-5 (AUD1.N4, BINDING; U-T8b) — StructureRareData
+// runtime caches under N mutators.
+//
+// Ruling, consumed verbatim:
+//   (1) m_specialPropertyCache is §K.3-class lazy publication: build, then
+//       release-CAS the single pointer word; losers discard. (Below.)
+//   (2) Cache-entry INSTALLS run under the owning Structure's m_lock (the
+//       structure already owns its rare data lifecycle, OM GT order); each
+//       JIT-read word (SpecialPropertyCacheEntry::m_value;
+//       m_cachedPropertyNameEnumeratorAndFlag; m_cachedPropertyNames[k]) is
+//       single-word release-published LAST, after every word it summarizes.
+//   (3) The enumerator install {watchpoint vector filled first, immutable
+//       after; flag word published last} lives in
+//       StructureRareDataInlines.h (setCachedPropertyNameEnumerator /
+//       clearCachedPropertyNameEnumerator) — OUTSIDE U-T8b's owned file set;
+//       recorded OPEN for that header's owning slice, against the rule text
+//       here. Watchpoint-set FIRING stays K4.VI.2 (inside a §A.3 stop, jit
+//       deopt machinery); the OM-annex cross-pointer is recorded in AUD1.
+// Flag-off / GIL-on identity: the CAS cannot lose and the added lock is
+// uncontended; no codegen or semantic change.
+// =============================================================================
+
 SpecialPropertyCache& StructureRareData::ensureSpecialPropertyCacheSlow()
 {
     ASSERT(!isCompilationThread() && !Thread::mayBeGCThread());
-    ASSERT(!m_specialPropertyCache);
+    // AUD1.N4(1): §K.3-class CAS-publish. Two mutators iterating a shared
+    // structure can race here; the old fence+plain-store pair leaked the
+    // loser's cache AND let the loser hand out a pointer the winner's store
+    // was about to clobber (unique_ptr double-publish => UAF). The CAS makes
+    // exactly one buffer the published one; the loser's makeUnique result is
+    // destroyed on scope exit, after it lost (it was never visible).
     auto cache = makeUnique<SpecialPropertyCache>();
-    WTF::storeStoreFence(); // Expose valid struct for concurrent threads including concurrent compilers.
-    m_specialPropertyCache = WTF::move(cache);
-    return *m_specialPropertyCache.get();
+    static_assert(sizeof(std::unique_ptr<SpecialPropertyCache>) == sizeof(SpecialPropertyCache*), "CAS-publish treats the unique_ptr as one pointer word");
+    SpecialPropertyCache* prior = WTF::atomicCompareExchangeStrong(std::bit_cast<SpecialPropertyCache**>(&m_specialPropertyCache), static_cast<SpecialPropertyCache*>(nullptr), cache.get());
+    if (prior)
+        return *prior; // Loser: the winner's fully-constructed cache is the published one.
+    // Winner: ownership transferred to the member by the CAS; the seq_cst
+    // success edge carries the release the old storeStoreFence provided for
+    // concurrent compilers' plain loads.
+    return *cache.release();
 }
 
 inline void StructureRareData::giveUpOnSpecialPropertyCache(CachedSpecialPropertyKey key)
 {
-    ensureSpecialPropertyCache().m_cache[static_cast<unsigned>(key)].m_value.setWithoutWriteBarrier(JSCell::seenMultipleCalleeObjects());
+    // AUD1.N4 (AMENDMENT to the N7 RESOLVED-5 row, recorded here): the
+    // sentinel publish stays UNLOCKED but is a CAS from EMPTY, not a plain
+    // overwrite. The old plain setWithoutWriteBarrier raced the locked
+    // installer's m_value.set on the same word (a TSAN-visible
+    // unsynchronized write to a lock-guarded word) and could clobber a
+    // freshly installed real value, leaving live watchpoints summarized by
+    // a sentinel. The CAS publishes the sentinel only when no value is
+    // cached; if a racing locked installer won, its real value stays (its
+    // watchpoints carry validity). Flag-off/GIL-on identity: this slow path
+    // is reached only when the cache lookup missed (entry empty or already
+    // the sentinel), so the CAS succeeds exactly when the old store wrote
+    // something new — behavior is bit-identical single-threaded.
+    auto& slot = ensureSpecialPropertyCache().m_cache[static_cast<unsigned>(key)].m_value;
+    static_assert(sizeof(WriteBarrier<Unknown>) == sizeof(EncodedJSValue), "single-word sentinel CAS treats the barrier as one EncodedJSValue word");
+    WTF::atomicCompareExchangeStrong(std::bit_cast<EncodedJSValue*>(&slot), JSValue::encode(JSValue()), JSValue::encode(JSValue(JSCell::seenMultipleCalleeObjects())));
 }
 
 void StructureRareData::cacheSpecialPropertySlow(JSGlobalObject* globalObject, VM& vm, Structure* ownStructure, JSValue value, CachedSpecialPropertyKey key, const PropertySlot& slot)
@@ -207,17 +255,48 @@ void StructureRareData::cacheSpecialPropertySlow(JSGlobalObject* globalObject, V
     }
 
     ASSERT(conditionSet.structuresEnsureValidity());
-    auto& cache = ensureSpecialPropertyCache().m_cache[static_cast<unsigned>(key)];
-    for (ObjectPropertyCondition condition : conditionSet) {
-        if (condition.condition().kind() == PropertyCondition::Presence) {
-            cache.m_equivalenceWatchpoint = makeUnique<CachedSpecialPropertyAdaptiveInferredPropertyValueWatchpoint>(equivCondition, this);
-            cache.m_equivalenceWatchpoint->install(vm);
-        } else
-            cache.m_missWatchpoints.add(condition, this)->install(vm);
+    {
+        // AUD1.N4(2): the multi-word entry install {miss watchpoints,
+        // equivalence watchpoint, value} runs under the owning Structure's
+        // m_lock — two threads for-in/Object.prototype.toString-ing a shared
+        // structure otherwise interleave Bag appends and unique_ptr resets
+        // (freeing a watchpoint another thread just installed). Condition-set
+        // derivation above stays OUTSIDE the lock (it walks other structures
+        // and allocates). The JIT-read word cache.m_value is published LAST,
+        // after the watchpoints it summarizes; foreign fast-path readers
+        // load it single-word (unlocked), per the ruling. No GC-allocating
+        // call runs under the lock (makeUnique/Bag = fastMalloc; install()
+        // takes no ConcurrentJSLock — verified against
+        // AdaptiveInferredPropertyValueWatchpointBase::install).
+        ConcurrentJSLocker locker(ownStructure->lock());
+        auto& cache = ensureSpecialPropertyCache().m_cache[static_cast<unsigned>(key)];
+        if (cache.m_value.get())
+            return; // A racing installer (or a giveUp sentinel) won under the lock; keep its entry.
+        for (ObjectPropertyCondition condition : conditionSet) {
+            if (condition.condition().kind() == PropertyCondition::Presence) {
+                cache.m_equivalenceWatchpoint = makeUnique<CachedSpecialPropertyAdaptiveInferredPropertyValueWatchpoint>(equivCondition, this);
+                cache.m_equivalenceWatchpoint->install(vm);
+            } else
+                cache.m_missWatchpoints.add(condition, this)->install(vm);
+        }
+        // AUD1.N4(2): the JIT-read word is RELEASE-published LAST. Holding
+        // ownStructure->lock() orders nothing for the foreign fast-path
+        // readers that load this word UNLOCKED (StructureRareDataInlines.h
+        // cachedSpecialProperty / canCacheSpecialProperty and the baseline/
+        // DFG inline reads) — on arm64 the m_value store could otherwise
+        // become visible before the watchpoint-install stores it summarizes.
+        // Same fence-then-publish shape the cached-property-names path
+        // already uses (StructureRareDataInlines.h setCachedPropertyNames).
+        WTF::storeStoreFence();
+        cache.m_value.set(vm, this, value);
     }
-    cache.m_value.set(vm, this, value);
 }
 
+// Lock context (AUD1.N4 / K4.VI.2): callers are watchpoint FIRES (GIL-off
+// these run only inside a §A.3 stop or with the world stopped — jit deopt
+// machinery) and finalizeUnconditionally (GC end phase, mutators stopped) —
+// never a free-running foreign mutator, so the entry teardown below needs no
+// lock against the locked install path above.
 void StructureRareData::clearCachedSpecialProperty(CachedSpecialPropertyKey key)
 {
     auto* objectToStringCache = m_specialPropertyCache.get();

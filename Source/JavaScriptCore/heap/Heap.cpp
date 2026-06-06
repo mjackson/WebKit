@@ -3218,7 +3218,12 @@ bool Heap::shouldDoFullCollection()
     // an Eden-only workload would never rebias and exhausted spawns would
     // RangeError forever). gilOffProcess-only — GIL-on keeps Dev 10 and the
     // probe is never armed there (U19: GIL-on behavior unchanged); flag-off
-    // the branch is dead (isGILOffProcess() false).
+    // the branch is dead (isGILOffProcess() false). isSharedServer() under
+    // gilOffProcess identifies the U0c WINNER heap uniquely (I13: shared-
+    // server-ness is process-unique, s_stickySharedServer CAS), so this
+    // probe cannot upgrade a foreign heap's cycle; the snapshot-CONSUMING
+    // edge is additionally RELEASE_ASSERTed vm().gilOff() in
+    // conductSharedCollection.
     if (VM::isGILOffProcess() && isSharedServer() && ThreadManager::singleton().rebiasSnapshotIsSealed()) [[unlikely]]
         return true;
 
@@ -4607,6 +4612,32 @@ bool Heap::tryConductSharedCollectionForPoll(GCClient::Heap& client) WTF_IGNORES
 // per OM F4, covered by the jit Task-13 stop-budget gate — rebias is a rare,
 // exhaustion-driven event under SD9's spawn gate).
 //
+// OPEN INTEGRATION OBLIGATION (BLOCKING for the U-T12 two-VM TM-churn
+// amplifier arm; recorded HERE because bytecode/JSThreadsSafepoint.cpp is
+// outside U-T12's owned file set): the D1R fire loop below routes through
+// WatchpointSet::fireAllSlow -> fireAllUnderClassAStop, whose run-inline
+// branch (taken: WSAC satisfies worldIsStopped(vm)) constructs
+// AlreadyStoppedWorldWitnessScope. With no process-global witness raised
+// (s_stubWorldStoppedDepth == 0 — the WSAC evidence is per-heap), that
+// constructor runs the R2-4/R3-11 entered-VM tripwire
+// (assertAlreadyStoppedEvidenceCoversEveryMutator), which counts every
+// entered VM whose clientHeap.server() is not THIS stopped server and
+// RELEASE_ASSERTs the count is 0. ANNEX D1 explicitly sanctions other VMs'
+// threads running un-stopped during the rebias stop (TM is process-global),
+// so in a MULTI-VM gilOffProcess process a legitimately entered loser VM
+// makes the first rebias fire a deterministic process abort. The patch
+// itself is SAFE in that shape — loser-VM mutators can never execute the
+// winner VM's compiled code, so firing/jettisoning winner code under the
+// winner-heap-only stop is sound; it is the tripwire's premise (phase-1
+// single-entered-VM) that the GIL-removal milestone retires. REQUIRED FIX
+// (in JSThreadsSafepoint.cpp, when it becomes writable): when the stopped
+// shared server is the gilOffProcess U0c winner's heap, entered VMs
+// belonging to OTHER heaps are legitimate concurrent losers and must not be
+// counted. Until that lands: single-VM gilOffProcess runs (incl. the
+// spawn-storm and D1R.5 arms) are unaffected (count is 0), and the two-VM
+// TM-churn amplifier arm MUST NOT be enabled (see the matching deferral
+// record in ThreadManager.h's §D.1 banner).
+//
 // RECORDED DEVIATION (file ownership, not semantics): Structure exposes no
 // transition-TID setter and Structure.h is outside U-T12's owned set, so the
 // restamp writes through the JIT-exported transitionThreadLocalTIDOffset().
@@ -4813,6 +4844,19 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     if (VM::isGILOffProcess()) [[unlikely]] {
         auto& threadManager = ThreadManager::singleton();
         if (const Vector<uint16_t>* deadTIDs = threadManager.rebiasSnapshotForConductor()) {
+            // Single-consumer proof for the Sealed snapshot (the
+            // Sealed -> Restamped edge must have exactly ONE potential
+            // writer): under gilOffProcess the only heap that can be a
+            // shared server is the U0c winner's — shared-server-ness is
+            // PROCESS-unique via the I13 s_stickySharedServer CAS (the sole
+            // m_isSharedServer=true site, noteSharedServerSticky, RELEASE_
+            // ASSERTs it), and the winner heap took that CAS in its VM
+            // ctor. So isSharedServer() (asserted at function entry) + the
+            // process flag already imply this is the winner heap; this
+            // assert makes the implication enforced rather than argued, so
+            // no future second-server shape could restamp the WRONG heap
+            // and release dead TIDs that still alias winner-heap tags.
+            RELEASE_ASSERT(vm().gilOff());
             if (sawFullCollectionThisStop) {
                 conductTIDRebiasUnderSharedStop(*this, *deadTIDs);
                 threadManager.noteRebiasRestampComplete();

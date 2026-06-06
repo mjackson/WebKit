@@ -288,6 +288,7 @@
 #include "TemporalTimeZone.h"
 #include "TemporalTimeZonePrototype.h"
 #include "TopExceptionScope.h"
+#include "VMLite.h"
 #include "VMTrapsInlines.h"
 #include "WaiterListManager.h"
 #include "WasmCapabilities.h"
@@ -331,6 +332,8 @@
 #include "runtime/VM.h"
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/FixedVector.h>
+#include <wtf/HashMap.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/text/MakeString.h>
 
@@ -1148,8 +1151,204 @@ JSGlobalObject::JSGlobalObject(VM& vm, Structure* structure, const GlobalObjectM
 {
 }
 
+// =============================================================================
+// UNGIL §K.1 per-lite realm duplicates (U-T8b; ANNEX AUD1.K2/SD19 + ALS1.3).
+//
+// Two JSGlobalObject-resident members are ruled §K.1 per-lite (annex K4):
+//
+//  - m_regExpGlobalData (AUD1.K2, K4 §0 U2, N7 RESOLVED-7; SD19): multi-word
+//    RegExp legacy-statics cache rewritten on every global-flag match,
+//    DFG/FTL-inlined (RecordRegExpCachedResult). GIL-off each entered thread
+//    owns a PRIVATE stream; RegExp.$1-$9/lastMatch/leftContext/rightContext/
+//    input observe only the CURRENT thread's matches (SD19, GIL-off only).
+//  - m_asyncContextData (ALS1.3, PRE-RULED class 1): the ALS cursor is
+//    swap-written by every job run and by Bun's enter/exit hooks; "current
+//    async context" is thread-local by definition, so the cursor reroutes
+//    per-lite. (The REROUTE of the JSPromise.cpp/JSMicrotask.cpp/
+//    JSPromisePrototype.cpp capture/restore sites is U-T9's ALS1 work; this
+//    block lands the storage + accessor + rooting + teardown those sites
+//    consume. Captured-tuple carry across threads is ALS1.1/SD10 —
+//    unaffected.)
+//
+// STORAGE: VMLite carries no L2 slot for either yet (VMLite.h is outside
+// every U-T8-wave writable set — see the A16-extension activation checklist
+// in VMLite.cpp; the JIT-addressable slot lands with the emission slice).
+// Until then the per-lite copies live in this leaf-locked side table keyed
+// (global, lite). That satisfies the three §K.1 structural duties NOW:
+//  - REGISTRY-WALK ROOTING (§A.1.3 GC-roots rule; K4 binding consequence 3):
+//    visitChildrenImpl walks this global's entries under the table lock (the
+//    M11 precedent — markers hold no other lock there) and visits the
+//    cell-holding copies.
+//  - ~VM / LITE-TEARDOWN WALK: every lite teardown path funnels through
+//    ~VMLite (walk-freed, TLS-destructor-freed, deferred — see VM.cpp's
+//    EXIT1.9 machinery), which calls purgePerLiteRealmStateForLite below —
+//    per-lite copies die with their lite, and the EXIT1.9 ~VM fence
+//    guarantees all non-main lites are gone before VM members die.
+//    Per-global entries die in ~JSGlobalObject.
+//  - CURRENT-LITE ACCESSORS: threadRegExpGlobalData / threadAsyncContextData
+//    route gilOff non-main-carrier threads to their copy; everything else
+//    (flag-off, GIL-on, the main carrier) keeps the in-object member
+//    BYTE-IDENTICALLY — the main carrier's stream IS the in-object one,
+//    matching AUD1.K2's "flag-off keeps the baked global-object-relative
+//    address" (the future lite slot for the main carrier aliases the
+//    member).
+//
+// Lock discipline: the table lock is a §LK.7 leaf; ALL cell allocation and
+// record()/create() initialization happens OUTSIDE it (alloc-outside shape,
+// §E.1b / WS1.2); losers' buffers are destroyed after release.
+//
+// OPEN (recorded; outside this file's owned set): the runtime consumers of
+// globalObject->regExpGlobalData() (RegExpGlobalDataInlines.h,
+// RegExpConstructor.cpp, StringPrototype/RegExpObject paths) re-point to
+// threadRegExpGlobalData per AUD1.K2; the DFG/FTL RecordRegExpCachedResult
+// re-point is the A16-ext jit slice; the ALS capture/restore re-point is
+// U-T9 (ALS1.3).
+// =============================================================================
+
+void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM*); // Defined in VMLite.cpp (K4 §VIII machinery); identical self-declaration.
+void purgePerLiteRealmStateForLite(VMLite&); // Defined below; ~VMLite (VMLite.cpp) self-declares and calls it.
+
+namespace {
+
+struct PerLiteRealmState {
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(PerLiteRealmState);
+    std::unique_ptr<RegExpGlobalData> regExpGlobalData;
+#if USE(BUN_JSC_ADDITIONS)
+    WriteBarrier<InternalFieldTuple> asyncContextData;
+#endif
+};
+
+struct PerLiteRealmTable {
+    Lock lock; // §LK.7 leaf: nothing is acquired under it; markers take it bare (M11 shape).
+    HashMap<std::pair<JSGlobalObject*, VMLite*>, std::unique_ptr<PerLiteRealmState>> map WTF_GUARDED_BY_LOCK(lock);
+};
+
+PerLiteRealmTable& perLiteRealmTable()
+{
+    static NeverDestroyed<PerLiteRealmTable> table;
+    return table;
+}
+
+// Routing predicate: non-null iff the CURRENT thread must use a per-lite
+// copy — gilOff VM, an installed same-VM lite that is not the main carrier.
+// Everything else (flag-off, GIL-on, main carrier, unentered probes) keeps
+// the in-object member, preserving flag-off identity.
+ALWAYS_INLINE VMLite* perLiteRealmRoutingLite(VM& vm)
+{
+    if (!vm.gilOff()) [[likely]]
+        return nullptr;
+    VMLite* lite = VMLite::currentIfExists();
+    if (!lite || lite == vm.mainVMLite() || lite->vm != &vm)
+        return nullptr;
+    return lite;
+}
+
+} // anonymous namespace
+
+RegExpGlobalData& threadRegExpGlobalData(JSGlobalObject*); // Self-declaration (the consumer re-point lifts this beside regExpGlobalData()'s declaration; that header is outside U-T8b's owned set).
+RegExpGlobalData& threadRegExpGlobalData(JSGlobalObject* globalObject)
+{
+    VM& vm = globalObject->vm();
+    VMLite* lite = perLiteRealmRoutingLite(vm);
+    if (!lite) [[likely]]
+        return globalObject->regExpGlobalData();
+
+    auto& table = perLiteRealmTable();
+    std::pair<JSGlobalObject*, VMLite*> key { globalObject, lite };
+    {
+        Locker locker { table.lock };
+        auto it = table.map.find(key);
+        if (it != table.map.end() && it->value->regExpGlobalData)
+            return *it->value->regExpGlobalData;
+    }
+    // Alloc-outside: mirror the ctor-time seeding of the in-object stream
+    // (init()'s cachedResult().record with the empty string) so $1-$9 read
+    // as empty strings, not garbage, before this thread's first match.
+    // jsEmptyString is smallStrings — allocation-free — but record() runs
+    // barriers; none of it may run under the leaf lock.
+    auto fresh = makeUniqueWithoutFastMallocCheck<RegExpGlobalData>();
+    fresh->cachedResult().record(vm, globalObject, nullptr, jsEmptyString(vm), MatchResult(0, 0), /* oneCharacterMatch */ false);
+    Locker locker { table.lock };
+    auto result = table.map.ensure(key, [] { return makeUnique<PerLiteRealmState>(); });
+    auto& state = *result.iterator->value;
+    if (!state.regExpGlobalData)
+        state.regExpGlobalData = WTF::move(fresh);
+    return *state.regExpGlobalData; // A losing `fresh` dies at scope exit, after the locker releases.
+}
+
+#if USE(BUN_JSC_ADDITIONS)
+InternalFieldTuple* threadAsyncContextData(JSGlobalObject*); // Self-declaration (U-T9/ALS1.3 lifts it beside m_asyncContextData's consumers).
+InternalFieldTuple* threadAsyncContextData(JSGlobalObject* globalObject)
+{
+    VM& vm = globalObject->vm();
+    VMLite* lite = perLiteRealmRoutingLite(vm);
+    if (!lite) [[likely]]
+        return globalObject->m_asyncContextData.get();
+
+    auto& table = perLiteRealmTable();
+    std::pair<JSGlobalObject*, VMLite*> key { globalObject, lite };
+    {
+        Locker locker { table.lock };
+        auto it = table.map.find(key);
+        if (it != table.map.end() && it->value->asyncContextData)
+            return it->value->asyncContextData.get();
+    }
+    // A fresh thread starts with the EMPTY async context (undefined cursor)
+    // — ALS1.3 per-lite semantics. Allocated outside the leaf lock; kept
+    // alive across the gap by this frame's conservative root.
+    InternalFieldTuple* tuple = InternalFieldTuple::create(vm, globalObject->internalFieldTupleStructure(), jsUndefined(), jsUndefined());
+    Locker locker { table.lock };
+    auto result = table.map.ensure(key, [] { return makeUnique<PerLiteRealmState>(); });
+    auto& state = *result.iterator->value;
+    if (!state.asyncContextData)
+        state.asyncContextData.set(vm, globalObject, tuple); // Loser's tuple is unreferenced garbage; the GC reclaims it.
+    return state.asyncContextData.get();
+}
+#endif // USE(BUN_JSC_ADDITIONS)
+
+// Lite-teardown half of the ~VM walk (K4 binding consequence 3): called from
+// ~VMLite for EVERY lite (all teardown paths funnel there). Entries are
+// detached under the leaf lock and destroyed after release.
+void purgePerLiteRealmStateForLite(VMLite& lite)
+{
+    auto& table = perLiteRealmTable();
+    Vector<std::unique_ptr<PerLiteRealmState>, 4> doomed;
+    {
+        Locker locker { table.lock };
+        table.map.removeIf([&](auto& entry) {
+            if (entry.key.second != &lite)
+                return false;
+            doomed.append(WTF::move(entry.value));
+            return true;
+        });
+    }
+    // `doomed` dies here, outside the lock (WS1.2 destroy-after-release shape).
+}
+
+// Global-death half: a global can die (GC sweep) while its VM and lites live
+// on; its per-lite entries must not outlive it (their barriers name it as
+// owner and visitChildren stops visiting them).
+static void purgePerLiteRealmStateForGlobal(JSGlobalObject* globalObject)
+{
+    auto& table = perLiteRealmTable();
+    Vector<std::unique_ptr<PerLiteRealmState>, 4> doomed;
+    {
+        Locker locker { table.lock };
+        table.map.removeIf([&](auto& entry) {
+            if (entry.key.first != globalObject)
+                return false;
+            doomed.append(WTF::move(entry.value));
+            return true;
+        });
+    }
+}
+
 JSGlobalObject::~JSGlobalObject()
 {
+    // UNGIL §K.1 (U-T8b): drop this global's per-lite realm duplicates
+    // before the member they shadow (m_regExpGlobalData) is torn down.
+    purgePerLiteRealmStateForGlobal(this);
+
     clearWeakTickets();
 #if ENABLE(REMOTE_INSPECTOR)
     protect(inspectorController())->globalObjectDestroyed();
@@ -1167,6 +1366,11 @@ void JSGlobalObject::destroy(JSCell* cell)
 
 void JSGlobalObject::setGlobalThis(VM& vm, JSObject* globalThis)
 {
+    // UNGIL annex K4 §VIII.9 (U-T8b): m_globalThis is immutable-after-init —
+    // written by finishCreation/resetPrototype before the global is shared
+    // across threads. Debug fail-stop on a write after the VM's first
+    // cross-thread entry (no-op flag-off/GIL-on and in release builds).
+    jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(&vm);
     m_globalThis.set(vm, this, globalThis);
 }
 
@@ -3416,6 +3620,26 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     thisObject->m_regExpGlobalData.visitAggregate(visitor);
 
     {
+        // UNGIL §K.1 registry-walk rooting (U-T8b; AUD1.K2 + ALS1.3): the
+        // per-lite duplicates of m_regExpGlobalData / m_asyncContextData hold
+        // cells owned by this global and MUST be scanned whenever the global
+        // is (K4 binding consequence 3). Leaf lock; markers hold no other
+        // lock here (the M11 m_microtaskQueues precedent). Entries for other
+        // globals are skipped — they are visited with their own owner.
+        auto& table = perLiteRealmTable();
+        Locker locker { table.lock };
+        for (auto& entry : table.map) {
+            if (entry.key.first != thisObject)
+                continue;
+            if (entry.value->regExpGlobalData)
+                entry.value->regExpGlobalData->visitAggregate(visitor);
+#if USE(BUN_JSC_ADDITIONS)
+            visitor.append(entry.value->asyncContextData);
+#endif
+        }
+    }
+
+    {
         if (thisObject->m_weakTickets) {
             Locker locker { thisObject->cellLock() };
             for (Ref<DeferredWorkTimer::TicketData> ticket : *thisObject->m_weakTickets) {
@@ -3919,6 +4143,14 @@ void JSGlobalObject::setIsITML()
 
 void JSGlobalObject::setName(const String& name)
 {
+    // UNGIL annex K4 §VIII.9 (U-T8b): m_name is immutable-after-init —
+    // embedder configuration written before the global is shared across
+    // threads. A post-entry write would race foreign readers on a
+    // non-atomic two-word refcounted String (torn pointer + non-atomic
+    // ref). Debug fail-stop after the VM's first cross-thread entry
+    // (no-op flag-off/GIL-on and in release builds), same wiring as
+    // setGlobalThis.
+    jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(&vm());
     m_name = name;
 
 #if ENABLE(REMOTE_INSPECTOR)
