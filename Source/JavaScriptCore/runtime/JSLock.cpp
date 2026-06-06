@@ -40,6 +40,7 @@
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/StackPointer.h>
+#include <wtf/TZoneMallocInlines.h>
 #include <wtf/ThreadSpecific.h>
 #include <wtf/Threading.h>
 #include <wtf/threads/Signals.h>
@@ -235,11 +236,13 @@ static void tearDownCarriersAtThreadDeath(CarrierMap& map) WTF_IGNORES_THREAD_SA
 }
 
 class ThreadCarrierMaps {
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_MAKE_TZONE_ALLOCATED(ThreadCarrierMaps);
 public:
     CarrierMap map;
     ~ThreadCarrierMaps() { tearDownCarriersAtThreadDeath(map); } // Carrier-TLS-death (non-main threads only).
 };
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(ThreadCarrierMaps);
 
 static CarrierMap& mainThreadCarrierMap()
 {

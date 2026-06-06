@@ -2024,7 +2024,7 @@ struct PromiseRejectionTrackerHandoffRecord {
 };
 
 struct PromiseRejectionTrackerHandoffQueue {
-    WTF_MAKE_STRUCT_FAST_ALLOCATED;
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(PromiseRejectionTrackerHandoffQueue);
     Lock lock; // §LK leaf (spec home: DWT m_pendingLock; see block comment).
     Vector<PromiseRejectionTrackerHandoffRecord> records WTF_GUARDED_BY_LOCK(lock);
     bool flushing WTF_GUARDED_BY_LOCK(lock) { false }; // re-entrant carrier drain guard.

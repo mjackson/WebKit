@@ -177,6 +177,17 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION_WITH_ATTRIBUTES(ftlUnreachable, NO_RETURN_DUE_
 }
 #endif // ASSERT_ENABLED
 
+// UNGIL A16 EXTENSION (AUD1.K4 / K4.VIII.10, U-T4b): operationRandom in
+// dfg/DFGOperations.h is now USE(JSVALUE32_64)-only (64-bit tiers inline via
+// emitRandomThunk), so the FTL gilOff slow path needs its own operation. It
+// routes through the host-side WeakRandom advance, mirroring what
+// operationRandom did: JSGlobalObject::weakRandomNumber().
+JSC_DECLARE_NOEXCEPT_JIT_OPERATION(ftlOperationRandomGilOff, double, (JSGlobalObject*));
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(ftlOperationRandomGilOff, double, (JSGlobalObject* globalObject))
+{
+    return globalObject->weakRandomNumber();
+}
+
 // Using this instead of typeCheck() helps to reduce the load on B3, by creating
 // significantly less dead code.
 #define FTL_TYPE_CHECK_WITH_EXIT_KIND(exitKind, lowValue, highValue, typesPassedThrough, failCondition) do { \
@@ -3825,7 +3836,9 @@ private:
             // removes the JIT-side torn read-modify-write; the host-side
             // advance still touches the shared stream and is covered by the
             // K4.VIII.10 runtime row (OPEN, recorded in INTEGRATE-ungil.md).
-            setDouble(vmCall(Double, operationRandom, weakPointer(globalObject)));
+            // operationRandom is USE(JSVALUE32_64)-only now; FTL (64-bit only)
+            // uses the file-local ftlOperationRandomGilOff equivalent.
+            setDouble(vmCall(Double, ftlOperationRandomGilOff, weakPointer(globalObject)));
             return;
         }
 

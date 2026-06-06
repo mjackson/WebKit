@@ -76,7 +76,7 @@ static constexpr bool verbose = false;
 namespace {
 
 struct CrossThreadDWTState {
-    WTF_MAKE_STRUCT_FAST_ALLOCATED;
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED(CrossThreadDWTState);
     Lock lock; // §LK.7 leaf (the side-table half of m_pendingLock — see banner).
     Deque<std::tuple<DeferredWorkTimer::Ticket, DeferredWorkTimer::Task>> handoffQueue WTF_GUARDED_BY_LOCK(lock);
     UncheckedKeyHashSet<DeferredWorkTimer::Ticket> internalArmTickets WTF_GUARDED_BY_LOCK(lock);
@@ -86,6 +86,8 @@ struct CrossThreadDWTState {
     Function<void()> onCrossThreadWorkEnqueued;
     bool wakeHookInstalled WTF_GUARDED_BY_LOCK(lock) { false };
 };
+
+WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(CrossThreadDWTState);
 
 } // anonymous namespace
 
@@ -520,7 +522,7 @@ bool DeferredWorkTimer::cancelPendingWork(Ticket ticket)
             }
             if (needsRunLoopRecheck) {
                 gilOffVM->runLoop().dispatch([protectedVM = Ref { *gilOffVM }] {
-                    DeferredWorkTimer& timer = *protectedVM->deferredWorkTimer;
+                    DeferredWorkTimer& timer = protectedVM->deferredWorkTimer.get();
                     Vector<Ticket> removed;
                     {
                         Locker locker { timer.m_taskLock };

@@ -42,6 +42,7 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/OSAllocator.h>
 #include <wtf/PageBlock.h>
+#include <wtf/TZoneMallocInlines.h>
 #include <wtf/Vector.h>
 
 #if ENABLE(WEBASSEMBLY)
@@ -347,6 +348,7 @@ public:
 };
 
 struct ArrayBufferQuarantine {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(ArrayBufferQuarantine);
     WTF_MAKE_NONCOPYABLE(ArrayBufferQuarantine);
 public:
     ArrayBufferQuarantine() = default;

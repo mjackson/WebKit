@@ -460,6 +460,54 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
     no-build documentation+code round; recorded as DEFERRED-TO-BUILD
     above, never as passes.
 
+  **Adversarial-review AMEND (round 2; write set per spec-conflict (i)):**
+  - Finding R2-1 (LLInt delta-(a) branches + JSCConfig gilOffProcess byte
+    absent; "confirms AB-1") — **TRUE FACTS, REFUTED AS A U-T14 DEFECT /
+    NO NEW ACTION.** The absence is exactly AB-1, found and recorded BY
+    this task's own delta re-audit (item 3) with the same consequence
+    analysis (Group-3 VM-block vs per-lite divergence, no in-LLInt
+    tripwire), and the close ruling already binds Build/Verify to treat
+    AB-1 as a LAUNCH BLOCKER for any full-trio run. Owner is U-T3
+    (obligation 9b), per the handout's own re-baseline schedule ("at
+    U-T3"); llint/, offlineasm/ and JSCConfig.h are outside U-T14's write
+    set, so neither the emission nor the suggested LLInt-entry tripwire
+    can land here. No shipping config reaches the unsound state (trio
+    defaults false; U0 forces GIL back on), so this stays an activation
+    blocker, not a regression introduced by the flip.
+  - Finding R2-2 (§N.5 twin intrinsics absent; "confirms AB-8") — **TRUE
+    FACTS, REFUTED AS A U-T14 DEFECT / NO NEW ACTION.** Identical
+    disposition: recorded as AB-8 by item 3 ((b2) unconsumed) and item 7,
+    and the close ruling ALREADY names AB-8 (alongside AB-1) a hard
+    LAUNCH BLOCKER for N>1 mutator runs — the reviewer's requested
+    treatment is the landed treatment. Owner: U-T13's §N.5 leg
+    (builtins/, bytecompiler/ outside this write set). The race is real
+    GIL-off but unreachable while AB-1 blocks activation; the U19 GIL-on
+    oracle remains the only legal config for the generator corpus until
+    (b2) lands.
+  - Finding R2-3 (gilOffProcess re-derived live at every call site; no
+    process latch; setOptions can flip the derivation mid-process) —
+    **CONFIRMED, FIXED HERE (Options.cpp, in-write-set).** Verified: the
+    short forms (ArrayBuffer.cpp:180, VMInspector.cpp:95,
+    SamplingProfiler.h, JSLock.cpp) and VM::isGILOffProcess() re-read
+    Options live while VM::m_gilOff / Watchdog::m_gilOff latch at
+    construction; Options::setOptions is callable after
+    Options::finalize() (only Config::permanentlyFreeze — embedder
+    optional — blocks it) and re-runs notifyOptionsChanged, whose U0 arm
+    can itself force useThreadGIL 0 -> 1, silently splitting JSLock arm
+    selection / detach-table consultation across consumers. FIX: a
+    write-once shadow latch in notifyOptionsChanged — the derivation may
+    change freely BEFORE g_jscConfig.options.isFinalized (Options::
+    finalize runs at the tail of JSC::initialize, strictly before any VM
+    can exist; the jsc shell parses all options pre-initialize), and any
+    post-finalization notifyOptionsChanged that would CHANGE the
+    derivation RELEASE_ASSERTs (fail-stop, per the reviewer's suggested
+    shape). Flag-off + U19: derivation constantly false, assert
+    unreachable, host-C++ only — no codegen-shape delta (delta list
+    untouched). The JSCConfig gilOffProcess byte (U-T3) SUBSUMES this
+    latch when it lands; the in-code comment records the replacement
+    obligation. AB-1's JSCConfig leg remains open — this latch is the
+    interim immutability backstop ANNEX U0C asks for, not the byte.
+
 ## (i) Supersession ledger (one row per SPEC-ungil SUPERSESSION; spec side already written, IU side written at landing)
 
 | # | Spec side | IU side (landing record) | Task |

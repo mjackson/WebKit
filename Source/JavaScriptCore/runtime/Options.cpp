@@ -793,6 +793,42 @@ void Options::notifyOptionsChanged()
         && !(Options::useVMLite() && Options::useSharedAtomStringTable() && Options::useSharedGCHeap()))
         Options::useThreadGIL() = true;
 
+    // ANNEX U0C write-once latch backstop (U-T14 amend, reviewer round 2):
+    // gilOffProcess is OPTION-derived and IMMUTABLE for the process. The
+    // real latch — the JSCConfig gilOffProcess byte — is U-T3's open
+    // obligation 9b (INTEGRATE-ungil.md; see AB-1). Until it lands, this
+    // shadow latch closes the divergence window between
+    // construction-latched consumers (VM::m_gilOff, Watchdog::m_gilOff)
+    // and the live-read short forms (ArrayBuffer.cpp gilOffThreadsProcess,
+    // VMInspector.cpp isGILOffProcessForInspection, SamplingProfiler.h,
+    // JSLock.cpp, VM::isGILOffProcess): Options::setOptions /
+    // setOption(verify=true) re-run this function and could otherwise flip
+    // the derivation mid-process (including this very U0 normalization
+    // forcing useThreadGIL 0 -> 1), silently splitting the lock-arm /
+    // detach-table selection across consumers. Options::finalize() runs at
+    // the tail of JSC::initialize() (InitializeThreading.cpp), strictly
+    // before any VM can be constructed, so refusing post-finalization
+    // CHANGES of the derivation is exactly "latched at Config
+    // finalization" minus the JSCConfig storage. Pre-finalization calls
+    // (Options::initialize, the jsc-shell CommandLine::parseArguments
+    // setOption loop, embedder setOptions before JSC::initialize) re-latch
+    // freely. Flag-off and U19 GIL-on: the derivation is constant (false),
+    // so the assert is unreachable; codegen shape unaffected (host C++
+    // only). When the JSCConfig byte lands (U-T3), it subsumes this latch
+    // and the statics below should be replaced by it, keeping the
+    // RELEASE_ASSERT.
+    {
+        bool gilOffProcessDerivation = Options::useJSThreads() && !Options::useThreadGIL()
+            && Options::useVMLite() && Options::useSharedAtomStringTable() && Options::useSharedGCHeap();
+        static bool s_gilOffProcessLatch = false;
+        static bool s_gilOffProcessLatchIsSet = false;
+        if (!g_jscConfig.options.isFinalized || !s_gilOffProcessLatchIsSet) {
+            s_gilOffProcessLatch = gilOffProcessDerivation;
+            s_gilOffProcessLatchIsSet = true;
+        } else
+            RELEASE_ASSERT(gilOffProcessDerivation == s_gilOffProcessLatch);
+    }
+
     unsigned thresholdForGlobalLexicalBindingEpoch = Options::thresholdForGlobalLexicalBindingEpoch();
     if (thresholdForGlobalLexicalBindingEpoch == 0 || thresholdForGlobalLexicalBindingEpoch == 1)
         Options::thresholdForGlobalLexicalBindingEpoch() = UINT_MAX;

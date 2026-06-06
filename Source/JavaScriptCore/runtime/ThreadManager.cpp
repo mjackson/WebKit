@@ -27,6 +27,7 @@
 #include "ThreadManager.h"
 
 #include "Error.h"         // UNGIL §E.5/TERM1.3 (U-T9): the fresh Error("Thread terminated").
+#include "GlobalObjectMethodTable.h" // UNGIL §E.2 (U-T9): reportUncaughtExceptionAtEventLoop on the snapshotted realm.
 #include "JSCInlines.h"
 #include "JSLock.h"        // UNGIL §E.2 (U-T9): per-task token brackets in the E2A loop.
 #include "JSPromise.h"
