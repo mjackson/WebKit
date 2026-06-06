@@ -435,14 +435,83 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
        §N.5 leg) — GIL-off concurrent generator/async resume keeps the
        UNSYNCHRONIZED landed plain sequences: a REAL race GIL-off, hidden
        only while AB-1 blocks activation anyway.
-     **CLOSE RULING:** the default flip is safe-by-construction despite
-     AB-1..AB-5/AB-8 — no configuration reaches gilOffProcess=1 without
-     explicitly setting useJSThreads=1 AND useSharedGCHeap=1 (both default
-     false; U0 forces GIL back on otherwise) — but the Build/Verify phase
-     MUST treat AB-1 and AB-8 as LAUNCH BLOCKERS for actually running the
-     full-trio configuration. The flip + U0 landing now is what the
-     handout mandates; it does not weaken any invariant (every unsound
-     path is behind the explicit trio opt-in, and the JIT tiers fail-stop).
+     *(GIL-removal review round — the following rows were verified missing
+     from this list even though each is recorded somewhere in a code
+     comment; the close ruling's safety argument is re-stated against the
+     COMPLETE inventory below.)*
+     - ~~AB-9: JSThreadsSafepoint gilOff reroute~~ **CLOSED by the review
+       round**: stopTheWorldAndRun now routes gilOff Class-A fires to
+       jsThreadsThreadGranularStopTheWorldAndRun (the §A.3.3 licensed
+       edit), and JSThreadsSafepoint::worldIsStopped() gained the §J.8
+       thread-granular disjunct. This also re-validates the §A.3.4 license
+       for the U-T5 M7-tripwire deletion (VMEntryScope.cpp): gilOff stop
+       requests now reach the protocol that replaced the premise; the
+       gilOn stub keeps its sampled entered-VM tripwire unchanged.
+     - **AB-10 (BLOCKER): haveABadTime K.5 Class-4 stop absent.** The
+       JSGlobalObject::haveABadTime body must run under ONE §A.3
+       thread-granular stop GIL-off (ANNEX HBT/HBT2-HBT4; the body
+       allocates, so the default-conductor closure rules need the Class-4
+       variant first). Interim: RELEASE_ASSERT(!vm.gilOff()) tripwire at
+       entry (landed by the review round — fail-stop, no longer silent).
+     - **AB-11: ThreadObject spawn-overload migration.** gilOffProcess
+       refuses EVERY spawn including the winner VM's
+       (ThreadManager.cpp allocateSpawnedThreadState VM-blind form returns
+       null -> RangeError): fail-safe over-refusal, but "N mutators in
+       parallel" is structurally unreachable until ThreadObject.cpp
+       migrates to the VM-aware overload.
+     - **AB-12: E2A drain-loop wiring + U-T9-INT1 keepalive edits.**
+       openThreadInbox / runSpawnedThreadDrainLoopAndClose /
+       AsyncTicket::armKeepalive have ZERO callers; until the threadMain
+       wiring + the four countsKeepalive edits land, GIL-off threads exit
+       at fn-return (api 4.6.2 fallback semantics, NOT the chartered
+       SPEC-ungil E.2/SD1 close semantics) and the E/SD16/SD17 corpus arms
+       cannot be claimed.
+     - **AB-13: GILDroppedSection spawned-arm J.3 split + §G consumer
+       re-points.** Every spawned GIL-off park site (contended lock.hold,
+       cond.wait, property Atomics.wait, join) reaches
+       unlockAllForThreadParking's RELEASE_ASSERT(currentThreadIsHolding-
+       Lock()) and fail-stops; the mayBlockSynchronously §G predicate has
+       zero consumers re-pointed (ThreadAtomics.cpp/LockObject.cpp/
+       ConditionObject.cpp/AtomicsObject.cpp owed). The in-code ordering
+       constraint stands: the §C.4 lift MUST NOT land before the split.
+     - ~~AB-14: VMEntryScopeInlines.h entry-gate re-key; HandleSet Strong
+       seam wiring~~ **CLOSED by the review round**: the ctor/dtor fast
+       paths are re-keyed on the per-lite record when gilOff (nested and
+       sequential re-entry work; tearDownSlow runs), and Strong.h/
+       StrongInlines.h now route allocate/free/set-slot through the locked
+       strongHandle* seams (HandleSet.h declarations added).
+     - **AB-15: SD7 generated-code arm.** The review round landed the §I
+       item (1) C++ ctor/compile-surface gate (JSWebAssemblyHelpers.h
+       throwIfWebAssemblyRefusedOnSpawnedThread, wired at the Module/
+       Memory/Table/Global/Tag/Instance constructors and compile/
+       instantiate/validate/streaming/promising entry points, BOTH GIL
+       modes per SD7). Item (2) remains open: VMLite::isSpawned L2 append,
+       JSToWasm spawned-TS prologue emission, jsCallICEntrypoint()
+       nullptr under useJSThreads — without it a spawned thread can still
+       WARM-call an exported wasm function created on the carrier.
+     - **AB-16: RegExp.h ovector routing** (RegExp.cpp banner OPEN (1)):
+       every gilOff global match RELEASE_ASSERTs until ovectorSpan()
+       routes to regExpGilOffPerThreadMatchOvector — a HARD U-T9 entry
+       gate (fail-stop, not silent).
+     - **AB-17: per-lite traps + stack limits (VMTraps.h activation
+       checklist items 1-4).** perThreadTrapsIfExists still aliases the VM
+       trap word (per-thread termination/defer scopes are phase-1
+       semantics; the §A.3 conductor re-fires every sample to compensate),
+       and VM::updateStackLimits still writes the single VM-level
+       softStackLimit (memory-safety grade under N-parallel entry).
+     **CLOSE RULING (re-stated against the complete list):** the default
+     flip is safe-by-construction ONLY because the U0 validation now
+     REFUSES the gilOff shape outright unless the explicit development
+     escape hatch useThreadGILOffUnsafe=1 is ALSO set (landed by the
+     review round; previously `--useJSThreads=1 --useSharedGCHeap=1` —
+     two flags, since M_opts2 auto-forces the other two — produced a live
+     gilOff process against AB-1's silent LLInt split-brain with NO
+     in-code fail-stop). Build/Verify MUST treat AB-1, AB-8, AB-10..AB-13
+     and AB-15..AB-17 as LAUNCH BLOCKERS for running the full-trio
+     configuration, and the U0 refusal clause (Options.cpp) is only
+     deleted when this list is discharged and the §B verification ladder
+     (U19 oracle, TSAN, amplifier battery, golden disasm, B.5 bench) has
+     actually run.
   8. **§F.6 close items** — see table (vi) below (rewritten this round);
      the in-code row table (JSLock.cpp:941-955) keeps its OPEN markers for
      the Bun-side audits, which CANNOT be executed from this repository.

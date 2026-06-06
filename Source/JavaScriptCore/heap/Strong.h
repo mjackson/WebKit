@@ -68,7 +68,7 @@ public:
     {
         if (!other.slot())
             return;
-        setSlot(HandleSet::heapFor(other.slot())->allocate());
+        setSlot(strongHandleAllocate(*HandleSet::heapFor(other.slot())));
         set(other.get());
     }
 
@@ -77,7 +77,7 @@ public:
     {
         if (!other.slot())
             return;
-        setSlot(HandleSet::heapFor(other.slot())->allocate());
+        setSlot(strongHandleAllocate(*HandleSet::heapFor(other.slot())));
         set(other.get());
     }
 
@@ -126,10 +126,10 @@ public:
         if (shouldStrongDestructorGrabLock == ShouldStrongDestructorGrabLock::Yes) {
             // SharedGC (T9): main-VM-only — see HandleSet::vm() (HandleSet.h).
             JSLockHolder holder(heap->vm());
-            heap->deallocate(slot());
+            strongHandleDeallocate(*heap, slot());
             setSlot(nullptr);
         } else {
-            heap->deallocate(slot());
+            strongHandleDeallocate(*heap, slot());
             setSlot(nullptr);
         }
     }
@@ -142,7 +142,7 @@ private:
     {
         ASSERT(slot());
         JSValue value = HandleTypes<T>::toJSValue(externalType);
-        HandleSet::heapFor(slot())->template writeBarrier<std::is_base_of_v<JSCell, T>>(slot(), value);
+        strongHandleWriteBarrier<std::is_base_of_v<JSCell, T>>(*HandleSet::heapFor(slot()), slot(), value);
         *slot() = value;
     }
 

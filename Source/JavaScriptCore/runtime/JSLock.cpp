@@ -430,8 +430,22 @@ struct VMEntryTokenRecord {
     VMLite* lite { nullptr };     // The lite this token entered with (spawned lite, or the A36 carrier).
     intptr_t depth { 0 };         // Spawned arm: entry depth. Main/embedder arm: 1 (m_lockCount carries recursion under m_lock).
     void* spAtEntry { nullptr };  // §F.1 token half {depth, spAtEntry}.
-    unsigned dalDepth { 0 };      // §F.4/DAL2 per-(thread,VM) DropAllLocks bracket depth (only the OUTERMOST bracket transitions access).
-    intptr_t depthAtBracketEnter { 0 }; // DAL2 composition: entry depth recorded at the OUTERMOST bracket enter; a nested entry's unlock returning to this depth restores the bracket's access-released state.
+    // DAL2 composition (review fix, "nested DAL inside a re-entered spawned
+    // section"): one frame per OPEN bracket, in LIFO order. ANY bracket
+    // entered while this thread holds heap access (the outermost one, and
+    // every inner one entered from a nested JSLockHolder re-entry) releases
+    // access and records {depthAtEnter, true}; a bracket entered while access
+    // is already released is a pure count ({depthAtEnter, false}). The
+    // matching exit re-acquires iff its frame released. A nested entry's
+    // unlock returning to the TOP frame's depthAtEnter re-releases access
+    // (restoring the innermost open bracket's access-released state) — the
+    // GIL-on oracle shape, where an inner DropAllLocks at any m_lockCount
+    // fully drops the lock and releases access.
+    struct DALBracketFrame {
+        intptr_t depthAtEnter { 0 };
+        bool releasedAccess { false };
+    };
+    Vector<DALBracketFrame, 1> dalBrackets;
     bool releaseAccessAtDepthZero { false };
     AtomStringTable* entryAtomStringTable { nullptr }; // Spawned arm only (the mutex arm keeps JSLock::m_entryAtomStringTable).
 };
@@ -489,7 +503,8 @@ static void spawnedThreadEntryTokenLock(VM& vm, intptr_t lockCount)
         // re-acquire (the canonical DropAllLocks shape: bracketed native code
         // calls back into JS) — correct while JS runs; the matching unlock
         // below restores the bracket's access-released state when depth
-        // returns to depthAtBracketEnter (DAL2.2 composition).
+        // returns to the innermost open bracket's depthAtEnter (DAL2.2
+        // composition; see DALBracketFrame).
         lite->clientHeap->acquireHeapAccess();
         return;
     }
@@ -567,9 +582,10 @@ static void spawnedThreadEntryTokenUnlock(VM& vm, intptr_t unlockCount)
             // access via willReleaseLock's m_shouldReleaseHeapAccess.
             // Delivery stays deferred to the bracket exit's trap poll (DAL2);
             // nothing is polled here.
-            if (token.dalDepth) {
-                ASSERT(token.depth >= token.depthAtBracketEnter);
-                if (token.depth == token.depthAtBracketEnter)
+            if (!token.dalBrackets.isEmpty()) {
+                auto& top = token.dalBrackets.last();
+                ASSERT(token.depth >= top.depthAtEnter);
+                if (token.depth == top.depthAtEnter)
                     token.lite->clientHeap->releaseHeapAccess();
             }
             return;
@@ -578,13 +594,13 @@ static void spawnedThreadEntryTokenUnlock(VM& vm, intptr_t unlockCount)
         // counted (callees may consult the predicate), per-thread state only.
         VMLite* lite = token.lite;
         ASSERT(VMLite::currentIfExists() == lite);
-        ASSERT(!token.dalDepth); // A DAL2 bracket never outlives its entry.
+        ASSERT(token.dalBrackets.isEmpty()); // A DAL2 bracket never outlives its entry.
         {
             RefPtr<VM> protectedVM { &vm };
             // §F.1 drain-on-release KEPT GIL-off: the CURRENT lite's queue
             // (I11; §E/U-T9 routes spawned enqueues here — until then the
             // per-lite queue is absent and this is a no-op).
-            if (!token.dalDepth) [[likely]]
+            if (token.dalBrackets.isEmpty()) [[likely]]
                 lite->drainDefaultMicrotaskQueue();
             // §A.1.3 mode-split selector: per-lite topCallFrame/lastException.
             if (!protectedVM->group3Primitives().topCallFrame)
@@ -621,15 +637,27 @@ static void spawnedDropAllLocksBracketEnter(VM& vm)
     VMEntryTokenRecord* token = entryTokenFor(vm);
     if (!token || !token->depth)
         return; // Not entered: DropAllLocks is a no-op (GIL-on parity, bug 139654#c11).
-    if (!token->dalDepth++) {
-        // DAL2.1: outermost bracket releases the CURRENT lite's client
-        // access (heap F8 mandatory-revert shape: seq_cst exchange ->
-        // NoAccess inside releaseHeapAccess). DAL2.2: the thread now counts
-        // access-released for the heap §10.4 barrier AND the §A.3.2
-        // conductor predicate. Record the entry depth so a nested
-        // JSLockHolder's unwind inside the bracket can restore this state
-        // (see spawnedThreadEntryTokenUnlock's depth>0 arm).
-        token->depthAtBracketEnter = token->depth;
+    // DAL2.1/DAL2.2 (review fix: the access transition is keyed on "access
+    // currently held", NOT on bracket depth). The canonical embedder shape —
+    // DropAllLocks -> native -> JSLockHolder re-entry (re-acquires access) ->
+    // a SECOND blocking DropAllLocks — previously treated the inner bracket
+    // as a pure count, so the thread blocked for an unbounded native section
+    // HOLDING heap access: the heap §10.4 GC barrier and every §A.3.2
+    // conductor predicate (allEnteredThreadsAreQuiescent) would wait on it
+    // indefinitely (the DAL2.2 conductor-deadlock class), and the
+    // watchdogAssertStopProgress fail-stop turned the hang into a crash. The
+    // GIL-on oracle releases access for the inner DropAllLocks too. Each
+    // bracket records whether IT released, so exits re-acquire symmetrically
+    // (LIFO frames; see DALBracketFrame above).
+    bool accessHeld = token->lite->clientHeap->hasHeapAccess();
+    token->dalBrackets.append({ token->depth, accessHeld });
+    if (accessHeld) {
+        // Heap F8 mandatory-revert shape: seq_cst exchange -> NoAccess inside
+        // releaseHeapAccess. The thread now counts access-released for the
+        // heap §10.4 barrier AND the §A.3.2 conductor predicate. The recorded
+        // depth lets a nested JSLockHolder's unwind inside this bracket
+        // restore the access-released state (see spawnedThreadEntryTokenUnlock's
+        // depth>0 arm).
         token->lite->clientHeap->releaseHeapAccess();
     }
 }
@@ -637,9 +665,10 @@ static void spawnedDropAllLocksBracketEnter(VM& vm)
 static void spawnedDropAllLocksBracketExit(VM& vm)
 {
     VMEntryTokenRecord* token = entryTokenFor(vm);
-    if (!token || !token->dalDepth)
+    if (!token || token->dalBrackets.isEmpty())
         return; // Ctor was a no-op (thread was not entered at bracket entry).
-    if (!--token->dalDepth) {
+    auto frame = token->dalBrackets.takeLast();
+    if (frame.releasedAccess) {
         // DAL2.1 dtor: re-acquire the SAME client's access, §A.3.2b/§A.3.8-
         // gated (the SB1 item-3 seq_cst stop-bit poll + park live inside
         // acquireHeapAccess), THEN poll the lite's trap bits before
@@ -650,7 +679,6 @@ static void spawnedDropAllLocksBracketExit(VM& vm)
         // complete; on release the thread resumes here and observes the
         // deferred traps.
         token->lite->clientHeap->acquireHeapAccess();
-        token->depthAtBracketEnter = 0; // DAL2 composition bookkeeping closed with the bracket.
         if (VMTraps* liteTraps = perThreadTrapsIfExists(*token->lite))
             liteTraps->handleTrapsIfNeeded();
         else
@@ -1633,6 +1661,19 @@ unsigned JSLock::unlockAllForThreadParking()
     // crashes deterministically in ALL build types instead of corrupting the
     // park protocol — landing the lift first is loudly unshippable, not a
     // silent race.
+    //
+    // REACH (review fix — do not read the above as "only the §C.4 TA lift
+    // is coupled"): GILDroppedSection is reached from EVERY core-api §5.x
+    // park site with no gate of its own on spawned threads — thread.join()
+    // (ThreadObject.cpp), contended lock.hold (LockObject.cpp), cond.wait
+    // (ConditionObject.cpp), property Atomics.wait (ThreadAtomics.cpp) —
+    // not just the TA-wait lift. Under GIL-off, ANY spawned-thread park
+    // (e.g. two spawned threads contending one Lock) lands on this
+    // RELEASE_ASSERT and aborts. That is the AB-13 fail-stop working as
+    // intended, but it means NO GIL-off corpus arm that parks may be
+    // green-lit before the AB-13 split lands; a partial activation that
+    // wires spawn (AB-11/AB-12) without AB-13 fail-stops on the first
+    // contended lock, join, or wait.
     RELEASE_ASSERT(currentThreadIsHoldingLock());
     unsigned droppedLockCount = static_cast<unsigned>(m_lockCount);
     // UNGIL §J.3 captured-lite capture (r10 F5; U-T11): record the gilOff

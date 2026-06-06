@@ -3270,6 +3270,21 @@ void JSGlobalObject::haveABadTime(VM& vm)
 {
     ASSERT(&vm == &this->vm());
 
+    // UNGIL SPEC-ungil K.5 (ANNEX HBT/HBT2-HBT4) TRIPWIRE — recorded as
+    // activation blocker AB-10 (INTEGRATE-ungil.md): GIL-off, this WHOLE body
+    // must run under ONE §A.3 thread-granular stop (conductor = caller,
+    // Class-4 variant, post-arbitration isHavingABadTime re-check, jit I2/R1
+    // jettison) — it fires the HaveABadTime watchpoint and then iterates and
+    // rewrites OTHER threads' live objects (forEachLiveCell +
+    // SlowPutArrayStorage conversion below): silent heap/structure corruption
+    // if sibling mutators run. The K.5 stop has NOT landed (note: the body
+    // allocates, which the current §A.3 default-conductor closure rules
+    // forbid, so a naive jsThreadsThreadGranularStopTheWorldAndRun wrap is
+    // NOT the fix). Until AB-10 lands, fail-stop over silent corruption (the
+    // house rule). GIL-on/flag-off: m_gilOff is false — one predicted-false
+    // byte test.
+    RELEASE_ASSERT(!vm.gilOff());
+
     if (isHavingABadTime())
         return;
 

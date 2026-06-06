@@ -58,6 +58,17 @@
 #endif
 
 namespace JSC {
+
+// UNGIL §A.3 thread-granular conductor (VMManager.cpp; same-library seam
+// redeclarations — VMManager.h is not the owner of these per the U-T5 record).
+// stopTheWorldAndRun below routes EVERY gilOff Class-A request here (the
+// §A.3.3 licensed reroute): the interim stub's soundness premise ("at most
+// one entered mutator") does not hold for N entered threads of one VM, and
+// its entered-VM tripwire counts VMs, not threads, so it would PASS and run
+// `work` inline while sibling mutators execute the very code being patched.
+void jsThreadsThreadGranularStopTheWorldAndRun(VM&, const ScopedLambda<void()>&);
+bool jsThreadsThreadGranularWorldIsStopped();
+
 namespace JSThreadsSafepoint {
 
 #if defined(JSC_HEAP_HAS_STW_FORBIDDEN_SCOPE)
@@ -205,6 +216,20 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
         return;
     }
 
+    // UNGIL §A.3.3 LICENSED REROUTE (closes the blocker-grade OPEN item
+    // recorded in VMManager.cpp at jsThreadsThreadGranularStopTheWorldAndRun):
+    // gilOff Class-A requests take the real thread-granular conductor
+    // (HBT4/SB1/ISB1 sequence, R1.a-i). The stub below remains the GIL-on
+    // path only — its premise ("at most one entered mutator") and its
+    // entered-VM tripwire are incompatible with N entered threads of one VM
+    // (the tripwire counts VMs, so it would PASS under N threads and patch
+    // code under running siblings). Nested fires inside an open
+    // thread-granular window do not reach here: jsThreadsThreadGranular-
+    // WorldIsStopped() feeds the worldIsStopped() disjunct above, so they
+    // run inline under the witness scope (R1.h).
+    if (vm.gilOff()) [[unlikely]]
+        return jsThreadsThreadGranularStopTheWorldAndRun(vm, work);
+
     // INTERIM STUB until integration manifest M4 (SPEC-jit R1, Task 1).
     // Real sequence (R1.a-i), restored at integration:
     //   1. release this VM's heap access;
@@ -317,6 +342,15 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
 bool worldIsStopped()
 {
     if (s_stubWorldStoppedDepth.load(std::memory_order_relaxed))
+        return true;
+
+    // UNGIL §J.8: a §A.3 thread-granular window (VMManager.cpp conductor)
+    // counts as a stopped world for the VM-less patching asserts and for the
+    // R1.h inline-nested-fire branch of stopTheWorldAndRun above. This is
+    // the disjunct the U-T5 record said this predicate "gains when the stub
+    // is deleted"; it lands with the §A.3.3 reroute (the stub itself stays
+    // for GIL-on callers).
+    if (jsThreadsThreadGranularWorldIsStopped()) [[unlikely]]
         return true;
 
 #if defined(JSC_OM_PROVIDES_JSTHREADS_STUB_WITNESS)

@@ -1566,7 +1566,7 @@ bool VM::hasExceptionsAfterHandlingTraps()
 
 void VM::setHasTerminationRequest()
 {
-    m_hasTerminationRequest = true;
+    m_hasTerminationRequest.store(true, std::memory_order_relaxed);
     requestEntryScopeService(ConcurrentEntryScopeService::ResetTerminationRequest);
 }
 
@@ -1708,8 +1708,34 @@ void VM::updateStackLimits()
     // that the value is sane.
     RELEASE_ASSERT(reservedZoneSize >= minimumReservedZoneSize);
 
-    // UNGIL §A.1.3/§A.2 mode split: stack-limit state is per-lite when
-    // gilOff (this runs on the entering thread with its carrier installed).
+    // UNGIL §A.1.3/§A.2 mode split — PARTIAL (AB-17 item 3): only the HARD
+    // limit (m_stackLimit, C++ stack checks) is per-lite when gilOff (this
+    // runs on the entering thread with its carrier installed). The SOFT
+    // limit — the one LLInt/Baseline/DFG/FTL generated-code stack checks
+    // read — still goes through traps().setStackSoftLimit() on the single
+    // VM-level StackManager below. With N concurrently entered threads each
+    // entry would clobber the one soft limit with its own StackBounds, so
+    // another thread's generated-code checks would compare against a
+    // foreign stack: missed overflow checks, memory-safety grade. Until the
+    // §A.2.2 per-lite reroute lands, FAIL-STOP the N-entered shape instead
+    // of corrupting silently (chartered by the VMTraps.h activation
+    // checklist: "N-mutator GIL-off entry MUST NOT be enabled until ALL of
+    // the following land" — this tripwire enforces it even under the
+    // useThreadGILOffUnsafe development escape hatch). Carrier entries all
+    // pass through here (JSLock::didAcquireLock -> setStackPointerAtVMEntry),
+    // so the second concurrent entry trips deterministically. GIL-on:
+    // branch not taken, byte-identical behavior.
+    if (m_gilOff) [[unlikely]] {
+        VMLite* currentLite = VMLite::currentIfExists();
+        auto& registry = VMLiteRegistry::singleton();
+        Locker locker { registry.lock };
+        for (VMLite* lite : registry.lites) {
+            if (lite->vm == this && lite != currentLite) {
+                RELEASE_ASSERT_WITH_MESSAGE(!lite->entryScope.load(std::memory_order_relaxed),
+                    "GIL-off N-entered entry refused: VM-level soft stack limit is shared (AB-17 item 3 not landed)");
+            }
+        }
+    }
     auto& primitives = group3Primitives();
     void* newSoftStackLimit = 0;
     if (primitives.m_stackPointerAtVMEntry) {
@@ -2247,7 +2273,7 @@ void VM::promiseRejected(JSPromise* promise)
 
 void VM::drainMicrotasks()
 {
-    if (m_drainMicrotaskDelayScopeCount) [[unlikely]]
+    if (m_drainMicrotaskDelayScopeCount.load(std::memory_order_relaxed)) [[unlikely]]
         return;
 
     // UNGIL §E.1/I11 (U-T9): GIL-off, a spawned/foreign-carrier thread
@@ -2321,6 +2347,27 @@ void VM::drainMicrotasks()
 #if USE(BUN_JSC_ADDITIONS)
 void VM::drainMicrotasksForGlobalObject(JSGlobalObject* globalObject)
 {
+    // UNGIL review fix (Bun-additions entry point missed by the §E.1b.4
+    // host-hook disposition table): GIL-off, JSGlobalObject::queueMicrotask
+    // reroutes every entered thread's enqueues to the CURRENT lite's
+    // defaultMicrotaskQueue (perLiteRealmRoutingLite — even the process
+    // main thread runs on a carrier lite), so clearing only the VM default
+    // queue would leave microtasks referencing the cleared global alive in
+    // the per-lite queues — exactly the stale-context execution this API
+    // exists to prevent. Clear the CURRENT lite's queue too (I11: a lite's
+    // queue is touched only by its owner thread, and this API is called on
+    // the thread that owns the global's tasks). Sibling lites' queues
+    // cannot be cleared from here without breaking the I11 owner-only
+    // discipline — recorded as activation blocker AB-20 in
+    // INTEGRATE-ungil.md (per-lite clear request fan-out, serviced at each
+    // owner's next drain). GIL-on/flag-off: byte-identical.
+    if (m_gilOff) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->vm == this) {
+            if (MicrotaskQueue* queue = lite->defaultMicrotaskQueue.get())
+                queue->clearForGlobalObject(globalObject);
+        }
+    }
     m_defaultMicrotaskQueue->clearForGlobalObject(globalObject);
 }
 #endif
@@ -2682,7 +2729,7 @@ bool VM::isAnyThreadEntered() const
     auto& registry = VMLiteRegistry::singleton();
     Locker locker { registry.lock };
     for (VMLite* lite : registry.lites) {
-        if (lite->vm == this && lite->entryScope)
+        if (lite->vm == this && lite->entryScope.load(std::memory_order_relaxed))
             return true;
     }
     return false;
@@ -3100,15 +3147,15 @@ VM::DrainMicrotaskDelayScope& VM::DrainMicrotaskDelayScope::operator=(VM::DrainM
 void VM::DrainMicrotaskDelayScope::increment()
 {
     if (m_vm)
-        ++m_vm->m_drainMicrotaskDelayScopeCount;
+        m_vm->m_drainMicrotaskDelayScopeCount.fetch_add(1, std::memory_order_relaxed);
 }
 
 void VM::DrainMicrotaskDelayScope::decrement()
 {
     if (!m_vm)
         return;
-    ASSERT(m_vm->m_drainMicrotaskDelayScopeCount);
-    if (!--m_vm->m_drainMicrotaskDelayScopeCount) {
+    ASSERT(m_vm->m_drainMicrotaskDelayScopeCount.load(std::memory_order_relaxed));
+    if (m_vm->m_drainMicrotaskDelayScopeCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
         JSLockHolder locker(*m_vm);
         m_vm->drainMicrotasks();
     }

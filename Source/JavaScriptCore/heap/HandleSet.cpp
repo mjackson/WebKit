@@ -82,14 +82,14 @@ namespace JSC {
 // to the landed inlines). Strong.h/StrongInlines.h (allocate/free/set-slot
 // call sites) are ALSO outside U-T8's owned set, so re-pointing those three
 // call sites at these functions is the residual wiring.
-// OPEN OBLIGATION (HARD GATE of U-T9 — recorded here because
-// INTEGRATE-ungil.md is outside U-T8's owned set; the U-T9 entry-gate
-// reviewer must verify it): until StrongInlines.h calls land, GIL-off Strong
-// traffic from two threads would race m_freeList/m_strongList — N-mutator
-// gates (U-T9) MUST NOT run with the direct inline calls in place. When a
-// later task may write HandleSet.h, fold the lock into the class as
-// `Lock m_strongLock;` and collapse this table — handleSetStrongLock() and
-// the three functions below are the stable seam either way.
+// WIRED (review fix; closes the former U-T9 HARD-GATE open obligation):
+// HandleSet.h now declares the three seams (JS_EXPORT_PRIVATE) and Strong.h /
+// StrongInlines.h route every Strong allocate / free / set-slot call site
+// through them, so GIL-off Strong traffic from two threads serializes on
+// m_strongLock instead of racing m_freeList/m_strongList. When a later task
+// may restructure HandleSet.h, fold the lock into the class as
+// `Lock m_strongLock;` and collapse this side table — handleSetStrongLock()
+// and the three functions below are the stable seam either way.
 //
 // Lock-context rule (§F.3/U20 lint): m_strongLock is a LEAF — nothing is
 // acquired under it, it is never held across user JS, and it is legal under

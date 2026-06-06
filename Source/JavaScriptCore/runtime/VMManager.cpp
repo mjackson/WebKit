@@ -505,12 +505,12 @@ bool jsThreadsThreadGranularWorldIsStopped()
 }
 
 // The real R1.a-i sequence (§A.3, HBT4 order). GIL-off ONLY: gilOn callers
-// keep the JSThreadsSafepoint.cpp path. OPEN (cross-file): the §A.3.3
-// licensed edits route JSThreadsSafepoint::stopTheWorldAndRun here when
-// vm.gilOff() and delete the stub assert/witness machinery — that file is
-// outside U-T5's writable set; until its owner applies the reroute, gilOff
-// Class-A fires still reach the stub (whose entered-VM tripwire is
-// incompatible with N mutators). Recorded as a blocker-grade OPEN item.
+// keep the JSThreadsSafepoint.cpp path. The §A.3.3 licensed reroute has
+// LANDED: JSThreadsSafepoint::stopTheWorldAndRun routes here when
+// vm.gilOff() (after its R1.h already-stopped inline branch, which now also
+// consults jsThreadsThreadGranularWorldIsStopped() so nested fires inside an
+// open window run inline), and JSThreadsSafepoint::worldIsStopped() gained
+// the §J.8 disjunct. The stub and its entered-VM tripwire remain GIL-on-only.
 void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
 {
     RELEASE_ASSERT(vm.gilOff());

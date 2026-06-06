@@ -94,6 +94,21 @@ private:
     SinglyLinkedList<Node> m_freeList;
 };
 
+// UNGIL §F.3 (U-T8 seams, wired by the review fix): the LOCKED Strong-handle
+// mutation entry points (HandleSet.cpp). GIL-off, Strong allocate / free /
+// set-slot traffic is inherently cross-thread (AsyncTicket Strongs settled
+// and destroyed off-owner, ThreadObject completion Strongs, SD15 handoff
+// records created on spawned threads), and two threads mutating
+// m_freeList/m_strongList unlocked is heap corruption — so Strong.h /
+// StrongInlines.h route their three call-site shapes through these instead
+// of the raw inlines. GIL-on (every shipping configuration): vm().gilOff()
+// is false and all three are lock-free and bit-identical to the inlines
+// they wrap (one predicted-false byte test).
+JS_EXPORT_PRIVATE HandleSlot strongHandleAllocate(HandleSet&);
+JS_EXPORT_PRIVATE void strongHandleDeallocate(HandleSet&, HandleSlot);
+template<bool isCellOnly>
+JS_EXPORT_PRIVATE void strongHandleWriteBarrier(HandleSet&, HandleSlot, JSValue);
+
 inline HandleSet* HandleSet::heapFor(HandleSlot handle)
 {
     return HandleNode::toHandleNode(handle)->handleSet();

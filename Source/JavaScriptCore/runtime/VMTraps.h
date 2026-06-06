@@ -470,12 +470,12 @@ private:
 //       flip perThreadTrapsIfExists (VMLite.cpp) to
 //       &lite.threadContext.traps(). VMThreadContext (VMThreadContext.h)
 //       already exists and carries a VMTraps (trap word + StackManager).
-//   (2) JSLock.cpp (§F.1): the GIL-off token-acquisition edge must call
-//       vm.traps().orVMWideTrapBitsIntoLite(lite) (replacing the
-//       notifyGrabAllLocks() edge), and lite registration must backfill the
-//       VM word — orVMWideTrapBitsIntoLite currently has NO callers, so a
-//       bare alias flip would silently lose VM-wide bits for late-joining
-//       lites.
+//   (2) JSLock.cpp (§F.1): the GIL-off token-acquisition edges DO call
+//       vm.traps().orVMWideTrapBitsIntoLite(lite) (spawnedThreadEntryTokenLock
+//       and the carrier arm — landed at U-T8/U-T11; a no-op under the alias),
+//       but lite REGISTRATION must additionally backfill the VM word before
+//       a bare alias flip, or VM-wide bits would be silently lost for
+//       late-joining lites.
 //   (3) VM.cpp (§A.2.2): VM::updateStackLimits must target the ENTERING
 //       thread's lite StackManager GIL-off. Today it writes the single
 //       VM-level softStackLimit, so under N-parallel entry every entering

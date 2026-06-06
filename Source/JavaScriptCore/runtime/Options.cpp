@@ -793,6 +793,28 @@ void Options::notifyOptionsChanged()
         && !(Options::useVMLite() && Options::useSharedAtomStringTable() && Options::useSharedGCHeap()))
         Options::useThreadGIL() = true;
 
+    // UNGIL activation-checklist refusal (review finding against the U-T14
+    // close ruling): the trio opt-in alone is NOT a sufficient gate for
+    // GIL-off, because useJSThreads=1 auto-forces useVMLite and
+    // useSharedAtomStringTable above — so `--useJSThreads=1
+    // --useSharedGCHeap=1` (two flags) would construct a live gilOff process
+    // while blocker-grade activation items remain open with NO in-code
+    // fail-stop on every path (AB-1 LLInt Group-3 split-brain is silently
+    // UNSOUND; VM::updateStackLimits still clobbers the single VM-level soft
+    // stack limit under N-parallel entry — VMTraps.h checklist item (3); the
+    // per-lite trap words still alias the VM word — VMLite.cpp §A.2.1). Per
+    // the house rule (fail-stop/refusal over silent corruption), the U0
+    // validation REFUSES the gilOff shape outright unless the explicit
+    // development escape hatch useThreadGILOffUnsafe is ALSO set. This keeps
+    // every "enable the trio" experiment on the GIL'd oracle (the J.1
+    // ordering) until the AB list (INTEGRATE-ungil.md AB-1..AB-15) is
+    // discharged, at which point this clause is deleted and the trio opt-in
+    // again derives gilOff directly.
+    if (Options::useJSThreads() && !Options::useThreadGIL() && !Options::useThreadGILOffUnsafe()) {
+        dataLogLn("JSC: refusing GIL-off configuration (UNGIL activation checklist incomplete); forcing useThreadGIL=1. Set useThreadGILOffUnsafe=1 to override for development.");
+        Options::useThreadGIL() = true;
+    }
+
     // ANNEX U0C write-once latch backstop (U-T14 amend, reviewer round 2):
     // gilOffProcess is OPTION-derived and IMMUTABLE for the process. The
     // real latch — the JSCConfig gilOffProcess byte — is U-T3's open

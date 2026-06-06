@@ -36,6 +36,7 @@
 #include "JSSourceCode.h"
 #include "JSWebAssemblyException.h"
 #include "JSWebAssemblyRuntimeError.h"
+#include "ThreadManager.h"
 #include "WasmAddressType.h"
 #include "WasmFormat.h"
 #include "WasmTypeDefinition.h"
@@ -45,6 +46,27 @@
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
+
+// UNGIL SPEC-ungil §I / SD7 (NORMATIVE in BOTH GIL modes): WebAssembly is
+// REFUSED on spawned JS Threads in v1 — the per-VM wasm state (memory/table
+// registries, Wasm::Worklist plans keyed per VM/context, signal-based bounds
+// handling, BBQ/OMG tier-up, calleeGroup publication) has never been audited
+// for N mutators in one VM and sits outside every threads charter. This is
+// the C++ ctor/compile-surface arm of the SD7 gate (§I item (1)); the
+// generated-code arm (§I item (2): VMLite::isSpawned JSToWasm prologue
+// check + jsCallICEntrypoint() returning nullptr under useJSThreads, which
+// covers WARM calls of exports created on the carrier) is tracked as
+// activation blocker AB-15 in INTEGRATE-ungil.md. Flag-off cost: one
+// predicate call on already-slow wasm entry points.
+ALWAYS_INLINE bool throwIfWebAssemblyRefusedOnSpawnedThread(JSGlobalObject* globalObject, ThrowScope& scope)
+{
+    if (ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        throwTypeError(globalObject, scope, "WebAssembly is not available on spawned JS Thread instances (SD7)"_s);
+        return true;
+    }
+    return false;
+}
+
 
 ALWAYS_INLINE uint32_t toNonWrappingUint32(JSGlobalObject* globalObject, JSValue value, ErrorType errorType = ErrorType::TypeError)
 {

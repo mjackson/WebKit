@@ -731,8 +731,9 @@ void VMLite::backfillBakedScratchBuffers()
 //
 // NOT ACTIVATABLE BY A LOCAL FLIP: flipping the return below to
 // `&lite.threadContext.traps()` is necessary but NOT sufficient — the
-// VMLite.h member append, the §F.1 JSLock.cpp orVMWideTrapBitsIntoLite
-// wiring (currently ZERO callers), the §A.2.2 VM.cpp updateStackLimits
+// VMLite.h member append, the §F.1 lite-registration VM-word backfill (the
+// JSLock.cpp token-acquisition orVMWideTrapBitsIntoLite calls ARE landed —
+// no-ops under the alias), the §A.2.2 VM.cpp updateStackLimits
 // re-target (memory-safety grade under N-parallel entry), and the park-site
 // W1/D9 predicate split must all land first. The full activation checklist —
 // each item outside U-T2's owned file set, recorded with the orchestrator —

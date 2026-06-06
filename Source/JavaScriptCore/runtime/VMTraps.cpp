@@ -64,7 +64,7 @@ static bool anyOtherLiteOfVMEntered(const AbstractLocker&, VM& vm) WTF_IGNORES_T
 {
     VMLite* currentLite = VMLite::currentIfExists();
     for (VMLite* lite : VMLiteRegistry::singleton().lites) {
-        if (lite->vm == &vm && lite != currentLite && lite->entryScope)
+        if (lite->vm == &vm && lite != currentLite && lite->entryScope.load(std::memory_order_relaxed))
             return true;
     }
     return false;
@@ -602,14 +602,36 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
             didHandleTrap = true;
             break;
 
-        case NeedWatchdogCheck:
+        case NeedWatchdogCheck: {
             ASSERT(vm.watchdog());
             ASSERT(!isSpawnedGILOff); // Masked above (annex W W0; SD14).
             // UNGIL §A.1.5: the servicing thread's entry scope — per-lite
             // GIL-off, the VM member (byte-identical) otherwise.
-            if (!vm.watchdog()->isActive() || !vm.watchdog()->shouldTerminate(vm.currentThreadEntryScope()->globalObject())) [[likely]]
+            //
+            // GIL-off REVIEW FIX (null entry scope at off-JS poll sites):
+            // unlike the GIL-on world, where traps are only serviced from
+            // inside JS execution (entry scope guaranteed), GIL-off this is
+            // also reached from JSLock's off-JS poll sites — the DAL2
+            // bracket exit and completeDeferredForeignCarrierRestoreAfter-
+            // Unlock — on a carrier that holds only a bare JSLockHolder
+            // (host-API shape, no VMEntryScope). shouldTerminate() needs the
+            // entry global, so with no entry scope the check is skipped:
+            // the bit was already taken above, but the watchdog timer
+            // remains armed and re-fires NeedWatchdogCheck, which the next
+            // ENTERED poll services (Watchdog.cpp's parked-carrier path
+            // RELEASE_ASSERTs the same pointer because a parked carrier
+            // provably kept its entry scope live; no such precondition
+            // holds here). GIL-on: entryScope is the VM member and is
+            // always non-null at trap-service time — branch never taken.
+            VMEntryScope* entryScope = vm.currentThreadEntryScope();
+            if (!entryScope) [[unlikely]] {
+                didHandleTrap = true;
+                break;
+            }
+            if (!vm.watchdog()->isActive() || !vm.watchdog()->shouldTerminate(entryScope->globalObject())) [[likely]]
                 continue;
             [[fallthrough]];
+        }
 
         case NeedTermination:
             // UNGIL TERM1.2: a termination decision is VM-wide. GIL-off,
@@ -719,7 +741,7 @@ void VMTraps::fanOutTerminationToSiblingLites()
             continue;
         }
         // Interim alias: the sibling's word IS the shared VM word.
-        if (lite->entryScope)
+        if (lite->entryScope.load(std::memory_order_relaxed))
             anyOtherEnteredAliasedSibling = true;
     }
     // TERM1.2 under the interim alias: a termination decision born on this

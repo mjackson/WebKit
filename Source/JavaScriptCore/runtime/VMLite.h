@@ -264,7 +264,21 @@ public:
     // the entry-scope service bits live per-lite; VM-wide consumers iterate
     // the registry under its lock. Written by VMEntryScope::setUpSlow/
     // tearDownSlow on the owning thread.
-    VMEntryScope* entryScope { nullptr };
+    //
+    // UNGIL review fix: atomic, and GIL-off the setUpSlow/tearDownSlow
+    // stores additionally run under VMLiteRegistry::lock. The registry-lock
+    // walks (anyOtherLiteOfVMEntered, fanOutTerminationToSiblingLites,
+    // VM::isAnyThreadEntered) read OTHER threads' records under that lock;
+    // a plain owner-thread store was (a) a data race on the pointer (TSAN
+    // no-JIT gate breakage) and (b) unserialized against the TERM1.2
+    // retire/leave-set decision — with the store under the lock, a
+    // sibling's entered<->not-entered transition cannot interleave a
+    // retire walk, so "no other lite entered" observed under the lock is a
+    // real snapshot, not a stale read. Same-thread fast-path reads
+    // (VMEntryScopeInlines ctor/dtor gates, VM::currentThreadEntryScope)
+    // use relaxed loads of the own-thread record. GIL-on: the VM-member
+    // shadow is the only record; this field stays null.
+    std::atomic<VMEntryScope*> entryScope { nullptr };
 
     // §A.1.5 service bits, same packing as VM::EntryScopeServicesBits
     // (byte 0 = EntryScopeService, byte 1 = ConcurrentEntryScopeService) —

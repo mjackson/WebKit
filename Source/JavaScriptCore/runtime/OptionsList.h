@@ -693,7 +693,8 @@ bool hasCapacityToUseLargeGigacage();
     v(Unsigned, maxJSThreads, 32766, Normal, nullptr) \
     v(Unsigned, jsThreadGILTimeSliceMs, 0, Normal, "reserved, inert in phase 1 (SPEC-api Deviation 9)"_s) \
     v(Unsigned, jsThreadStackSizeKB, 0, Normal, nullptr) \
-    v(Bool, useThreadGIL, false, Normal, "serialize all JS Thread execution under a global lock (default flipped OFF at UNGIL U-T14; U0 option validation forces it back ON unless useVMLite, useSharedAtomStringTable and useSharedGCHeap are all enabled)"_s) \
+    v(Bool, useThreadGIL, false, Normal, "serialize all JS Thread execution under a global lock (default flipped OFF at UNGIL U-T14; U0 option validation forces it back ON unless useVMLite, useSharedAtomStringTable, useSharedGCHeap AND useThreadGILOffUnsafe are all enabled)"_s) \
+    v(Bool, useThreadGILOffUnsafe, false, Normal, "DEVELOPMENT ONLY: permit the GIL-off (N-parallel-mutator) configuration even though the UNGIL activation checklist (INTEGRATE-ungil.md AB list) is not fully landed; without this flag U0 option validation forces useThreadGIL=1"_s) \
     v(Bool, useSharedAtomStringTable, false, Normal, "process-global shared atom string table"_s) \
     v(Bool, useVMLite, false, Normal, "per-thread VMLite carriers (Phase A: inert)"_s) \
     v(Bool, useStructureAllocationLock, false, Normal, "serialize Structure cell allocation + ID-creating transitions"_s) \

@@ -337,7 +337,7 @@ public:
     {
         if (m_gilOff) [[unlikely]] {
             VMLite* lite = VMLite::currentIfExists();
-            return (lite && lite->vm == this) ? lite->entryScope : nullptr;
+            return (lite && lite->vm == this) ? lite->entryScope.load(std::memory_order_relaxed) : nullptr;
         }
         return entryScope;
     }
@@ -354,16 +354,22 @@ public:
     template<typename Type, typename Functor>
     Type& ensureSideData(void* key, const Functor&);
 
-    bool hasTerminationRequest() const { return m_hasTerminationRequest; }
+    bool hasTerminationRequest() const { return m_hasTerminationRequest.load(std::memory_order_relaxed); }
     void clearHasTerminationRequest()
     {
-        m_hasTerminationRequest = false;
+        m_hasTerminationRequest.store(false, std::memory_order_relaxed);
         clearEntryScopeService(ConcurrentEntryScopeService::ResetTerminationRequest);
     }
     void NODELETE setHasTerminationRequest();
 
-    bool executionForbidden() const { return m_executionForbidden; }
-    void setExecutionForbidden() { m_executionForbidden = true; }
+    // UNGIL review fix: GIL-off, executionForbidden() is read from spawned
+    // threads (VM::drainMicrotasks' per-lite arm, completion drains) while
+    // the latch is written by whichever thread services termination — a
+    // cross-thread shared flag. Relaxed atomics: it is a sticky monotonic
+    // latch (false -> true, never reset), so no ordering is load-bearing;
+    // GIL-on/flag-off codegen is unchanged on every supported target.
+    bool executionForbidden() const { return m_executionForbidden.load(std::memory_order_relaxed); }
+    void setExecutionForbidden() { m_executionForbidden.store(true, std::memory_order_relaxed); }
 
     static JS_EXPORT_PRIVATE JSValue checkVMEntryPermission();
 
@@ -1530,7 +1536,15 @@ private:
     std::unique_ptr<FuzzerAgent> m_fuzzerAgent;
     LazyUniqueRef<VM, ShadowChicken> m_shadowChicken;
     std::unique_ptr<BytecodeIntrinsicRegistry> m_bytecodeIntrinsicRegistry;
-    uint64_t m_drainMicrotaskDelayScopeCount { 0 };
+    // UNGIL review fix: GIL-off, drainMicrotasks() (spawned-thread per-lite
+    // drains, ThreadObject completion) reads this count cross-thread while
+    // DrainMicrotaskDelayScope mutates it on the embedder's carrier. Relaxed
+    // atomic retires the TSAN data race; semantically the scope is
+    // carrier-scoped state and a spawned drain that observes a live scope
+    // still defers (the conservative reading of api 4.6.1 — the carrier's
+    // scope exit re-drains, and per-lite queues are drained again at the E.2
+    // close ladder once it is wired).
+    std::atomic<uint64_t> m_drainMicrotaskDelayScopeCount { 0 };
 
     // FIXME: We should remove handled promises from this list at GC flip. <https://webkit.org/b/201005>
     Vector<Strong<JSPromise>> m_aboutToBeNotifiedRejectedPromises;
@@ -1575,8 +1589,23 @@ private:
 #endif
 
     bool m_hasSideData { false };
-    bool m_hasTerminationRequest { false };
-    bool m_executionForbidden { false };
+    // UNGIL review fix (sibling of m_executionForbidden below): GIL-off this
+    // is written by whichever thread services NeedTermination (handleTraps'
+    // NeedTermination arm runs vm.setHasTerminationRequest() on the
+    // servicing thread, spawned or carrier) and by the embedder/watchdog on
+    // a carrier, and read cross-thread from the §E.2a drain loop, the D9
+    // parked-thread termination polls, and WaiterListManager's sync-wait
+    // path. Relaxed atomics: every consumer re-validates against the trap
+    // word / termination exception, so no ordering is load-bearing. Unlike
+    // m_executionForbidden this flag is NOT monotonic
+    // (clearHasTerminationRequest resets it): a host clear racing a
+    // concurrent servicer's set can lose the set — the set is re-delivered
+    // because the shared NeedTermination trap bit (TERM1.2: left visible
+    // while any other lite of the VM is entered) is the channel parked/
+    // spinning threads actually poll; this flag is a host-facing latch, not
+    // the delivery mechanism. GIL-on/flag-off codegen unchanged.
+    std::atomic<bool> m_hasTerminationRequest { false };
+    std::atomic<bool> m_executionForbidden { false };
     bool m_executionForbiddenOnTermination { false };
     bool m_isDebuggerHookInjected { false };
 

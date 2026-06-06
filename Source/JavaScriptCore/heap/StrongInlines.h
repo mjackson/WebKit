@@ -36,14 +36,14 @@ namespace JSC {
 
 template <typename T, ShouldStrongDestructorGrabLock shouldStrongDestructorGrabLock>
 inline Strong<T, shouldStrongDestructorGrabLock>::Strong(VM& vm, ExternalType value)
-    : Handle<T>(vm.heap.handleSet()->allocate())
+    : Handle<T>(strongHandleAllocate(*vm.heap.handleSet()))
 {
     set(value);
 }
 
 template <typename T, ShouldStrongDestructorGrabLock shouldStrongDestructorGrabLock>
 inline Strong<T, shouldStrongDestructorGrabLock>::Strong(VM& vm, Handle<T> handle)
-    : Handle<T>(vm.heap.handleSet()->allocate())
+    : Handle<T>(strongHandleAllocate(*vm.heap.handleSet()))
 {
     set(handle.get());
 }
@@ -52,7 +52,7 @@ template <typename T, ShouldStrongDestructorGrabLock shouldStrongDestructorGrabL
 inline void Strong<T, shouldStrongDestructorGrabLock>::set(VM& vm, ExternalType value)
 {
     if (!slot())
-        setSlot(vm.heap.handleSet()->allocate());
+        setSlot(strongHandleAllocate(*vm.heap.handleSet()));
     set(value);
 }
 
