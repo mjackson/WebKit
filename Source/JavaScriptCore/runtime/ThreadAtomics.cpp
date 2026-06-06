@@ -27,6 +27,7 @@
 #include "ThreadAtomics.h"
 #include "LockObject.h"
 
+#include "ArrayStorage.h"
 #include "JSCInlines.h"
 #include "JSLock.h"
 #include "JSPromise.h"
@@ -42,6 +43,46 @@ namespace JSC {
 // ---------------- own-data-property helpers ----------------
 
 enum class OwnPropertyKind : uint8_t { Missing, Data, Accessor };
+
+#if USE(JSVALUE64)
+// I5 fix - SPEC-ungil ANNEX C1 third arm / OM SPEC-objectmodel ANNEX Q (I31):
+// flag-on, the quickly-family deliberately answers FALSE for every
+// ArrayStorage shape so generic callers fall to the E5 / 4.6 cell-locked
+// path. For Atomics property ops that "not lock-free-quickly readable" must
+// NOT be conflated with "not a plain data property": an in-vector, non-hole
+// AS element with no sparse map is exactly the slot the 9.5 locked AS arm
+// (atomicSlotReadModifyWriteAtIndex's hasAnyArrayStorage arm,
+// ConcurrentButterfly.cpp) operates on. Probe it under the cell lock,
+// mirroring that arm's gates VERBATIM (m_sparseMap || index >= vectorLength
+// || index >= length => NotPlain; empty slot => Hole) so a probe that
+// classifies Data can never hand the accessor a persistently-Restarting slot
+// (livelock). butterfly() is legal here per the 9.5 accessor contract: AS
+// never segments (I31), and the shape is re-checked under the lock.
+// Read-only - never allocates or parks under the cell lock (OM I20); the SW
+// pre-lock protocol is the WRITE side's job and stays inside the 9.5
+// accessor. NOTE: this is a cell-lock site OUTSIDE ConcurrentButterfly.cpp,
+// so it is unobserved by the TU-private O3 depth witness
+// (t_cellLocksHeldByConcurrentButterfly); its obligation (no allocation, no
+// park, no safepoint under the lock) must be preserved by future edits.
+enum class ArrayStorageElementProbe : uint8_t { NotArrayStorage, Plain, Hole, NotPlain };
+static ArrayStorageElementProbe probeArrayStorageElementForAtomics(JSObject* object, uint32_t index, JSValue& value)
+{
+    ASSERT(Options::useJSThreads());
+    if (!hasAnyArrayStorage(object->indexingType()))
+        return ArrayStorageElementProbe::NotArrayStorage;
+    Locker locker { object->cellLock() }; // I31/L5: every flag-on runtime AS access is cell-locked, reads included.
+    if (!hasAnyArrayStorage(object->indexingType())) // Shape moved before the lock landed: caller re-classifies.
+        return ArrayStorageElementProbe::NotArrayStorage;
+    ArrayStorage* storage = object->butterfly()->arrayStorage();
+    if (storage->m_sparseMap || index >= storage->vectorLength() || index >= storage->length())
+        return ArrayStorageElementProbe::NotPlain; // Sparse/out-of-bounds: exotic, matches the locked arm's reject.
+    JSValue stored = storage->m_vector[index].get();
+    if (!stored)
+        return ArrayStorageElementProbe::Hole;
+    value = stored;
+    return ArrayStorageElementProbe::Plain;
+}
+#endif // USE(JSVALUE64)
 
 // Returns Missing with an exception pending for the two rejected receiver
 // classes (see the 4.5 atomicity comment below); every caller
@@ -76,6 +117,24 @@ static OwnPropertyKind getOwnPropertyForAtomics(JSGlobalObject* globalObject, JS
     // function name/length), so the re-validation runs after it on purpose.
     if (std::optional<uint32_t> index = parseIndex(propertyName)) {
         if (!object->canGetIndexQuickly(index.value())) [[unlikely]] {
+#if USE(JSVALUE64)
+            // I5 fix: flag-on, AS shapes answer "not quickly" BY DESIGN (OM
+            // ANNEX Q/I31) so generic callers fall to cell-locked access -
+            // that is not "not a plain data property". Probe the locked AS
+            // arm's slot; under the GIL the read below and the later
+            // putDirectIndex (which routes through the I31-locked generic
+            // path flag-on) remain one atomic step. The Hole arm is
+            // unreachable here (no GIL drop between getOwnPropertySlot and
+            // this probe), so any non-Plain result falls to the TypeError.
+            if (Options::useJSThreads()) {
+                JSValue stored;
+                if (probeArrayStorageElementForAtomics(object, index.value(), stored) == ArrayStorageElementProbe::Plain) {
+                    value = stored;
+                    attributes = 0; // In-vector AS elements are writable/enumerable/configurable.
+                    return OwnPropertyKind::Data;
+                }
+            }
+#endif
             throwTypeError(globalObject, scope, "Atomics property operations require a plain data property"_s);
             return OwnPropertyKind::Missing;
         }
@@ -184,6 +243,14 @@ struct ConcurrentAtomicsProbe {
     std::optional<uint32_t> index;
     PropertyOffset offset { invalidOffset };
     StructureID structureID;
+    // I5 fix amendment: getOwnPropertySlot saw a value but the cell-locked AS
+    // probe then saw a hole (racing delete/shrink). No sequential
+    // interleaving yields a "plain data property" TypeError there - the
+    // caller's outer loop must re-probe, and the fresh getOwnPropertySlot
+    // classifies Missing (store ADDS, load throws its precise "no own
+    // property" error). Progress: each restart requires an external mutation
+    // in the window - the same bounded-adversarial class as C.3(b).
+    bool restart { false };
 };
 
 // GIL-off twin of getOwnPropertyForAtomics: same gates, same TypeError
@@ -217,6 +284,36 @@ static ConcurrentAtomicsProbe probeOwnPropertyForAtomicsConcurrent(JSGlobalObjec
     // parseIndex hits to the indexed accessor (one arm per shape, 8g).
     if (std::optional<uint32_t> index = parseIndex(propertyName)) {
         if (!object->canGetIndexQuickly(index.value())) [[unlikely]] {
+            // I5 fix (ANNEX C1: "ArrayStorage/dict-indexed - third arm; C.2
+            // routes parseIndex hits here"): classify the locked AS arm's
+            // slots as Data so dispatchAtomicSlotRequest reaches
+            // atomicSlot*AtIndex's cell-locked arm. The probe mirrors that
+            // arm's gates EXACTLY (sparse map / out-of-bounds => TypeError
+            // here; hole => restart, see the struct comment), so kind=Data
+            // can never feed the accessor a persistently-Restarting slot.
+            // Race shape: this probe and the accessor take the cell lock
+            // SEPARATELY - if thread B mutates between them (shrink, delete,
+            // sparse conversion, AS->flat shape move), the accessor's
+            // under-lock re-checks report Restart and the NEXT probe
+            // re-classifies on fresh state (succeeds or throws); an
+            // adversarial add/delete flip-flop is the same
+            // bounded-adversarial-progress class as C.3(b)'s
+            // dequeue-and-restart. The write-side SW=0 foreign pre-lock
+            // protocol stays inside the accessor (AS PRE-LOCK, r8 item 6).
+            JSValue ignoredValue;
+            switch (probeArrayStorageElementForAtomics(object, index.value(), ignoredValue)) {
+            case ArrayStorageElementProbe::Plain:
+                probe.index = index;
+                probe.attributes = 0; // In-vector AS elements are writable/enumerable/configurable.
+                probe.kind = OwnPropertyKind::Data;
+                return probe;
+            case ArrayStorageElementProbe::Hole:
+                probe.restart = true;
+                return probe;
+            case ArrayStorageElementProbe::NotArrayStorage:
+            case ArrayStorageElementProbe::NotPlain:
+                break;
+            }
             throwTypeError(globalObject, scope, "Atomics property operations require a plain data property"_s);
             return probe;
         }
@@ -269,6 +366,8 @@ static JSValue atomicsLoadOnPropertyGilOff(JSGlobalObject* globalObject, JSObjec
     while (true) {
         auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
         RETURN_IF_EXCEPTION(scope, { });
+        if (probe.restart) [[unlikely]] // I5 fix amendment: racing delete/shrink made a hole; re-probe on fresh state.
+            continue;
         if (probe.kind != OwnPropertyKind::Data) {
             throwTypeError(globalObject, scope, "Atomics.load: object has no own property"_s);
             return { };
@@ -289,6 +388,8 @@ static JSValue atomicsStoreOnPropertyGilOff(JSGlobalObject* globalObject, JSObje
     while (true) {
         auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
         RETURN_IF_EXCEPTION(scope, { });
+        if (probe.restart) [[unlikely]] // I5 fix amendment: racing delete/shrink made a hole; re-probe on fresh state.
+            continue;
         switch (probe.kind) {
         case OwnPropertyKind::Accessor:
             throwTypeError(globalObject, scope, "Atomics.store: property is an accessor"_s);
@@ -361,6 +462,8 @@ static JSValue atomicsCompareExchangeOnPropertyGilOff(JSGlobalObject* globalObje
     while (true) {
         auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
         RETURN_IF_EXCEPTION(scope, { });
+        if (probe.restart) [[unlikely]] // I5 fix amendment: racing delete/shrink made a hole; re-probe on fresh state.
+            continue;
         if (probe.kind != OwnPropertyKind::Data) {
             throwTypeError(globalObject, scope, "Atomics.compareExchange: object has no own data property"_s);
             return { };
@@ -442,6 +545,8 @@ static JSValue atomicsRMWOnPropertyGilOff(JSGlobalObject* globalObject, JSObject
     while (true) {
         auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
         RETURN_IF_EXCEPTION(scope, { });
+        if (probe.restart) [[unlikely]] // I5 fix amendment: racing delete/shrink made a hole; re-probe on fresh state.
+            continue;
         if (probe.kind != OwnPropertyKind::Data) {
             throwTypeError(globalObject, scope, isExchange ? "Atomics.exchange: object has no own data property"_s : "Atomics RMW: object has no own data property"_s);
             return { };

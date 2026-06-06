@@ -289,7 +289,14 @@ JSC_DEFINE_HOST_FUNCTION(constructThread, (JSGlobalObject* globalObject, CallFra
     JSValue prototype = callFrame->jsCallee()->get(globalObject, vm.propertyNames->prototype);
     RETURN_IF_EXCEPTION(scope, { });
 
-    RefPtr<ThreadState> state = ThreadManager::singleton().allocateSpawnedThreadState();
+    // UNGIL U0b (AB-11 migration): the VM-aware overload licenses spawns
+    // from the m_gilOff winner VM and refuses loser VMs (null -> RangeError
+    // below). It also requests a full collection when an exhausted winner
+    // spawn left a Sealed rebias snapshot (SD9 liveness), so the RangeError
+    // window closes without organic allocation pressure. Flag-off/GIL-on:
+    // identical to the VM-blind form (both reduce to
+    // allocateSpawnedThreadStateInternal()).
+    RefPtr<ThreadState> state = ThreadManager::singleton().allocateSpawnedThreadState(vm);
     if (!state)
         return throwVMRangeError(globalObject, scope, "too many live Threads (or thread-ID space exhausted)"_s);
 

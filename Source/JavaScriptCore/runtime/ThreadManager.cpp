@@ -339,15 +339,14 @@ RefPtr<ThreadState> ThreadManager::allocateSpawnedThreadState()
     // prove the spawning VM is the m_gilOff winner (U0c), and a LOSER VM's
     // spawn must be REFUSED (U0b: the host call throws RangeError), never
     // allowed to run GIL'd phase-1 semantics with no per-thread GCClient.
-    // Returning null here keeps U0b enforced even before the spawn host
-    // call (ThreadObject.cpp, outside U-T6's owned set) migrates to the
-    // VM-aware overload: until that recorded integration obligation lands,
-    // gilOffProcess refuses EVERY spawn — winner included — which is
-    // fail-safe over-refusal (a RangeError, not silent wrong semantics or
-    // the lite->clientHeap==null fail-stop a wired-but-clientless spawned
-    // entry would hit), removed by the call-site migration. Flag-off
-    // (every shipping configuration): isGILOffProcess() is false and this
-    // is byte-identical to the landed behavior.
+    // AB-11 landed: the spawn host call (ThreadObject.cpp constructThread)
+    // now uses the VM-aware overload, so under gilOffProcess this form has
+    // no callers — the null return remains as a fail-safe backstop against
+    // any FUTURE VM-blind call site (over-refusal: a RangeError, not silent
+    // wrong semantics or the lite->clientHeap==null fail-stop a
+    // wired-but-clientless spawned entry would hit). Flag-off (every
+    // shipping configuration): isGILOffProcess() is false and this is
+    // byte-identical to the landed behavior.
     if (VM::isGILOffProcess()) [[unlikely]]
         return nullptr;
     return allocateSpawnedThreadStateInternal();

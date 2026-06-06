@@ -42,5 +42,9 @@
     for (var i = 0; i < 100000; ++i)
         expected += 2 * (i & 0xff) + 11;
 
-    reportBench("transition-heavy-constructor", run, expected);
+    // Longer measured region: ~285ms instead of ~57ms, so a 1% gate margin
+    // is resolvable and standalone `perf record` of the measured loop gets
+    // enough samples for attribution (the 9-run median protocol is
+    // unchanged; harness.js already supports explicit iteration counts).
+    reportBench("transition-heavy-constructor", run, expected, 20, 250);
 })();

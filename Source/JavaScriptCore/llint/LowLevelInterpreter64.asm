@@ -186,6 +186,11 @@ macro doVMEntry(makeCall)
 
     checkStackPointerAlignment(t4, 0xbad0dc01)
 
+    # UNGIL sec.A.1.3 (AB-1): doVMEntry Group-1 traffic. a0/a1/a2 =
+    # entry/vm/protoCallFrame are live throughout; t5 is dead at all three
+    # doVMEntry discriminator points (the C_LOOP arm writes t5 only after
+    # this one), so it carries the lite base.
+    branchIfGilOffGroup3ToT5(.liteSavePrevTopCallFrame)
     if (ARM64 or ARM64E) and ADDRESS64
         loadp ProtoCallFrame::context[protoCallFrame], t3
         storepairq vm, t3, VMEntryRecord::m_vm[sp]
@@ -199,6 +204,18 @@ macro doVMEntry(makeCall)
         storep t4, VMEntryRecord::m_prevTopCallFrame[sp]
         loadp VM::topEntryFrame[vm], t4
         storep t4, VMEntryRecord::m_prevTopEntryFrame[sp]
+    end
+    if GILOFF_TLS
+        jmp .prevTopCallFrameSaved
+    .liteSavePrevTopCallFrame:
+        loadp ProtoCallFrame::context[protoCallFrame], t4
+        storep vm, VMEntryRecord::m_vm[sp]
+        storep t4, VMEntryRecord::m_context[sp]
+        loadp VMLitePrimitives::topCallFrame[t5], t4
+        storep t4, VMEntryRecord::m_prevTopCallFrame[sp]
+        loadp VMLitePrimitives::topEntryFrame[t5], t4
+        storep t4, VMEntryRecord::m_prevTopEntryFrame[sp]
+    .prevTopCallFrameSaved:
     end
 
     loadi ProtoCallFrame::paddedArgCount[protoCallFrame], t4
@@ -271,6 +288,7 @@ macro doVMEntry(makeCall)
     jmp .copyArgsLoop
 
 .copyArgsDone:
+    branchIfGilOffGroup3ToT5(.liteStoreTopCallFrame)
     if ARM64 or ARM64E
         move sp, t4
         if ADDRESS64
@@ -282,6 +300,14 @@ macro doVMEntry(makeCall)
     else
         storep sp, VM::topCallFrame[vm]
         storep cfr, VM::topEntryFrame[vm]
+    end
+    if GILOFF_TLS
+        jmp .topCallFrameStored
+    .liteStoreTopCallFrame:
+        move sp, t4
+        storep t4, VMLitePrimitives::topCallFrame[t5]
+        storep cfr, VMLitePrimitives::topEntryFrame[t5]
+    .topCallFrameStored:
     end
 
     checkStackPointerAlignment(t5, 0xbad0dc02)
@@ -296,6 +322,7 @@ macro doVMEntry(makeCall)
     vmEntryRecord(cfr, t4)
 
     loadp VMEntryRecord::m_vm[t4], vm
+    branchIfGilOffGroup3ToT5(.liteRestorePrevTopCallFrame)
     if (ARM64 or ARM64E) and ADDRESS64
         loadpairq VMEntryRecord::m_prevTopCallFrame[t4], t4, t2
         storepairq t4, t2, VM::topCallFrame[vm]
@@ -304,6 +331,15 @@ macro doVMEntry(makeCall)
         storep t2, VM::topCallFrame[vm]
         loadp VMEntryRecord::m_prevTopEntryFrame[t4], t2
         storep t2, VM::topEntryFrame[vm]
+    end
+    if GILOFF_TLS
+        jmp .prevTopCallFrameRestored
+    .liteRestorePrevTopCallFrame:
+        loadp VMEntryRecord::m_prevTopCallFrame[t4], t2
+        storep t2, VMLitePrimitives::topCallFrame[t5]
+        loadp VMEntryRecord::m_prevTopEntryFrame[t4], t2
+        storep t2, VMLitePrimitives::topEntryFrame[t5]
+    .prevTopCallFrameRestored:
     end
 
     subp cfr, CalleeRegisterSaveSize, sp
@@ -325,10 +361,22 @@ _llint_throw_stack_overflow_error_from_vm_entry:
     vmEntryRecord(cfr, t4)
 
     loadp VMEntryRecord::m_vm[t4], vm
+    # UNGIL sec.A.1.3 (AB-1): after cCall2 t6 is dead; t5 is the live data
+    # scratch of the GIL arm, so t6 carries the lite base here.
+    branchIfGilOffGroup3ToT6(.liteRestorePrevOnEntryOverflow)
     loadp VMEntryRecord::m_prevTopCallFrame[t4], t5
     storep t5, VM::topCallFrame[vm]
     loadp VMEntryRecord::m_prevTopEntryFrame[t4], t5
     storep t5, VM::topEntryFrame[vm]
+    if GILOFF_TLS
+        jmp .entryOverflowPrevRestored
+    .liteRestorePrevOnEntryOverflow:
+        loadp VMEntryRecord::m_prevTopCallFrame[t4], t5
+        storep t5, VMLitePrimitives::topCallFrame[t6]
+        loadp VMEntryRecord::m_prevTopEntryFrame[t4], t5
+        storep t5, VMLitePrimitives::topEntryFrame[t6]
+    .entryOverflowPrevRestored:
+    end
 
     move ValueUndefined, r0
 
@@ -376,7 +424,10 @@ end
 
 op(llint_handle_uncaught_exception, macro ()
     getVMFromCallFrame(t3, t0)
-    restoreCalleeSavesFromVMEntryFrameCalleeSavesBuffer(t3, t0)
+    # UNGIL sec.A.1.3 (AB-1): unwind entry, no args live; t6 carries the lite
+    # base across the whole sequence (nothing below clobbers it).
+    restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferGroup3(t3, t0)
+    branchIfGilOffGroup3ToT6(.liteUncaughtException)
     storep 0, VM::callFrameForCatch[t3]
 
     loadp VM::topEntryFrame[t3], cfr
@@ -387,6 +438,20 @@ op(llint_handle_uncaught_exception, macro ()
     storep t5, VM::topCallFrame[t3]
     loadp VMEntryRecord::m_prevTopEntryFrame[t2], t5
     storep t5, VM::topEntryFrame[t3]
+    if GILOFF_TLS
+        jmp .uncaughtExceptionDone
+    .liteUncaughtException:
+        storep 0, VMLitePrimitives::callFrameForCatch[t6]
+
+        loadp VMLitePrimitives::topEntryFrame[t6], cfr
+        vmEntryRecord(cfr, t2)
+
+        loadp VMEntryRecord::m_prevTopCallFrame[t2], t5
+        storep t5, VMLitePrimitives::topCallFrame[t6]
+        loadp VMEntryRecord::m_prevTopEntryFrame[t2], t5
+        storep t5, VMLitePrimitives::topEntryFrame[t6]
+    .uncaughtExceptionDone:
+    end
 
     move ValueUndefined, r0
 
@@ -401,7 +466,16 @@ op(llint_get_host_call_return_value, macro ()
     pushCalleeSaves()
     loadp Callee[cfr], t0
     convertJSCalleeToVM(t0)
+    # UNGIL sec.A.1.3 (AB-1): encodedHostCallReturnValue is Group-2 state;
+    # thunk entry after a host call, t6 dead.
+    branchIfGilOffGroup3ToT6(.liteHostCallReturnValue)
     loadq VM::encodedHostCallReturnValue[t0], t0
+    if GILOFF_TLS
+        jmp .haveHostCallReturnValue
+    .liteHostCallReturnValue:
+        loadq VMLitePrimitives::encodedHostCallReturnValue[t6], t0
+    .haveHostCallReturnValue:
+    end
     popCalleeSaves()
     functionEpilogue()
     ret
@@ -2982,7 +3056,11 @@ commonOp(llint_op_catch, macro () end, macro (size)
     # The throwing code must have known that we were throwing to the interpreter,
     # and have set VM::targetInterpreterPCForThrow.
     getVMFromCallFrame(t3, t0)
-    restoreCalleeSavesFromVMEntryFrameCalleeSavesBuffer(t3, t0)
+    # UNGIL sec.A.1.3 (AB-1): catch entry, no args live; t6 carries the lite
+    # base across the lite arm (restoreStackPointerAfterCall clobbers t2
+    # only; PB/metadataTable/PC are csr/t4).
+    restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferGroup3(t3, t0)
+    branchIfGilOffGroup3ToT6(.liteCatch)
     loadp VM::callFrameForCatch[t3], cfr
     storep 0, VM::callFrameForCatch[t3]
     restoreStackPointerAfterCall()
@@ -2992,6 +3070,20 @@ commonOp(llint_op_catch, macro () end, macro (size)
     loadp CodeBlock::m_instructionsRawPointer[PB], PB
     loadp VM::targetInterpreterPCForThrow[t3], PC
     subp PB, PC
+    if GILOFF_TLS
+        jmp .catchPCComputed
+    .liteCatch:
+        loadp VMLitePrimitives::callFrameForCatch[t6], cfr
+        storep 0, VMLitePrimitives::callFrameForCatch[t6]
+        restoreStackPointerAfterCall()
+
+        loadp CodeBlock[cfr], PB
+        loadp CodeBlock::m_metadata[PB], metadataTable
+        loadp CodeBlock::m_instructionsRawPointer[PB], PB
+        loadp VMLitePrimitives::targetInterpreterPCForThrow[t6], PC
+        subp PB, PC
+    .catchPCComputed:
+    end
 
     callSlowPath(_llint_slow_path_retrieve_and_clear_exception_if_catchable)
     bpneq r1, 0, .isCatchableException
@@ -3015,7 +3107,9 @@ end)
 
 op(llint_throw_from_slow_path_trampoline, macro ()
     getVMFromCallFrame(t1, t2)
-    copyCalleeSavesToVMEntryFrameCalleeSavesBuffer(t1, t2)
+    # UNGIL sec.A.1.3 (AB-1): throw trampoline -- entered after a slow-path
+    # call (or from a trampoline's handleException arm), t6 dead.
+    copyCalleeSavesToVMEntryFrameCalleeSavesBufferGroup3(t1, t2)
 
     callSlowPath(_llint_slow_path_handle_exception)
 
@@ -3023,12 +3117,17 @@ op(llint_throw_from_slow_path_trampoline, macro ()
     # the throw target is not necessarily interpreted code, we come to here.
     # This essentially emulates the JIT's throwing protocol.
     getVMFromCallFrame(t1, t2)
+    branchIfGilOffGroup3ToT6(.liteThrowTarget)
     if ARM64E
         loadp VM::targetMachinePCForThrow[t1], a0
         leap _g_config, a1
         jmp JSCConfigGateMapOffset + (constexpr Gate::exceptionHandler) * PtrSize[a1], NativeToJITGatePtrTag # ExceptionHandlerPtrTag
     else
         jmp VM::targetMachinePCForThrow[t1], ExceptionHandlerPtrTag
+    end
+    if GILOFF_TLS
+    .liteThrowTarget:
+        jmp VMLitePrimitives::targetMachinePCForThrow[t6], ExceptionHandlerPtrTag
     end
 end)
 
@@ -3049,7 +3148,18 @@ macro nativeCallTrampoline(executableOffsetToFunction)
 .isExecutable:
     loadp JSCallee::m_scope[a0], a0
     loadp JSGlobalObject::m_vm[a0], a1
+    # UNGIL sec.A.1.3 (AB-1), repro A/B path. PRE-call: a0 (globalObject, the
+    # imminent host call's first argument -- t6 == a0 on x86-64!), a1, a2
+    # are live; t3 is dead until checkStackPointerAlignment scribbles it,
+    # so t3 carries the lite base.
+    branchIfGilOffGroup3ToT3(.liteStoreTopCallFrame)
     storep cfr, VM::topCallFrame[a1]
+    if GILOFF_TLS
+        jmp .topCallFrameStored
+    .liteStoreTopCallFrame:
+        storep cfr, VMLitePrimitives::topCallFrame[t3]
+    .topCallFrameStored:
+    end
     if ARM64 or ARM64E or C_LOOP
         storep lr, ReturnPC[cfr]
     end
@@ -3065,14 +3175,26 @@ macro nativeCallTrampoline(executableOffsetToFunction)
     loadp JSCallee::m_scope[t3], t3
     loadp JSGlobalObject::m_vm[t3], t3
 
+    # POST-call: t6 (caller-saved arg reg) is dead after the host call.
+    branchIfGilOffGroup3ToT6(.checkLiteException)
     btpnz VM::m_exception[t3], .handleException
 
+.epilogueAndReturn:
     functionEpilogue()
     ret
 
 .handleException:
     storep cfr, VM::topCallFrame[t3]
     jmp _llint_throw_from_slow_path_trampoline
+
+    if GILOFF_TLS
+    .checkLiteException:
+        btpnz VMLitePrimitives::m_exception[t6], .handleLiteException
+        jmp .epilogueAndReturn
+    .handleLiteException:
+        storep cfr, VMLitePrimitives::topCallFrame[t6]
+        jmp _llint_throw_from_slow_path_trampoline
+    end
 end
 
 macro internalFunctionCallTrampoline(offsetOfFunction)
@@ -3081,7 +3203,17 @@ macro internalFunctionCallTrampoline(offsetOfFunction)
     loadp Callee[cfr], a2
     loadp InternalFunction::m_globalObject[a2], a0
     loadp JSGlobalObject::m_vm[a0], a1
+    # UNGIL sec.A.1.3 (AB-1): byte-identical pre/post pattern to
+    # nativeCallTrampoline (host-CONSTRUCTOR path of repro A/B); same
+    # liveness -- a0/a1/a2 live pre-call (t6 == a0 on x86-64), t3 dead.
+    branchIfGilOffGroup3ToT3(.liteStoreTopCallFrame)
     storep cfr, VM::topCallFrame[a1]
+    if GILOFF_TLS
+        jmp .topCallFrameStored
+    .liteStoreTopCallFrame:
+        storep cfr, VMLitePrimitives::topCallFrame[t3]
+    .topCallFrameStored:
+    end
     if ARM64 or ARM64E or C_LOOP
         storep lr, ReturnPC[cfr]
     end
@@ -3097,14 +3229,25 @@ macro internalFunctionCallTrampoline(offsetOfFunction)
     loadp InternalFunction::m_globalObject[t3], t3
     loadp JSGlobalObject::m_vm[t3], t3
 
+    branchIfGilOffGroup3ToT6(.checkLiteException)
     btpnz VM::m_exception[t3], .handleException
 
+.epilogueAndReturn:
     functionEpilogue()
     ret
 
 .handleException:
     storep cfr, VM::topCallFrame[t3]
     jmp _llint_throw_from_slow_path_trampoline
+
+    if GILOFF_TLS
+    .checkLiteException:
+        btpnz VMLitePrimitives::m_exception[t6], .handleLiteException
+        jmp .epilogueAndReturn
+    .handleLiteException:
+        storep cfr, VMLitePrimitives::topCallFrame[t6]
+        jmp _llint_throw_from_slow_path_trampoline
+    end
 end
 
 macro varInjectionCheck(slowPath, scratch)

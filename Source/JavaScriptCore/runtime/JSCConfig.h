@@ -109,6 +109,26 @@ struct Config {
     uint32_t butterflyTIDTagTLSKey; // Darwin only: pthread key for g_jscButterflyTIDTag (SPEC-jit App. R5)
 #define JSC_CONFIG_HAS_BUTTERFLY_TID_TAG_TLS_KEY 1 // consumed by jit/ConcurrentButterflyOperations.cpp (Task 1b)
 
+    // UNGIL SPEC-ungil §A.1.3 level (i) / U0c (closes AB-1): process-level
+    // Group-3 storage discriminator byte for the LLInt. 0 => VM-block
+    // Group-3 storage everywhere (flag-off and GIL-on processes; each LLInt
+    // Group-3 site pays one not-taken byte test — the delta-(a) budget).
+    // 1 => the LLInt additionally consults the CURRENT thread's
+    // VMLite::gilOff byte (level (ii)) and, when that is also set, addresses
+    // VMLitePrimitives storage instead of the VM block.
+    //
+    // Write contract (UNGIL review round, supersedes the earlier "U0C CAS
+    // winner writes it from the VM ctor" sketch — that store races
+    // Config::finalize() freezing the page; even a same-value store faults
+    // once the page is read-only): OPTION-derived and latched exactly once
+    // at Config finalization, derivation-identical to VM::isGILOffProcess()
+    // (see the contract comment beside it in runtime/VM.cpp). The latch is a
+    // runtime/ change outside the LLInt Group-3 cluster; until it lands this
+    // byte stays 0 and every LLInt discriminator keeps VM-block storage
+    // authoritative (pure flag-off shape, all previously-green rungs intact).
+    uint8_t gilOffProcess;
+#define JSC_CONFIG_HAS_GILOFF_PROCESS_BYTE 1 // consumed by llint/LowLevelInterpreter*.asm; written only by the Config-finalization latch (runtime/)
+
     using ShellTimeoutCheckCallback = void (*)(VM&);
     ShellTimeoutCheckCallback JSC_CONFIG_METHOD(shellTimeoutCheckCallback);
 

@@ -174,3 +174,18 @@
 #else
 #define OFFLINE_ASM_LINUX 0
 #endif
+
+// UNGIL §A.1.3 / AB-1 (obligation 9b, U-T3): the LLInt Group-3
+// storage-selection branches need an LLInt-visible TLS read of
+// g_jscCurrentVMLite. Same per-OS surface as SPEC-jit App. R5
+// (loadButterflyTIDTagToT6 / jit/AssemblyHelpers.cpp loadVMLite): ELF
+// initial-exec relocations on Linux x86-64/arm64 only. Elsewhere (Darwin
+// until the vmLiteTLSKey M4a slot lands, Windows, C_LOOP) a SET
+// gilOffProcess byte fail-stops in the LLInt (`break`) instead of silently
+// reading VM-block Group-3 state — the in-LLInt tripwire AB-1 records as
+// absent (mirrors the JIT tiers' Darwin RELEASE_ASSERT, AB-2).
+#if OS(LINUX) && (CPU(X86_64) || CPU(ARM64)) && !ENABLE(C_LOOP) && USE(JSVALUE64)
+#define OFFLINE_ASM_GILOFF_TLS 1
+#else
+#define OFFLINE_ASM_GILOFF_TLS 0
+#endif

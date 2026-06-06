@@ -201,7 +201,19 @@ void MarkedBlock::Handle::specializedSweep(FreeList* freeList, MarkedBlock::Hand
         Locker locker { m_directory->bitvectorLock() };
         bool wasUnswept = m_directory->isUnswept(this);
         m_directory->setIsUnswept(this, false);
-        m_directory->setIsDestructible(this, m_attributes.destruction == DestructionMode::MayNeedDestruction && destructionMode != BlockHasNoDestructors && !isEmpty && m_directory->isDestructible(this));
+        // SharedGC (I5b): re-derive the destructible bit entirely under the
+        // BVL held above. The old "destructionMode != BlockHasNoDestructors"
+        // conjunct baked in the lock-free isDestructible read from
+        // MarkedBlock::sweep's needsDestruction decision; with mutators
+        // allowed to flip the bit under the BVL alone
+        // (Handle::setIsDestructible), that stale-false decision could erase
+        // a concurrent flip here with a perfectly ordered locked write.
+        // Dropping it is behavior-preserving when serialized (if the sweep
+        // specialized to BlockHasNoDestructors, the bit was false at decision
+        // time and, absent a concurrent flip, still is under the lock) and
+        // makes the bit genuinely monotone-toward-true between
+        // destructor-running sweeps.
+        m_directory->setIsDestructible(this, m_attributes.destruction == DestructionMode::MayNeedDestruction && !isEmpty && m_directory->isDestructible(this));
         m_directory->setIsEmpty(this, false);
         if (sweepMode == SweepToFreeList)
             m_isFreeListed = true;
@@ -416,8 +428,34 @@ inline bool MarkedBlock::Handle::isEmpty()
 
 inline void MarkedBlock::Handle::setIsDestructible(bool value)
 {
+    // SharedGC (I5b): holding this directory's bitvector lock is by itself a
+    // sanctioned bitvector-access discipline — addBlock's m_bits resize (the
+    // sole I5b writer) also takes the BVL, so the locked flip below cannot
+    // race it. assertIsMutatorOrMutatorIsStopped()'s shared-server arm checks
+    // the LOCK-FREE disciplines only (world-stopped or MSPL), and an ordinary
+    // mutator legitimately reaches here with neither: e.g.
+    // JSRopeString::convertToNonRope -> HeapCell::notifyNeedsDestruction when
+    // rope resolution allocates a destructible backing store. So only run the
+    // mutator-or-stopped assert when the heap is not a shared server; the
+    // releaseAssertAcquiredBitVectorLock() keeps thread-safety-analysis
+    // capability state identical on both branches, and the assert runs before
+    // the Locker (the removeBlock ordering) so we never release a shared
+    // capability while holding the lock exclusively. The whole gate sits
+    // under ASSERT_ENABLED so release builds gain no isSharedServer() check.
+    // The lock-free destructible read in MarkedBlock::sweep stays sound
+    // against a concurrent BVL-held flip because the setBits lambda in
+    // specializedSweep re-derives the bit from isDestructible(this) under the
+    // BVL (no stale destructionMode conjunct), making the bit
+    // monotone-toward-true between destructor-running sweeps: a stale-false
+    // read only skips destructors for a sweep that cannot reclaim the
+    // still-live newly-converted cell, and the next sweep honors the bit.
+#if ASSERT_ENABLED
+    if (!m_directory->heap().isSharedServer()) {
+        m_directory->assertIsMutatorOrMutatorIsStopped();
+        m_directory->releaseAssertAcquiredBitVectorLock();
+    }
+#endif
     Locker locker { m_directory->bitvectorLock() };
-    m_directory->assertIsMutatorOrMutatorIsStopped();
     return m_directory->setIsDestructible(this, value);
 }
 

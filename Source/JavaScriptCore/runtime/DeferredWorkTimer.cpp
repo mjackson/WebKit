@@ -176,6 +176,18 @@ DeferredWorkTimer::DeferredWorkTimer(VM& vm)
 void DeferredWorkTimer::doWork(VM& vm)
 {
     ASSERT(vm.currentThreadIsHoldingAPILock());
+    // UNGIL I12 enforcement (I4 review outcome): settle/task execution is a
+    // CARRIER drain point ONLY. The two reach paths — the run-loop timer
+    // (fires on the VM's run-loop thread, i.e. the carrier that created the
+    // VM) and jsThreadsFlushCrossThreadDeferredWork (carrier-asserted) —
+    // satisfy this structurally today; a spawned mutator draining m_tasks
+    // would run a settle task concurrently with other registrants'
+    // in-progress synchronous turns with no happens-before edge (the I12
+    // violation class behind the I4 hang triage). Fail-stop instead of
+    // silently violating the ordering. GIL-on/flag-off: gilOff() is false,
+    // no behavior change.
+    if (vm.gilOff()) [[unlikely]]
+        RELEASE_ASSERT(!ThreadManager::isJSThreadCurrent());
     Locker locker { m_taskLock };
     cancelTimer();
     if (!m_runTasks)
@@ -215,7 +227,11 @@ void DeferredWorkTimer::doWork(VM& vm)
 
     while (!m_tasks.isEmpty()) {
         auto [ticket, task] = m_tasks.takeFirst();
-        dataLogLnIf(DeferredWorkTimerInternal::verbose, "Doing work on: ", RawPointer(ticket));
+        // I4 triage instrumentation (review-demanded evidence): record WHICH
+        // thread executes each ticket task, so a settle observed "too early"
+        // by a registrant (e.g. a grantDelivered flip inside the registering
+        // turn) can be attributed to its executing thread/turn.
+        dataLogLnIf(DeferredWorkTimerInternal::verbose, "Doing work on: ", RawPointer(ticket), " executing on thread ", RawPointer(&Thread::currentSingleton()), " (spawned JS thread: ", ThreadManager::isJSThreadCurrent(), ")");
 
         auto pendingTicket = m_pendingTickets.find(ticket);
         // We may have already canceled this task or its owner may have been canceled.
@@ -462,6 +478,12 @@ void DeferredWorkTimer::scheduleWorkSoon(Ticket ticket, Task&& task)
         return;
     }
 
+    // I4 triage instrumentation (review-demanded evidence): record WHICH
+    // thread enqueues each settle task on the hookless arm — together with
+    // doWork's executing-thread log this localizes any settle that runs
+    // concurrently with (or inside) the registering thread's synchronous
+    // turn (the I12 ordering edge).
+    dataLogLnIf(DeferredWorkTimerInternal::verbose, "Scheduling work on: ", RawPointer(ticket), " from thread ", RawPointer(&Thread::currentSingleton()), " (spawned JS thread: ", ThreadManager::isJSThreadCurrent(), ")");
     Locker locker { m_taskLock };
     m_tasks.append(std::make_tuple(ticket, WTF::move(task)));
     if (!isScheduled() && !m_currentlyRunningTask)
