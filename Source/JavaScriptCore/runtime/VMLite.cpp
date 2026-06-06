@@ -726,34 +726,30 @@ void VMLite::backfillBakedScratchBuffers()
         ensureScratchBufferAtIndex(index, registry.sizeForIndex(index));
 }
 
-// ---- UNGIL §A.2.1 per-lite traps seam (U-T2). -----------------------------
+// ---- UNGIL §A.2.1 per-lite traps seam (U-T2; AB-17 item 2). ---------------
 //
 // The §A.2.1 contract appends (L2, after Group 6) `VMThreadContext
 // threadContext` to VMLite, giving every thread its own VMTraps (trap word +
 // StackManager stack limits) that generated code reaches via the chained
-// offset lite->threadContext.traps().m_trapBits. VMLite.h is OUTSIDE U-T2's
-// owned file set, so the member append cannot land here; until it does, the
-// per-lite traps ALIAS the VM-level word:
-//   - rule-3 fan-outs (VMTraps::fireTrapVMWide) set the VM word exactly once
-//     (callers skip pointer-identical duplicates);
-//   - the token-acquisition OR (orVMWideTrapBitsIntoLite) is a no-op;
-//   - per-lite readers (D9 park-lite polls, the W1 captured-lite poll)
-//     observe VM-word — i.e. phase-1 — semantics;
-//   - the JIT chained-offset consumers are dark (U-T3/U-T4).
+// offset lite->threadContext.traps().m_trapBits. The VMLite.h member append
+// is LANDED (AB-17 item 1), and the return below is FLIPPED for gilOff lites:
+//   - rule-3 fan-outs (VMTraps::fireTrapVMWide) and the token-acquisition OR
+//     (orVMWideTrapBitsIntoLite) are pointer-identity-keyed, so they de-alias
+//     automatically and now write each gilOff lite's OWN word;
+//   - per-lite readers (D9 park-lite polls, the W1 captured-lite poll) now
+//     observe their own per-thread word.
 //
-// NOT ACTIVATABLE BY A LOCAL FLIP: flipping the return below to
-// `&lite.threadContext.traps()` is necessary but NOT sufficient — the
-// VMLite.h member append, the §F.1 lite-registration VM-word backfill (the
-// JSLock.cpp token-acquisition orVMWideTrapBitsIntoLite calls ARE landed —
-// no-ops under the alias), the §A.2.2 VM.cpp updateStackLimits
-// re-target (memory-safety grade under N-parallel entry), and the park-site
-// W1/D9 predicate split must all land first. The full activation checklist —
-// each item outside U-T2's owned file set, recorded with the orchestrator —
-// lives with the seam declaration in VMTraps.h. Until then, §A.2 clauses 1-2
-// are NOT in effect and N-mutator GIL-off entry must not be enabled;
-// VMTraps.cpp carries interim single-shared-word TERM1.2 semantics (the
-// sibling-visibility take rule + carrier re-entry shield) that keep VM-wide
-// termination delivered to every entered thread under the alias.
+// STILL NOT N-ENTRY ACTIVATABLE: the flip is necessary but NOT sufficient —
+// the generated-code soft-stack-limit reads (LLInt/Baseline/DFG/FTL still
+// read the VM-level word), the §F.1 lite-REGISTRATION VM-word backfill
+// (VMLiteShared; the JSLock.cpp token-acquisition orVMWideTrapBitsIntoLite
+// calls ARE landed and now do real work), the VMTrapsInlines.h vm() reroute
+// through VMTraps::m_liteOwnerVM (the offset arithmetic is VM-embedded-only),
+// the park-site W1/D9 split, and the C++ VM::softStackLimit() reader reroute
+// must all land before N-mutator GIL-off entry is enabled. The activation
+// checklist lives with the seam declaration in VMTraps.h; the
+// VMEntryScope::setUpSlow gate (perLiteSoftStackLimitRerouteLanded, still
+// false) keeps refusing the second concurrent entry until those legs land.
 
 VMTraps* perThreadTrapsIfExists(VMLite& lite)
 {
@@ -762,6 +758,12 @@ VMTraps* perThreadTrapsIfExists(VMLite& lite)
     // suspenders for pre-registration probes.
     if (!lite.vm)
         return nullptr;
+    // §A.2.1 ACTIVE: gilOff lites carry their own trap word + StackManager.
+    // GIL-on lites (a second GIL-on VM in a gilOffProcess — U0b) keep the
+    // VM-word alias; the rule-3 fan-out and TERM1.2 interim branches key on
+    // pointer identity, so they de-alias automatically per-lite.
+    if (lite.gilOff)
+        return &lite.threadContext.traps();
     return &lite.vm->traps();
 }
 

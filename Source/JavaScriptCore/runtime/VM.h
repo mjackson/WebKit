@@ -39,6 +39,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "IndexingType.h"
 #include "Integrity.h"
 #include "Interpreter.h"
+#include "JSCConfig.h"
 #include "JSDateMath.h"
 #include "JSONAtomStringCache.h"
 #include "KeyAtomStringCache.h"
@@ -325,7 +326,7 @@ public:
     // under its lock — VM-wide consumers iterate the registry, §A.1.5).
     bool isEntered() const
     {
-        if (m_gilOff) [[unlikely]]
+        if (gilOffWithProcessGate()) [[unlikely]]
             return isAnyThreadEntered();
         return !!entryScope;
     }
@@ -335,7 +336,7 @@ public:
     // VM member otherwise. Null off-thread / when not entered.
     VMEntryScope* currentThreadEntryScope()
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             VMLite* lite = VMLite::currentIfExists();
             return (lite && lite->vm == this) ? lite->entryScope.load(std::memory_order_relaxed) : nullptr;
         }
@@ -445,7 +446,7 @@ public:
 
     bool hasAnyEntryScopeServiceRequest()
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             if (std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits())
                 return bits->load(std::memory_order_relaxed);
         }
@@ -462,7 +463,7 @@ public:
 
     void requestEntryScopeService(EntryScopeService service)
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             if (isThreadLocalEntryScopeService(service)) {
                 std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits();
                 RELEASE_ASSERT(bits); // Thread-local services are requested by an entered thread.
@@ -475,7 +476,7 @@ public:
     }
     CONCURRENT_SAFE void requestEntryScopeService(ConcurrentEntryScopeService service)
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             requestVMWideEntryScopeService(service);
             return;
         }
@@ -537,9 +538,49 @@ public:
     // NOTE: emission-side selection (LLInt/Baseline/DFG/FTL) does NOT use
     // this — it selects AT CODEGEN TIME on the compiled-for VM's mode
     // (U-T3/U-T4); this helper is the C++ accessor carrier only.
+    // Bench item I3 (flag-off residual on transition-heavy-constructor):
+    // keep the hot C++ Group-3 accessors (frame tracers, exception checks,
+    // stack-limit checks) off the VM cache line that also carries the
+    // concurrently-mutated m_entryScopeServicesRawBits word. Flag-off, the
+    // legacy per-site `m_gilOff` load shares a line with that word, so every
+    // CONCURRENT_SAFE service fetch_or from a collector/watchdog thread
+    // turned the next predicate load into a cross-core coherence miss. This
+    // gate decides on the frozen, read-only Config page instead and only
+    // touches m_gilOff when the process can actually be GIL-off.
+    //
+    // Equivalence invariant (MUST hold in every reachable state): this
+    // predicate returns exactly m_gilOff. Proof obligations:
+    //  - g_jscConfig.gilOffProcess == 1 or options.useJSThreads == 1: we
+    //    return m_gilOff verbatim.
+    //  - both bytes 0: m_gilOff == 0 is forced, because m_gilOff is set only
+    //    under VM::isGILOffProcess() (VM.cpp), whose conjunction REQUIRES
+    //    Options::useJSThreads() — finalized (immutable) strictly before any
+    //    VM ctor, and the same storage byte read here.
+    // The options.useJSThreads fallback term is what keeps the gate correct
+    // in a GIL-off process during the first-VM-ctor window BEFORE
+    // Config::finalize() latches gilOffProcess (VM.cpp ~693): the ctor's own
+    // JSLockHolder (VM.cpp ~455) installs a same-VM carrier lite via
+    // JSLock::didAcquireLock's raw gilOff() path, so a process-byte-only
+    // gate would diverge from the legacy predicate there. With the fallback,
+    // that window reads m_gilOff exactly like the legacy code. Flag-off pays
+    // two not-taken byte tests on the read-only Config page and never loads
+    // m_gilOff. If a later round latches gilOffProcess before the m_gilOff
+    // designation in the VM ctor, the fallback term can be dropped.
+    ALWAYS_INLINE bool gilOffWithProcessGate() const
+    {
+        if (g_jscConfig.gilOffProcess) [[unlikely]]
+            return m_gilOff;
+        // Pre-latch window of a GIL-off process; derivation-consistent with
+        // VM::isGILOffProcess() (useJSThreads is a necessary term of its
+        // conjunction; see the contract comment beside it in VM.cpp).
+        if (g_jscConfig.options.useJSThreads) [[unlikely]]
+            return m_gilOff;
+        return false;
+    }
+
     ALWAYS_INLINE VMLitePrimitives& group3Primitives()
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             VMLite* lite = VMLite::currentIfExists();
             if (lite && lite->vm == this) [[likely]]
                 return lite->primitives;
@@ -638,7 +679,7 @@ private:
     // refined when the trap fan-out lands (U-T2 rule 3; INTEGRATE-ungil.md).
     bool hasEntryScopeServiceRequest(EntryScopeService service)
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits();
             return bits && (bits->load(std::memory_order_relaxed) & packedServiceBits(service));
         }
@@ -647,7 +688,7 @@ private:
 
     bool hasEntryScopeServiceRequest(ConcurrentEntryScopeService service)
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits();
             return bits && (bits->load(std::memory_order_relaxed) & packedServiceBits(service));
         }
@@ -656,7 +697,7 @@ private:
 
     void clearEntryScopeService(EntryScopeService service)
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             if (std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits())
                 bits->fetch_and(static_cast<uint16_t>(~packedServiceBits(service)), std::memory_order_relaxed);
             return;
@@ -666,7 +707,7 @@ private:
 
     void clearEntryScopeService(ConcurrentEntryScopeService service)
     {
-        if (m_gilOff) [[unlikely]] {
+        if (gilOffWithProcessGate()) [[unlikely]] {
             if (std::atomic<uint16_t>* bits = currentLiteEntryScopeServiceBits())
                 bits->fetch_and(static_cast<uint16_t>(~packedServiceBits(service)), std::memory_order_relaxed);
             return;

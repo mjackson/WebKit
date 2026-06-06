@@ -113,14 +113,31 @@ void VMEntryScope::setUpSlow()
         // That race is unreachable ONLY while this walk refuses the second
         // concurrent entry. Its recorded deletion trigger (§A.2.2) and the
         // TERM1.2 interim's retirement trigger (§A.2.1 per-lite trap words)
-        // are DIFFERENT chartered changes, so the walk is now keyed on
-        // BOTH: the §A.2.2 change flips the constant below, and the walk
-        // then still self-retains while perThreadTrapsIfExists aliases the
-        // VM word (i.e. §A.2.1 not landed). Delete the whole gate only when
+        // are DIFFERENT chartered changes, so the walk is keyed on BOTH:
+        // the §A.2.2 change flips the constant below, and the walk then
+        // still self-retains while perThreadTrapsIfExists aliases the VM
+        // word (i.e. §A.2.1 not landed). Delete the whole gate only when
         // both legs are false. INTEGRATE-ungil.md AB-17 records this
         // ordering dependency.
-        constexpr bool perLiteSoftStackLimitRerouteLanded = false; // Flipped by the §A.2.2 change (AB-17).
-        bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 not landed.
+        //
+        // AB-17 STATUS (this change): §A.2.1 is LANDED — the alias probe
+        // below now evaluates false for gilOff lites — and the §A.2.2
+        // RUNTIME side is landed (updateStackLimits dual-publishes the
+        // entering lite's own word alongside the VM word). The constant
+        // stays FALSE because the §A.2.2 reroute is NOT complete: the
+        // generated-code soft-limit reads (LLInt 64/32_64/CLoop,
+        // Baseline/DFG/FTL emission sites), the C++ VM::softStackLimit()
+        // readers (VMInlines.h, LLIntSlowPaths stack_check re-confirm,
+        // JSString ropes, JSONObject, LiteralParser, Yarr), the §F.1 lite-
+        // registration backfill, the VMTrapsInlines.h vm() reroute, and the
+        // W1/D9 park-site split still read/serve the VM-level word. Flip the
+        // constant ONLY in the change that completes those legs — the alias
+        // probe alone no longer holds the gate (review round 6: the probe
+        // tracks §A.2.1 only; the "mechanically keyed" claim does not cover
+        // the §A.2.2 legs, so a premature flip would go live with generated
+        // code comparing against a stale/foreign limit).
+        constexpr bool perLiteSoftStackLimitRerouteLanded = false; // Flip ONLY with the COMPLETE §A.2.2 reroute (AB-17; see above).
+        bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {
             for (VMLite* other : registry.lites) {
                 if (other->vm == &m_vm && other != &lite) {
@@ -128,6 +145,18 @@ void VMEntryScope::setUpSlow()
                         "GIL-off second concurrent JS entry refused: VM-level soft stack limit is shared (AB-17 not landed) or per-lite trap words still alias the VM word (TERM1.2 interim, A.2.1 not landed)");
                 }
             }
+        } else {
+            // Self-verifying go-live (review round 6 amendment): when the
+            // refusal walk retires, the entering thread's PER-LITE soft
+            // stack limit must already have been published by its own pass
+            // through updateStackLimits (JSLock::didAcquireLock ->
+            // setStackPointerAtVMEntry). A null word here means the §A.2.2
+            // reroute or the lite-registration backfill is missing or
+            // regressed — refuse at the same deterministic trip point as
+            // the fail-stop above instead of running generated code against
+            // a never-published limit.
+            RELEASE_ASSERT_WITH_MESSAGE(lite.threadContext.traps().softStackLimit(),
+                "GIL-off N-entered go-live refused: entering lite's per-thread soft stack limit was never published (AB-17 §A.2.2 reroute or registration backfill missing/regressed)");
         }
         lite.entryScope.store(this, std::memory_order_relaxed);
     } else

@@ -386,6 +386,16 @@ private:
     StackManager m_stack;
     Atomic<BitField> m_trapBits { 0 };
 
+    // §A.2.1: owner VM for per-lite embedded instances (set once at lite
+    // registration, under the registry lock, before the lite is installable);
+    // null for the VM-embedded instance. VMTraps::vm()'s `this -
+    // VM::offsetOfTraps()` arithmetic is valid ONLY for the VM-embedded
+    // instance — VMTrapsInlines.h must consult this first (out-of-scope leg).
+    VM* m_liteOwnerVM { nullptr };
+public:
+    void setLiteOwnerVM(VM* vm) { m_liteOwnerVM = vm; } // §A.2.1 registration-time, once.
+private:
+
     // UNGIL §A.2.1 interim (single shared trap word — see
     // perThreadTrapsIfExists below): these three are PER-THREAD-BY-DESIGN
     // scalars (DeferTermination / DeferTraps scopes are properties of one
@@ -454,39 +464,42 @@ private:
 // rule-3 fan-out and the token-acquisition OR write for `lite`. The §A.2.1
 // contract is a VMLite L2 append `VMThreadContext threadContext` (after
 // Group 6) whose traps generated code reaches via the chained offset
-// lite->threadContext.traps().m_trapBits — that append lives in VMLite.h,
-// which is OUTSIDE U-T2's owned file set. Until it lands, this returns the
-// VM-LEVEL word (vm.traps()) as the per-lite alias: fan-outs hit the VM word
-// exactly once (callers skip duplicates by pointer identity), per-lite
-// readers observe VM-word (phase-1) semantics, and the JIT consumers
-// (U-T3/U-T4 loadVMLite emission) are dark. Returns null for an unregistered
-// lite.
+// lite->threadContext.traps().m_trapBits — that append is LANDED (AB-17
+// item 1), and this seam now returns &lite.threadContext.traps() for gilOff
+// lites (GIL-on lites keep the VM-word alias; U0b intact). Fan-outs and the
+// token-acquisition OR are pointer-identity-keyed and de-alias automatically.
+// Returns null for an unregistered lite.
 //
-// ACTIVATION CHECKLIST — §A.2 clauses 1/2 are NOT in effect under the alias,
-// and N-mutator GIL-off entry MUST NOT be enabled until ALL of the following
-// land (each is outside U-T2's owned file set; recorded with the
-// orchestrator / INTEGRATE-ungil.md):
-//   (1) VMLite.h: the §A.2.1 `VMThreadContext threadContext` L2 append, then
-//       flip perThreadTrapsIfExists (VMLite.cpp) to
-//       &lite.threadContext.traps(). VMThreadContext (VMThreadContext.h)
-//       already exists and carries a VMTraps (trap word + StackManager).
-//   (2) JSLock.cpp (§F.1): the GIL-off token-acquisition edges DO call
-//       vm.traps().orVMWideTrapBitsIntoLite(lite) (spawnedThreadEntryTokenLock
-//       and the carrier arm — landed at U-T8/U-T11; a no-op under the alias),
-//       but lite REGISTRATION must additionally backfill the VM word before
-//       a bare alias flip, or VM-wide bits would be silently lost for
-//       late-joining lites.
-//   (3) VM.cpp (§A.2.2): VM::updateStackLimits must target the ENTERING
-//       thread's lite StackManager GIL-off. Today it writes the single
-//       VM-level softStackLimit, so under N-parallel entry every entering
-//       thread would clobber the one limit all tiers' stack checks read —
-//       missed/spurious overflow checks, memory-safety grade.
-//       INTERIM FAIL-STOP (GIL-removal review round 3): updateStackLimits
-//       now RELEASE_ASSERTs (gilOff arm) that no OTHER lite of this VM is
-//       entered before publishing the shared soft limit, so this checklist
-//       is ENFORCED in code — a second concurrent entry aborts at entry
-//       (even under useThreadGILOffUnsafe) instead of corrupting silently.
-//       Delete that assert in the same change that lands the reroute.
+// ACTIVATION CHECKLIST — N-mutator GIL-off entry MUST NOT be enabled until
+// ALL of the following land (recorded with the orchestrator /
+// INTEGRATE-ungil.md). The VMEntryScope::setUpSlow gate
+// (perLiteSoftStackLimitRerouteLanded, still false) enforces the refusal:
+//   (1) LANDED (AB-17): VMLite.h `VMThreadContext threadContext` L2 append +
+//       the perThreadTrapsIfExists flip (VMLite.cpp, keyed on lite.gilOff).
+//   (2) JSLock.cpp / VMLiteShared (§F.1): the GIL-off token-acquisition edges
+//       DO call vm.traps().orVMWideTrapBitsIntoLite(lite)
+//       (spawnedThreadEntryTokenLock and the carrier arm — landed at
+//       U-T8/U-T11; now real work post-flip), but lite REGISTRATION must
+//       additionally backfill the VM word into the fresh per-lite word (and
+//       call setLiteOwnerVM on it), or VM-wide bits raised before a
+//       late-joining lite registers would be silently lost until its first
+//       token acquisition.
+//   (3) PARTIAL (AB-17 item 3): VM::updateStackLimits now DUAL-PUBLISHES
+//       GIL-off — the entering thread's lite StackManager (its own
+//       StackBounds; what the future per-lite generated-code checks read)
+//       AND the VM-level word (what all tiers' generated-code stack checks
+//       STILL read today). The VM-level publish + its no-other-entered
+//       RELEASE_ASSERT tripwire can be deleted ONLY in the same change that
+//       reroutes every generated-code soft-limit read (LLInt 64/32_64,
+//       CLoop, Baseline/DFG/FTL emission sites) and every C++
+//       VM::softStackLimit() reader (VMInlines.h isSafeToRecurse /
+//       ensureStackCapacityFor, LLIntSlowPaths stack_check slow-path
+//       re-confirm, JSString rope resolution, JSONObject, LiteralParser,
+//       Yarr) through the per-thread lite chain.
+//   (3b) VMTrapsInlines.h: VMTraps::vm() must consult m_liteOwnerVM before
+//       the `this - VM::offsetOfTraps()` arithmetic — that arithmetic is
+//       valid ONLY for the VM-embedded instance and is garbage on a
+//       per-lite instance.
 //   (4) The §J.3/D9 park sites (LockObject.cpp/ThreadObject.cpp/
 //       ConditionObject.cpp): split NeedWatchdogCheck out of
 //       jsThreadParkTerminationRequested GIL-off and drive annex W W1 via

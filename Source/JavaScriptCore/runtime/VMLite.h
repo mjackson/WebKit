@@ -43,6 +43,7 @@
 
 #include "Interpreter.h" // JSOrWasmInstruction (interpreter/Interpreter.h:61); brings JSCJSValue.h (EncodedJSValue).
 #include "JSExportMacros.h"
+#include "VMThreadContext.h" // §A.2.1 per-lite traps/stack limits (brings VMTraps.h; VMLite is only forward-declared there — no cycle).
 #include <atomic>
 #include <memory>
 #include <type_traits>
@@ -297,10 +298,20 @@ public:
     static constexpr size_t maxScratchSegments = 256; // 16384 baked indices
     std::atomic<std::atomic<ScratchBuffer*>*> scratchSegments[maxScratchSegments] { };
 
+    // ---- UNGIL §A.2.1 (AB-17 item 1; L2 append — nothing above moves). ----
+    // Per-thread VMThreadContext: own VMTraps trap word + StackManager stack
+    // limits. Generated code reaches them via the chained offset
+    // offsetOfThreadContext() + VMThreadContext::offsetOfTraps() (+
+    // VMTraps::offsetOfSoftStackLimit() / offsetOfTrapsBits()) — §6.8.
+    // Live only for gilOff lites (perThreadTrapsIfExists, VMLite.cpp);
+    // GIL-on lites keep VM-word semantics (U0b second-VM intact).
+    VMThreadContext threadContext;
+
     static constexpr ptrdiff_t offsetOfPrimitives() { return OBJECT_OFFSETOF(VMLite, primitives); }
     static constexpr ptrdiff_t offsetOfTID() { return OBJECT_OFFSETOF(VMLite, tid); }
     static constexpr ptrdiff_t offsetOfGilOff() { return OBJECT_OFFSETOF(VMLite, gilOff); } // LLInt level-2 byte (U-T3).
     static constexpr ptrdiff_t offsetOfScratchSegments() { return OBJECT_OFFSETOF(VMLite, scratchSegments); } // A16 emission (U-T4).
+    static constexpr ptrdiff_t offsetOfThreadContext() { return OBJECT_OFFSETOF(VMLite, threadContext); } // §A.2.1 chained-offset emission (U-T3/U-T4).
 
     // TLS accessors (L4): backed by `thread_local VMLite* t_currentVMLite` in
     // VMLite.cpp (NOT pthread_getspecific). Signatures frozen; the

@@ -576,12 +576,20 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
                 // drain, or between drain iterations) re-enters with the
                 // bit gone if this clear fires in that window. That hole is
                 // closed by the AB-17 tripwire (VMEntryScope::setUpSlow
-                // refuses any second concurrent entry), which is now
-                // MECHANICALLY keyed to ALSO persist while
-                // perThreadTrapsIfExists aliases the VM word — so this
-                // interim cannot silently outlive its protection no matter
-                // which of §A.2.1/§A.2.2 lands first.
-                if (event == NeedTermination && vm.gilOff()) [[unlikely]] {
+                // refuses any second concurrent entry). §A.2.1 is LANDED
+                // (perThreadTrapsIfExists no longer aliases for gilOff
+                // lites), so this VM-word interim is reachable only through
+                // vm.traps() polls (see the this == &vm.traps() key below);
+                // the tripwire is held by setUpSlow's
+                // perLiteSoftStackLimitRerouteLanded constant (still false)
+                // until the full §A.2.2 reroute lands — the alias probe
+                // alone no longer holds it.
+                if (event == NeedTermination && vm.gilOff() && this == &vm.traps()) [[unlikely]] {
+                    // Interim-alias shape only: a per-lite word (this !=
+                    // &vm.traps(), §A.2.1 landed) is single-observer — rule-3
+                    // fan-out already set every sibling's own bit, so take =
+                    // unconditional clear; leaving it set would re-terminate
+                    // this thread's next entry.
                     if (anyOtherLiteOfVMEntered(vm)) {
                         if (!isSpawnedGILOff)
                             m_carrierTookSharedTermination.store(true);
