@@ -46,6 +46,11 @@ class JSGlobalObject;
 class JSObject;
 class JSPromise;
 class VM;
+class VMLite;
+
+namespace GCClient {
+class Heap;
+}
 
 // Master gate for the phase-1 GIL'd shared-memory Thread API
 // (docs/threads/SPEC-api.md). The GIL is the shared VM's JSLock and is
@@ -261,6 +266,37 @@ public:
     static constexpr uint16_t mainThreadTID = 0;
     static constexpr uint16_t notTTLTID = 0x7fff; // reserved
 
+    // UNGIL §A.3.6 / ANNEX A36 (U-T6): GIL-off every main/embedder carrier
+    // lite needs a TM-allocated unique nonzero TID from the SAME 2^15 space
+    // as spawned threads (I17 exhaustion accounting includes carriers; r9
+    // F4 — main/embedder ThreadState.tid STAYS 0, the carrier TID is a
+    // separate allocation).
+    //
+    // RECORDED REFINEMENT (U-T6; not a weakening): carriers allocate from a
+    // FIXED upper sub-range [carrierTIDBase, notTTLTID) while spawned
+    // threads keep [1, carrierTIDBase). The split exists so the ~VM A36
+    // carrier-collection walk — which runs under VMLiteRegistry::lock and
+    // therefore may acquire NO other lock (§LK.6/I7) — can discriminate
+    // carrier lites from spawned lites with a pure range check on the
+    // immutable lite tid instead of probing m_threads under m_lock. Both
+    // halves still exhaust against the one 2^15 space (the spawn cap is
+    // Options::maxJSThreads, far below either half); the Dev-10 TID-rebias
+    // task (U-T12) must preserve the partition.
+    static constexpr uint16_t carrierTIDBase = 0x4000;
+    static bool isCarrierTID(uint16_t tid) { return tid >= carrierTIDBase && tid < notTTLTID; }
+
+    // Installs the VMLite.h carrier-TID provider pair (setCarrierTIDHooks).
+    // Idempotent; called by the GIL-off carrier registration path
+    // (JSLock.cpp) before its first allocateCarrierTID(). Carrier TIDs are
+    // retired forever on release in v1 (the same Deviation-10 no-reuse rule
+    // as spawned TIDs; rebias is U-T12).
+    JS_EXPORT_PRIVATE static void installCarrierTIDHooksIfNeeded();
+    // The provider body (the hook target; public so the file-scope hook
+    // function in ThreadManager.cpp can reach it). Takes m_lock; RELEASE_
+    // ASSERTs on range exhaustion — carrier allocation happens at VM entry,
+    // where there is no throw context (I17).
+    uint16_t allocateCarrierTIDInternal();
+
     static uint16_t currentTID();
     JS_EXPORT_PRIVATE static bool isJSThreadCurrent(); // true iff spawned Thread
 
@@ -306,7 +342,8 @@ private:
     Lock m_lock; // rank 1 (SPEC-api 5.9)
     UncheckedKeyHashMap<uint16_t, Ref<ThreadState>> m_threads WTF_GUARDED_BY_LOCK(m_lock); // spawned only
     Deque<uint16_t> m_freeTIDs WTF_GUARDED_BY_LOCK(m_lock); // empty until Dev-10 rebias lands
-    uint16_t m_nextTID WTF_GUARDED_BY_LOCK(m_lock) { 1 }; // 0 = main, 0x7fff = notTTLTID
+    uint16_t m_nextTID WTF_GUARDED_BY_LOCK(m_lock) { 1 }; // 0 = main, 0x7fff = notTTLTID; spawned range tops out at carrierTIDBase (U-T6 split)
+    uint16_t m_nextCarrierTID WTF_GUARDED_BY_LOCK(m_lock) { carrierTIDBase }; // A36 carrier range [carrierTIDBase, notTTLTID); retired forever in v1
 
     std::atomic<uint64_t> m_nextThreadLocalKey { 0 };
 
@@ -325,5 +362,65 @@ void setCurrentThreadState(RefPtr<ThreadState>&&);
 // ConcurrentAccessError and returns false. Callers gate on
 // isUncacheableDictionary() first.
 JS_EXPORT_PRIVATE bool threadRestrictCheck(JSGlobalObject*, JSObject*);
+
+// ============================================================================
+// UNGIL ANNEX EXIT1.9 / §B.1-2 (U-T6) — per-thread GCClient lifecycle + the
+// ~VM completion-fence condition.
+//
+// PLACEMENT DEVIATION (recorded; spec letter vs file ownership): EXIT1.9
+// words the condition as "VMLiteRegistry gains one WTF::Condition beside
+// lock; unregisterLite — already under the lock — notifyAll()s it after
+// removing the lite". VMLiteRegistry lives in VMLiteShared.h/.cpp, which is
+// OUTSIDE U-T6's owned-file set, so:
+//   - the Condition is the process-lifetime NeverDestroyed singleton below,
+//     paired exclusively with VMLiteRegistry::singleton().lock (it is THE
+//     EXIT1.9 vmTeardownCondition; relocating it into VMLiteRegistry is a
+//     mechanical follow-up once VMLiteShared.h is editable);
+//   - the notify lives in the unregisterVMLiteAndNotifyTeardown() wrapper,
+//     which every U-T6-owned GIL-off teardown path uses as its sole physical
+//     removal primitive (the r31 U20 "every physical removal is the
+//     notifying function" rule, discharged at the wrapper).
+// SOUNDNESS of notifying AFTER unregisterLite's internal lock hold drops
+// (instead of inside it): both EXIT1.9 waiters are predicate loops under
+// VMLiteRegistry::lock, and WTF::Condition::wait enqueues the waiter in the
+// parking lot BEFORE releasing the lock — a remover can only mutate the
+// registry after acquiring the lock, i.e. after any in-flight waiter that
+// observed the pre-removal state is already queued, so its post-unlock
+// notifyAll cannot be missed. GIL-on spawned teardown (ThreadObject.cpp)
+// keeps calling plain unregisterLite — the fence is armed only for m_gilOff
+// VMs, whose ~VM serializes against nothing GIL-on.
+// ============================================================================
+
+// The EXIT1.9 vmTeardownCondition: signaled by every GIL-off unregisterLite
+// (via the wrapper below) AND by the ~VM A36 walk's COLLECTED->DETACHED
+// flips (VM.cpp). Waiters: the EXIT1.9 step-(3) ~VM wait and the r31
+// carrier-TLS-death COLLECTED wait (JSLock.cpp) — both predicate loops
+// under VMLiteRegistry::singleton().lock, so cross-wakeups are benign.
+JS_EXPORT_PRIVATE Condition& vmLiteTeardownCondition();
+
+// unregisterLite + notifyAll (see the banner). The sole physical-removal
+// call on U-T6's GIL-off teardown paths (EXIT1.3 spawned T5 + carrier
+// TLS-death, the A36 collection, ~VM's m_mainVMLite removal).
+JS_EXPORT_PRIVATE void unregisterVMLiteAndNotifyTeardown(VMLite&);
+
+// §B.1 spawn-side client creation + ACT (U-T6; the GIL-off threadMain /
+// E2A integration point — ThreadObject.cpp is outside U-T6's owned set, so
+// U-T9's drain-loop rewrite MUST call this after lite registration +
+// setCurrent + TID-tag init and BEFORE the first JSLockHolder/allocation).
+// Creates the thread's own GCClient::Heap against vm.heap, stamps
+// lite.clientHeap write-once under the registry lock (EXIT1.4(b)
+// release-publish), then runs attachCurrentThread() (heap I4(a)-(c):
+// §10A.1 slot stamp, conservative-scan registration, §A.3.2b/§A.3.8-gated
+// access acquisition).
+JS_EXPORT_PRIVATE void attachSpawnedThreadGCClient(VM&, VMLite&);
+
+// EXIT1.3 spawned T5 tail as AMENDED r31 (U-T6): access release (seq_cst
+// RHA) -> TEARDOWN mark (under the registry lock) -> DCT -> destroy the
+// GCClient::Heap -> unregisterLite (notifying wrapper) LAST. The caller
+// performed the Strong clears / E2A close first and frees the lite AFTER
+// this returns (EXIT1.9 residual-tail rule: the lite free and its M12
+// default-queue removal run outside the registry lock). Exit stays
+// UN-GATED: no stop-bit poll, no park point.
+JS_EXPORT_PRIVATE void tearDownSpawnedThreadForExit(VM&, VMLite&);
 
 } // namespace JSC

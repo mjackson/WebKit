@@ -64,16 +64,31 @@ void VMEntryScope::setUpSlow()
     // isAnyThreadEntered() (registry walk) and per-thread consumers through
     // VM::currentThreadEntryScope() (both routed by U-T1).
     //
-    // OPEN-BLOCKER (cross-file, recorded for the orchestrator):
-    // VMEntryScopeInlines.h's ctor/dtor fast paths still gate setUpSlow/
-    // tearDownSlow on the raw `vm.entryScope` shadow. That header is outside
-    // U-T5's writable set; it must be re-keyed on the per-lite record when
-    // m_vm.gilOff() (ctor: `!VMLite::current().entryScope`; dtor:
-    // `VMLite::current().entryScope == this`) in the same wave. Until that
-    // lands, a gilOff NESTED entry would reach setUpSlow again — the
-    // RELEASE_ASSERT below fail-stops that shape loudly instead of letting
-    // the per-lite record be silently overwritten (and then leaked, because
-    // the un-rekeyed dtor gate would skip tearDownSlow).
+    // OPEN-BLOCKER — HARD ACTIVATION BLOCKER (cross-file, recorded for the
+    // orchestrator; pair with the JSThreadsSafepoint.cpp stub reroute in the
+    // same wave): VMEntryScopeInlines.h's ctor/dtor fast paths still gate
+    // setUpSlow/tearDownSlow on the raw `vm.entryScope` shadow, which gilOff
+    // code never writes. Consequences until the header is re-keyed on the
+    // per-lite record when m_vm.gilOff() (ctor: `!VMLite::current().
+    // entryScope`; dtor: `VMLite::current().entryScope == this`):
+    //   (1) EVERY gilOff entry reaches setUpSlow (the ctor's `!vm.entryScope`
+    //       gate is always true), so a NESTED entry — routine: host
+    //       callbacks, microtask drains, VMManager::dispatchStopHandler's
+    //       own VMEntryScope — trips the RELEASE_ASSERT below;
+    //   (2) the dtor's `vm.entryScope == this` gate is always FALSE gilOff,
+    //       so tearDownSlow never runs: the per-lite record leaks and even a
+    //       SECOND SEQUENTIAL top-level entry on the same thread trips the
+    //       assert. No GIL-off gate that enters a VM twice on one thread can
+    //       run before the re-key lands.
+    // Deliberately NOT "tolerate-and-skip": with the dtor gate un-rekeyed
+    // there is no teardown edge, so overwriting/keeping a pre-existing
+    // record would leave lite.entryScope DANGLING after the recorded scope
+    // unwinds (per-lite consumers — VM::currentThreadEntryScope, exit
+    // services — would deref a dead stack object: silent UAF). Fail-stop
+    // over silent corruption is the only memory-safe interim; the bodies
+    // below are already correct once the inline gates are re-keyed
+    // (re-keyed gates call them exactly once per outermost per-thread
+    // entry/exit).
     if (m_vm.gilOff()) [[unlikely]] {
         VMLite& lite = VMLite::current();
         RELEASE_ASSERT(lite.vm == &m_vm);

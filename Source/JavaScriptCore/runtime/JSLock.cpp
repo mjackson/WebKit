@@ -25,12 +25,14 @@
 #include "JSGlobalObject.h"
 #include "MachineStackMarker.h"
 #include "Options.h"
+#include "RaceAmplifier.h" // UNGIL EXIT1.8 (U-T6): carrier-TLS-death stall points.
 #include "SamplingProfiler.h"
-#include "ThreadManager.h" // UNGIL §F.1 (U-T8): isJSThreadCurrent keys the spawned token arm.
+#include "ThreadManager.h" // UNGIL §F.1 (U-T8): isJSThreadCurrent keys the spawned token arm; (U-T6) carrier TIDs + the EXIT1.9 condition/wrapper.
 #include "VMLite.h"
 #include "VMLiteInlines.h" // UNGIL §F.1 (U-T8): per-lite drain-on-release (I11).
 #include "VMLiteShared.h"
 #include "VMTrapsInlines.h"
+#include <wtf/Atomics.h>
 #include <wtf/Vector.h>
 #include <wtf/HashMap.h>
 #include <wtf/MainThread.h>
@@ -86,14 +88,17 @@ namespace JSC {
 // trusting a cached carrier (A36 staleness rule — a dead VM's address can
 // be reused).
 //
-// U-T1 lands the install/restore tuple swap ({lite, TID-tag, §10A.1 client
-// slot} — A36C) and a SKELETAL carrier-TLS-death path (TEARDOWN mark ->
-// unregisterLite LAST). The stale-epoch eviction arm runs the SAME skeleton
-// (evictStaleCarrier below) — every physical removal goes through
-// unregisterLite and every free is protocol-keyed; a map entry NEVER
-// bare-deletes its lite. U-T6 owns the full r31/r32 teardown protocol
-// (COLLECTED/DETACHED, EXIT1.9 ~VM completion fence, deferred degenerate
-// dtor) and replaces both skeleton paths.
+// U-T1 landed the install/restore tuple swap ({lite, TID-tag, §10A.1 client
+// slot} — A36C). U-T6 lands the full r31/r32 teardown protocol here:
+// per-thread clients (perThreadClientForCarrierEntry), the state-keyed
+// carrier-TLS-death path (tearDownCarriersAtThreadDeath: LIVE => live
+// EXIT1.3 path, COLLECTED => vmTeardownCondition wait, DETACHED =>
+// degenerate free), the post-walk stale-epoch eviction (evictStaleCarrier),
+// and the §F.5 nested-entry release/restore hooks in
+// didAcquireLock/willReleaseLock. Every physical removal goes through the
+// notifying unregisterVMLiteAndNotifyTeardown wrapper (U20 r31) and every
+// free is state-keyed; a map entry NEVER bare-deletes its lite. The ~VM-side
+// A36 collection walk + EXIT1.9 fence live in VM.cpp.
 // ============================================================================
 
 // §J.7/U1 TLS-tag clause (U-T8; INTEGRATE-ungil ledger row 3): the I19
@@ -115,30 +120,87 @@ struct CarrierMapEntry {
 
 using CarrierMap = UncheckedKeyHashMap<VM*, CarrierMapEntry>;
 
-// EXIT1.3 live-path SKELETON (see banner): TEARDOWN-mark-precedes-destroy,
-// physical removal via unregisterLite LAST, lite freed after both.
+// EXIT1.3 carrier-TLS-death LIVE path + the r31/r32 carrier-state handshake
+// (U-T6, replacing the U-T1 skeleton). Runs from the destructor-BEARING
+// ThreadSpecific map only — NON-MAIN threads by construction (the main
+// thread's map is destructor-free, A36 r32), so every lite here is bit-CLEAR
+// (ownerHasNoTlsDtor == false) and its client is OWNED (see
+// perThreadClientForCarrierEntry).
+//
+// The TLS destructor takes the registry lock FIRST and keys ONLY on the
+// lock-published lite state — NEVER on "is my lite registered" (EXIT1.9
+// carrier-TLS-death disposition):
+//   LIVE      => mark TEARDOWN in the same hold, then the live EXIT1.3 path
+//                (DCT -> destroy client -> unregisterLite LAST -> free lite);
+//   COLLECTED => the ~VM A36 walk is mid-detach on another thread: park on
+//                vmLiteTeardownCondition until the walk's DETACHED flip
+//                (predicate loop; unregisterLite notifies are tolerated),
+//                then the degenerate path;
+//   DETACHED  => the degenerate path immediately: every m_server touch was
+//                done by the walk — destroy ONLY client-local memory (the
+//                lite and, inside ~VMLite, its default MicrotaskQueue, whose
+//                M12 removal is a no-op after the M11 force-removal). The
+//                walk already deleted the owned GCClient::Heap (recorded
+//                refinement, see the VM.cpp walk banner): the deferred dtor
+//                here never dereferences lite->clientHeap.
 static void tearDownCarriersAtThreadDeath(CarrierMap& map)
 {
     for (auto& mapEntry : map) {
         VMLite* lite = mapEntry.value.carrier.get();
         if (!lite)
             continue;
+        ASSERT(!lite->ownerHasNoTlsDtor); // destructor-bearing map => bit-CLEAR (A36 r32)
         if (VMLite::currentIfExists() == lite)
             VMLite::setCurrent(nullptr); // I20: TLS never dangles past destruction (also clears the TID tag via the hook).
+        uint16_t tid = lite->tid; // read before any free
         auto& registry = VMLiteRegistry::singleton();
-        bool registered = false;
+        VMLite::State state;
         {
             Locker locker { registry.lock };
-            registered = registry.lites.contains(lite);
-            if (registered) {
-                // State transitions are under-registry-lock-only (EXIT1/A36).
-                RELEASE_ASSERT(lite->state == VMLite::State::Live);
+            state = lite->state;
+            RELEASE_ASSERT(state != VMLite::State::Teardown); // only THIS thread marks its lites TEARDOWN
+            if (state == VMLite::State::Live) {
+                // The dtor-wins-LIVE arm (EXIT1.8 reverse variant): mark in
+                // the SAME hold so a racing ~VM walk skips this lite and the
+                // EXIT1.9 step-(3) wait absorbs it.
                 lite->state = VMLite::State::Teardown;
+            } else if (state == VMLite::State::Collected) {
+                // CARRIER-TLS-DEATH-DURING-DETACH (r31): the walk owns the
+                // client; wait for its DETACHED flip — Condition::wait drops
+                // the registry lock into the parking lot, so the walk's
+                // short flip hold always makes progress (EXIT1.6).
+                while (lite->state != VMLite::State::Detached)
+                    vmLiteTeardownCondition().wait(registry.lock);
+                state = VMLite::State::Detached;
             }
         }
-        if (registered)
-            registry.unregisterLite(*lite); // The notifying, LAST physical removal (U20).
-        releaseCarrierTIDIfHooked(lite->tid);
+        RaceAmplifier::perturb(); // EXIT1.8 carrier-variant stall point: post-mark/post-wait.
+        if (state == VMLite::State::Live) {
+            // Live EXIT1.3 path. The thread is dying outside any VM entry:
+            // its token was retired and access released at the final depth-0
+            // unlock (an embedder thread exiting while ENTERED is a §F.6
+            // contract violation — fail-stop).
+            GCClient::Heap* client = lite->clientHeap;
+            if (client) {
+                RELEASE_ASSERT(!client->hasHeapAccess());
+                if (GCClient::Heap::currentThreadClient() == client)
+                    GCClient::Heap::setCurrentThreadClient(nullptr); // stale §10A.1 slot must not dangle past the delete
+                RaceAmplifier::perturb(); // EXIT1.8 stall point: pre-destroy.
+                // Destroy the OWNED client (the live dtor: access bracket +
+                // lastChanceToFinalize under MSPL + clientSet().remove
+                // against the live server — the lite is still registered, so
+                // the EXIT1.9 fence keeps ~VM blocked through this).
+                delete client;
+            }
+            RaceAmplifier::perturb(); // EXIT1.8 stall point: post-destroy, pre-unregister.
+            unregisterVMLiteAndNotifyTeardown(*lite); // PHYSICAL removal LAST, notifying (U20 r31)
+        }
+        // Degenerate or live tail: free the lite (the unique_ptr in the map,
+        // destroyed by our caller) + retire the TID. For DETACHED lites this
+        // touches NO VM/server memory: ~VMLite frees lite-local buffers and
+        // its queue's M12 removal is isOnList()-guarded under the
+        // process-lifetime registry lock (EXIT1.9 residual-tail rule).
+        releaseCarrierTIDIfHooked(tid);
     }
     // The unique_ptrs free the lites when the map is destroyed by the caller.
 }
@@ -169,76 +231,64 @@ static CarrierMap& threadLocalCarrierMap()
     return maps.get()->map;
 }
 
-// A36 stale-epoch eviction: the VM that owned this map slot died and a new VM
-// was constructed at the same address. The stale lite is disposed of through
-// the SAME protocol skeleton as carrier-TLS-death — NEVER a bare delete.
-// Until U-T6 lands the ~VM carrier-collection walk, a destroyed gilOff VM
-// leaves its carriers REGISTERED; an unprotocoled free here would leave the
-// VMLiteRegistry pointing at freed memory (release-build UAF in every
-// registry walk: the r6 F5 root walk, requestVMWideEntryScopeService,
-// gatherScratchBufferRoots, isAnyThreadEntered) and leak the carrier TID
-// against I17 accounting. Recorded in INTEGRATE-ungil.md obligation 4.
+// A36 stale-epoch eviction (U-T6 full protocol): the VM that owned this map
+// slot died and a new VM was constructed at the same address. An epoch
+// mismatch PROVES the old VM's ~VM — including its A36 carrier-collection
+// walk and EXIT1.9 wait — ran to completion before the address could be
+// reused, so this thread's stale carrier was collected by that walk:
+//   - bit-SET (main thread): the walk freed the lite right after its
+//     DETACHED flip (A36 r32) — FORGET the pointer without touching it
+//     (release(); deleting OR dereferencing here would be UAF/double-free);
+//   - bit-CLEAR (embedder thread): destruction was deferred to THIS owner —
+//     the lite is alive, its state is DETACHED (the walk's flip strictly
+//     preceded ~VM's return), its owned client was already deleted by the
+//     walk: run the degenerate free (lite + TID only; no VM/server memory).
 static void evictStaleCarrier(CarrierMapEntry& entry, bool isMainThread)
 {
-    VMLite* lite = entry.carrier.get();
-    if (!lite)
+    if (!entry.carrier)
         return;
-    if (VMLite::currentIfExists() == lite) [[unlikely]]
-        VMLite::setCurrent(nullptr); // I20 mirror of the TLS-death skeleton (a stale carrier should never be CURRENT — restores run at depth-0 unlock / ~VM uninstall).
-    auto& registry = VMLiteRegistry::singleton();
-    bool registered = false;
-    {
-        Locker locker { registry.lock };
-        registered = registry.lites.contains(lite);
-        if (registered) {
-            // Pre-U-T6 the dead VM's ~VM did NOT collect carriers, so the
-            // stale lite is still registered and still Live, and this thread
-            // owns it: live path, TEARDOWN-mark-precedes-destroy (EXIT1.3
-            // skeleton; state transitions under-registry-lock-only).
-            RELEASE_ASSERT(lite->state == VMLite::State::Live);
-            lite->state = VMLite::State::Teardown;
-        }
-    }
-    if (registered) {
-        registry.unregisterLite(*lite); // The notifying, LAST physical removal (U20).
-        releaseCarrierTIDIfHooked(lite->tid); // I17 carrier accounting.
-        entry.carrier = nullptr; // Owner frees, strictly after unregistration (§6.5.1).
-        return;
-    }
-    // Not registered: unreachable until U-T6 (no other path unregisters a
-    // carrier while its owner thread's map entry is alive). Once U-T6's ~VM
-    // collection walk lands: a bit-SET (main-thread) lite was WALK-FREED at
-    // its DETACHED flip (A36 r32) — FORGET the pointer without touching it
-    // (the walk owns that free; deleting here would double-free); a
-    // bit-CLEAR lite is never walk-freed, and U-T6 replaces this arm with
-    // the state-keyed deferred degenerate dtor (COLLECTED => predicate-wait
-    // on vmTeardownCondition until DETACHED).
     if (isMainThread) {
-        (void)entry.carrier.release(); // A36 r32 WALK-FREE ownership: the ~VM walk freed (or will free) it.
+        // Never dereference: the ~VM walk owns (and already performed) this
+        // lite's free. The TID was retired by the walk too.
+        (void)entry.carrier.release();
         return;
     }
-    RELEASE_ASSERT_NOT_REACHED(); // U-T6 lands the bit-CLEAR deferred degenerate dtor here.
+    VMLite* lite = entry.carrier.get();
+    ASSERT(VMLite::currentIfExists() != lite); // restores ran at depth-0 unlock / ~VM uninstall
+    {
+        // State reads are under-registry-lock-only (EXIT1.7). DETACHED is
+        // terminal and the walk's last touch preceded the old ~VM's return,
+        // so no waiting is ever needed here.
+        Locker locker { VMLiteRegistry::singleton().lock };
+        RELEASE_ASSERT(lite->state == VMLite::State::Detached);
+    }
+    uint16_t tid = lite->tid;
+    entry.carrier = nullptr; // the deferred degenerate free (client-local memory only; ~VMLite's M12 removal is a no-op post-M11)
+    releaseCarrierTIDIfHooked(tid);
 }
 
-// ANNEX A36C / §A.3.6 SUPERSESSION 3 — per-thread client SEAM (U-T8; U-T6
-// REPLACES THE BODY). GIL-off, the JSLock pair acquires/releases on the
-// CURRENT carrier's OWN client (§F.1) — NEVER the main client (heap Dev 8).
-// The per-thread client factory is heap-side U-T6 territory (a declared
-// PREREQ of this task per INTEGRATE-ungil ledger row 3; its owned set, not
-// ours), so until it lands this seam returns the VM's single client.
-// Consequence, recorded: N >= 2 SIMULTANEOUS GIL-off entry is IMPOSSIBLE
-// pre-U-T6 — the single-owner GCClient access protocol fail-stops the second
-// concurrent acquire (heap F8 step-0 owner RELEASE_ASSERT / NoAccess-CAS
-// check, Heap.cpp) rather than corrupting; and the U1/A36C client asserts
-// below verify SLOT AGREEMENT only — with a shared client they cannot detect
-// the missing per-thread split, so they are NOT evidence U-T6 landed.
-// This function is the ONLY carrier stamping site in this file; U-T6's
-// rewrite is a one-line body swap here plus the spawned-lite stamp
-// (VMLite clientHeap, api §5.2 spawn path). BLOCKING: U-T6 must land before
-// any gate runs two mutators in parallel (U-T9 entry).
-static GCClient::Heap* perThreadClientForCarrierEntry(VM& vm)
+// ANNEX A36C / §A.3.6 SUPERSESSION 3 — per-thread clients (U-T6, replacing
+// the U-T8 seam). GIL-off, the JSLock pair acquires/releases on the CURRENT
+// carrier's OWN client (§F.1/§B.2) — NEVER the main client (heap Dev 8; the
+// heap §10A ISS forward-to-main-client wiring stays GIL-ON-ONLY, §B.3):
+//   - the process MAIN thread's carrier REUSES the VM's original client
+//     (&vm.clientHeap — F1B "main reuses the original client"); the VM owns
+//     it, so no teardown path here ever destroys it (the BORROWED-client
+//     rule below);
+//   - every OTHER thread's carrier creates its OWN GCClient::Heap against
+//     the server (F1B "embedder creates one, §B.2"); the carrier protocol
+//     OWNS it — destroyed on the live TLS-death path (EXIT1.3) or by the
+//     ~VM A36 walk's lock-free server-side detach (VM.cpp), NEVER by the
+//     deferred degenerate dtor (which is restricted to non-server memory).
+// OWNERSHIP PREDICATE (normative for this file + the VM.cpp walk): a
+// carrier's client is OWNED iff !lite->ownerHasNoTlsDtor — exactly the
+// non-main threads; spawned lites' clients (ThreadManager.cpp) are always
+// owned by the spawned teardown path.
+static GCClient::Heap* perThreadClientForCarrierEntry(VM& vm, bool isMainThread)
 {
-    return &vm.clientHeap; // U-T6: replace with the per-thread client factory.
+    if (isMainThread)
+        return &vm.clientHeap; // borrowed: the VM's original client (F1B)
+    return new GCClient::Heap(vm.heap); // owned: ctor registers with the server's HeapClientSet (§5.1; may run the §10B.4 sticky switch)
 }
 
 static VMLite& ensureCarrierLiteForCurrentThread(VM& vm)
@@ -255,13 +305,22 @@ static VMLite& ensureCarrierLiteForCurrentThread(VM& vm)
         evictStaleCarrier(entry, isMainThread);
     }
 
+    ThreadManager::installCarrierTIDHooksIfNeeded(); // U-T6: the A36 provider pair (lazy; before the first allocateCarrierTID).
+
     auto carrier = makeUnique<VMLite>();
     // All fields stamped BEFORE registerLite publishes the lite to registry
-    // walkers; the registration lock hold is what fixes them (A36).
-    carrier->tid = allocateCarrierTID(); // unique nonzero TM allocation; main/embedder ThreadState.tid stays 0 (r9 F4).
+    // walkers; the registration lock hold is what fixes them (A36), and the
+    // fence below gives clientHeap its EXIT1.4(b) release-publish ordering
+    // (constructed-before-published; samplers read it only under the
+    // registry lock, EXIT1.2). The store is write-once per registration
+    // epoch and strictly precedes this thread's first access acquisition
+    // (didAcquireLock's gated acquire runs after the install).
+    carrier->tid = allocateCarrierTID(); // unique nonzero TM allocation from the carrier range; main/embedder ThreadState.tid stays 0 (r9 F4).
+    ASSERT(ThreadManager::isCarrierTID(carrier->tid)); // the ~VM walk's carrier-vs-spawned discriminator (U-T6 range split)
     carrier->gilOff = vm.gilOff() ? 1 : 0; // §A.1.3 level-2 byte, copied at registration.
-    carrier->ownerHasNoTlsDtor = isMainThread; // A36 r32 registration clause.
-    carrier->clientHeap = perThreadClientForCarrierEntry(vm); // §A.3.6 supersession 3 seam — see the banner above.
+    carrier->ownerHasNoTlsDtor = isMainThread; // A36 r32 registration clause: fixed here, immutable, published by the registration lock hold.
+    carrier->clientHeap = perThreadClientForCarrierEntry(vm, isMainThread); // §B.2/F1B: main borrows the VM's client, others own a fresh one.
+    WTF::storeStoreFence(); // EXIT1.4(b) release-publish half (the registration lock hold is the other half).
     VMLiteRegistry::singleton().registerLite(*carrier, vm);
     // Registration backfills (run AFTER registration so a concurrent install
     // fan cannot be lost; both are idempotent under the per-lite lock):
@@ -271,6 +330,24 @@ static VMLite& ensureCarrierLiteForCurrentThread(VM& vm)
     entry.vmEpoch = vm.vmEpoch();
     entry.carrier = WTF::move(carrier);
     return *entry.carrier;
+}
+
+// U-T6 seam for the VM.cpp ~VM A36 walk (same-library linkage; redeclared
+// there, not in any header): the calling thread's carrier lite for `vm`, or
+// null if this thread never entered it (or the entry is stale). The walk
+// uses it to EXEMPT the destroying thread's own carrier from the token-free
+// RELEASE_ASSERT — that thread's entry token deliberately survives until the
+// final m_lock drop (§F.2 IU row 21).
+VMLite* carrierLiteOfCurrentThreadIfExists(VM& vm)
+{
+    bool isMainThread = WTF::isMainThread();
+    CarrierMap& map = isMainThread ? mainThreadCarrierMap() : threadLocalCarrierMap();
+    auto it = map.find(&vm);
+    if (it == map.end())
+        return nullptr;
+    if (it->value.vmEpoch != vm.vmEpoch())
+        return nullptr; // stale (A36 staleness rule) — never dereferenced
+    return it->value.carrier.get();
 }
 
 // ============================================================================
@@ -782,6 +859,24 @@ void JSLock::didAcquireLock()
     bool tookGILOffCarrierPath = false;
     VMLite* gilOffCarrierLite = nullptr;
     if (Options::useVMLite()) [[unlikely]] {
+        // UNGIL §F.5 nested foreign-VM entry (U-T6; main/embedder carriers
+        // ONLY — a spawned thread RELEASE_ASSERTed in lock() before reaching
+        // here, TERM1.5/§F.6(e)): entering VM B while a gilOff VM A's carrier
+        // is current FIRST releases A's client heap access (F8 mandatory-
+        // revert: seq_cst exchange -> NoAccess inside releaseHeapAccess), so
+        // in the nested window this thread counts access-released for A's
+        // heap §10.4 barrier AND A's §A.3.2 conductor predicate (heap I4(b):
+        // A's JS frames stay alive via the conservative machine-thread
+        // scan — the thread remains registered). A's trap/stop/termination
+        // delivery is DEFERRED to the LIFO restore in willReleaseLock (the
+        // gated re-acquire + re-stamp + poll there). Applies per nesting
+        // level (the restores form the LIFO stack of releases). A GIL-on
+        // outer lite (gilOff == 0, incl. any m_mainVMLite) keeps the landed
+        // handoff protocol — no release here.
+        if (VMLite* outer = VMLite::currentIfExists(); outer && outer->vm != m_vm && outer->gilOff) [[unlikely]] {
+            if (outer->clientHeap && outer->clientHeap->hasHeapAccess())
+                outer->clientHeap->releaseHeapAccess();
+        }
         if (m_vm->gilOff()) [[unlikely]] {
             tookGILOffCarrierPath = true;
             // UNGIL §A.3.6 (A36/A36C; U-T1, dark): GIL-off NEVER installs the
@@ -1177,6 +1272,42 @@ void JSLock::willReleaseLock()
         m_entryVMLite = nullptr;
         m_entryThreadClient = nullptr;
         m_didInstallCarrierVMLite = false;
+    }
+
+    // UNGIL §F.5 LIFO restore (U-T6): if the restore above brought back a
+    // FOREIGN gilOff VM's carrier (this entry was nested inside it), undo the
+    // entry-side release — re-stamp the outer client (A36C: every LIFO
+    // restore re-stamps the §10A.1 slot through the staleness-checked tuple;
+    // the m_didInstallCarrierVMLite arm restored the SAVED slot value, which
+    // for a nested entry is exactly the outer client, so the explicit stamp
+    // below is idempotent there and load-bearing for the GIL-on-inner-VM
+    // restore arm, which does not touch the slot), re-acquire the outer
+    // client's access §A.3.2b/§A.3.8-gated (parks if the outer VM is
+    // mid-stop; SB1 ordering inside acquireHeapAccess), then poll the outer
+    // lite's deferred trap bits BEFORE any outer-VM JS runs (same shape as
+    // the DAL2 dtor poll). m_vm may already be null here (~VM final unlock):
+    // the outer-VM re-acquire is exactly as required then. Flag-off/GIL-on:
+    // no gilOff lite exists, the branch is dead.
+    //
+    // m_lockDropDepth gate: a DropAllLocks full drop / §J.3
+    // unlockAllForThreadParking release of the INNER VM must leave the outer
+    // VM access-released too — the thread is entering a blocking native
+    // section/park, and re-holding A's access across it would stall A's
+    // §10.4 barrier and §A.3.2 predicate for the unbounded block (the DAL2.2
+    // shape). The matching grabAllLocks/park re-lock re-enters through
+    // didAcquireLock (whose §F.5 entry hook re-releases idempotently), and
+    // the eventual REAL depth-0 unlock runs this hook with
+    // m_lockDropDepth == 0, restoring A's access + deferred delivery there.
+    if (Options::useVMLite() && !m_lockDropDepth) [[unlikely]] {
+        if (VMLite* restored = VMLite::currentIfExists(); restored && restored->gilOff && restored->vm && restored->vm != m_vm) [[unlikely]] {
+            RELEASE_ASSERT(restored->clientHeap); // EXIT1.4(b): stamped before the outer entry's first acquisition
+            GCClient::Heap::setCurrentThreadClient(restored->clientHeap); // A36C restore-side re-stamp
+            restored->clientHeap->acquireHeapAccess(); // gated; ISB1.2 sync on the success path
+            if (VMTraps* liteTraps = perThreadTrapsIfExists(*restored))
+                liteTraps->handleTrapsIfNeeded();
+            else
+                restored->vm->traps().handleTrapsIfNeeded();
+        }
     }
 
     if (m_entryAtomStringTable) {

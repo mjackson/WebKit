@@ -37,8 +37,10 @@
 #include "VMThreadContext.h"
 #include "WasmDebugServerUtilities.h"
 #include <atomic>
+#include <wtf/HashMap.h>
 #include <wtf/Locker.h>
 #include <wtf/MonotonicTime.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
 #include <wtf/Scope.h>
 #include <wtf/Threading.h>
@@ -248,18 +250,40 @@ void jsThreadsBumpStopGeneration();
 void jsThreadsNVSExitInstructionSync();
 
 static Lock s_jsThreadsJobSlotLock; // §A.3.3/HBT4 pending-job-slot mutex (§LK row 4b).
-static Lock s_jsThreadsParkLock; // Guards nothing but the condition below; leaf.
+// TRUE LEAF (U20; review round on the §LK lint): nothing — not even the
+// registry lock — is ever acquired while s_jsThreadsParkLock is held. Waiters
+// evaluate their predicates (registry walks, m_worldLock samples) BEFORE
+// taking it; the bounded 1ms waits absorb the resulting check-then-wait
+// lost-wakeup window (<= one timeout of added latency, never a hang).
+static Lock s_jsThreadsParkLock;
 static Condition s_jsThreadsParkCondition; // NVS tickets + the conductor's predicate wait.
 static std::atomic<VM*> s_jsThreadsStopWord { nullptr }; // SB1 stop word; seq_cst accessors below ONLY (U20).
 static std::atomic<WTF::Thread*> s_jsThreadsConductorThread { nullptr }; // §A.3.3 tenure (thread-keyed, not VM-keyed).
 static std::atomic<unsigned> s_jsThreadsWorldStoppedDepth { 0 }; // §J.8 witness: window open AND predicate satisfied.
 static thread_local unsigned t_jsThreadsConductorDepth { 0 }; // R1.h nesting on the conductor thread.
 
-// The gilOff VM's Mode-machine servicing-thread tenure (§A.3.8: the landed
+// The gilOff Mode-machine servicing-thread tenure (§A.3.8: the landed
 // per-VM machine keyed m_targetVM on the VM, which is ambiguous with two
 // same-VM observers — exactly the double-transition/assert hazard the
-// handout cites at :218/:580). Guarded by m_worldLock.
-static WTF::Thread* s_gilOffServicingThread { nullptr };
+// handout cites at :218/:580). Keyed PER VM (review round: §A.3.8 makes each
+// gilOff VM ONE counting unit with ITS OWN representative — a single
+// process-wide slot would let the first-arriving thread of VM A hold the
+// tenure while every thread of VM B parks uncounted, so B's stop never
+// reaches m_numberOfStoppedVMs == m_numberOfActiveVMs and a two-gilOff-VM
+// Mode stop deadlocks). Guarded by m_worldLock; entries are transient (the
+// representative removes its own on exit; notifyVMDestruction sweeps).
+static HashMap<VM*, WTF::Thread*>& gilOffServicingThreads() // WTF_REQUIRES_LOCK(m_worldLock) by convention.
+{
+    static NeverDestroyed<HashMap<VM*, WTF::Thread*>> map;
+    return map.get();
+}
+
+// §A.3.2b(i) gate exemption: true while THIS thread is a gilOff VM's elected
+// Mode-machine representative (between election and the post-service
+// re-acquire) — the representative must re-acquire heap access to run the
+// STW callback, and gating it would self-deadlock. Thread-local because the
+// exemption is exact for the asking thread and needs no lock.
+static thread_local bool t_gilOffModeStopServicer { false };
 
 // U20: the ONLY loads/stores of the stop word (seq_cst, SB1 item 1/3).
 static ALWAYS_INLINE VM* jsThreadsStopWordLoad()
@@ -405,6 +429,71 @@ void jsThreadsParkForStopWindow(VM& vm)
     jsThreadsNVSExitInstructionSync();
 }
 
+// SPEC-ungil §A.3.2b(i) (review round): the lite's stop bit — under the
+// §A.2.1 interim seam, the VM trap word's NeedStopTheWorld bit — gates FRESH
+// heap-access acquisition for MODE-MACHINE stops too, not just §A.3 windows.
+// The §A.3.8 service-gating conjunct (gilOffMutatorsBlockModeStopService)
+// samples sibling access states and is sound only if a sibling that released
+// cannot silently re-acquire and run JS while the debugger STW callback is
+// in flight. Consumed by GCClient::Heap::acquireHeapAccess (Heap.cpp seam).
+//
+// Exemptions: (a) the elected representative (it re-acquires to service);
+// (b) the free-running RunOne target VM (landed RunOne semantics resume the
+// target wholesale; its trap bit stays set by design); (c) Mode::RunAll
+// (a residual or pre-Stopping-sliver bit — poll-site delivery and
+// notifyVMActivation cover the sliver; the §A.3 conductor's post-window
+// clear/re-check retires residuals).
+//
+// Cost: one fence-assisted relaxed trap-bit load on the gilOff AHA path; the
+// m_worldLock-taking info() snapshot runs only with the bit set (i.e. only
+// while some stop is actually in flight or RunOne is active — debugger
+// modes, where "peek performance is not a concern" per notifyVMStop).
+bool jsThreadsModeStopGatesCurrentThread(VM& vm)
+{
+    if (t_gilOffModeStopServicer)
+        return false;
+    // HBT2.1/HBT3.2: an open §A.3 window's conductor may retain/re-acquire
+    // access inside its own window while holding the job-slot mutex (and
+    // GCL). Parking IT here would deadlock a Mode stop that arrived
+    // mid-window: every sibling is ticket-parked on the §A.3 word and none
+    // reaches the representative election until the window closes — so the
+    // conductor must finish its window first and parks for the Mode stop at
+    // its post-window re-acquire instead (tenure is already dropped there).
+    if (jsThreadsCurrentThreadIsStopConductor())
+        return false;
+    // SB1-shape Dekker leg: the fan side is fireTrap's seq_cst RMW followed
+    // by a fenced access sample; this side is the caller's seq_cst access
+    // CAS followed by this fenced bit load (the trap-bit accessor is a
+    // relaxed load frozen in VMTraps.h, outside this task's writable set —
+    // fence-assisted, same discharge as the banner's hasHeapAccess note).
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (!vm.traps().needHandling(VMTraps::NeedStopTheWorld)) [[likely]]
+        return false;
+    auto info = VMManager::info();
+    if (info.worldMode == VMManager::Mode::RunAll)
+        return false;
+    if (info.worldMode == VMManager::Mode::RunOne && info.targetVM == &vm)
+        return false;
+    return true;
+}
+
+void jsThreadsParkForModeStop(VM& vm)
+{
+    // §A.3.2b(i) NVS ticket for Mode-machine stops. Pre: the calling thread
+    // holds NO heap access (the AHA gate reverted it). The predicate is
+    // evaluated OUTSIDE the park-lock hold (leaf discipline, see the lock's
+    // comment); resumeTheWorld notifies this condition, and the bounded wait
+    // backstops the check-then-wait window and the RunOne edges.
+    for (;;) {
+        if (!jsThreadsModeStopGatesCurrentThread(vm))
+            break;
+        Locker locker { s_jsThreadsParkLock };
+        s_jsThreadsParkCondition.waitFor(s_jsThreadsParkLock, Seconds::fromMilliseconds(1));
+    }
+    // R1.d/ISB1: same NVS-exit contract as the §A.3 ticket above.
+    jsThreadsNVSExitInstructionSync();
+}
+
 // §J.8 witness for patching asserts (replaces the stub depth counter's role
 // post-ungil): true while a §A.3 window is open AND its predicate has been
 // satisfied. OPEN (cross-file): JSThreadsSafepoint::worldIsStopped() gains
@@ -483,15 +572,27 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         jsThreadsNotifyMutatorQuiesced(); // Wake ticket-parked threads to observe the word.
 
         // §A.3.2 predicate wait: per-sample EXIT1.2 registry walks; the
-        // registry lock is dropped before every block/yield between samples.
+        // registry lock is dropped before every block/yield between samples,
+        // and the walk NEVER runs under s_jsThreadsParkLock (leaf discipline,
+        // see the lock's comment — the bounded wait absorbs the
+        // check-then-wait lost-wakeup window).
         MonotonicTime requestStart = MonotonicTime::now();
         for (;;) {
             if (allEnteredThreadsAreQuiescent(vm))
                 break;
+            // §A.3.2 fan re-assertion (review round): under the §A.2.1 alias
+            // the per-lite stop bits ARE the single VM-wide trap word, and
+            // VMTraps' take rule clears NeedStopTheWorld when the FIRST
+            // trapping thread latches it — with no per-lite delivery record,
+            // a still-JS-spinning sibling would otherwise never trap after a
+            // sibling consumed the bit, and this predicate would hang until
+            // the watchdog fail-stops. Re-fire on every non-quiescent sample
+            // (idempotent seq_cst RMW, bounded by this loop). RETIRED when
+            // the per-lite trap words land (VMTraps.h activation checklist).
+            vm.requestStop();
+            WTF::storeLoadFence();
             JSThreadsSafepoint::watchdogAssertStopProgress(requestStart);
             Locker parkLocker { s_jsThreadsParkLock };
-            if (allEnteredThreadsAreQuiescent(vm))
-                break;
             s_jsThreadsParkCondition.waitFor(s_jsThreadsParkLock, Seconds::fromMilliseconds(1));
         }
 
@@ -518,12 +619,25 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         s_jsThreadsWorldStoppedDepth.fetch_sub(1, std::memory_order_relaxed);
         jsThreadsStopWordStore(nullptr);
         s_jsThreadsConductorThread.store(nullptr, std::memory_order_seq_cst);
+        // Retire this window's stop bits (review round): leaving the
+        // NeedStopTheWorld trap + entry-scope-service bits set forever would
+        // (a) route EVERY later VMEntryScope entry/exit of every thread
+        // through the entry-scope service and its m_worldLock takes — a
+        // permanent serialization point — and (b) wedge the §A.3.2b(i)
+        // Mode-stop AHA gate on a stale bit. The bit may be co-owned by an
+        // in-flight Mode-machine stop, so the clear is CLEAR-THEN-RECHECK-
+        // THEN-RESTORE rather than a raw cancel: requestStopAllInternal
+        // publishes Mode::Stopping and (re)fires the trap bit under ONE
+        // m_worldLock hold, so the info() lock acquisition below observes a
+        // non-RunAll mode for any fire our cancel could have raced with, and
+        // the restore re-delivers it (requestStop is idempotent; a duplicate
+        // delivery is one benign notifyVMStop trip). RunOne deliberately
+        // keeps its bits (the restore re-arms them). A queued §A.3 loser
+        // re-fires its own fan as the next winner.
+        vm.cancelStop();
+        if (VMManager::info().worldMode != VMManager::Mode::RunAll)
+            vm.requestStop();
         jsThreadsNotifyMutatorQuiesced();
-        // Deliberately NO vm.cancelStop() here: the NeedStopTheWorld trap
-        // bit may be co-owned by an in-flight Mode-machine stop (GC or
-        // debugger), and cancelling it from outside m_worldLock could lose
-        // that stop's delivery. A thread that traps on the residual bit
-        // takes one benign trip through notifyVMStop and returns.
     } // ~JSThreadsStopScope: drop the GCL bracket (resume order), then...
     if (releasedAccess)
         selfClient->acquireHeapAccess(); // ...re-acquire access LAST (R1.i).
@@ -542,14 +656,14 @@ void VMManager::incrementActiveVMs(VM& vm) WTF_REQUIRES_LOCK(m_worldLock)
 void VMManager::decrementActiveVMs(VM& vm) WTF_REQUIRES_LOCK(m_worldLock)
 {
     // UNGIL §A.3.8 (U-T5): the gilOff VM is ONE counting unit, represented
-    // by s_gilOffServicingThread (see notifyVMStop). A SIBLING thread of
-    // that VM deactivating mid-stop must neither decrement the VM's count
-    // nor trigger the RunOne resume-all arm (the :218 m_targetVM==&vm
-    // tenure assert is VM-keyed and ambiguous with two same-VM observers) —
-    // the VM stays active while any thread is still entered. GIL-on:
-    // branch dead.
+    // by its gilOffServicingThreads() entry (see notifyVMStop). A SIBLING
+    // thread of that VM deactivating mid-stop must neither decrement the
+    // VM's count nor trigger the RunOne resume-all arm (the :218
+    // m_targetVM==&vm tenure assert is VM-keyed and ambiguous with two
+    // same-VM observers) — the VM stays active while any thread is still
+    // entered. GIL-on: branch dead.
     if (vm.gilOff() && m_worldMode != Mode::RunAll) [[unlikely]] {
-        bool currentThreadIsServicing = s_gilOffServicingThread == &Thread::currentSingleton();
+        bool currentThreadIsServicing = gilOffServicingThreads().get(&vm) == &Thread::currentSingleton();
         if (!currentThreadIsServicing && vm.isEntered())
             return;
     }
@@ -754,6 +868,13 @@ void VMManager::resumeTheWorld() WTF_REQUIRES_LOCK(m_worldLock)
     m_numberOfActiveVMs = invalidNumberOfActiveVMs; // invalid when not Stopped.
     m_worldMode = Mode::RunAll;
     m_worldConditionVariable.notifyAll();
+
+    // §A.3.2b(i) (review round): Mode-stop-gated acquirers park on the NVS
+    // ticket condition, not on m_worldConditionVariable — wake them on
+    // resume (their bounded wait is only a backstop). The park lock is a
+    // true leaf, so taking it under m_worldLock is ordered.
+    if (VM::isGILOffProcess()) [[unlikely]]
+        jsThreadsNotifyMutatorQuiesced();
 }
 
 void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
@@ -772,7 +893,7 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
     //   - Mode-machine stops (GC keep-parked, debugger latch/service): the
     //     gilOff VM participates as ONE counting unit, represented by
     //     exactly one thread — the first to arrive, recorded in
-    //     s_gilOffServicingThread under m_worldLock — which runs the landed
+    //     gilOffServicingThreads() (per-VM) under m_worldLock — which runs the landed
     //     per-VM protocol verbatim (idempotent per-VM flag, latch, RunOne
     //     tenure). Every SIBLING thread parks access-released on its own
     //     ticket below, untouched by the counters ("Mode keyed on
@@ -798,16 +919,32 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
             {
                 Locker lock { m_worldLock };
                 modeStopActive = m_worldMode != Mode::RunAll || hasPendingStopRequests();
+                // §A.3.8 RunOne (review round): when this gilOff VM IS the
+                // free-running RunOne target and nothing further pends, its
+                // threads are licensed to run — landed RunOne semantics
+                // resume the target VM wholesale, and the §A.3.2b(i) AHA
+                // gate carries the same exemption. Without this, every
+                // sibling of the target would stay parked for the whole
+                // RunOne episode.
+                if (m_worldMode == Mode::RunOne && m_targetVM == &vm && !hasPendingStopRequests())
+                    modeStopActive = false;
                 if (modeStopActive) {
-                    if (!s_gilOffServicingThread)
-                        s_gilOffServicingThread = &Thread::currentSingleton();
-                    isServicingThread = s_gilOffServicingThread == &Thread::currentSingleton();
+                    // Per-VM representative election (§A.3.8: one counting
+                    // unit PER gilOff VM; add() keeps an existing tenant).
+                    auto addResult = gilOffServicingThreads().add(&vm, &Thread::currentSingleton());
+                    isServicingThread = addResult.iterator->value == &Thread::currentSingleton();
                 }
             }
             if (!modeStopActive)
                 break; // Nothing pending in either machine.
             if (isServicingThread) {
                 isGilOffRepresentative = true;
+                // §A.3.2b(i) exemption ON for the service tenure: the
+                // representative re-acquires heap access to run the STW
+                // callback (and again on the cleanup path) while the trap
+                // bit is still set; gating it would self-deadlock. Cleared
+                // by the cleanup scope below AFTER its re-acquire.
+                t_gilOffModeStopServicer = true;
                 break; // Fall through to the landed per-VM machine as the representative.
             }
             // Sibling: park on our own ticket, access-released; never counted.
@@ -839,11 +976,16 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
             return;
         {
             Locker lock { m_worldLock };
-            if (s_gilOffServicingThread == &Thread::currentSingleton())
-                s_gilOffServicingThread = nullptr;
+            auto& servicers = gilOffServicingThreads();
+            auto it = servicers.find(&vm);
+            if (it != servicers.end() && it->value == &Thread::currentSingleton())
+                servicers.remove(it);
         }
         gcClientDidResumeFromThreadGranularStop();
         jsThreadsNVSExitInstructionSync();
+        // Drop the §A.3.2b(i) exemption only AFTER the re-acquire above —
+        // the trap bit may legitimately still be set (RunOne).
+        t_gilOffModeStopServicer = false;
     });
 
     // Ensure VM is counted as active before executing the body of notifyVMStop.
@@ -1192,6 +1334,10 @@ void VMManager::notifyVMDestruction(VM& vm)
             s_recentVM = nullptr;
         m_vmList.remove(vm.threadContext());
         m_numberOfVMs--;
+        // §A.3.8 tenure sweep: a representative entry normally removes
+        // itself; this covers a VM destroyed while its entry lingers.
+        if (vm.gilOff()) [[unlikely]]
+            gilOffServicingThreads().remove(&vm);
 
         worldIsStopped = (m_worldMode != Mode::RunAll);
     }

@@ -148,6 +148,9 @@ bool jsThreadsCurrentThreadIsStopConductor(); // §A.3.3 tenure check (HBT3.2 se
 void jsThreadsParkForStopWindow(VM&); // NVS ticket park; pre: caller holds NO heap access.
 void jsThreadsNotifyMutatorQuiesced(); // wakes the conductor's §A.3.2 predicate wait.
 void jsThreadsSyncToStopGenerationBeforeJITEntry(); // ANNEX ISB1.2 (VMLite.cpp).
+void jsThreadsBumpStopGeneration(); // ANNEX ISB1.1 (VMLite.cpp); bumped by EVERY conductor — §A.3 AND the §10 shared-GC conductor below.
+bool jsThreadsModeStopGatesCurrentThread(VM&); // SPEC-ungil §A.3.2b(i): Mode-machine stop bit gates fresh access (VMManager.cpp).
+void jsThreadsParkForModeStop(VM&); // §A.3.2b(i) NVS park until the Mode machine resumes; pre: caller holds NO heap access.
 
 // NEVER_INLINE to prevent LTO from inlining this function, which can break
 // compiler barriers in MarkedBlock::isMarked on x86_64.
@@ -4499,7 +4502,14 @@ void Heap::runSharedGCElection(Ticket ticket) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         // THREADS-INTEGRATE(heap): the trap bit is set for entered VMs by the
         // manifest-5g(ii) hunk and by the requester's requestStopAll.
         if (!client->m_isStandalone) [[likely]] {
-            VM& vm = client->vm();
+            // UNGIL §B.2 (U-T6): route via the server — GCClient::Heap::vm()
+            // is VM-embedding pointer arithmetic (HeapInlines.h:286) that is
+            // GARBAGE for the GIL-off per-thread heap-allocated clients
+            // (spawned + embedder carriers). A non-standalone client's
+            // server is a VM's own heap, and every client of one server
+            // belongs to that one VM (U0b), so the server-side vm() IS the
+            // client's VM in every case, per-thread clients included.
+            VM& vm = client->server().vm();
             if (vm.traps().needHandling(VMTraps::NeedStopTheWorld)) [[unlikely]]
                 VMManager::singleton().notifyVMStop(vm, StopTheWorldEvent::VMStopped);
         }
@@ -4662,6 +4672,25 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     clientSet().forEach([&](GCClient::Heap& client) {
         client.threadLocalCache().resumeAllocating();
     });
+
+    // UNGIL ANNEX ISB1.1 (U-T5, review round): the cheap conservative form
+    // bumps the stop-generation counter for EVERY conductor — including this
+    // §10 shared-GC conductor, whose cycle jettisons and patches code. A
+    // gilOff mutator that parked in the F8 barrier (NOT an NVS exit — no
+    // unconditional ISB) resumes through the ISB1.2 compare in
+    // acquireHeapAccess, which is sound only if this window bumped; without
+    // it an arm64 mutator re-enters patched/jettisoned JIT code with no
+    // context-synchronizing instruction. Patcher-side ifetch publication
+    // first; the bump is INSIDE the stop window, sequenced before the
+    // seq_cst GSP clear below, and a re-acquirer reaches JIT code only after
+    // its seq_cst F8 GSP load observes that clear — the same
+    // synchronizes-with edge the §A.3 conductor gets from its stop-word
+    // clear (ISB1.5). gilOff-process only: flag-off/GIL-on zero cost.
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        WTF::crossModifyingCodeFence();
+        jsThreadsBumpStopGeneration();
+    }
+
     {
         Locker locker { m_gcBarrierLock };
         m_worldIsStoppedForAllClients.store(false, std::memory_order_seq_cst); // Clear WSAC pre-resume (F7).
@@ -4990,6 +5019,21 @@ NEVER_INLINE void Heap::acquireAccessForwardedToMainClient()
         // heap (JSLock::didAcquireLock's own addCurrentThread() runs later).
         mainClient->ensureCurrentThreadIsRegisteredForConservativeScan(Thread::currentSingleton());
         mainClient->m_accessOwner.store(&Thread::currentSingleton(), std::memory_order_relaxed);
+        // UNGIL ANNEX ISB1.2 (U-T5, review round): this transfer branch is a
+        // may-execute-JIT transition that bypasses AHA entirely, so it must
+        // carry the ISB1.2 compare itself: the process-wide generation can
+        // have been bumped by ANOTHER gilOff VM's §A.3 window or by a shared-
+        // GC window that completed before this client (re)acquired — the
+        // incoming thread's PE may never have executed an ISB for it
+        // (t_jsThreadsStopGenerationSeen is per-thread because instruction-
+        // stream sync is per-PE). No §A.3.2b stop-word/Mode gate is needed
+        // here: a window targeting THIS VM cannot be open or close while the
+        // main client holds access continuously (its holder lite is counted
+        // non-quiescent by the §A.3.2 predicate and the §10.4 barrier), and
+        // other VMs' windows never gate this VM's acquisition. GIL-on/
+        // flag-off: branch dead (gilOff() false).
+        if (vm().gilOff()) [[unlikely]]
+            jsThreadsSyncToStopGenerationBeforeJITEntry();
         return;
     }
     mainClient->acquireHeapAccess();
@@ -5314,7 +5358,15 @@ void Heap::acquireHeapAccess()
     // and the VM's gilOff bit are immutable, and the stop word itself is
     // re-polled seq_cst inside the loop (SB1.3). Standalone (harness) clients
     // have no VM and no §A.3 windows.
-    bool threadGranularGated = !m_isStandalone && vm().gilOff();
+    //
+    // UNGIL §B.2 (U-T6): the VM is resolved through the SERVER, never
+    // through GCClient::Heap::vm() — that accessor is VM-embedding pointer
+    // arithmetic and is GARBAGE for the per-thread heap-allocated clients
+    // this function now serves (spawned threads + embedder carriers). A
+    // non-standalone client's server is a VM's own heap (U0b: one VM per
+    // shared server), so m_server.vm() is correct for every client shape.
+    VM* serverVM = m_isStandalone ? nullptr : &m_server.vm();
+    bool threadGranularGated = serverVM && serverVM->gilOff();
 #if ASSERT_ENABLED
     // ANNEX EXIT1.4(a): a TEARDOWN lite's access re-acquisition is FORBIDDEN
     // — re-entry to JS would need it, and a TEARDOWN lite can never run JS
@@ -5372,12 +5424,33 @@ void Heap::acquireHeapAccess()
         // (HBT3.2: a class-4 conductor re-acquires inside its own window
         // before fanning; the default conductor re-acquires only after the
         // word is cleared, so the exemption is a no-op for it).
-        if (threadGranularGated && jsThreadsStopPendingFor(vm()) && !jsThreadsCurrentThreadIsStopConductor()) [[unlikely]] {
+        if (threadGranularGated && jsThreadsStopPendingFor(*serverVM) && !jsThreadsCurrentThreadIsStopConductor()) [[unlikely]] {
             uint8_t reverted = m_accessState.exchange(noAccessState, std::memory_order_seq_cst);
             ASSERT_UNUSED(reverted, reverted == hasAccessState);
             jsThreadsNotifyMutatorQuiesced();
-            jsThreadsParkForStopWindow(vm());
+            jsThreadsParkForStopWindow(*serverVM);
             continue; // Retry from step 1 (a GC stop may have arrived meanwhile; GSP re-polls).
+        }
+
+        // UNGIL §A.3.2b(i), MODE-MACHINE leg (review round): SPEC-ungil item
+        // 2b(i) is "acquireHeapAccess()/attachCurrentThread() polls the
+        // LITE'S STOP BIT" — under the §A.2.1 alias, the VM trap word's
+        // NeedStopTheWorld bit — which EVERY stop request sets, including
+        // Mode-machine (debugger) stops via requestStop/requestStopAll. The
+        // §A.3-word leg above covers only thread-granular windows; without
+        // this leg a gilOff mutator could re-acquire and run JS while a
+        // debugger STW service is in flight (the §A.3.8 service-gating
+        // conjunct samples access states on the assumption re-acquisition is
+        // gated). The elected representative and the free-running RunOne
+        // target are exempt inside the helper; GC keep-parked stops are
+        // carried by the GSP leg above. Mandatory F8 revert BEFORE the NVS
+        // park (r9 F3), exactly like the §A.3 leg.
+        if (threadGranularGated && jsThreadsModeStopGatesCurrentThread(*serverVM)) [[unlikely]] {
+            uint8_t reverted = m_accessState.exchange(noAccessState, std::memory_order_seq_cst);
+            ASSERT_UNUSED(reverted, reverted == hasAccessState);
+            jsThreadsNotifyMutatorQuiesced();
+            jsThreadsParkForModeStop(*serverVM);
+            continue; // Retry from step 1 (GSP and the §A.3 word re-poll).
         }
 
         // Re-stamp the owner (§10A; I2: JSLock migration transfers via the
@@ -5427,8 +5500,14 @@ void Heap::releaseHeapAccess()
     // window close without it. The seq_cst exchange above is the SB1 store;
     // wake the conductor's sampler if a window is open (cheap: one seq_cst
     // load when gilOff, nothing GIL-on/flag-off/standalone).
-    if (!m_isStandalone && vm().gilOff()) [[unlikely]] {
-        if (jsThreadsStopPendingFor(vm()))
+    if (!m_isStandalone) [[likely]] {
+        // UNGIL §B.2 (U-T6): server-routed VM resolution — see the
+        // acquireHeapAccess banner (GCClient::Heap::vm() is unusable for
+        // per-thread heap-allocated clients). m_server.vm() is plain pointer
+        // arithmetic; gilOff() is an immutable byte — flag-off this is the
+        // same one-branch cost as the landed form.
+        VM& serverVM = m_server.vm();
+        if (serverVM.gilOff() && jsThreadsStopPendingFor(serverVM)) [[unlikely]]
             jsThreadsNotifyMutatorQuiesced();
     }
 }

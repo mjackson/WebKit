@@ -502,9 +502,13 @@ VMTraps* perThreadTrapsIfExists(VMLite& lite)
 // ISB1.1 state: one process-wide seq_cst uint64 stop-generation counter.
 // EVERY §A.3 conductor (and every heap §10 conductor that patched/jettisoned
 // code — the cheap conservative form bumps for every conductor) increments it
-// INSIDE the stop window, before resume (the §A.3 conductor in VMManager.cpp
-// calls jsThreadsBumpStopGeneration() between the patcher-side
-// crossModifyingCodeFence and the stop-word clear).
+// INSIDE the stop window, before resume. Both delivery sites are landed
+// (U-T5): the §A.3 conductor in VMManager.cpp calls
+// jsThreadsBumpStopGeneration() between the patcher-side
+// crossModifyingCodeFence and the stop-word clear, and the §10 shared-GC
+// conductor (Heap::conductSharedCollection, gilOff-process only) calls it
+// between its crossModifyingCodeFence and the seq_cst GSP clear — the
+// re-acquirer's seq_cst F8 GSP load carries the publishing edge there.
 //
 // ISB1.2 consumption: every transition into "may execute JIT code" that did
 // NOT pass through an NVS exit — F8 AHA re-acquisition (including the

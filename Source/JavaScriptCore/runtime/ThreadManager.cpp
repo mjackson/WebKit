@@ -28,9 +28,14 @@
 
 #include "JSCInlines.h"
 #include "JSPromise.h"
+#include "RaceAmplifier.h" // UNGIL EXIT1.8 (U-T6): T5-tail stall points.
 #include "ThreadObject.h"
+#include "VMLite.h"        // UNGIL §B.1/EXIT1.3 (U-T6): per-thread client lifecycle.
+#include "VMLiteShared.h"  // UNGIL EXIT1.9 (U-T6): registry lock + the notifying wrapper.
 #include "WeakHandleOwner.h"
 #include "WeakInlines.h"
+#include <wtf/Atomics.h>
+#include <wtf/Condition.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/ThreadSpecific.h>
 
@@ -149,6 +154,15 @@ ThreadManager& ThreadManager::singleton()
 
 uint16_t ThreadManager::currentTID()
 {
+    // UNGIL §A.3.6 TID supersession (r9 F4; U-T6): GIL-off currentTID()
+    // returns the CARRIER TID — the installed lite's tid (it feeds
+    // tagging/TTL consumers, never JS; main/embedder ThreadState.tid STAYS
+    // 0, so thr.id/Thread.current.id are unchanged). Behavior-identical
+    // GIL-on/flag-off: an installed GIL-on lite is either m_mainVMLite
+    // (tid 0 == mainThreadTID) or a spawned lite whose tid equals its
+    // ThreadState's.
+    if (VMLite* lite = VMLite::currentIfExists())
+        return lite->tid;
     if (ThreadState* state = currentThreadStateIfExists())
         return state->tid;
     return mainThreadTID;
@@ -169,7 +183,10 @@ RefPtr<ThreadState> ThreadManager::allocateSpawnedThreadState()
     if (!m_freeTIDs.isEmpty())
         tid = m_freeTIDs.takeFirst();
     else {
-        if (m_nextTID >= notTTLTID)
+        // UNGIL U-T6 split: spawned TIDs stop at carrierTIDBase — the upper
+        // half is the A36 carrier range (see ThreadManager.h; previously the
+        // bound was notTTLTID).
+        if (m_nextTID >= carrierTIDBase)
             return nullptr; // lifetime TID exhaustion (Dev 10: no reuse pre-rebias)
         tid = m_nextTID++;
     }
@@ -183,6 +200,151 @@ void ThreadManager::unregisterThread(ThreadState& state)
     Locker locker { m_lock };
     m_threads.remove(state.tid);
     // TIDs are retired forever in phase 1 (SPEC-api Deviation 10).
+}
+
+// ---------------- UNGIL §A.3.6 carrier TIDs (ANNEX A36; U-T6) ----------------
+
+uint16_t ThreadManager::allocateCarrierTIDInternal()
+{
+    Locker locker { m_lock };
+    // Carrier allocation runs at first VM entry on a thread (JSLock
+    // didAcquireLock / §F.1) — no throw context exists there, so range
+    // exhaustion is a fail-stop (I17 accounting; the range covers 16382
+    // carriers, far beyond any plausible embedder thread count; TIDs are
+    // retired forever pre-rebias, Dev 10/U-T12).
+    RELEASE_ASSERT(m_nextCarrierTID < notTTLTID);
+    return m_nextCarrierTID++;
+}
+
+static uint16_t allocateCarrierTIDHook()
+{
+    return ThreadManager::singleton().allocateCarrierTIDInternal();
+}
+
+static void releaseCarrierTIDHook(uint16_t)
+{
+    // Retired forever in v1 (Dev 10 no-reuse: recycling a TID without the
+    // U-T12 rebias protocol could alias a live butterfly TID tag). The hook
+    // exists so teardown call sites stay symmetric for the rebias landing.
+}
+
+void ThreadManager::installCarrierTIDHooksIfNeeded()
+{
+    static std::once_flag onceKey;
+    std::call_once(onceKey, [] {
+        setCarrierTIDHooks(&allocateCarrierTIDHook, &releaseCarrierTIDHook);
+    });
+}
+
+// ---------------- UNGIL EXIT1.9 fence + §B.1-2 client lifecycle (U-T6) ------
+// See the banner in ThreadManager.h for the recorded placement deviation
+// (VMLiteShared.h is outside U-T6's owned-file set) and the post-unlock
+// notify soundness argument.
+
+Condition& vmLiteTeardownCondition()
+{
+    static NeverDestroyed<Condition> condition;
+    return condition.get();
+}
+
+void unregisterVMLiteAndNotifyTeardown(VMLite& lite)
+{
+    VMLiteRegistry::singleton().unregisterLite(lite); // takes + drops the registry lock
+    vmLiteTeardownCondition().notifyAll();            // both waiters are predicate loops (EXIT1.9)
+}
+
+void attachSpawnedThreadGCClient(VM& vm, VMLite& lite)
+{
+    // §B.1: after lite registration/setCurrent + TID-tag handshake, BEFORE
+    // any allocation. Spawned threads exist only in the m_gilOff VM (U0b).
+    RELEASE_ASSERT(vm.gilOff());
+    RELEASE_ASSERT(lite.vm == &vm);     // registered (vmstate §6.5.1 sole writer)
+    RELEASE_ASSERT(lite.tid && lite.tid < ThreadManager::carrierTIDBase); // spawned-range tid
+    RELEASE_ASSERT(!lite.clientHeap);   // EXIT1.4(b): written ONCE per registration epoch
+
+    auto* client = new GCClient::Heap(vm.heap); // §B.1: the thread's OWN client (heap Dev 8); ctor registers with the server's HeapClientSet (may run the §10B.4 sticky switch)
+    {
+        // EXIT1.4(b) release-publish: the fence orders the client's
+        // construction before the pointer store; the registry-lock hold
+        // publishes it to every sampler (samplers read lite fields only
+        // under VMLiteRegistry::lock, EXIT1.2). Never nulled or repointed
+        // while the lite is registered.
+        WTF::storeStoreFence();
+        Locker locker { VMLiteRegistry::singleton().lock };
+        RELEASE_ASSERT(lite.state == VMLite::State::Live);
+        lite.clientHeap = client;
+    }
+    // ACT (heap I4(a)-(c)): §10A.1 slot stamp + conservative-scan
+    // registration + §A.3.2b/§A.3.8-gated access acquisition (parks across
+    // any pending stop; the ISB1.2 generation sync runs on the acquire
+    // success path). This is the thread's FIRST access acquisition —
+    // strictly after the clientHeap publish above (EXIT1.4(b)).
+    client->attachCurrentThread();
+}
+
+void tearDownSpawnedThreadForExit(VM& vm, VMLite& lite)
+{
+    // EXIT1.3 spawned T5 tail as AMENDED r31 (caller: Strong clears +
+    // ThreadManager::unregisterThread + the E2A close already ran; caller
+    // frees the lite AFTER this returns — the M12 default-queue removal in
+    // that free is covered by the EXIT1.9 residual-tail rule, not by the
+    // fence). Exit is UN-GATED: nothing below polls a stop bit or parks.
+    RELEASE_ASSERT(vm.gilOff());
+    RELEASE_ASSERT(lite.vm == &vm);
+    GCClient::Heap* client = lite.clientHeap;
+    RELEASE_ASSERT(client);
+
+    // (1) Access release (seq_cst RHA, F8) — ordered BEFORE the TEARDOWN
+    // mark so a conductor that samples the mark (or misses the lite) has
+    // this thread's NoAccess release ordered before its sample (EXIT1.4(a)
+    // soundness).
+    if (client->hasHeapAccess())
+        client->releaseHeapAccess();
+    RaceAmplifier::perturb(); // EXIT1.8 exit-storm stall point: post-release.
+
+    // (2) TEARDOWN mark under the registry lock (LOGICAL removal: conductors
+    // count this lite EXITED from here on and never dereference its client;
+    // access re-acquisition is now FORBIDDEN — asserted in
+    // GCClient::Heap::acquireHeapAccess). The lite stays PHYSICALLY
+    // registered through the whole server-touching tail (the EXIT1.9 fence
+    // counts it, making join-then-destroy-VM safe).
+    {
+        Locker locker { VMLiteRegistry::singleton().lock };
+        RELEASE_ASSERT(lite.state == VMLite::State::Live);
+        lite.state = VMLite::State::Teardown;
+    }
+    RaceAmplifier::perturb(); // EXIT1.8 stall point: post-mark, pre-DCT.
+
+    // TLS uninstall BEFORE the destroy step (I20: no thread's TLS may
+    // dangle into a destroyed lite; also keeps the EXIT1.4(a)
+    // "TEARDOWN lite never re-acquires" debug assert in
+    // GCClient::Heap::acquireHeapAccess keyed on a CURRENT lite from firing
+    // on ~Heap's own sanctioned teardown access bracket below — that
+    // bracket is the landed review-round-1 T5 order, not a JS re-entry).
+    // The tag clears through the setCurrent hook.
+    if (VMLite::currentIfExists() == &lite)
+        VMLite::setCurrent(nullptr);
+
+    // (3) DCT: park the local epoch at MAX and clear the §10A.1 slot.
+    // attachSpawnedThreadGCClient stamped this thread's slot, but an E2A
+    // close that already detached leaves it cleared — both shapes legal.
+    if (GCClient::Heap::currentThreadClient() == client)
+        client->detachCurrentThread();
+    RaceAmplifier::perturb(); // EXIT1.8 stall point: mid-tail, pre-destroy.
+
+    // (4) Destroy the GCClient::Heap (the live-path dtor: access bracket +
+    // lastChanceToFinalize under MSPL + clientSet().remove against the
+    // still-alive server — the EXIT1.9 fence is what keeps the server alive
+    // through this). lite.clientHeap is left DANGLING, not nulled
+    // (EXIT1.4(b): never nulled while registered; EXIT1.4(a): samplers never
+    // dereference a TEARDOWN lite's client).
+    delete client;
+    RaceAmplifier::perturb(); // EXIT1.8 stall point: post-destroy, pre-unregister.
+
+    // (5) PHYSICAL removal LAST, via the notifying wrapper (U20 r31). The
+    // EXIT1.9 ~VM wait can return from here on; the caller's lite free (with
+    // its M12 default-queue removal) is the residual tail outside the fence.
+    unregisterVMLiteAndNotifyTeardown(lite);
 }
 
 // Per-insert Weak<JSObject> finalizer (SPEC-api 5.7.2): prunes the affinity
