@@ -34,6 +34,7 @@
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
 #include "ThreadObject.h"
+#include "TopExceptionScope.h"
 #include <wtf/MonotonicTime.h>
 #include <wtf/RunLoop.h>
 
@@ -157,7 +158,7 @@ void GILParkSavedExecutionState::resetForFreshThread(VM& vm)
 // depth, sp/lastStackTop, m_lockDropDepth are all untouched (per-lite /
 // uninvolved), so the D1 LIFO-livelock shape cannot recur (0 locks dropped).
 struct GILDroppedSectionSpawnedArm {
-    WTF_MAKE_STRUCT_FAST_ALLOCATED;
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(GILDroppedSectionSpawnedArm);
     explicit GILDroppedSectionSpawnedArm(VM& vm)
         : bracket(vm)
     {
@@ -217,7 +218,8 @@ GILDroppedSection::~GILDroppedSection()
         // (hasPendingTerminationException is the non-mutating per-lite read;
         // vm.exception() would flip the raw m_needExceptionCheck word.)
         if (m_vm.hasPendingTerminationException()) [[unlikely]] {
-            m_vm.clearException();
+            auto topScope = DECLARE_TOP_EXCEPTION_SCOPE(m_vm);
+            topScope.clearException();
             m_vm.setHasTerminationRequest();
             m_vm.traps().fireTrapVMWide(VMTraps::NeedTermination); // Idempotent OR; guarantees the next handleTraps re-delivers.
         }

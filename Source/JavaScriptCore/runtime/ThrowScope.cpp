@@ -58,7 +58,10 @@ ThrowScope::~ThrowScope()
 
     bool willBeHandleByLLIntOrJIT = false;
     const void* previousScopeStackPosition = m_previousScope ? m_previousScope->stackPosition() : nullptr;
-    void* topEntryFrame = m_vm.topEntryFrame;
+    // UNGIL §A.1.3 mode split (U-T4): the ThrowScope destructor runs on the
+    // throwing thread, so group3Primitives() reads the live per-lite word
+    // GIL-off (the raw VM word is inert) and aliases the VM block GIL-on.
+    void* topEntryFrame = m_vm.group3Primitives().topEntryFrame;
 
     // If the topEntryFrame was pushed on the stack after the previousScope was instantiated,
     // then this throwScope will be returning to LLINT or JIT code that always do an exception

@@ -4880,7 +4880,15 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationReallocateButterflyAndTransition, voi
     // epoch-expiry free while we are parked. The payload is frozen at publish
     // (I4) and the refcount is thread-safe (section 4.5), so this is sound
     // from any mutator.
-    Ref<const InlineCacheHandler> protectedHandler { *handler };
+    // FLAG-OFF IDENTITY (I1): the refcount is ThreadSafeRefCounted, so the
+    // unconditional Ref added a lock-prefixed ref/deref pair to every
+    // reallocating put-transition — the transition-heavy-constructor hot
+    // path — with threads off. Single-threaded there is no concurrent IC
+    // reset, so skipping the Ref flag-off is exactly today's (pre-round-8)
+    // behavior.
+    RefPtr<const InlineCacheHandler> protectedHandler;
+    if (Options::useJSThreads()) [[unlikely]]
+        protectedHandler = handler;
 
     size_t newSize = handler->newSize() / sizeof(JSValue);
     size_t oldSize = handler->oldSize() / sizeof(JSValue);

@@ -38,6 +38,7 @@
 #include "LinkBuffer.h"
 #include "MacroAssembler.h"
 #include "ProbeContext.h"
+#include "VMLite.h"
 
 namespace JSC { namespace DFG {
 
@@ -165,7 +166,21 @@ MacroAssemblerCodeRef<JITThunkPtrTag> osrEntryThunkGenerator(VM& vm)
 
     jit.jitAssertCodeBlockOnCallFrameIsOptimizingJIT(GPRInfo::regT2);
 
-    jit.restoreCalleeSavesFromEntryFrameCalleeSavesBuffer(vm.topEntryFrame);
+    if (vm.gilOff()) [[unlikely]] {
+        // UNGIL §A.1.3 (U-T4b): topEntryFrame is per-lite Group-3 state
+        // GIL-off (doVMEntry publishes through the lite; the VM-block word is
+        // inert spare storage). This per-VM thunk is shared by every thread
+        // OSR-entering this VM, so resolve the CURRENT lite instead of baking
+        // &vm.topEntryFrame. regT3 is dead here (the scratch-buffer copy loop
+        // is done; only regT1 [target PC] and callFrameRegister are live), so
+        // a caller-save base with the plain skip list restores every VM
+        // callee save — same shape as the DFGOSRExit.cpp GenericUnwind
+        // gilOff arm. ARM64: regT3 is not the data temp (loadVMLite contract).
+        jit.loadVMLite(GPRInfo::regT3);
+        jit.loadPtr(MacroAssembler::Address(GPRInfo::regT3, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topEntryFrame())), GPRInfo::regT3);
+        jit.restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferImpl(GPRInfo::regT3, RegisterSet::stackRegisters());
+    } else
+        jit.restoreCalleeSavesFromEntryFrameCalleeSavesBuffer(vm.topEntryFrame);
     jit.emitMaterializeTagCheckRegisters();
 #if USE(JSVALUE64)
     jit.emitGetFromCallFrameHeaderPtr(CallFrameSlot::codeBlock, GPRInfo::jitDataRegister);

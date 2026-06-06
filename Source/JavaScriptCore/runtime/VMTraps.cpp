@@ -153,7 +153,13 @@ void VMTraps::tryInstallTrapBreakpoints(VMTraps::SignalContext& context, StackBo
     Locker codeBlockSetLocker { AdoptLock, codeBlockSetLock };
 
     CodeBlock* foundCodeBlock = nullptr;
-    EntryFrame* entryFrame = vm.topEntryFrame;
+    // UNGIL §A.1.3 mode split (U-T4): GIL-off the raw VM word is inert spare
+    // storage. GIL-on group3Primitives() aliases the VM block via
+    // mainVMLitePrimitives(), so this is behavior-identical today; GIL-off
+    // this path is unreachable anyway (§A.2.5: SignalSender never started),
+    // and the reroute keeps the no-raw-reader invariant the U-T8d audit
+    // tripwires on.
+    EntryFrame* entryFrame = vm.group3Primitives().topEntryFrame;
 
     // We don't have a callee to start with. So, use the end of the stack to keep the
     // isSaneFrame() checker below happy for the first iteration. It will still check
@@ -218,7 +224,10 @@ void VMTraps::invalidateCodeBlocksOnStack(Locker<Lock>&, CallFrame* topCallFrame
 
     m_needToInvalidateCodeBlocks = false;
 
-    EntryFrame* entryFrame = vm().topEntryFrame;
+    // UNGIL §A.1.3 mode split (U-T4): trap handling runs on the mutator
+    // thread, so group3Primitives() resolves the CURRENT lite's live word
+    // GIL-off and aliases the VM block GIL-on.
+    EntryFrame* entryFrame = vm().group3Primitives().topEntryFrame;
     CallFrame* callFrame = topCallFrame;
 
     if (!entryFrame)
