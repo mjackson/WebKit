@@ -245,10 +245,11 @@ void InlineCacheHandler::aboutToDie()
 
 void InlineCacheHandler::disarmClearingWatchpointOnRetire()
 {
-    // See the header comment (AB18-F). Destroying the watchpoint removes it
-    // from its WatchpointSet's list, with the same serialization constraints
-    // the flag-off inline destruction of displaced chains already has at the
-    // identical displacement program points.
+    // See the header comment (AB18-F/AB18-G). Destroying the watchpoint
+    // removes it from its WatchpointSet's list; the unlink is serialized
+    // against concurrent add()s from other mutators (reusing the same
+    // SharedJITStubSet stub for a different CodeBlock's IC) by
+    // g_watchpointMembershipLock inside ~Watchpoint.
     m_watchpoint.reset();
 }
 

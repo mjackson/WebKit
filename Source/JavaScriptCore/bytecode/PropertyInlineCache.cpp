@@ -354,9 +354,9 @@ AccessGenerationResult PropertyInlineCache::addAccessCase(const GCSafeConcurrent
     })(accessCase.releaseNonNull());
     if (result.generatedSomeCode()) {
         if (is<HandlerPropertyInlineCache>(*this))
-            prependHandler(codeBlock, Ref { *result.handler() }, result.generatedMegamorphicCode());
+            prependHandler(vm, codeBlock, Ref { *result.handler() }, result.generatedMegamorphicCode());
         else
-            rewireStubAsJumpInAccess(codeBlock, Ref { *result.handler() });
+            rewireStubAsJumpInAccess(vm, codeBlock, Ref { *result.handler() });
     }
 
     vm.writeBarrier(codeBlock);
@@ -408,97 +408,97 @@ void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, VM& vm, Co
 
     switch (accessType) {
     case AccessType::TryGetById:
-        resetGetBy(codeBlock, *this, GetByKind::TryById);
+        resetGetBy(vm, codeBlock, *this, GetByKind::TryById);
         break;
     case AccessType::GetById:
-        resetGetBy(codeBlock, *this, GetByKind::ById);
+        resetGetBy(vm, codeBlock, *this, GetByKind::ById);
         break;
     case AccessType::GetByIdWithThis:
-        resetGetBy(codeBlock, *this, GetByKind::ByIdWithThis);
+        resetGetBy(vm, codeBlock, *this, GetByKind::ByIdWithThis);
         break;
     case AccessType::GetByIdDirect:
-        resetGetBy(codeBlock, *this, GetByKind::ByIdDirect);
+        resetGetBy(vm, codeBlock, *this, GetByKind::ByIdDirect);
         break;
     case AccessType::GetByVal:
-        resetGetBy(codeBlock, *this, GetByKind::ByVal);
+        resetGetBy(vm, codeBlock, *this, GetByKind::ByVal);
         break;
     case AccessType::GetByValWithThis:
-        resetGetBy(codeBlock, *this, GetByKind::ByValWithThis);
+        resetGetBy(vm, codeBlock, *this, GetByKind::ByValWithThis);
         break;
     case AccessType::GetPrivateName:
-        resetGetBy(codeBlock, *this, GetByKind::PrivateName);
+        resetGetBy(vm, codeBlock, *this, GetByKind::PrivateName);
         break;
     case AccessType::GetPrivateNameById:
-        resetGetBy(codeBlock, *this, GetByKind::PrivateNameById);
+        resetGetBy(vm, codeBlock, *this, GetByKind::PrivateNameById);
         break;
     case AccessType::PutByIdStrict:
-        resetPutBy(codeBlock, *this, PutByKind::ByIdStrict);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByIdStrict);
         break;
     case AccessType::PutByIdSloppy:
-        resetPutBy(codeBlock, *this, PutByKind::ByIdSloppy);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByIdSloppy);
         break;
     case AccessType::PutByIdDirectStrict:
-        resetPutBy(codeBlock, *this, PutByKind::ByIdDirectStrict);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByIdDirectStrict);
         break;
     case AccessType::PutByIdDirectSloppy:
-        resetPutBy(codeBlock, *this, PutByKind::ByIdDirectSloppy);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByIdDirectSloppy);
         break;
     case AccessType::PutByValStrict:
-        resetPutBy(codeBlock, *this, PutByKind::ByValStrict);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByValStrict);
         break;
     case AccessType::PutByValSloppy:
-        resetPutBy(codeBlock, *this, PutByKind::ByValSloppy);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByValSloppy);
         break;
     case AccessType::PutByValDirectStrict:
-        resetPutBy(codeBlock, *this, PutByKind::ByValDirectStrict);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByValDirectStrict);
         break;
     case AccessType::PutByValDirectSloppy:
-        resetPutBy(codeBlock, *this, PutByKind::ByValDirectSloppy);
+        resetPutBy(vm, codeBlock, *this, PutByKind::ByValDirectSloppy);
         break;
     case AccessType::DefinePrivateNameById:
-        resetPutBy(codeBlock, *this, PutByKind::DefinePrivateNameById);
+        resetPutBy(vm, codeBlock, *this, PutByKind::DefinePrivateNameById);
         break;
     case AccessType::SetPrivateNameById:
-        resetPutBy(codeBlock, *this, PutByKind::SetPrivateNameById);
+        resetPutBy(vm, codeBlock, *this, PutByKind::SetPrivateNameById);
         break;
     case AccessType::DefinePrivateNameByVal:
-        resetPutBy(codeBlock, *this, PutByKind::DefinePrivateNameByVal);
+        resetPutBy(vm, codeBlock, *this, PutByKind::DefinePrivateNameByVal);
         break;
     case AccessType::SetPrivateNameByVal:
-        resetPutBy(codeBlock, *this, PutByKind::SetPrivateNameByVal);
+        resetPutBy(vm, codeBlock, *this, PutByKind::SetPrivateNameByVal);
         break;
     case AccessType::InById:
-        resetInBy(codeBlock, *this, InByKind::ById);
+        resetInBy(vm, codeBlock, *this, InByKind::ById);
         break;
     case AccessType::InByVal:
-        resetInBy(codeBlock, *this, InByKind::ByVal);
+        resetInBy(vm, codeBlock, *this, InByKind::ByVal);
         break;
     case AccessType::HasPrivateName:
-        resetInBy(codeBlock, *this, InByKind::PrivateName);
+        resetInBy(vm, codeBlock, *this, InByKind::PrivateName);
         break;
     case AccessType::HasPrivateBrand:
-        resetHasPrivateBrand(codeBlock, *this);
+        resetHasPrivateBrand(vm, codeBlock, *this);
         break;
     case AccessType::InstanceOf:
-        resetInstanceOf(codeBlock, *this);
+        resetInstanceOf(vm, codeBlock, *this);
         break;
     case AccessType::DeleteByIdStrict:
-        resetDelBy(codeBlock, *this, DelByKind::ByIdStrict);
+        resetDelBy(vm, codeBlock, *this, DelByKind::ByIdStrict);
         break;
     case AccessType::DeleteByIdSloppy:
-        resetDelBy(codeBlock, *this, DelByKind::ByIdSloppy);
+        resetDelBy(vm, codeBlock, *this, DelByKind::ByIdSloppy);
         break;
     case AccessType::DeleteByValStrict:
-        resetDelBy(codeBlock, *this, DelByKind::ByValStrict);
+        resetDelBy(vm, codeBlock, *this, DelByKind::ByValStrict);
         break;
     case AccessType::DeleteByValSloppy:
-        resetDelBy(codeBlock, *this, DelByKind::ByValSloppy);
+        resetDelBy(vm, codeBlock, *this, DelByKind::ByValSloppy);
         break;
     case AccessType::CheckPrivateBrand:
-        resetCheckPrivateBrand(codeBlock, *this);
+        resetCheckPrivateBrand(vm, codeBlock, *this);
         break;
     case AccessType::SetPrivateBrand:
-        resetSetPrivateBrand(codeBlock, *this);
+        resetSetPrivateBrand(vm, codeBlock, *this);
         break;
     }
 
@@ -953,7 +953,7 @@ void HandlerPropertyInlineCache::initializeFromUnlinkedPropertyInlineCache(VM& v
     m_globalObject = codeBlock->globalObject();
     callSiteIndex = CallSiteIndex(BytecodeIndex(unlinkedPropertyCache.bytecodeIndex.offset()));
     codeOrigin = CodeOrigin(unlinkedPropertyCache.bytecodeIndex);
-    initializeWithUnitHandler(codeBlock, InlineCacheCompiler::generateSlowPathHandler(vm, accessType));
+    initializeWithUnitHandler(vm, codeBlock, InlineCacheCompiler::generateSlowPathHandler(vm, accessType));
     propertyIsInt32 = unlinkedPropertyCache.propertyIsInt32;
     canBeMegamorphic = unlinkedPropertyCache.canBeMegamorphic;
 
@@ -987,7 +987,12 @@ void HandlerPropertyInlineCache::initializeFromDFGUnlinkedPropertyInlineCache(Co
         m_globalObject = baselineCodeBlockForInlineCallFrame(codeOrigin.inlineCallFrame())->globalObject();
     else
         m_globalObject = codeBlock->globalObject();
-    initializeWithUnitHandler(codeBlock, InlineCacheCompiler::generateSlowPathHandler(codeBlock->vm(), accessType));
+    // AB18-G: derivation here is LINK-time — this codeBlock is being
+    // installed right now, provably live, and the unit-handler install has no
+    // displaced chain to retire. The VM& flows from here into every deeper
+    // retire path instead of being re-derived there.
+    VM& vm = codeBlock->vm();
+    initializeWithUnitHandler(vm, codeBlock, InlineCacheCompiler::generateSlowPathHandler(vm, accessType));
 
     propertyIsInt32 = unlinkedPropertyCache.propertyIsInt32;
     propertyIsSymbol = unlinkedPropertyCache.propertyIsSymbol;
@@ -1016,7 +1021,10 @@ void HandlerPropertyInlineCache::initializeHandlerForOptimizingJIT(CodeBlock* co
     // initial handler: the shared slow-path handler, which calls m_slowOperation
     // with the Baseline data-IC argument registers.
     ASSERT(!!m_slowOperation);
-    initializeWithUnitHandler(codeBlock, InlineCacheCompiler::generateSlowPathHandler(codeBlock->vm(), accessType));
+    // AB18-G: LINK-time derivation on a provably-live codeBlock (see
+    // initializeFromDFGUnlinkedPropertyInlineCache above).
+    VM& vm = codeBlock->vm();
+    initializeWithUnitHandler(vm, codeBlock, InlineCacheCompiler::generateSlowPathHandler(vm, accessType));
 }
 
 void HandlerPropertyInlineCache::setInlinedHandler(CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
@@ -1108,7 +1116,7 @@ static void publishHandlerChainHead(RefPtr<InlineCacheHandler>& headSlot, Ref<In
         oldHead->deref();
 }
 
-void PropertyInlineCache::initializeWithUnitHandler(CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
+void PropertyInlineCache::initializeWithUnitHandler(VM& vm, CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
 {
     if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(*this)) {
         // SPEC-jit section 5.1/section 4.4: under useJSThreads a JIT'd reader on
@@ -1137,7 +1145,8 @@ void PropertyInlineCache::initializeWithUnitHandler(CodeBlock* codeBlock, Ref<In
             m_handler->addOwner(codeBlock);
             // R4-2: pass the VM; RetiredJITArtifacts resolves the epoch heap
             // (the client's SERVER under useSharedGCHeap) internally.
-            VM& vm = codeBlock->vm();
+            // AB18-G: the VM& is the caller's (AB18-E rule) — no
+            // codeBlock->vm() derivation on this retire path.
             RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead));
             RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
         } else {
@@ -1157,11 +1166,11 @@ void PropertyInlineCache::initializeWithUnitHandler(CodeBlock* codeBlock, Ref<In
     }
 }
 
-void PropertyInlineCache::prependHandler(CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler, bool isMegamorphic)
+void PropertyInlineCache::prependHandler(VM& vm, CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler, bool isMegamorphic)
 {
     auto& handlerIC = downcast<HandlerPropertyInlineCache>(*this);
     if (isMegamorphic) {
-        initializeWithUnitHandler(codeBlock, WTF::move(handler));
+        initializeWithUnitHandler(vm, codeBlock, WTF::move(handler));
         return;
     }
 
@@ -1196,7 +1205,7 @@ void PropertyInlineCache::prependHandler(CodeBlock* codeBlock, Ref<InlineCacheHa
     m_handler->addOwner(codeBlock);
 }
 
-void PropertyInlineCache::rewireStubAsJumpInAccess(CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
+void PropertyInlineCache::rewireStubAsJumpInAccess(VM& vm, CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
 {
     ASSERT(!isHandlerIC());
     // Repatching ICs exist only in the FTL, and with useHandlerICInFTL the FTL
@@ -1207,13 +1216,13 @@ void PropertyInlineCache::rewireStubAsJumpInAccess(CodeBlock* codeBlock, Ref<Inl
     // SPEC-jit I2: replaceWithJump patches reachable code; with useJSThreads on
     // this site is unreachable anyway (I3 forbids RepatchingPropertyInlineCache),
     // but the world-stopped discipline is asserted at the patching site itself.
-    JSThreadsSafepoint::assertPatchingIsSafe(codeBlock->vm());
+    JSThreadsSafepoint::assertPatchingIsSafe(vm);
     CodeLocationLabel label { handler->callTarget() };
-    initializeWithUnitHandler(codeBlock, WTF::move(handler));
+    initializeWithUnitHandler(vm, codeBlock, WTF::move(handler));
     CCallHelpers::replaceWithJump(downcast<RepatchingPropertyInlineCache>(*this).startLocation.retagged<JSInternalPtrTag>(), label);
 }
 
-void PropertyInlineCache::resetStubAsJumpInAccess(CodeBlock* codeBlock)
+void PropertyInlineCache::resetStubAsJumpInAccess(VM& vm, CodeBlock* codeBlock)
 {
     if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(*this)) {
         // SPEC-jit section 4.1/section 5.1/I9: install a fresh slow-path-only
@@ -1238,7 +1247,7 @@ void PropertyInlineCache::resetStubAsJumpInAccess(CodeBlock* codeBlock)
         }
         // removeOwner() stays (section 4.1): ownership bookkeeping is dropped
         // now; only the *memory* outlives the reset, via the epoch.
-        Ref<InlineCacheHandler> slowPathHandler = InlineCacheCompiler::generateSlowPathHandler(codeBlock->vm(), accessType);
+        Ref<InlineCacheHandler> slowPathHandler = InlineCacheCompiler::generateSlowPathHandler(vm, accessType);
         if (Options::useJSThreads()) [[unlikely]] {
             // R2-1: COPY, never move out of, m_handler (no null window for
             // racing JIT'd readers; see publishHandlerChainHead). The callers
@@ -1248,7 +1257,8 @@ void PropertyInlineCache::resetStubAsJumpInAccess(CodeBlock* codeBlock)
             RefPtr<InlineCacheHandler> displacedHead = m_handler;
             publishHandlerChainHead(m_handler, WTF::move(slowPathHandler));
             // R4-2: pass the VM; RetiredJITArtifacts resolves the epoch heap.
-            VM& vm = codeBlock->vm();
+            // AB18-G: the VM& is the caller's (AB18-E rule) — no
+            // codeBlock->vm() derivation on this retire path.
             RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead));
             RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
             return;
@@ -1258,7 +1268,7 @@ void PropertyInlineCache::resetStubAsJumpInAccess(CodeBlock* codeBlock)
         return;
     }
 
-    rewireStubAsJumpInAccess(codeBlock, InlineCacheHandler::createNonHandlerSlowPath(slowPathStartLocation));
+    rewireStubAsJumpInAccess(vm, codeBlock, InlineCacheHandler::createNonHandlerSlowPath(slowPathStartLocation));
 }
 
 Vector<AccessCase*, 16> PropertyInlineCache::listedAccessCases(const AbstractLocker&) const

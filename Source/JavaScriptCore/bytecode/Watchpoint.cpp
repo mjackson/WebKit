@@ -48,6 +48,34 @@ namespace JSC {
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(Watchpoint);
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(WatchpointSet);
 
+Lock g_watchpointMembershipLock;
+
+namespace {
+
+// AB18-G: flag-on-only RAII for g_watchpointMembershipLock (see the
+// declaration comment in Watchpoint.h). Flag-off this is a single
+// predictable branch and no atomic.
+class MembershipLocker {
+    WTF_MAKE_NONCOPYABLE(MembershipLocker);
+public:
+    ALWAYS_INLINE MembershipLocker()
+    {
+        if (Options::useJSThreads()) [[unlikely]] {
+            g_watchpointMembershipLock.lock();
+            m_locked = true;
+        }
+    }
+    ALWAYS_INLINE ~MembershipLocker()
+    {
+        if (m_locked) [[unlikely]]
+            g_watchpointMembershipLock.unlock();
+    }
+private:
+    bool m_locked { false };
+};
+
+} // anonymous namespace
+
 StringFireDetail::StringFireDetail(ClangVTableWorkaroundTag)
     : m_string(nullptr)
 {
@@ -81,6 +109,14 @@ void Watchpoint::operator delete(Watchpoint* watchpoint, std::destroying_delete_
 
 Watchpoint::~Watchpoint()
 {
+    // AB18-G: the unlink must be serialized against concurrent membership
+    // mutation of the same set from other mutators (e.g. another thread's
+    // WatchpointSet::add on a SharedJITStubSet-shared stub's set while a
+    // retire path destroys a displaced handler's clearing watchpoint, or
+    // lazy-sweep ~CodeBlock destruction on a live mutator). The check must
+    // run under the lock too: isOnList() reads the node links the racing
+    // unlinks mutate.
+    MembershipLocker locker;
     if (isOnList()) {
         // This will happen if we get destroyed before the set fires. That's totally a valid
         // possibility. For example:
@@ -116,6 +152,11 @@ WatchpointSet::~WatchpointSet()
     // don't fire watchpoints on deletion. We assume that any code that is interested in
     // watchpoints already also separately has a mechanism to make sure that the code is
     // either keeping the watchpoint set's owner alive, or does some weak reference thing.
+    //
+    // AB18-G: this destructor can run during lazy sweep on a LIVE mutator
+    // (AB18-C) while another mutator destroys one of the member watchpoints
+    // (~Watchpoint -> remove()), so the drain takes the membership lock.
+    MembershipLocker locker;
     while (!m_set.isEmpty())
         m_set.begin()->remove();
 }
@@ -126,6 +167,11 @@ void WatchpointSet::add(Watchpoint* watchpoint)
     ASSERT(state() != IsInvalidated);
     if (!watchpoint)
         return;
+    // AB18-G: flag-on, installs reach the same set from N mutators holding
+    // only per-CodeBlock locks (shared-stub watchpointSets via
+    // SharedJITStubSet reuse; per-Structure transition sets on the shared
+    // object model). Serialize the link against concurrent add/remove.
+    MembershipLocker locker;
     m_set.push(watchpoint);
     m_setIsNotEmpty = true;
     m_state = IsWatched;
@@ -337,24 +383,36 @@ void WatchpointSet::fireAllWatchpoints(VM& vm, const FireDetail& detail)
     // The safest thing to do is to DeferGCForAWhile to prevent this GC from happening.
     DeferGCForAWhile deferGC(vm);
     
-    while (!m_set.isEmpty()) {
-        Watchpoint& watchpoint = *m_set.begin();
-        ASSERT(watchpoint.isOnList());
-        
-        // Removing the Watchpoint before firing it makes it possible to implement watchpoints
-        // that add themselves to a different set when they fire. This kind of "adaptive"
-        // watchpoint can be used to track some semantic property that is more fine-graiend than
-        // what the set can convey. For example, we might care if a singleton object ever has a
-        // property called "foo". We can watch for this by checking if its Structure has "foo" and
-        // then watching its transitions. But then the watchpoint fires if any property is added.
-        // So, before the watchpoint decides to invalidate any code, it can check if it is
-        // possible to add itself to the transition watchpoint set of the singleton object's new
-        // Structure.
-        watchpoint.remove();
-        ASSERT(&*m_set.begin() != &watchpoint);
-        ASSERT(!watchpoint.isOnList());
-        
-        watchpoint.fire(vm, detail);
+    while (true) {
+        Watchpoint* watchpoint = nullptr;
+        {
+            // AB18-G: Class-A fires run world-stopped, but Class-B (DataOnly)
+            // fires run with mutators live, so the emptiness check, the head
+            // read, AND the unlink hold the membership lock as one critical
+            // section. The lock is RELEASED before fire(): fire can run
+            // arbitrary code, including re-installs that take the lock again
+            // (adaptive watchpoints).
+            MembershipLocker membershipLocker;
+            if (m_set.isEmpty())
+                break;
+            watchpoint = &*m_set.begin();
+            ASSERT(watchpoint->isOnList());
+
+            // Removing the Watchpoint before firing it makes it possible to implement watchpoints
+            // that add themselves to a different set when they fire. This kind of "adaptive"
+            // watchpoint can be used to track some semantic property that is more fine-graiend than
+            // what the set can convey. For example, we might care if a singleton object ever has a
+            // property called "foo". We can watch for this by checking if its Structure has "foo" and
+            // then watching its transitions. But then the watchpoint fires if any property is added.
+            // So, before the watchpoint decides to invalidate any code, it can check if it is
+            // possible to add itself to the transition watchpoint set of the singleton object's new
+            // Structure.
+            watchpoint->remove();
+            ASSERT(&*m_set.begin() != watchpoint);
+            ASSERT(!watchpoint->isOnList());
+        }
+
+        watchpoint->fire(vm, detail);
         // After we fire the watchpoint, the watchpoint pointer may be a dangling pointer. That's
         // fine, because we have no use for the pointer anymore.
     }
@@ -363,6 +421,10 @@ void WatchpointSet::fireAllWatchpoints(VM& vm, const FireDetail& detail)
 void WatchpointSet::take(WatchpointSet* other)
 {
     ASSERT(state() == ClearWatchpoint);
+    // AB18-G: bulk membership transfer — same serialization requirement as
+    // add()/remove() (a deferred-fire take can otherwise race a concurrent
+    // install on the source set).
+    MembershipLocker locker;
     m_set.takeFrom(other->m_set);
     m_setIsNotEmpty = other->m_setIsNotEmpty;
     m_state = other->m_state;
@@ -382,8 +444,18 @@ void InlineWatchpointSet::fireAll(VM& vm, const char* reason)
 
 WatchpointSet* InlineWatchpointSet::inflateSlow()
 {
-    ASSERT(isThin());
     ASSERT(!isCompilationThread());
+    // AB18-G: flag-on, two mutators can race the thin->fat inflation of one
+    // shared set (e.g. a Structure's transition set under the shared object
+    // model): both would allocate a fat set and one thread's subsequent
+    // add() would land on the LOSING set — a silently disarmed watchpoint.
+    // Double-check under the membership lock so exactly one fat set wins.
+    // (Readers of m_data stay lock-free: the publish below is
+    // fence-then-store, as before.)
+    MembershipLocker locker;
+    if (Options::useJSThreads() && isFat()) [[unlikely]]
+        return fat();
+    ASSERT(isThin());
     // Transfer the construction-time classification to the fat set (I10).
     WatchpointSetClassification classification = (m_data & ClassBFlag) ? WatchpointSetClassification::DataOnly : WatchpointSetClassification::InvalidatesCode;
     WatchpointSet* fat = &WatchpointSet::create(decodeState(m_data), classification).leakRef();

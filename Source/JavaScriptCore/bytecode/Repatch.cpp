@@ -933,9 +933,9 @@ void repatchGetBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue ba
 }
 
 // Mainly used to transition from megamorphic case to generic case.
-void repatchGetBySlowPathCall(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, GetByKind kind)
+void repatchGetBySlowPathCall(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, GetByKind kind)
 {
-    resetGetBy(codeBlock, propertyCache, kind);
+    resetGetBy(vm, codeBlock, propertyCache, kind);
     repatchSlowPathCall(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
 }
 
@@ -1137,9 +1137,9 @@ static CodePtr<CFunctionPtrTag> NODELETE appropriatePutByGaveUpFunction(PutByKin
 }
 
 // Mainly used to transition from megamorphic case to generic case.
-void repatchPutBySlowPathCall(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, PutByKind kind)
+void repatchPutBySlowPathCall(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, PutByKind kind)
 {
-    resetPutBy(codeBlock, propertyCache, kind);
+    resetPutBy(vm, codeBlock, propertyCache, kind);
     repatchSlowPathCall(codeBlock, propertyCache, appropriatePutByGaveUpFunction(kind));
 }
 
@@ -1843,9 +1843,9 @@ inline CodePtr<CFunctionPtrTag> NODELETE appropriateInByGaveUpFunction(InByKind 
 }
 
 // Mainly used to transition from megamorphic case to generic case.
-void repatchInBySlowPathCall(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, InByKind kind)
+void repatchInBySlowPathCall(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, InByKind kind)
 {
-    resetInBy(codeBlock, propertyCache, kind);
+    resetInBy(vm, codeBlock, propertyCache, kind);
     repatchSlowPathCall(codeBlock, propertyCache, appropriateInByGaveUpFunction(kind));
 }
 
@@ -2395,13 +2395,13 @@ void linkDirectCall(VM& vm, DirectCallLinkInfo& callLinkInfo, CodeBlock* calleeC
         calleeCodeBlock->linkIncomingCall(callLinkInfo.owner(), &callLinkInfo);
 }
 
-void resetGetBy(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, GetByKind kind)
+void resetGetBy(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, GetByKind kind)
 {
     repatchSlowPathCall(codeBlock, propertyCache, appropriateGetByOptimizeFunction(kind));
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
-void resetPutBy(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, PutByKind kind)
+void resetPutBy(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, PutByKind kind)
 {
     CodePtr<CFunctionPtrTag> optimizedFunction;
     switch (kind) {
@@ -2444,10 +2444,10 @@ void resetPutBy(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, PutByK
     }
 
     repatchSlowPathCall(codeBlock, propertyCache, optimizedFunction);
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
-void resetDelBy(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, DelByKind kind)
+void resetDelBy(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, DelByKind kind)
 {
     switch (kind) {
     case DelByKind::ByIdStrict:
@@ -2463,37 +2463,37 @@ void resetDelBy(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, DelByK
         repatchSlowPathCall(codeBlock, propertyCache, operationDeleteByValSloppyOptimize);
         break;
     }
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
-void resetInBy(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, InByKind kind)
+void resetInBy(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, InByKind kind)
 {
     repatchSlowPathCall(codeBlock, propertyCache, appropriateInByOptimizeFunction(kind));
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
-void resetHasPrivateBrand(CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
+void resetHasPrivateBrand(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
 {
     repatchSlowPathCall(codeBlock, propertyCache, operationHasPrivateBrandOptimize);
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
-void resetInstanceOf(CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
+void resetInstanceOf(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
 {
     repatchSlowPathCall(codeBlock, propertyCache, operationInstanceOfOptimize);
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
-void resetCheckPrivateBrand(CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
+void resetCheckPrivateBrand(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
 {
     repatchSlowPathCall(codeBlock, propertyCache, operationCheckPrivateBrandOptimize);
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
-void resetSetPrivateBrand(CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
+void resetSetPrivateBrand(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache)
 {
     repatchSlowPathCall(codeBlock, propertyCache, operationSetPrivateBrandOptimize);
-    propertyCache.resetStubAsJumpInAccess(codeBlock);
+    propertyCache.resetStubAsJumpInAccess(vm, codeBlock);
 }
 
 #endif

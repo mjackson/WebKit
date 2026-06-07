@@ -3307,3 +3307,80 @@ stack, or (b) the pinned-seed pre/post corpus-load A/B passes. Items 2 and 3
 above are additional candidate mechanisms for that second half, so the A/B
 must be run on a binary containing THIS round's fixes, and the pinned V3
 rung must be re-run regardless (AB17f item-8 stale-baselines rule).
+
+## AB18-G (adversarial review of AB18-F): watchpoint MEMBERSHIP lock; flag-off lock gating; retire-VM plumbing completed. sig-1 REMAINS HALF-CLOSED.
+
+Review of the AB18-F landing found the item-3 disarm fix itself racy, plus a
+broader uncovered instance of the same mechanism class, plus a rule violation
+and an unfinished plumbing. All verified against the tree and fixed:
+
+1. **(blocker, FIXED) `disarmClearingWatchpointOnRetire` performed an
+   unsynchronized SentinelLinkedList remove() on a WatchpointSet shared
+   across CodeBlocks.** Stubs are shared cross-thread via the per-VM
+   SharedJITStubSet (one VM under useVMLite => one m_sharedJITStubs for all
+   threads; getStatelessStub at InlineCacheCompiler.cpp:7518 and find at
+   :8247 both hand an existing stub to a NEW CodeBlock's IC, which then
+   add()s its own clearing watchpoint to the SAME stub watchpointSet at
+   :5114/:7472/:7494). The AB18-F disarm (remove) on a retiring mutator
+   therefore raced add() on a compiling mutator — trading the item-3 UAF for
+   list corruption in the same family. The in-code claim that the disarm had
+   "the same serialization constraints" as flag-off inline destruction was
+   wrong flag-on (flag-off's constraint is the single mutator) and has been
+   rewritten.
+
+2. **(blocker, FIXED) WatchpointSet membership was unserialized across N
+   mutators generally** — `WatchpointSet::add` (bare m_set.push),
+   `Watchpoint::~Watchpoint` (bare remove()), `~WatchpointSet`'s drain
+   (reachable from lazy sweep on a LIVE mutator per AB18-C),
+   `WatchpointSet::take`, the unlink step of `fireAllWatchpoints` (Class-B
+   fires run un-stopped), `AdaptiveInferredPropertyValueWatchpointBase::
+   fire`'s direct removes, and the racy thin->fat
+   `InlineWatchpointSet::inflateSlow` (two losers => one thread's installs
+   land on a leaked losing set = silently disarmed watchpoint). Installs are
+   reached flag-on from IC-miss/handler-compile slow paths holding only
+   per-CodeBlock locks (ensureReferenceAndInstallWatchpoint ->
+   Structure::addTransitionWatchpoint on the SHARED object model;
+   stub->watchpointSet().add on shared stubs), matching the handout's own
+   lock-class charter for installs (K4.III.18/VI.2). Fix: a single global
+   leaf lock `g_watchpointMembershipLock` (Watchpoint.h), taken ONLY under
+   Options::useJSThreads(), covering every membership link/unlink and the
+   inflation double-check. FIRING never runs under it (Class-A fires are
+   stop-conducted; fireAllWatchpoints releases it before fire()). Class-B
+   fire-vs-destroy watchpoint LIFETIME (not membership) is pre-existing and
+   out of scope here.
+
+3. **(major, FIXED — rule compliance) `JITStubRoutineSet::add`'s AB18-F lock
+   was unconditional**, i.e. new flag-off work without a V5b re-run (the
+   standing ab17c rule). The Locker is now gated on Options::useJSThreads(),
+   matching the makeGCAware-at-creation gating one frame up; flag-off takes
+   no atomic. The "GC phases touching JITStubRoutineSet stay STW" assumption
+   the lock-free GC-side members rely on is now recorded in the header as a
+   SPEC-congc precondition.
+
+4. **(major, FIXED) AB18-E retire-VM rule applied structurally.** The
+   surviving `codeBlock->vm()` derivations on retire paths
+   (initializeWithUnitHandler, resetStubAsJumpInAccess x2, and the
+   resetGetBy/resetPutBy/... helpers AB18-F item 1 accepted conditionally)
+   are gone: VM& is now plumbed from the operation/caller through
+   initializeWithUnitHandler / prependHandler / rewireStubAsJumpInAccess /
+   resetStubAsJumpInAccess and the whole Repatch reset*/repatch*SlowPathCall
+   family (JITOperations call sites pass the operation's vm). The only
+   remaining derivations feeding these paths are LINK-time
+   (initializeFromDFGUnlinkedPropertyInlineCache /
+   initializeHandlerForOptimizingJIT), where the codeBlock is being
+   installed and provably live; commented as such. The closure no longer
+   rests on the reachability argument alone.
+
+**Status (gate enforcement, unchanged from AB18-F):** sig-1 remains
+HALF-CLOSED and V3 stays RED. The shared-arraystorage-stress corpus-load
+half is attributed by signature family only; items 1-2 above are additional
+candidate mechanisms that no prior binary contained. Before any green claim:
+(a) rebuild ASAN with THIS round's fixes and either capture one corpus-load
+shared-arraystorage failure whose stack matches a landed fix, or pass the
+pinned-seed pre/post corpus-load A/B on the post-AB18-G binary; (b) re-run
+the pinned V3 rung (AB17f item-8 stale-baselines rule); (c) V5b bench gate
+needs no re-run for this round (the only flag-off-reachable change is the
+now-GATED JITStubRoutineSet lock and a single predicted-not-taken branch in
+the watchpoint slow paths), but any future unconditional lock re-triggers
+the rule. The TSAN binary (WebKitBuild/TSan) still predates all ungil work
+and must be rebuilt before its rung means anything.

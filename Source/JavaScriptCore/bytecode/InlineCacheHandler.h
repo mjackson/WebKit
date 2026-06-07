@@ -82,8 +82,13 @@ public:
     // long before the chain is freed — a later fire then dereferences the
     // dead cell (sig-1 UAF family). Flag-off, publishHandlerChainHead's
     // inline oldHead->deref() destroys the same watchpoint at the same
-    // program point, so disarming here is exactly as safe as the flag-off
-    // behavior; JIT'd readers racing through the displaced chain never touch
+    // program point. Flag-on the destruction's list unlink is serialized by
+    // g_watchpointMembershipLock inside ~Watchpoint (AB18-G): the
+    // WatchpointSet it unlinks from belongs to a stub that SharedJITStubSet
+    // can hand to OTHER CodeBlocks' ICs, whose compile paths concurrently
+    // add() to the same set under different per-CodeBlock locks — without
+    // the membership lock this remove-vs-add pair corrupts the sentinel
+    // list. JIT'd readers racing through the displaced chain never touch
     // m_watchpoint.
     void disarmClearingWatchpointOnRetire();
 

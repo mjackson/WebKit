@@ -29,6 +29,7 @@
 #include <wtf/Atomics.h>
 #include <wtf/DebugHeap.h>
 #include <wtf/FastMalloc.h>
+#include <wtf/Lock.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/Nonmovable.h>
 #include <wtf/PrintStream.h>
@@ -37,6 +38,31 @@
 #include <wtf/ThreadSafeRefCounted.h>
 
 namespace JSC {
+
+// AB18-G: serializes WatchpointSet MEMBERSHIP — every SentinelLinkedList
+// link/unlink (WatchpointSet::add / WatchpointSet::take / ~WatchpointSet's
+// drain / Watchpoint::~Watchpoint's remove() / the unlink step of
+// fireAllWatchpoints / direct node removes such as
+// AdaptiveInferredPropertyValueWatchpointBase::fire) plus the
+// InlineWatchpointSet thin->fat inflation. Taken ONLY under
+// Options::useJSThreads() (flag-off there is one mutator and this lock is
+// never acquired, so the flag-off bench profile is unchanged).
+//
+// Why a single global lock: installs run on N-mutator IC-miss/compile slow
+// paths holding only per-CodeBlock locks (e.g. stub->watchpointSet().add for
+// SharedJITStubSet-shared stubs, Structure::addTransitionWatchpoint on the
+// shared object model), while removals run from retire paths
+// (InlineCacheHandler::disarmClearingWatchpointOnRetire via
+// RetiredJITArtifacts::retireHandlerChain), lazy-sweep destruction
+// (~CodeBlock -> aboutToDie -> m_watchpoint.reset()), and ~Watchpoint
+// generally — and ~Watchpoint cannot name its set (a bare node unlink), so a
+// per-set lock is unreachable from the destructor. All of these are slow
+// paths; a global leaf lock is correct and cheap. LOCK RANK: strict leaf —
+// no other lock is ever acquired while holding it, and watchpoint FIRING
+// (which can run arbitrary code) never runs under it: Class-A fires are
+// stop-conducted (no concurrent mutators) and fireAllWatchpoints only takes
+// it for the per-node unlink, releasing it before fire().
+JS_EXPORT_PRIVATE extern Lock g_watchpointMembershipLock;
 
 namespace DFG {
 struct ArrayBufferViewWatchpointAdaptor;

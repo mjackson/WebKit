@@ -382,9 +382,14 @@ protected:
         : PropertyInlineCache(icType, AccessType::GetById, { })
     { }
 
-    void initializeWithUnitHandler(CodeBlock*, Ref<InlineCacheHandler>&&);
-    void prependHandler(CodeBlock*, Ref<InlineCacheHandler>&&, bool isMegamorphic);
-    void rewireStubAsJumpInAccess(CodeBlock*, Ref<InlineCacheHandler>&&);
+    // AB18-G (extends the AB18-E rule structurally): every entry point that
+    // can displace-and-retire a handler chain takes the VM& from the caller's
+    // operation context; no retire path re-derives it via codeBlock->vm()
+    // (MarkedBlock header read — the stale-owner pattern behind the
+    // DirectCallLinkInfo::retireRecord UAF).
+    void initializeWithUnitHandler(VM&, CodeBlock*, Ref<InlineCacheHandler>&&);
+    void prependHandler(VM&, CodeBlock*, Ref<InlineCacheHandler>&&, bool isMegamorphic);
+    void rewireStubAsJumpInAccess(VM&, CodeBlock*, Ref<InlineCacheHandler>&&);
 
 public:
     static constexpr ptrdiff_t offsetOfByIdSelfOffset() { return OBJECT_OFFSETOF(PropertyInlineCache, byIdSelfOffset); }
@@ -427,7 +432,8 @@ public:
 
     JSGlobalObject* globalObject() const { return m_globalObject; }
 
-    void resetStubAsJumpInAccess(CodeBlock*);
+    // AB18-G: VM& comes from the caller (AB18-E rule), see reset().
+    void resetStubAsJumpInAccess(VM&, CodeBlock*);
 
     GPRReg thisGPR() const { return m_extraGPR; }
     GPRReg prototypeGPR() const { return m_extraGPR; }
