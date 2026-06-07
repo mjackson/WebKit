@@ -4017,6 +4017,9 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
 {
     ASSERT(Options::useJSThreads());
     while (true) {
+        // FIX-2 class-(2) poll: same rationale as putDirectInternal's loop
+        // top (this RESTART loop holds heap access with no bytecode poll).
+        JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm);
         Structure* structure = thisObject->structure(); // M5: nuke-masked decode.
         unsigned attributes = 0;
         PropertyOffset offset = structure->get(vm, propertyName, attributes);

@@ -46,6 +46,10 @@ if (typeof $vm === "undefined" || !$vm.ensureArrayStorage) {
             throw new Error("warmup readback");
     }
 
+    // Annex T2 (no preemptive-GIL reliance): the rendezvous counters are
+    // Atomics - a plain `count++` is a two-step RMW that loses increments
+    // under true parallelism and hangs the wave loop (the oracle below is
+    // untouched; these are scaffolding only).
     const wave = { n: 0 };
     const done = { count: 0 };
 
@@ -54,7 +58,7 @@ if (typeof $vm === "undefined" || !$vm.ensureArrayStorage) {
     const writers = spawnN(THREADS, function (slot) {
         // Each thread owns a disjoint stripe: indices i with i % THREADS == slot.
         for (let w = 0; w < WAVES; ++w) {
-            waitUntil(() => wave.n >= w, 30000);
+            waitUntil(() => Atomics.load(wave, "n") >= w, 30000);
             for (let k = 0; k < WRITES_PER_WAVE; ++k) {
                 const i = (slot + k * THREADS) % LEN;
                 writeAt(arr, i, encode(slot, w, k & 7)); // foreign write: SW path
@@ -67,7 +71,7 @@ if (typeof $vm === "undefined" || !$vm.ensureArrayStorage) {
                         throw new Error("read decoded to invalid writer slot: " + back);
                 }
             }
-            done.count++;
+            Atomics.add(done, "count", 1);
         }
         return slot;
     });
@@ -75,8 +79,8 @@ if (typeof $vm === "undefined" || !$vm.ensureArrayStorage) {
     // Owner thread: drive waves, relayout between them (AS-COPY), and read
     // hot in the meantime.
     for (let w = 0; w < WAVES; ++w) {
-        wave.n = w;
-        waitUntil(() => done.count >= (w + 1) * THREADS, 30000);
+        Atomics.store(wave, "n", w);
+        waitUntil(() => Atomics.load(done, "count") >= (w + 1) * THREADS, 30000);
         // No writer is mid-wave now: verify the stripe writes all landed.
         for (let slot = 0; slot < THREADS; ++slot) {
             const lastK = WRITES_PER_WAVE - 1;

@@ -30,6 +30,7 @@
 #include "Error.h"
 #include "JSArrayInlines.h"
 #include "JSFunctionInlines.h"
+#include "JSThreadsSafepoint.h"
 #include "JSGenericTypedArrayViewInlines.h"
 #include "JSGlobalProxy.h"
 #include "JSObject.h"
@@ -917,6 +918,18 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     // semantics: every RESTART iteration already assumes the same flag value.
     [[maybe_unused]] const bool jsThreads = Options::useJSThreads();
     while (true) {
+#if USE(JSVALUE64)
+    // FIX-2 class-(2) poll (stw-watchdog-timeout residual): this RESTART /
+    // M5-nuke-spin loop is C++ straight-line with no bytecode poll site - a
+    // mutator that keeps re-dispatching here while a SA.3 stop pends (e.g.
+    // racing the very F2 fire that needs it to quiesce) holds heap access
+    // for the whole spin and starves the conductor into the 30s watchdog.
+    // One immutable-byte branch flag-off/GIL-on; the helper parks
+    // access-released across the window and the loop re-derives everything
+    // afterwards (W1: every iteration is a fresh acquisition episode).
+    if (jsThreads) [[unlikely]]
+        JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm);
+#endif
     StructureID structureID = this->structureID();
 #if USE(JSVALUE64)
     if (jsThreads && structureID.isNuked()) [[unlikely]]

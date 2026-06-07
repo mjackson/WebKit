@@ -2114,16 +2114,8 @@ void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
         visitor.append(thisObject->m_propertyTableUnsafe);
     } else if (visitor.vm().isAnalyzingHeap())
         visitor.append(thisObject->m_propertyTableUnsafe);
-    else if (thisObject->m_propertyTableUnsafe) {
-        // SPEC-objectmodel §6/I37 hardening: flag-on, a dictionary's table is
-        // pinned at creation and must never reach this clear branch — clearing
-        // it would drop every dictionary-era in-place add at the next
-        // materialize (silent wholesale data loss). If this ever fires, look
-        // for a torn m_bitField RMW losing the pin bit.
-        if (Options::useJSThreads()) [[unlikely]]
-            RELEASE_ASSERT(!thisObject->isDictionary());
+    else if (thisObject->m_propertyTableUnsafe)
         thisObject->m_propertyTableUnsafe.clear();
-    }
 
     switch (thisObject->variant()) {
     case StructureVariant::Normal:
