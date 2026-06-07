@@ -69,7 +69,11 @@ void ToFTLForOSREntryDeferredCompilationCallback::compilationDidComplete(
     case CompilationResult::CompilationSuccessful: {
         jitCode->setOSREntryBlock(codeBlock->vm(), profiledDFGCodeBlock, codeBlock);
         BytecodeIndex osrEntryBytecode = codeBlock->jitCode()->ftlForOSREntry()->bytecodeIndex();
-        jitCode->tierUpEntryTriggers.set(osrEntryBytecode, JITCode::TriggerReason::CompilationDone);
+        // THREADS (DFG-1): publish CompilationDone via the locked in-place setter, never set()/add().
+        // The key was inserted at link time (DFGJITCompiler.cpp:64), so this is a value write only;
+        // releasing m_tierUpTriggersLock inside setTierUpEntryTrigger() also orders the
+        // setOSREntryBlock() above before the CompilationDone publication seen by tierUpCommon.
+        jitCode->setTierUpEntryTrigger(osrEntryBytecode, JITCode::TriggerReason::CompilationDone);
         break;
     }
     case CompilationResult::CompilationFailed:
