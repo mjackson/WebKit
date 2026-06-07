@@ -53,6 +53,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+
 // We keep track of the size of the last array after it was grown. We use this
 // as a simple heuristic for as the value to grow the next array from size 0.
 // This value is capped by the constant FIRST_VECTOR_GROW defined in
@@ -4107,10 +4108,34 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
         // size, I18/I30, so no nuke is needed per GT#7). Plan + allocate the
         // transition target BEFORE locking (O1: removePropertyTransition
         // allocates in the GC heap).
+        // S6 L3/L4 cacheable-dictionary staleness guard (root cause of the
+        // transition-vs-write wholesale lost adds): a CACHEABLE dictionary's
+        // adds mutate its pinned table IN PLACE without changing the
+        // structureID, while removePropertyTransition below CLONES that table
+        // at plan time. The structureID re-validation under the cell lock
+        // therefore proves NOTHING about the clone's freshness - publishing a
+        // stale clone silently orphans every add that landed between the
+        // clone and the publication (I21/I37 violation; also the
+        // maxOffset-vs-table offset-inconsistency aborts and the I30
+        // reused-slot-holds-a-value asserts). Snapshot the pinned table's
+        // monotonic edit count here and re-validate it under the cell lock:
+        // every in-place mutation of a dictionary table holds the cell lock
+        // (adds: putDirectInternal's S6 leg; deletes: this function), so an
+        // unchanged {table pointer, edit count} pair under the lock proves
+        // the clone is exact. Non-dictionary sources keep the plain ID
+        // validation: their tables are never edited in place once published (L6).
+        PropertyTable* plannedDictionaryTable = nullptr;
+        uint32_t plannedDictionaryEditCount = 0;
+        if (structure->isDictionary()) {
+            ASSERT(!structure->isUncacheableDictionary()); // Handled by the locked in-place leg above.
+            plannedDictionaryTable = structure->pinnedPropertyTableForConcurrentDelete();
+            RELEASE_ASSERT(plannedDictionaryTable); // Dictionary tables are pinned.
+            plannedDictionaryEditCount = plannedDictionaryTable->concurrentEditCount();
+        }
         DeferredStructureTransitionWatchpointFire deferredWatchpointFire(vm, structure);
         PropertyOffset transitionOffset = invalidOffset;
         Structure* newStructure = Structure::removePropertyTransition(vm, structure, propertyName, transitionOffset, &deferredWatchpointFire);
-        RELEASE_ASSERT(transitionOffset == offset); // Same source table, same key (non-dictionary tables are not edited in place).
+        RELEASE_ASSERT(transitionOffset == offset); // Same source table, same key (dictionary staleness re-validated under the cell lock below).
         ASSERT(newStructure->outOfLineCapacity() == structure->outOfLineCapacity());
         ASSERT(newStructure->typeInfo().type() == structure->typeInfo().type());
         ASSERT(newStructure->indexingModeIncludingHistory() == structure->indexingModeIncludingHistory());
@@ -4118,6 +4143,10 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
             Locker cellLocker { thisObject->cellLock() };
             if (thisObject->structureID() != structure->id())
                 continue; // RESTART: a racing transition won while we planned/parked (I34 re-validation).
+            if (plannedDictionaryTable
+                && (structure->pinnedPropertyTableForConcurrentDelete() != plannedDictionaryTable
+                    || plannedDictionaryTable->concurrentEditCount() != plannedDictionaryEditCount))
+                continue; // RESTART: an in-place dictionary edit landed after the clone (S6 L3/L4 guard; Locker unlocks on scope exit).
             storeUndefinedIntoDoomedSlotConcurrent(thisObject, offset); // D1, BEFORE the publication.
             // ONE 64-bit header CAS under the §3.0 volatile-byte merge
             // discipline (mirrors tryStructureOnlyTransition's N2 publication;

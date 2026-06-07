@@ -337,6 +337,16 @@ public:
     static Structure* addPropertyTransitionToExistingStructure(Structure*, PropertyName, unsigned attributes, PropertyOffset&);
     static Structure* removeNewPropertyTransition(VM&, Structure*, PropertyName, PropertyOffset&, DeferredStructureTransitionWatchpointFire* = nullptr);
     static Structure* removePropertyTransition(VM&, Structure*, PropertyName, PropertyOffset&, DeferredStructureTransitionWatchpointFire* = nullptr);
+    // SPEC-objectmodel S6 L3/L4 (flag-on): the pinned dictionary table, for
+    // the cacheable-dictionary delete staleness guard (deletePropertyNamed-
+    // Concurrent, JSObject.cpp). Pinned tables are never cleared or replaced,
+    // so the pointer is stable; pair it with PropertyTable::
+    // concurrentEditCount() to detect in-place edits since a plan-time clone.
+    PropertyTable* pinnedPropertyTableForConcurrentDelete() const
+    {
+        ASSERT(isPinnedPropertyTable());
+        return m_propertyTableUnsafe.get();
+    }
     static Structure* removePropertyTransitionFromExistingStructure(Structure*, PropertyName, PropertyOffset&);
     static Structure* removePropertyTransitionFromExistingStructureConcurrently(Structure*, PropertyName, PropertyOffset&);
     static Structure* changePrototypeTransition(VM&, Structure*, JSValue prototype, DeferredStructureTransitionWatchpointFire&);

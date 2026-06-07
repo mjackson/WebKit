@@ -38,6 +38,7 @@
 #include "DFGSpeculativeJIT.h"
 #include "DFGThunks.h"
 #include "FrameTracers.h"
+#include "JSThreadsSafepoint.h"
 #include "InlineCallFrame.h"
 #include "JSCJSValueInlines.h"
 #include "OperandsInlines.h"
@@ -195,9 +196,24 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
     // everything the compile below acquires. GIL-on never takes it (flag-off
     // identity).
     static Lock dfgOSRExitGenerationLock;
-    std::optional<Locker<Lock>> generationLocker;
+    bool generationLockHeld = false;
+    auto unlockGenerationLock = makeScopeExit([&] {
+        if (generationLockHeld) [[unlikely]]
+            dfgOSRExitGenerationLock.unlock();
+    });
     if (vm.gilOff()) [[unlikely]] {
-        generationLocker.emplace(dfgOSRExitGenerationLock);
+        // FIX-2 class-(2) acquisition (same shape as GILOffCompilationLocker,
+        // DFGPlan.cpp): a contended waiter here holds heap access, so it must
+        // stay visible to the GIL-off §A.3 stop fan — a blocking Locker can
+        // deadlock a pending stop against the lock holder and trip the 30s
+        // watchdog.
+        while (!dfgOSRExitGenerationLock.tryLock()) {
+            if (JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm))
+                continue; // Parked across a window: re-validate (retry tryLock).
+            handleTrapsForCurrentThreadIfNeeded(vm, VMTraps::NeedStopTheWorld);
+            Thread::yield();
+        }
+        generationLockHeld = true;
         auto osrExitThunk = vm.getCTIStub(osrExitGenerationThunkGenerator).retagged<OSRExitPtrTag>();
         const auto& existing = codeBlock->dfgJITData()->exitCode(exitIndex);
         if (existing.executableMemory() && existing.executableMemory() != osrExitThunk.executableMemory()) {
@@ -264,7 +280,14 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
         codeBlock->dfgJITData()->setExitCode(exitIndex, exitCode);
     }
 
-    if (exit.codeLocationForRepatch())
+    // U-T4b rationale (see ftlOSRExitGenerationLock's comment): gilOff, other
+    // mutators may be concurrently EXECUTING the exit jump, and repatchJump
+    // rewrites an unaligned rel32 on x86_64 with no atomicity guarantee
+    // (torn fetch -> wild jump). Keep the jump pointing at the generation
+    // thunk; the thunk re-enters here, the recheck above finds the published
+    // ramp, and the per-lite osrExitJumpDestination farJump completes the
+    // data-only protocol. GIL-on keeps today's repatch.
+    if (exit.codeLocationForRepatch() && !vm.gilOff())
         MacroAssembler::repatchJump(exit.codeLocationForRepatch(), CodeLocationLabel<OSRExitPtrTag>(exitCode.code()));
 
     // UNGIL §A.1.3 (U-T4a): publish through the exiting thread's lite when

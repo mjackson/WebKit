@@ -187,6 +187,16 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
     // consults it (§F.1 U1 backstop, JSLock.cpp:523).
     lite->gilOff = gilOff ? 1 : 0;
     VMLiteRegistry::singleton().registerLite(*lite, vm); // sole writer of lite->vm (vmstate 6.5.1)
+    // ANNEX A16 (UNGIL U-T1): registration backfill of the baked-index
+    // scratch buffers, AFTER registerLite so a concurrent
+    // VM::allocateBakedScratchBufferIndex install fan cannot be lost (both
+    // sides are idempotent under the per-lite scratchBufferLock). The JSLock
+    // carrier registration (JSLock.cpp) has the same call; without it here, a
+    // spawned thread whose VM allocated indices BEFORE the spawn reads a null
+    // (lite, index) slot in the shared OSR-exit thunks/ramps and stores
+    // through it — the i03-t5-racing-growers / i03-restart-locked-vs-conversion
+    // GIL-off DFG-tier SIGSEGV.
+    lite->backfillBakedScratchBuffers();
     VMLite::setCurrent(lite.get());
     initializeButterflyTIDTagForCurrentThread(); // jit P5; after setCurrent, before any JS (CS3)
     if (gilOff) {

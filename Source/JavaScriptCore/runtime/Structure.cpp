@@ -57,6 +57,19 @@ void Structure::checkOffsetConsistency(PropertyTable* propertyTable, const Detai
     if (isCompilationThread())
         return;
 
+    // SPEC-objectmodel §6 L3/L4 (same rationale as the compilation-thread
+    // escape above, for N mutators): flag-on, a DICTIONARY's pinned table is
+    // edited in place under {cell lock, m_lock} while its structureID stays
+    // put, so callers that reach this check without those locks (the
+    // transition-planning paths in this file, racing another thread's
+    // cell-locked dictionary add) read a torn {maxOffset, table} pair — an
+    // off-by-N here is a legal transient, not corruption. Mutation sites
+    // still self-check under m_lock via Structure::add/remove's
+    // checkConsistency(); only the dictionary's unlocked spot-checks are
+    // skipped. Flag-off: unchanged (I22).
+    if (Options::useJSThreads() && isDictionary()) [[unlikely]]
+        return;
+
     unsigned totalSize = propertyTable->propertyStorageSize();
     unsigned inlineOverflowAccordingToTotalSize = totalSize < m_inlineCapacity ? 0 : totalSize - m_inlineCapacity;
 
@@ -2101,8 +2114,16 @@ void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
         visitor.append(thisObject->m_propertyTableUnsafe);
     } else if (visitor.vm().isAnalyzingHeap())
         visitor.append(thisObject->m_propertyTableUnsafe);
-    else if (thisObject->m_propertyTableUnsafe)
+    else if (thisObject->m_propertyTableUnsafe) {
+        // SPEC-objectmodel §6/I37 hardening: flag-on, a dictionary's table is
+        // pinned at creation and must never reach this clear branch — clearing
+        // it would drop every dictionary-era in-place add at the next
+        // materialize (silent wholesale data loss). If this ever fires, look
+        // for a torn m_bitField RMW losing the pin bit.
+        if (Options::useJSThreads()) [[unlikely]]
+            RELEASE_ASSERT(!thisObject->isDictionary());
         thisObject->m_propertyTableUnsafe.clear();
+    }
 
     switch (thisObject->variant()) {
     case StructureVariant::Normal:

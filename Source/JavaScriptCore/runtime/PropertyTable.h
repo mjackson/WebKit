@@ -201,6 +201,14 @@ public:
     PropertyOffset takeDeletedOffset();
     void addDeletedOffset(PropertyOffset);
 
+    // S6 L3/L4 in-place-edit stamp (see m_concurrentEditCount).
+    uint32_t concurrentEditCount() const { return m_concurrentEditCount.load(std::memory_order_acquire); }
+    ALWAYS_INLINE void bumpConcurrentEditCount()
+    {
+        if (Options::useJSThreads()) [[unlikely]]
+            m_concurrentEditCount.store(m_concurrentEditCount.load(std::memory_order_relaxed) + 1, std::memory_order_release);
+    }
+
     // SPEC-objectmodel §9.4 (frozen name): move every quarantined offset whose
     // stamp is < currentEpoch onto the Reusable list. Caller holds the table's
     // serialization context (see the lock-context note above).
@@ -357,6 +365,15 @@ private:
     uintptr_t m_indexVector;
     unsigned m_keyCount;
     unsigned m_deletedCount;
+    // SPEC-objectmodel S6 L3/L4 (flag-on only; flag-off never read): monotonic
+    // count of in-place edits (adds/takes/attribute updates), bumped under the
+    // serialization the edit already holds (cell lock + m_lock). Consumed by
+    // deletePropertyNamedConcurrent's cacheable-dictionary leg: a dictionary's
+    // structureID never changes on in-place adds, so a remove-transition
+    // planned from a table CLONE must re-validate THIS count under the cell
+    // lock before publishing - otherwise every add between clone and
+    // publication is silently orphaned (lost adds, I21/I37).
+    std::atomic<uint32_t> m_concurrentEditCount { 0 };
     std::unique_ptr<Vector<PropertyOffset>> m_deletedOffsets; // §6 Reusable list flag-on; the only list flag-off (I22).
     std::unique_ptr<Vector<QuarantinedDeletedOffset>> m_quarantinedDeletedOffsets; // §6 Quarantined list; flag-on only.
     WTF::Atomic<uint64_t>* m_quarantineEpochSlot { nullptr }; // Cached owning-heap slot (stable address); set at first quarantine.
@@ -438,6 +455,7 @@ inline std::tuple<PropertyOffset, unsigned> PropertyTable::get(const KeyType& ke
 
 ALWAYS_INLINE std::tuple<PropertyOffset, unsigned, bool> PropertyTable::addAfterFind(VM& vm, const ValueType& entry, FindResult&& result)
 {
+    bumpConcurrentEditCount(); // S6 L3/L4: in-place insert.
 #if DUMP_PROPERTYMAP_STATS
     ++propertyTableStats->numAdds;
 #endif
@@ -492,8 +510,10 @@ inline void PropertyTable::remove(VM& vm, KeyType key, unsigned entryIndex, unsi
 inline std::tuple<PropertyOffset, unsigned> PropertyTable::take(VM& vm, const KeyType& key)
 {
     FindResult result = find(key);
-    if (result.offset != invalidOffset)
+    if (result.offset != invalidOffset) {
+        bumpConcurrentEditCount(); // S6 L3/L4: in-place removal.
         remove(vm, key, result.entryIndex, result.index);
+    }
     return std::tuple { result.offset, result.attributes };
 }
 
@@ -504,6 +524,7 @@ inline PropertyOffset PropertyTable::updateAttributeIfExists(const KeyType& key,
         FindResult result = findImpl(vector, table, key);
         if (result.offset == invalidOffset)
             return invalidOffset;
+        bumpConcurrentEditCount(); // S6 L3/L4: in-place attribute edit.
         table[result.entryIndex - 1].setAttributes(attributes);
         return result.offset;
     });
