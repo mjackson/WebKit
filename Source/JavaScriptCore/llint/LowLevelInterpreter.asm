@@ -496,7 +496,13 @@ end
 #
 # Level (i): one byte test on the JSCConfig gilOffProcess byte -- the only
 # flag-off/GIL-on executed-code delta per Group-3 site (delta-(a) budget;
-# golden-disasm gate re-baselined once per sec.A.1.3). The byte is written only
+# golden-disasm gate re-baselined once per sec.A.1.3). AB-17 sec.A.2.2 added
+# three expansion sites under this same per-site budget (shared prologue
+# stack check, doVMEntry entry check, functionArityCheck); LLInt sites are
+# asm and NOT capturable by the golden-disasm gate (its own header carves
+# LLInt out) -- their flag-off-cost evidence channel is the --useJIT=0 bench
+# gate; see the AB-17 round-4 amendment in VMEntryScope.cpp for the current
+# (host-noise-blocked) measurement record. The byte is written only
 # by the Config-finalization latch (runtime/; derivation-identical to
 # VM::isGILOffProcess()) -- never from a VM ctor, which would race
 # Config::finalize() freezing the page.

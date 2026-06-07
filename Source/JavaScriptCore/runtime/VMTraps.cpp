@@ -640,6 +640,7 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     // dispatches the per-lite instance FIRST — re-terminating the host's
     // re-entry on every clear-and-re-enter until the siblings drain.
     if (vm.gilOff() && !isSpawnedGILOff && vmLevelTraps.m_carrierTookSharedTermination.load()) [[unlikely]] {
+        assertNoPerLiteTrapSignalingLockHeldOnCurrentThread(); // §A.2.2 item 3c (h): this trim runs on per-lite servicing instances too; registry lock outranks per-lite signaling locks.
         auto& registry = VMLiteRegistry::singleton();
         Locker locker { registry.lock };
         if (vmLevelTraps.m_carrierTookSharedTermination.load()) {

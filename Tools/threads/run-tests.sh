@@ -101,6 +101,28 @@ if [[ "$GATES" -eq 1 && ( -n "$FILTER" || "$AMPLIFY" -eq 1 || "$LIST" -eq 1 ) ]]
     die "--gates must be the sole option"
 fi
 
+# ---- ambient JSC_* option env: detect and WARN, never scrub ----
+# jsc applies JSC_<option> environment variables in Options::initialize(),
+# BEFORE the //@ header argv options this runner forwards, so ambient
+# exports are a second option channel that can invert an option-off /
+# option-default test's premise (e.g. JSC_useSharedGCHeap=true vs
+# heap-option-off.js). Some rungs deliver their entire configuration this
+# way on purpose (e.g. the GIL-off flag set over the whole corpus), so the
+# runner MUST NOT unset these: silently scrubbing would convert an
+# env-configured rung into a default-config run whose green is vacuous,
+# with no trace in the log. Instead: name every JSC_* variable loudly so
+# each log records the ambient channel, and let premise-checked tests
+# report THREADS-PREMISE-SKIP (counted as SKIP below, not PASS or FAIL),
+# so a premise/env contradiction surfaces as an actionable skip at the
+# rung definition rather than a fake pass or fake fail here. The plain
+# JSC=/path/to/jsc selector does not match the JSC_ prefix.
+AMBIENT_JSC_ENV="$(env | LC_ALL=C grep -o '^JSC_[A-Za-z0-9_]*' | LC_ALL=C sort | tr '\n' ' ')"
+AMBIENT_JSC_ENV="${AMBIENT_JSC_ENV% }"
+if [[ -n "$AMBIENT_JSC_ENV" ]]; then
+    echo "run-tests: WARNING: ambient JSC_* option env present and HONORED (not scrubbed): $AMBIENT_JSC_ENV" >&2
+    echo "run-tests: WARNING: JSC_* env applies before //@ header options and can invert option-default test premises; premise-self-checking tests will report SKIP (THREADS-PREMISE-SKIP)" >&2
+fi
+
 # ---- resolve jsc ----
 JSC="${JSC:-}"
 if [[ -z "$JSC" ]]; then
@@ -376,8 +398,19 @@ for file in "${FILES[@]}"; do
             continue
         fi
         if run_one "$file" ${args[@]+"${args[@]}"}; then
-            PASS=$((PASS + 1))
-            echo "PASS $label"
+            # A test whose option-default premise is inverted by ambient
+            # configuration (JSC_* env, warned about above) self-reports
+            # with a THREADS-PREMISE-SKIP marker instead of asserting under
+            # the wrong premise. Count it as SKIP — never PASS — so an
+            # env-configured rung cannot quietly absorb a vacuous green.
+            if grep -qs '^THREADS-PREMISE-SKIP:' "$TMP_OUT"; then
+                SKIPPED=$((SKIPPED + 1))
+                echo "SKIP $label (premise inverted by ambient configuration; ambient JSC_* env: ${AMBIENT_JSC_ENV:-none detected})"
+                sed 's/^/     | /' "$TMP_OUT"
+            else
+                PASS=$((PASS + 1))
+                echo "PASS $label"
+            fi
         else
             status=$?
             FAIL=$((FAIL + 1))

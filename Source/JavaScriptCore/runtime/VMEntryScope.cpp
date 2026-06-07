@@ -221,6 +221,49 @@ void VMEntryScope::setUpSlow()
         // Rungs (i) per-lite exception-state split and (ii) concurrent
         // compilation/replacement remain OPEN; downstream must still not
         // record AB-17 verification-complete.
+        //
+        // AB-17 round-4 amendment (review findings; bench-gate (iii)
+        // RE-RUN PERFORMED as the round-3 text mandates — numbers attached;
+        // AB-17 remains LANDED-WITH-KNOWN-FAILING-RUNGS, NOT accepted):
+        //  (1) Bench gate (iii) re-run, post-ALWAYS_INLINE-wrapper, 3x15-run
+        //      medians vs the 2026-06-05 baseline:
+        //      transition-heavy-constructor +2.30% / +0.63% / +1.93%
+        //      (improved from the recorded +2.4-3.4%; 2 of 3 passes over the
+        //      1% threshold). Other 7 benchmarks within threshold every pass
+        //      (megamorphic-access -13.5%, i.e. FASTER than baseline).
+        //  (2) The mandated A/B bisect EXONERATES the residual C++
+        //      m_gilOff branches: with all three C++ reader sites (the VM.h
+        //      wrapper, VMInlines.h softStackLimitForCurrentThread, and
+        //      hasExceptionsAfterHandlingTraps) temporarily forced to their
+        //      bare pre-AB-17 flag-off forms, the benchmark measured
+        //      +12.5% / +13.7% / +15.9% — REMOVING the branches measured
+        //      slower, so the delta is not their executed cost (consistent
+        //      with the round-3 --useLLInt=0 A/B exonerating the LLInt
+        //      discriminator sites).
+        //  (3) Measurement-validity probe: a source-identical rebuild of the
+        //      unmodified tree then measured +7.9% / +11.8%, and repeated
+        //      runs of ONE binary spread 54.4-73.7ms (35%) on this (shared,
+        //      load ~8-12) host. CONCLUSION: rung (iii) is reclassified from
+        //      "regression" to NOT-MEASURABLE-AT-1%-ON-THIS-HOST; the
+        //      recorded +2.4-3.4% red and this re-run's +0.6-2.3% are inside
+        //      the observed noise envelope. (iii) stays OPEN; closing it
+        //      requires a quiet/pinned host with baseline and candidate
+        //      recorded interleaved in the same session.
+        //  (4) Finding-(h) coverage hole CLOSED: the TERM1.2 carrier-trim
+        //      registry-lock acquisition in VMTraps::handleTraps (the one
+        //      trap-machinery registry acquisition missing the re-rank
+        //      assert) now calls
+        //      assertNoPerLiteTrapSignalingLockHeldOnCurrentThread like the
+        //      other five sites (debug-only; release no-op).
+        //  (5) Golden-disasm scope note (LLInt evidence channel): the three
+        //      AB-17 LLInt discriminator expansions (shared prologue,
+        //      doVMEntry, functionArityCheck) are NOT capturable by the
+        //      golden-disasm gate BY ITS OWN CONTRACT (LLInt is asm, not
+        //      --dumpDisassembly output; see golden-disasm.sh header), and
+        //      no golden baseline exists in-tree to diff against. Their
+        //      chartered flag-off-cost license is the --useJIT=0 bench-gate
+        //      run (UNGIL-HANDOUT delta-(a) text) — subject to the same
+        //      host-noise blocker as (1)-(3).
         constexpr bool perLiteSoftStackLimitRerouteLanded = true; // COMPLETE §A.2.2 reroute landed (AB-17; this change).
         bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {
