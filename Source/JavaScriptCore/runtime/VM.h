@@ -1547,10 +1547,45 @@ public:
     ALWAYS_INLINE void mutatorFence() { heap.mutatorFence(); }
 
 #if ENABLE(DFG_DOES_GC_VALIDATION)
+    // UNGIL AB18-C: DoesGC validation state is per-mutator when gilOff — the
+    // group3Primitives()-style mode split. GIL-on (incl. flag-off): the VM
+    // member, bit-identical to today. GIL-off: the CURRENT thread's lite
+    // slot (owner-thread-only — every JIT store, OSR-exit C++ setter, and
+    // allocation-slow-path verifyCanGC read executes on the owning thread,
+    // so program order alone gives the needed ordering; no fences).
+    //
+    // Fallback arm (gilOff, no installed same-VM lite — ctor/dtor windows,
+    // shared-GC conductor/collector verifyCanGC calls from Heap.cpp): the
+    // VM-block member, which GIL-off is inert spare storage that trivially
+    // passes. That inertness is ENFORCED, not assumed: every baked DFG/FTL
+    // emission site is rerouted (loadVMLite -> VMLite::offsetOfDoesGC()), so
+    // GIL-off m_doesGC can only ever hold expect-true values — its default
+    // encode(true, Uninitialized), or a fallback-arm C++ Special write like
+    // throwTerminationException's encode(true, Termination); that legitimate
+    // write is why this checks expectDoesGC() rather than bit-exact equality
+    // with the default. A missed baked store (per-node stores write
+    // expect-false on most nodes) fail-stops here deterministically instead
+    // of re-manifesting as a racy cross-thread DoesGC abort.
+    ALWAYS_INLINE DoesGCCheck& doesGCCheckSlot()
+    {
+        if (gilOffWithProcessGate()) [[unlikely]] {
+            VMLite* lite = VMLite::currentIfExists();
+            if (lite && lite->vm == this) [[likely]]
+                return lite->doesGC;
+            RELEASE_ASSERT(m_doesGC.expectDoesGC());
+        }
+        return m_doesGC;
+    }
+    // GIL-on/flag-off EMISSION only (baked absolute address); gilOff
+    // emission arms must not bake this — they emit
+    // loadVMLite -> VMLite::offsetOfDoesGC() instead. (The ARM64
+    // disassembler annotation may call this in any mode; it only
+    // pointer-compares, and gilOff code never bakes this address, so the
+    // compare simply never matches.)
     DoesGCCheck* addressOfDoesGC() LIFETIME_BOUND { return &m_doesGC; }
-    void setDoesGCExpectation(bool expectDoesGC, unsigned nodeIndex, unsigned nodeOp) { m_doesGC.set(expectDoesGC, nodeIndex, nodeOp); }
-    void setDoesGCExpectation(bool expectDoesGC, DoesGCCheck::Special special) { m_doesGC.set(expectDoesGC, special); }
-    void verifyCanGC() { m_doesGC.verifyCanGC(*this); }
+    void setDoesGCExpectation(bool expectDoesGC, unsigned nodeIndex, unsigned nodeOp) { doesGCCheckSlot().set(expectDoesGC, nodeIndex, nodeOp); }
+    void setDoesGCExpectation(bool expectDoesGC, DoesGCCheck::Special special) { doesGCCheckSlot().set(expectDoesGC, special); }
+    void verifyCanGC() { doesGCCheckSlot().verifyCanGC(*this); }
 #else
     DoesGCCheck* addressOfDoesGC() { UNREACHABLE_FOR_PLATFORM(); return nullptr; }
     void setDoesGCExpectation(bool, unsigned, unsigned) { }

@@ -83,14 +83,46 @@ static void linkSlowFor(VM& vm, CallLinkInfo& callLinkInfo)
 
 void linkMonomorphicCall(VM& vm, JSCell* owner, CallLinkInfo& callLinkInfo, CodeBlock* calleeCodeBlock, JSObject* callee, CodePtr<JSEntryPtrTag> codePtr)
 {
-    ASSERT(!callLinkInfo.stub());
-
     CodeBlock* callerCodeBlock = dynamicDowncast<CodeBlock>(owner); // WebAssembly -> JS stubs don't have a valid CodeBlock.
     ASSERT(owner);
 
     if (Options::forceICFailure()) [[unlikely]]
         return;
 
+    if (vm.gilOff()) [[unlikely]] {
+        // AB18-D (amended per review): N mutators can take the same call
+        // site's slow path concurrently (both saw Mode::Init + seenOnce()).
+        // The Init->Monomorphic transition — and, per precondition 11
+        // (INTEGRATE-jit), every other call-link transition writer — is
+        // serialized on the single process-wide link lock; per-CodeBlock
+        // locking was rejected in review (it covered one writer pair out of
+        // six and risked caller/callee ABBA between mutually-recursive
+        // CodeBlocks). The loser keeps the winner's publication and just
+        // returns: linkFor computed codePtr for THIS call independently of
+        // the IC, so the current call still lands on a correct target.
+        // Taking the callee push under the SAME lock also serializes it
+        // against every other locked push/remove (the SentinelLinkedList
+        // prev/next corruption signature); the isOnList() re-check makes a
+        // racing upgrade-relink idempotent rather than a double push.
+        Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        if (callLinkInfo.isLinked() || callLinkInfo.stub())
+            return; // Lost the race; the winner's link stands.
+        callLinkInfo.setMonomorphicCallee(vm, owner, callee, calleeCodeBlock, codePtr);
+        callLinkInfo.setLastSeenCallee(vm, owner, callee);
+
+        if (shouldDumpDisassemblyFor(callerCodeBlock))
+            dataLog("Linking call in ", FullCodeOrigin(callerCodeBlock, callLinkInfo.codeOrigin()), " to ", pointerDump(calleeCodeBlock), ", entrypoint at ", codePtr, "\n");
+
+        if (calleeCodeBlock && !callLinkInfo.isOnList())
+            calleeCodeBlock->linkIncomingCall(owner, &callLinkInfo);
+
+        if (callLinkInfo.specializationKind() == CodeSpecializationKind::CodeForCall)
+            return;
+        linkSlowFor(vm, callLinkInfo);
+        return;
+    }
+
+    ASSERT(!callLinkInfo.stub());
     ASSERT(!callLinkInfo.isLinked());
     callLinkInfo.setMonomorphicCallee(vm, owner, callee, calleeCodeBlock, codePtr);
     callLinkInfo.setLastSeenCallee(vm, owner, callee);
@@ -122,12 +154,8 @@ CodePtr<JSEntryPtrTag> jsToWasmICCodePtr(CodeSpecializationKind kind, JSObject* 
     return nullptr;
 }
 
-void linkPolymorphicCall(VM& vm, JSCell* owner, CallFrame* callFrame, CallLinkInfo& callLinkInfo, CallVariant newVariant)
+static void linkPolymorphicCallImpl(VM& vm, JSCell* owner, CallFrame* callFrame, CallLinkInfo& callLinkInfo, CallVariant newVariant)
 {
-    // During execution of linkPolymorphicCall, we strongly assume that we never do GC.
-    // GC jettisons CodeBlocks, changes CallLinkInfo etc. and breaks assumption done before and after this call.
-    DeferGCForAWhile deferGCForAWhile(vm);
-
     if (!newVariant || Options::forceICFailure()) {
         callLinkInfo.setVirtualCall(vm);
         return;
@@ -275,6 +303,29 @@ void linkPolymorphicCall(VM& vm, JSCell* owner, CallFrame* callFrame, CallLinkIn
     // If there had been a previous stub routine, that one will die as soon as the GC runs and sees
     // that it's no longer on stack.
     callLinkInfo.setStub(vm, WTF::move(stubRoutine));
+}
+
+void linkPolymorphicCall(VM& vm, JSCell* owner, CallFrame* callFrame, CallLinkInfo& callLinkInfo, CallVariant newVariant)
+{
+    // During execution of linkPolymorphicCall, we strongly assume that we never do GC.
+    // GC jettisons CodeBlocks, changes CallLinkInfo etc. and breaks assumption done before and after this call.
+    DeferGCForAWhile deferGCForAWhile(vm);
+
+    if (vm.gilOff()) [[unlikely]] {
+        // AB18-D (amended per review): this is a transition writer too — it
+        // reads the current stub/callee, then setStub/setVirtualCall rewrite
+        // the mirrors, swap m_stub, publish a record, and remove() this node
+        // from a callee's m_incomingCalls. All of that must be in the
+        // precondition-11 writer set, serialized on the same link lock as
+        // linkMonomorphicCall — the reviewed proposal locked only the
+        // Init->Monomorphic pair. Holding the lock across stub creation is
+        // acceptable: rare slow path, GC is deferred above, and the lock
+        // nests nothing (single process-wide lock; holders never park).
+        Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        linkPolymorphicCallImpl(vm, owner, callFrame, callLinkInfo, newVariant);
+        return;
+    }
+    linkPolymorphicCallImpl(vm, owner, callFrame, callLinkInfo, newVariant);
 }
 
 #if ENABLE(JIT)
@@ -2163,6 +2214,22 @@ void repatchInstanceOf(
 void linkDirectCall(DirectCallLinkInfo& callLinkInfo, CodeBlock* calleeCodeBlock, CodePtr<JSEntryPtrTag> codePtr)
 {
     // DirectCall is only used from DFG / FTL.
+    // AB18-D: direct linking publishes a record and pushes onto the callee's
+    // m_incomingCalls, so it is in the precondition-11 writer set. Direct
+    // calls always have an owner CodeBlock (DFG/FTL pass graph.m_codeBlock at
+    // construction), which reaches the VM for the gilOff gate.
+    CodeBlock* ownerCodeBlock = dynamicDowncast<CodeBlock>(callLinkInfo.owner());
+    if (ownerCodeBlock && ownerCodeBlock->vm().gilOff()) [[unlikely]] {
+        Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        callLinkInfo.setCallTarget(uncheckedDowncast<FunctionCodeBlock>(calleeCodeBlock), CodeLocationLabel<JSEntryPtrTag>(codePtr));
+        // isOnList() re-check: two mutators direct-linking the same call site
+        // concurrently must not double-push the node (SentinelLinkedList
+        // corruption); the second setCallTarget republishes an identical
+        // record, which is benign.
+        if (calleeCodeBlock && !callLinkInfo.isOnList())
+            calleeCodeBlock->linkIncomingCall(callLinkInfo.owner(), &callLinkInfo);
+        return;
+    }
     callLinkInfo.setCallTarget(uncheckedDowncast<FunctionCodeBlock>(calleeCodeBlock), CodeLocationLabel<JSEntryPtrTag>(codePtr));
     if (calleeCodeBlock)
         calleeCodeBlock->linkIncomingCall(callLinkInfo.owner(), &callLinkInfo);

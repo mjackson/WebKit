@@ -740,7 +740,25 @@ void OSRExit::compileExit(CCallHelpers& jit, VM& vm, const OSRExit& exit, const 
             DoesGCCheck check;
             check.u.encoded = DoesGCCheck::encode(true, DoesGCCheck::Special::DFGOSRExit);
 #if USE(JSVALUE64)
-            jit.store64(CCallHelpers::TrustedImm64(check.u.encoded), vm.addressOfDoesGC());
+            if (vm.gilOff()) [[unlikely]] {
+                // UNGIL AB18-C: operationCompileOSRExit only runs on the FIRST
+                // exit from this site; every subsequent exit takes this
+                // compiled ramp directly. A baked &m_doesGC store here would
+                // leave the exiting thread's lite slot holding the last
+                // per-node expectation (frequently expect-no-GC), so the
+                // materialization below would reproduce the original
+                // "DoesGC failed @ D@xx" abort on any repeated exit — write
+                // the CURRENT thread's lite slot instead. regT0 is a free
+                // ramp temp here (clobbered at the activeLength publish above,
+                // rebuilt below). Two imm32 stores for uniformity with the
+                // per-node split: this Special encoding fits imm32 today only
+                // by encoding accident (nodeIndex == 0), and an imm64 store
+                // through a scratch base is a wild store on x86_64.
+                jit.loadVMLite(GPRInfo::regT0);
+                jit.store32(CCallHelpers::TrustedImm32(check.u.other), CCallHelpers::Address(GPRInfo::regT0, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.other))));
+                jit.store32(CCallHelpers::TrustedImm32(check.u.nodeIndex), CCallHelpers::Address(GPRInfo::regT0, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.nodeIndex))));
+            } else
+                jit.store64(CCallHelpers::TrustedImm64(check.u.encoded), vm.addressOfDoesGC());
 #else
             jit.store32(CCallHelpers::TrustedImm32(check.u.other), &vm.addressOfDoesGC()->u.other);
             jit.store32(CCallHelpers::TrustedImm32(check.u.nodeIndex), &vm.addressOfDoesGC()->u.nodeIndex);

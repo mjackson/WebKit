@@ -2928,6 +2928,18 @@ void CodeBlock::setOptimizationThresholdBasedOnCompilationResult(CompilationResu
     CodeBlock* replacement = this->replacement();
     bool hasReplacement = (replacement && replacement != this);
     if ((result == CompilationResult::CompilationSuccessful) != hasReplacement) {
+        // UNGIL §5.7.2 (AB18-B): GIL-off, CompilationDeferred is delivered by a mutator that
+        // lost the tier-up race (operationOptimize's Compiling branch, or the TierUpEdgeLocker
+        // loser at JITOperations.cpp). Another mutator can complete and install the DFG
+        // replacement in the window between the caller's worklist-state observation and this
+        // call. Treat "Deferred but replacement installed" as a concurrently-delivered
+        // CompilationSuccessful: arm the counter so the next slow-path entry picks up the
+        // replacement (calls are relinked to it anyway; this covers loop OSR).
+        if (vm().gilOff() && result == CompilationResult::CompilationDeferred && hasReplacement
+            && JSC::JITCode::isOptimizingJIT(replacement->jitType())) [[unlikely]] {
+            optimizeNextInvocation();
+            return;
+        }
         dataLog(*this, ": we have result = ", result, " but ");
         if (replacement == this)
             dataLog("we are our own replacement.\n");

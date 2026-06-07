@@ -785,7 +785,22 @@ private:
         if constexpr (validateDFGDoesGC) {
             if (Options::validateDoesGC()) {
                 bool expectDoesGC = doesGC(m_graph, m_node);
-                m_out.store(m_out.constInt64(DoesGCCheck::encode(expectDoesGC, m_node->index(), m_node->op())), m_out.absolute(vm().addressOfDoesGC()));
+                if (vm().gilOff()) [[unlikely]] {
+                    // UNGIL AB18-C: shared FTL code runs on whichever thread
+                    // executes it — write the CURRENT thread's lite slot, not
+                    // a baked absolute. The lite pointer comes from the
+                    // established currentVMLitePointer() opaque patchpoint
+                    // (jit.loadVMLite at execution time — never the compiling
+                    // thread's lite baked in), same as emitPublishTopCallFrame
+                    // / loadCurrentThreadException above. Plain root-heap
+                    // store64: B3 materializes the constant into a register
+                    // (no imm-through-scratch hazard), and the slot is
+                    // owner-thread-only so a single 64-bit store is fine.
+                    m_out.store64(
+                        m_out.constInt64(DoesGCCheck::encode(expectDoesGC, m_node->index(), m_node->op())),
+                        m_out.address(m_heaps.root, currentVMLitePointer(), VMLite::offsetOfDoesGC()));
+                } else
+                    m_out.store(m_out.constInt64(DoesGCCheck::encode(expectDoesGC, m_node->index(), m_node->op())), m_out.absolute(vm().addressOfDoesGC()));
             }
         }
 
@@ -22972,9 +22987,21 @@ IGNORE_CLANG_WARNINGS_END
             if constexpr (validateDFGDoesGC) {
                 if (Options::validateDoesGC()) {
                     // We need to mock what a Return does: claims to GC.
-                    jit.move(CCallHelpers::TrustedImmPtr(vm->addressOfDoesGC()), GPRInfo::regT0);
-                    jit.move(CCallHelpers::TrustedImm64(DoesGCCheck::encode(true, DoesGCCheck::Special::Uninitialized)), GPRInfo::regT1);
-                    jit.store64(GPRInfo::regT1, CCallHelpers::Address(GPRInfo::regT0));
+                    if (vm->gilOff()) [[unlikely]] {
+                        // UNGIL AB18-C: per-lite slot. regT0/regT1 are
+                        // pushToSave'd above and dead on this early-return
+                        // path (the GIL-on arm clobbers the same pair);
+                        // loadVMLite replaces the baked TrustedImmPtr move.
+                        // Register-source store64 — no imm-materialization-
+                        // over-base hazard.
+                        jit.loadVMLite(GPRInfo::regT0);
+                        jit.move(CCallHelpers::TrustedImm64(DoesGCCheck::encode(true, DoesGCCheck::Special::Uninitialized)), GPRInfo::regT1);
+                        jit.store64(GPRInfo::regT1, CCallHelpers::Address(GPRInfo::regT0, static_cast<int32_t>(VMLite::offsetOfDoesGC())));
+                    } else {
+                        jit.move(CCallHelpers::TrustedImmPtr(vm->addressOfDoesGC()), GPRInfo::regT0);
+                        jit.move(CCallHelpers::TrustedImm64(DoesGCCheck::encode(true, DoesGCCheck::Special::Uninitialized)), GPRInfo::regT1);
+                        jit.store64(GPRInfo::regT1, CCallHelpers::Address(GPRInfo::regT0));
+                    }
                 }
             }
             restore();

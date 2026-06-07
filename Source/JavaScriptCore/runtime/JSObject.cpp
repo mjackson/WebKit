@@ -2575,6 +2575,15 @@ ContiguousJSValues JSObject::convertUndecidedToInt32(VM& vm)
     // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
     if (Options::useJSThreads()) [[unlikely]] {
         relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateInt32);
+        // AB18-F: a racer may have settled the shape at/past the target (the
+        // relabel early-returns in that case). Re-check the settled shape and
+        // bail to the generic path unless it is the expected target family —
+        // returning the typed accessor over racer-settled lanes would mislabel
+        // them. Mirrors the segmented bail below; callers already tolerate the
+        // empty return. Shape publishes only happen inside §10.6 stops, and we
+        // do not safepoint between this check and the accessor read.
+        if (!hasInt32(indexingType()))
+            return ContiguousJSValues();
         uint64_t word = taggedButterflyWord();
         if (isSegmentedButterfly(word))
             return ContiguousJSValues(); // Segmented lanes are reached through the spine (§9.5); flat-only callers bail to generic paths.
@@ -2602,6 +2611,8 @@ ContiguousDoubles JSObject::convertUndecidedToDouble(VM& vm)
     // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
     if (Options::useJSThreads()) [[unlikely]] {
         relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateDouble);
+        if (!hasDouble(indexingType()))
+            return ContiguousDoubles(); // AB18-F settled-shape bail; see convertUndecidedToInt32.
         uint64_t word = taggedButterflyWord();
         if (isSegmentedButterfly(word))
             return ContiguousDoubles(); // See convertUndecidedToInt32.
@@ -2628,6 +2639,8 @@ ContiguousJSValues JSObject::convertUndecidedToContiguous(VM& vm)
     // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
     if (Options::useJSThreads()) [[unlikely]] {
         relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateContiguous);
+        if (!hasContiguous(indexingType()))
+            return ContiguousJSValues(); // AB18-F settled-shape bail; see convertUndecidedToInt32.
         uint64_t word = taggedButterflyWord();
         if (isSegmentedButterfly(word))
             return ContiguousJSValues(); // See convertUndecidedToInt32.
@@ -2713,6 +2726,8 @@ ContiguousDoubles JSObject::convertInt32ToDouble(VM& vm)
     // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
     if (Options::useJSThreads()) [[unlikely]] {
         relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateDouble);
+        if (!hasDouble(indexingType()))
+            return ContiguousDoubles(); // AB18-F settled-shape bail; see convertUndecidedToInt32.
         uint64_t word = taggedButterflyWord();
         if (isSegmentedButterfly(word))
             return ContiguousDoubles(); // See convertUndecidedToInt32.
@@ -2751,6 +2766,8 @@ ContiguousJSValues JSObject::convertInt32ToContiguous(VM& vm)
     // object still goes through the per-event stop + F2 driver.
     if (Options::useJSThreads()) [[unlikely]] {
         relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateContiguous);
+        if (!hasContiguous(indexingType()))
+            return ContiguousJSValues(); // AB18-F settled-shape bail; see convertUndecidedToInt32.
         uint64_t word = taggedButterflyWord();
         if (isSegmentedButterfly(word))
             return ContiguousJSValues(); // See convertUndecidedToInt32.
@@ -2809,6 +2826,8 @@ ContiguousJSValues JSObject::convertDoubleToContiguous(VM& vm)
     // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
     if (Options::useJSThreads()) [[unlikely]] {
         relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateContiguous);
+        if (!hasContiguous(indexingType()))
+            return ContiguousJSValues(); // AB18-F settled-shape bail; see convertUndecidedToInt32.
         uint64_t word = taggedButterflyWord();
         if (isSegmentedButterfly(word))
             return ContiguousJSValues(); // See convertUndecidedToInt32.
@@ -3131,6 +3150,43 @@ void JSObject::relabelIndexingShapeConcurrent(VM& vm, TransitionKind transition)
             continue; // A racing publication is mid-flight; re-plan on the settled state.
         Structure* oldStructure = oldStructureID.decode();
         IndexingType sourceType = oldStructure->indexingType();
+        // A racing thread may have advanced the shape to (or past) this
+        // relabel's target between the caller's shape check and this loop
+        // iteration (first entry, after spinning on a nuked StructureID, or
+        // after a RESTART). The relabel lattice is monotone
+        // (Undecided < Int32 < Double < Contiguous < ArrayStorage/SlowPut),
+        // so if the settled shape no longer needs this transition, the racer's
+        // published result already covers it: return without transitioning
+        // instead of planning a transition from an invalid source (which would
+        // assert here in debug and type-confuse the lane rewrite in release).
+        //
+        // The early return is sound without a local acquire fence ONLY because
+        // every flag-on indexing-shape publication happens inside a §10.6 stop
+        // (this relabel loop, convertToArrayStorageConcurrent, the CoW
+        // materialize install): this thread is an entered mutator, so it was
+        // parked for the racer's stop, and the park/resume handshake orders
+        // our loop-top structureID read above after the racer's fenced lane
+        // rewrite. The racer's storeStoreFence is store-side only and would
+        // NOT by itself provide that edge. If a future path ever publishes an
+        // indexing shape outside a stop, this return becomes unsafe.
+        bool relabelStillNeeded;
+        switch (transition) {
+        case TransitionKind::AllocateInt32:
+            relabelStillNeeded = hasUndecided(sourceType);
+            break;
+        case TransitionKind::AllocateDouble:
+            relabelStillNeeded = hasUndecided(sourceType) || hasInt32(sourceType);
+            break;
+        case TransitionKind::AllocateContiguous:
+            relabelStillNeeded = hasUndecided(sourceType) || hasInt32(sourceType) || hasDouble(sourceType);
+            break;
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+            relabelStillNeeded = false;
+            break;
+        }
+        if (!relabelStillNeeded)
+            return; // Racer already settled the object at/past the target shape; its stop fired F2 and the write barrier.
         ASSERT(hasUndecided(sourceType) || hasInt32(sourceType) || hasDouble(sourceType));
 
         Structure* newStructure;

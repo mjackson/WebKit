@@ -354,7 +354,24 @@ static void compileStub(VM& vm, unsigned exitID, JITCode* jitCode, OSRExit& exit
             // to set it here because compileFTLOSRExit() is only called on the first time
             // we exit from this site, but all subsequent exits will take this compiled
             // ramp without calling compileFTLOSRExit() first.
-            jit.store64(CCallHelpers::TrustedImm64(DoesGCCheck::encode(true, DoesGCCheck::Special::FTLOSRExit)), vm.addressOfDoesGC());
+            if (vm.gilOff()) [[unlikely]] {
+                // UNGIL AB18-C: repeated exits never re-enter
+                // compileFTLOSRExit, so a baked &m_doesGC store would leave
+                // the exiting thread's lite slot holding the last per-node
+                // expectation — write the CURRENT thread's lite slot (same
+                // rationale as the DFGOSRExit.cpp ramp split). regT0 is dead
+                // here: saveAllRegisters captured the live state above and
+                // the popToRestore below overwrites it. Two imm32 stores for
+                // uniformity with the per-node split (this Special encoding
+                // fits imm32 only by encoding accident; imm64-through-scratch
+                // is a wild store on x86_64).
+                DoesGCCheck check;
+                check.u.encoded = DoesGCCheck::encode(true, DoesGCCheck::Special::FTLOSRExit);
+                loadVMLite(jit, GPRInfo::regT0);
+                jit.store32(CCallHelpers::TrustedImm32(check.u.other), CCallHelpers::Address(GPRInfo::regT0, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.other))));
+                jit.store32(CCallHelpers::TrustedImm32(check.u.nodeIndex), CCallHelpers::Address(GPRInfo::regT0, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.nodeIndex))));
+            } else
+                jit.store64(CCallHelpers::TrustedImm64(DoesGCCheck::encode(true, DoesGCCheck::Special::FTLOSRExit)), vm.addressOfDoesGC());
         }
     }
 

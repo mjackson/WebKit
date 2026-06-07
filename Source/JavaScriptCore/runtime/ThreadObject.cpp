@@ -50,7 +50,10 @@
 #include "TypedArrayType.h"
 #include "VMLite.h"
 #include "VMLiteShared.h"
+#include <wtf/Atomics.h>
+#include <wtf/DataLog.h>
 #include <wtf/MainThread.h>
+#include <wtf/RawPointer.h>
 #include <wtf/StackAllocation.h>
 
 namespace JSC {
@@ -226,6 +229,65 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
         auto callData = JSC::getCallData(function);
         NakedPtr<Exception> exception;
         JSValue callResult = JSC::call(globalObject, function, callData, jsUndefined(), args, exception);
+
+        // AB18-I publish-side guard (applied per the review round, NOT the
+        // original single-domain proposal): JSC::call's NakedPtr capture
+        // (CallData.cpp) reads and clears the CURRENT lite's group-3
+        // exception word through its own TopExceptionScope. Re-reading that
+        // SAME per-lite word here would be dead code — two sequenced
+        // same-thread reads of one word are coherent, and no foreign writer
+        // of another thread's per-lite word exists (VM::setException asserts
+        // the API lock; the only async-flavored clear is the current-thread,
+        // termination-only deferral). So the V1 lost-throw signature requires
+        // the exception to live in a DIFFERENT storage domain than the one
+        // the capture read — the U-T4 class: a not-yet-rerouted GIL-off path
+        // storing into (or a lite-selection change redirecting the capture
+        // away from) the inert VM-block spare word. Before allowing
+        // Phase::Finished, read BOTH domains — this thread's per-lite word
+        // AND the VM-block spare word (GIL-off the main carrier never
+        // installs m_mainVMLite, so the VM block is inert spare storage; a
+        // non-null value there is exactly the unrerouted-path evidence) —
+        // and fold a residual NON-TERMINATION exception into the capture so
+        // a recorded throw can never be published as Finished. A residual
+        // TERMINATION exception is deliberately left in place for the drain
+        // loop's vm.hasTerminationRequest() arm, which takes the TERM1.3
+        // Failed publication with the fresh "Thread terminated" error.
+        //
+        // The [AB18-I] log line is the verify round's diagnostic: if the V1
+        // loss reproduces WITH a line, the line names the losing domain (and
+        // whether the lite changed across the call); if it reproduces with NO
+        // line, both domains were already null at fn-return — the consumed-
+        // before-capture variant — and the hunt moves to the throw/unwind-
+        // side U-T4 audit (Interpreter::unwind / genericUnwind storage
+        // selection, DFG/FTL OSR-exit + exception-handler entry checks,
+        // vmEntryToJavaScript epilogue, LLInt catch/clear paths).
+        //
+        // GIL-on (incl. flag-off) this block is never entered, so identity
+        // holds byte-for-byte.
+        if (gilOff && !exception) {
+            Exception* perLiteResidual = WTF::atomicLoad(&lite->primitives.m_exception, std::memory_order_relaxed);
+            Exception* vmBlockResidual = WTF::atomicLoad(&vm.mainVMLitePrimitives().m_exception, std::memory_order_relaxed);
+            VMLite* currentLite = VMLite::currentIfExists();
+            if (perLiteResidual || vmBlockResidual || currentLite != lite.get()) [[unlikely]] {
+                dataLogLn("[AB18-I] fn-return residual exception state: perLiteWord=", RawPointer(perLiteResidual),
+                    " vmBlockWord=", RawPointer(vmBlockResidual),
+                    " currentLite=", RawPointer(currentLite),
+                    " entryLite=", RawPointer(lite.get()),
+                    " tid=", state->tid);
+                Exception* residual = perLiteResidual ? perLiteResidual : vmBlockResidual;
+                if (residual && !vm.isTerminationException(residual)) {
+                    exception = residual;
+                    // Consume the folded word ourselves: the clearException()
+                    // in the Failed arm below clears only the CURRENT lite's
+                    // word and would leave a VM-block residual set for a
+                    // later reader to double-fold.
+                    if (perLiteResidual)
+                        WTF::atomicStore(&lite->primitives.m_exception, static_cast<Exception*>(nullptr), std::memory_order_relaxed);
+                    else
+                        WTF::atomicStore(&vm.mainVMLitePrimitives().m_exception, static_cast<Exception*>(nullptr), std::memory_order_relaxed);
+                }
+            }
+        }
 
         state->fnSlot.clear();
         state->argSlots.clear();
@@ -514,8 +576,18 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
         }
     }
 
+    // F1 reader shape cleanup (AB18-I review round; NOT credited as part of
+    // the AB18-I fix): take ONE acquire snapshot of Phase first and decide
+    // Failed from it, then read the result Strong. Phase transitions
+    // Running -> Finished|Failed exactly once under joinLock with result.set
+    // sequenced before the release-store, so the previous two-load form was
+    // observationally equivalent (coherence pins the second load to the same
+    // settled value); this is the textbook ordering plus a debug assert,
+    // nothing more.
+    ThreadState::Phase settledPhase = state.phase.load(std::memory_order_acquire);
+    ASSERT(settledPhase != ThreadState::Phase::Running);
     JSValue result = thread->result();
-    if (state.phase.load(std::memory_order_acquire) == ThreadState::Phase::Failed) {
+    if (settledPhase == ThreadState::Phase::Failed) {
         throwException(globalObject, scope, result);
         return { };
     }

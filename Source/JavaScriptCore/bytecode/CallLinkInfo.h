@@ -36,6 +36,7 @@
 #include "Options.h"
 #include "PolymorphicCallStubRoutine.h"
 #include "WriteBarrier.h"
+#include <wtf/Lock.h>
 #include <wtf/ScopedLambda.h>
 
 namespace JSC {
@@ -127,7 +128,24 @@ public:
     };
 
     static constexpr uintptr_t polymorphicCalleeMask = 1;
-    
+
+    // AB18-D / GIL-removal precondition 11 (docs/threads/INTEGRATE-jit.md):
+    // gilOff, ALL slow-path call-link transition writers — and every
+    // m_incomingCalls push/remove they perform — serialize on this single
+    // process-wide lock: linkMonomorphicCall / linkPolymorphicCall /
+    // linkDirectCall (bytecode/Repatch.cpp) and unlinkOrUpgradeImpl (both the
+    // CallLinkInfo and DirectCallLinkInfo flavors, which covers the upgrade
+    // relink push and the per-node work of the non-STW
+    // ScriptExecutable::installCode drain). ONE lock, not per-CodeBlock pairs:
+    // call linking is a rare slow path, and a single lock is deadlock-free by
+    // construction (no nesting, and holders never reach a safepoint poll).
+    // KNOWN RESIDUAL (outside this item's file set): the m_incomingCalls list
+    // HEAD rewrite in CodeBlock::unlinkOrUpgradeIncomingCalls' takeFrom
+    // (CodeBlock.cpp) is not yet under this lock and can still race a locked
+    // push on the same list. Static member: no layout change.
+    static Lock s_callLinkSerializationLock;
+
+
     static CallType NODELETE callTypeFor(OpcodeID opcodeID);
 
     static bool isVarargsCallType(CallType callType)

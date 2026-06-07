@@ -2199,7 +2199,29 @@ void SpeculativeJIT::compileLoopHint(Node* node)
                     DoesGCCheck check;
                     check.u.encoded = DoesGCCheck::encode(true, DoesGCCheck::Special::Uninitialized);
 #if USE(JSVALUE64)
-                    store64(TrustedImm64(check.u.encoded), vm().addressOfDoesGC());
+                    if (vm().gilOff()) [[unlikely]] {
+                        // UNGIL AB18-C: per-lite slot — see the per-node split
+                        // in SpeculativeJIT::compile (DFGSpeculativeJIT64.cpp)
+                        // for the scratch + two-imm32-store rationale (an
+                        // imm64 store through scratch-as-base is a wild store
+                        // on x86_64; this encoding fits imm32 today, but only
+                        // by encoding accident — keep the safe form). regT0
+                        // is pushToSave'd above and dead on this early-return
+                        // path, but the reserved temp keeps the clobber set
+                        // identical to the GIL-on absolute store.
+#if CPU(ARM64)
+                        GPRReg scratchGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+                        GPRReg scratchGPR = scratchRegister();
+#else
+                        // SPEC-jit annex App. R5: no gilOff support; loadVMLite fail-stops at emission.
+                        GPRReg scratchGPR = GPRInfo::nonArgGPR0;
+#endif
+                        loadVMLite(scratchGPR);
+                        store32(TrustedImm32(check.u.other), Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.other))));
+                        store32(TrustedImm32(check.u.nodeIndex), Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.nodeIndex))));
+                    } else
+                        store64(TrustedImm64(check.u.encoded), vm().addressOfDoesGC());
 #else
                     store32(TrustedImm32(check.u.other), &vm().addressOfDoesGC()->u.other);
                     store32(TrustedImm32(check.u.nodeIndex), &vm().addressOfDoesGC()->u.nodeIndex);

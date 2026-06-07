@@ -3144,12 +3144,26 @@ JSC_DEFINE_JIT_OPERATION(operationOptimize, UGPRPair, (VM* vmPointer, uint32_t b
         vm, JITCompilationKey(codeBlock, Options::forceUnlinkedDFG() ? JITCompilationMode::UnlinkedDFG : JITCompilationMode::DFG));
 
     if (worklistState == JITWorklist::Compiling) {
-        CODEBLOCK_LOG_EVENT(codeBlock, "delayOptimizeToDFG", ("compiling"));
-        // We cannot be in the process of asynchronous compilation and also have an optimized
-        // replacement.
-        RELEASE_ASSERT(!codeBlock->hasOptimizedReplacement());
-        codeBlock->setOptimizationThresholdBasedOnCompilationResult(CompilationResult::CompilationDeferred);
-        OPERATION_RETURN(scope, encodeResult(nullptr, nullptr));
+        // UNGIL §5.7.2 (AB18-B): GIL-off, "Compiling" is a stale snapshot. Between
+        // completeAllReadyPlansForVM() above and here, the concurrent compiler can finish the
+        // plan and another mutator's completeAllReadyPlansForVM() can complete it and install
+        // the DFG replacement for this same CodeBlock. The single-mutator invariant
+        // "Compiling implies no replacement" does not hold; if a replacement is already
+        // installed, treat this exactly like the Compiled state and fall through to the
+        // OSR-consideration paths below.
+        if (vm.gilOff() && codeBlock->hasOptimizedReplacement()) [[unlikely]] {
+            CODEBLOCK_LOG_EVENT(codeBlock, "delayOptimizeToDFG", ("compiling, but another mutator installed the replacement; treating as compiled"));
+            worklistState = JITWorklist::Compiled;
+        } else {
+            CODEBLOCK_LOG_EVENT(codeBlock, "delayOptimizeToDFG", ("compiling"));
+            // GIL-on: we cannot be in the process of asynchronous compilation and also have an
+            // optimized replacement. GIL-off the replacement can still appear in the window
+            // after the check above; setOptimizationThresholdBasedOnCompilationResult's
+            // Deferred-with-replacement tolerance (CodeBlock.cpp) absorbs that.
+            RELEASE_ASSERT(vm.gilOff() || !codeBlock->hasOptimizedReplacement());
+            codeBlock->setOptimizationThresholdBasedOnCompilationResult(CompilationResult::CompilationDeferred);
+            OPERATION_RETURN(scope, encodeResult(nullptr, nullptr));
+        }
     }
 
     if (worklistState == JITWorklist::Compiled) {

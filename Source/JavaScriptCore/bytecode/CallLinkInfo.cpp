@@ -87,6 +87,10 @@ void retireCallLinkRecord(VM& vm, CallLinkRecord* record)
 
 } // anonymous namespace
 
+// AB18-D: see the declaration in CallLinkInfo.h. Defined here so the
+// transition writers in this file and in bytecode/Repatch.cpp share one lock.
+Lock CallLinkInfo::s_callLinkSerializationLock;
+
 // SPEC-jit section 5.8 (F6): publish = fully initialize the new immutable
 // record, storeStoreFence, then ONE pointer store. Readers are JIT'd fast
 // paths that address-depend through the loaded record pointer (F2), so a
@@ -107,13 +111,19 @@ void retireCallLinkRecord(VM& vm, CallLinkRecord* record)
 // with the m_record swap made a CAS so a losing linker retires its OWN new
 // record) — recorded as GIL-removal precondition 11 in
 // docs/threads/INTEGRATE-jit.md and tripwired by gilRemovalPreconditionsMet().
+//
+// AB18-D: precondition 11 is now landed — the slow-path linkers serialize on
+// CallLinkInfo::s_callLinkSerializationLock (gilOff), and the m_record swap
+// below is an ATOMIC exchange so two racing publishes can never observe the
+// same oldRecord (no double-retire) even on a writer path the lock audit
+// missed. Each loser retires a distinct displaced record.
 void CallLinkInfo::publishRecord(VM& vm, uintptr_t comparand, CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer)
 {
     if (!Options::useJSThreads()) [[likely]]
         return;
     auto* record = new CallLinkRecord { comparand, target, codeBlockToTransfer };
     WTF::storeStoreFence();
-    auto* oldRecord = std::exchange(m_record, record);
+    auto* oldRecord = std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(record);
     retireCallLinkRecord(vm, oldRecord);
 }
 
@@ -127,7 +137,8 @@ void CallLinkInfo::clearRecord(VM& vm)
         ASSERT(!m_record);
         return;
     }
-    auto* oldRecord = std::exchange(m_record, nullptr);
+    // AB18-D: atomic for the same no-double-retire reason as publishRecord.
+    auto* oldRecord = std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(nullptr);
     retireCallLinkRecord(vm, oldRecord);
 }
 
@@ -200,6 +211,19 @@ void CallLinkInfo::clearStub()
 
 void CallLinkInfo::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock)
 {
+    // AB18-D: this runs on a LIVE mutator via the tier-up install path
+    // (ScriptExecutable::installCode -> CodeBlock::unlinkOrUpgradeIncomingCalls
+    // per-node drain) — only jettison is STW. The remove(), the upgrade-arm
+    // mirror rewrite + publishRecord, and the relink push below must therefore
+    // serialize against the Repatch.cpp linkers on the one link lock
+    // (precondition 11). Safe to take here: no caller of unlinkOrUpgradeImpl
+    // already holds it (the locked linkers never unlink), and GC/STW callers
+    // (visitWeak, jettison) take it uncontended because lock holders never
+    // park at a safepoint.
+    std::optional<Locker<Lock>> gilOffLocker;
+    if (vm.gilOff()) [[unlikely]]
+        gilOffLocker.emplace(s_callLinkSerializationLock);
+
     // We could be called even if we're not linked anymore because of how polymorphic calls
     // work. Each callsite within the polymorphic call stub may separately ask us to unlink().
     if (isOnList())
@@ -246,9 +270,30 @@ void CallLinkInfo::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, CodeBloc
 void CallLinkInfo::setMonomorphicCallee(VM& vm, JSCell* owner, JSObject* callee, CodeBlock* codeBlock, CodePtr<JSEntryPtrTag> codePtr)
 {
     RELEASE_ASSERT(!(std::bit_cast<uintptr_t>(callee) & polymorphicCalleeMask));
-    m_callee.set(vm, owner, callee);
-    m_codeBlock = codeBlock;
-    m_monomorphicCallDestination = codePtr;
+    if (Options::useJSThreads()) [[unlikely]] {
+        // AB18-D (amended per review): the LLInt data-IC fast path is NOT yet
+        // routed through m_record — it reads the mirror fields lock-free
+        // (LowLevelInterpreter64.asm callHelper: load m_callee, compare, load
+        // m_codeBlock, load m_monomorphicCallDestination). So the payload
+        // (codeBlock, destination) must be visible BEFORE the comparand can
+        // match, or a racing reader matches the callee and jumps a still-null
+        // destination (pc==0). Comparand store last, behind a
+        // storeStoreFence. Gated so the flag-off store order is untouched;
+        // under the GIL (single mutator) the order is invisible.
+        // KNOWN RESIDUAL: writer-side ordering only — sufficient on TSO
+        // (x86-64); a weak-memory (ARM64) reader has no loadLoad/address
+        // dependency on this LLInt path. The complete fix is rerouting the
+        // LLInt fast path through the published record (SPEC-jit 5.8 F2),
+        // an llint/ change outside this item's file set.
+        m_codeBlock = codeBlock;
+        m_monomorphicCallDestination = codePtr;
+        WTF::storeStoreFence();
+        m_callee.set(vm, owner, callee);
+    } else {
+        m_callee.set(vm, owner, callee);
+        m_codeBlock = codeBlock;
+        m_monomorphicCallDestination = codePtr;
+    }
     // SPEC-jit section 5.8: monomorphic link publishes the record the flag-on
     // fast path dispatches on; the fields above remain the GC mirror.
     publishRecord(vm, std::bit_cast<uintptr_t>(callee), codePtr, codeBlock);
@@ -257,6 +302,22 @@ void CallLinkInfo::setMonomorphicCallee(VM& vm, JSCell* owner, JSObject* callee,
 
 void CallLinkInfo::clearCallee()
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        // AB18-D (amended per review; same shape as clearStub's flag-on rule):
+        // unpublish ONLY the comparand. A lock-free LLInt mirror reader that
+        // matched the old callee just before this clear must still load a
+        // CONSISTENT (codeBlock, destination) pair for that callee — nulling
+        // either field hands it a torn pair: a null entrypoint (pc==0), or a
+        // null CodeBlock transferred into the callee frame next to a live
+        // entrypoint (callee-prologue crash). Once the comparand is cleared no
+        // new reader matches, so the stale pair is reachable only through the
+        // stale match, for which it is correct; the next link rewrites both
+        // fields payload-first (see setMonomorphicCallee). The stale
+        // m_codeBlock is never dereferenced without a comparand match, and
+        // mode() is no longer Monomorphic so GC/unlink paths ignore it.
+        m_callee.clear();
+        return;
+    }
     m_callee.clear();
     m_codeBlock = nullptr;
     m_monomorphicCallDestination = nullptr;
@@ -342,6 +403,17 @@ void CallLinkInfo::revertCallToStub()
     // what in all likelihood fits in 24. So we just splat out the first instruction. Long term, we
     // need something cleaner. But this works on arm64 for now.
 
+    if (Options::useJSThreads()) [[unlikely]] {
+        // AB18-D: same rule as clearCallee. In Polymorphic mode the published
+        // comparand is the always-call mask; clearing m_callee (slot -> 0)
+        // unpublishes it, after which no reader takes .goPolymorphic here. A
+        // reader that already matched the mask must still find the stub
+        // entrypoint in m_monomorphicCallDestination — never null it while
+        // mutators run. The stub routine stays alive (clearStub's flag-on
+        // keep-published rule), so the stale entrypoint remains valid.
+        m_callee.clear();
+        return;
+    }
     m_callee.clear();
     m_codeBlock = nullptr;
     m_monomorphicCallDestination = nullptr;
@@ -397,10 +469,23 @@ void CallLinkInfo::revertCall(VM& vm)
 void CallLinkInfo::setVirtualCall(VM& vm)
 {
     reset(vm);
-    m_callee.clear();
-    *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
-    m_codeBlock = nullptr; // PolymorphicCallStubRoutine will set CodeBlock inside it.
-    m_monomorphicCallDestination = vm.getCTIVirtualCall(callMode()).code().template retagged<JSEntryPtrTag>();
+    if (Options::useJSThreads()) [[unlikely]] {
+        // AB18-D publication order (cf. setMonomorphicCallee): the always-call
+        // mask comparand makes ANY callee match in the LLInt mirror reader, so
+        // the payload must be in place before the mask is stored — otherwise a
+        // racing reader pairs the mask with the previous (or cleared)
+        // destination/codeBlock and dispatches the wrong target.
+        m_codeBlock = nullptr; // PolymorphicCallStubRoutine will set CodeBlock inside it.
+        m_monomorphicCallDestination = vm.getCTIVirtualCall(callMode()).code().template retagged<JSEntryPtrTag>();
+        WTF::storeStoreFence();
+        m_callee.clear();
+        *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
+    } else {
+        m_callee.clear();
+        *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
+        m_codeBlock = nullptr; // PolymorphicCallStubRoutine will set CodeBlock inside it.
+        m_monomorphicCallDestination = vm.getCTIVirtualCall(callMode()).code().template retagged<JSEntryPtrTag>();
+    }
 
     // SPEC-jit section 5.8: sentinel comparand (bit 0 set) = always-call; the
     // virtual-call thunk dispatches on the callee itself. codeBlockToTransfer
@@ -447,10 +532,20 @@ void CallLinkInfo::setStub(VM& vm, Ref<PolymorphicCallStubRoutine>&& newStub)
     } else
         m_stub = WTF::move(newStub);
 
-    m_callee.clear();
-    *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
-    m_codeBlock = nullptr; // PolymorphicCallStubRoutine will set CodeBlock inside it.
-    m_monomorphicCallDestination = m_stub->code().code().retagged<JSEntryPtrTag>();
+    if (Options::useJSThreads()) [[unlikely]] {
+        // AB18-D publication order (cf. setVirtualCall): payload before the
+        // always-call mask comparand, for the lock-free LLInt mirror reader.
+        m_codeBlock = nullptr; // PolymorphicCallStubRoutine will set CodeBlock inside it.
+        m_monomorphicCallDestination = m_stub->code().code().retagged<JSEntryPtrTag>();
+        WTF::storeStoreFence();
+        m_callee.clear();
+        *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
+    } else {
+        m_callee.clear();
+        *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
+        m_codeBlock = nullptr; // PolymorphicCallStubRoutine will set CodeBlock inside it.
+        m_monomorphicCallDestination = m_stub->code().code().retagged<JSEntryPtrTag>();
+    }
 
     // SPEC-jit section 5.8: publish an always-call record targeting the
     // polymorphic stub. The routine is GC-aware and ref'd by this owner
@@ -635,7 +730,9 @@ void DirectCallLinkInfo::publishRecord(CodePtr<JSEntryPtrTag> target, CodeBlock*
     ASSERT(isDataIC()); // I3: flag-on, all DirectCallLinkInfos are data ICs.
     auto* record = new CallLinkRecord { 0, target, codeBlockToTransfer };
     WTF::storeStoreFence();
-    auto* oldRecord = std::exchange(m_record, record);
+    // AB18-D: atomic swap — same no-double-retire rule as
+    // CallLinkInfo::publishRecord (precondition 11).
+    auto* oldRecord = std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(record);
     retireRecord(oldRecord);
 }
 
@@ -645,7 +742,8 @@ void DirectCallLinkInfo::clearRecord()
         ASSERT(!m_record);
         return;
     }
-    retireRecord(std::exchange(m_record, nullptr));
+    // AB18-D: atomic for the same no-double-retire reason as publishRecord.
+    retireRecord(std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(nullptr));
 }
 
 void DirectCallLinkInfo::retireRecord(CallLinkRecord* record)
@@ -676,8 +774,15 @@ void DirectCallLinkInfo::reset()
     m_codeBlock = nullptr;
 }
 
-void DirectCallLinkInfo::unlinkOrUpgradeImpl(VM&, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock)
+void DirectCallLinkInfo::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock)
 {
+    // AB18-D: same serialization as CallLinkInfo::unlinkOrUpgradeImpl — this
+    // runs on a live mutator via the tier-up install drain, and the remove()/
+    // relink push below must not race the Repatch.cpp linkers.
+    std::optional<Locker<Lock>> gilOffLocker;
+    if (vm.gilOff()) [[unlikely]]
+        gilOffLocker.emplace(CallLinkInfo::s_callLinkSerializationLock);
+
     if (isOnList())
         remove();
 

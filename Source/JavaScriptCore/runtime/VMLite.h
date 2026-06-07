@@ -41,6 +41,7 @@
 // per-thread VMThreadContext/VMTraps land per §6.8. The layout below is the
 // ABI Phase B consumes; freeze rules L1-L5 (§6.3) apply.
 
+#include "DFGDoesGCCheck.h" // AB18-C per-lite DoesGC validation word (only forward-declares VM — no cycle with the "must not include VM.h" rule below).
 #include "Interpreter.h" // JSOrWasmInstruction (interpreter/Interpreter.h:61); brings JSCJSValue.h (EncodedJSValue).
 #include "JSExportMacros.h"
 #include "VMExceptionScopeVerificationState.h" // Obligation 10: per-lite EXCEPTION_SCOPE_VERIFICATION state (debug-only L2 tail append below).
@@ -322,6 +323,26 @@ public:
     // flag-off / second-VM U0b: this copy stays untouched (VM member is
     // authoritative).
     VMExceptionScopeVerificationState exceptionScopeVerificationState;
+#endif
+
+#if ENABLE(DFG_DOES_GC_VALIDATION)
+    // ---- UNGIL AB18-C (L2 tail append AFTER exceptionScopeVerificationState
+    // — nothing above moves). Per-mutator DoesGC validation word: GIL-off,
+    // every DFG/FTL setDoesGCExpectation store and every verifyCanGC read
+    // targets the CURRENT thread's slot (VM::doesGCCheckSlot() mode split;
+    // emission: loadVMLite -> offsetOfDoesGC()). Default-constructs to
+    // encode(true, Special::Uninitialized) (DoesGCCheck ctor), so a fresh
+    // lite trivially passes until its first DFG/FTL store. Owner-thread-only
+    // (written and read by the installing thread only), so plain stores —
+    // including the emission-side two-store32 pair form — need no atomicity.
+    // NOT part of the frozen VMLitePrimitives ABI. GIL-on / flag-off /
+    // second-VM U0b: untouched (VM::m_doesGC is authoritative).
+    DFG::DoesGCCheck doesGC;
+    static constexpr ptrdiff_t offsetOfDoesGC() { return OBJECT_OFFSETOF(VMLite, doesGC); }
+#else
+    // Stub mirrors VM::addressOfDoesGC()'s !ENABLE arm so `if constexpr
+    // (validateDFGDoesGC)` emission splits type-check in all configurations.
+    static ptrdiff_t offsetOfDoesGC() { UNREACHABLE_FOR_PLATFORM(); return 0; }
 #endif
 
     static constexpr ptrdiff_t offsetOfPrimitives() { return OBJECT_OFFSETOF(VMLite, primitives); }

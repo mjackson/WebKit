@@ -3280,7 +3280,38 @@ void SpeculativeJIT::compile(Node* node)
     if constexpr (validateDFGDoesGC) {
         if (Options::validateDoesGC()) {
             bool expectDoesGC = doesGC(m_graph, node);
-            store64(TrustedImm64(DoesGCCheck::encode(expectDoesGC, node->index(), node->op())), vm().addressOfDoesGC());
+            if (vm().gilOff()) [[unlikely]] {
+                // UNGIL AB18-C: this code is cached on a shared CodeBlock and
+                // runs on whichever thread executes it — resolve the CURRENT
+                // thread's lite per use (§A.1.2) and write its doesGC slot.
+                // Scratch discipline: the per-arch reserved macro-assembler
+                // temp, the same register set the GIL-on absolute store64
+                // already clobbers (prepareCallOperation idiom), so no node's
+                // register-allocation assumptions change.
+#if CPU(ARM64)
+                // Cache-invalidating accessor: see AssemblyHelpers::prepareCallOperation.
+                GPRReg scratchGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+                GPRReg scratchGPR = scratchRegister(); // r11, already clobbered by the GIL-on absolute store.
+#else
+                // SPEC-jit annex App. R5: no gilOff support on this platform;
+                // loadVMLite fail-stops at emission before the stores are reached.
+                GPRReg scratchGPR = GPRInfo::nonArgGPR0;
+#endif
+                loadVMLite(scratchGPR);
+                // Two imm32 stores, NOT store64(TrustedImm64, Address(scratchGPR)):
+                // on x86_64 a non-sign-extendable imm64 (nodeIndex lives in the
+                // high 32 bits, so that is almost every node) is materialized
+                // THROUGH scratchRegister(), clobbering the lite base — a wild
+                // store. imm32-to-mem needs no scratch on x86_64, and on ARM64
+                // the immediate goes through the data temp, not the base.
+                // Tearing is immaterial: the slot is owner-thread-only.
+                DoesGCCheck check;
+                check.u.encoded = DoesGCCheck::encode(expectDoesGC, node->index(), node->op());
+                store32(TrustedImm32(check.u.other), Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.other))));
+                store32(TrustedImm32(check.u.nodeIndex), Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfDoesGC() + OBJECT_OFFSETOF(DoesGCCheck, u.nodeIndex))));
+            } else
+                store64(TrustedImm64(DoesGCCheck::encode(expectDoesGC, node->index(), node->op())), vm().addressOfDoesGC());
         }
     }
 

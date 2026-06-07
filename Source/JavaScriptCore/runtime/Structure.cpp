@@ -642,8 +642,27 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
 {
     ASSERT(!structure->isDictionary());
     ASSERT(structure->isObject());
-    ASSERT(!Structure::addPropertyTransitionToExistingStructure(structure, propertyName, attributes, offset));
-    
+    // SPEC-objectmodel L6/I37 (Task 3c): flag-on, the caller's existing-transition
+    // lookup (addPropertyTransition / putDirectInternal) and this call are not one
+    // atomic step -- a racing mutator can publish the identical (uid, attributes,
+    // PropertyAddition) transition between the caller's locked miss and here. Re-check
+    // under the source's m_lock and adopt the winner (its transitionOffset is
+    // authoritative) instead of asserting; this also skips the doomed Structure
+    // allocation. The locked dual-check before m_transitionTable.add() below remains
+    // the correctness guard for the window between this recheck and the insert.
+    // Note: placing the recheck before shouldDoCacheableDictionaryTransitionForAdd
+    // means a loser whose context would have chosen a cacheable-dictionary transition
+    // adopts the winner's PropertyAddition instead -- flag-on-only heuristic
+    // divergence, intentionally accepted.
+    // Flag-off: today's debug assert, bit-identical behavior (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        if (Structure* existing = addPropertyTransitionToExistingStructureConcurrently(structure, propertyName.uid(), attributes, offset)) {
+            existing->checkOffsetConsistency();
+            return existing;
+        }
+    } else
+        ASSERT(!Structure::addPropertyTransitionToExistingStructure(structure, propertyName, attributes, offset));
+
     if (structure->shouldDoCacheableDictionaryTransitionForAdd(context)) {
         ASSERT(!isCopyOnWrite(structure->indexingMode()));
         Structure* transition = toCacheableDictionaryTransition(vm, structure, deferred);

@@ -96,16 +96,22 @@ bool SparseArrayValueMap::putEntry(JSGlobalObject* globalObject, JSObject* array
     ASSERT(value);
     
     AddResult result = add(array, i);
-    SparseArrayEntry& entry = result.iterator->value;
 
     // To save a separate find & add, we first always add to the sparse map.
     // In the uncommon case that this is a new property, and the array is not
     // extensible, this is not the right thing to have done - so remove again.
     if (result.isNewEntry && !array->isStructureExtensible()) {
-        remove(result.iterator);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // AB18-G: result.iterator was minted inside add()'s critical
+            // section; a racing add() can rehash m_map after add() drops the
+            // cell lock, leaving it pointing into a freed table. Remove by
+            // key, which re-probes under the lock.
+            remove(i);
+        } else
+            remove(result.iterator);
         return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
     }
-    
+
     if (Options::useJSThreads()) [[unlikely]] {
         // objectmodel round 4 (§61): `entry` dangles if a racing add()
         // rehashes m_map after add()'s internal lock released. Re-find under
@@ -133,6 +139,10 @@ bool SparseArrayValueMap::putEntry(JSGlobalObject* globalObject, JSObject* array
         }
         RELEASE_AND_RETURN(scope, uncheckedDowncast<GetterSetter>(getterSetter)->callSetter(globalObject, array, value, shouldThrow));
     }
+    // AB18-G: GIL-on only — the iterator deref is hoisted below the mode
+    // split so no stale-able iterator use precedes it; safe with a single
+    // mutator.
+    SparseArrayEntry& entry = result.iterator->value;
     RELEASE_AND_RETURN(scope, entry.put(globalObject, array, this, value, shouldThrow));
 }
 
@@ -145,13 +155,17 @@ bool SparseArrayValueMap::putDirect(JSGlobalObject* globalObject, JSObject* arra
     bool shouldThrow = (mode == PutDirectIndexShouldThrow);
 
     AddResult result = add(array, i);
-    SparseArrayEntry& entry = result.iterator->value;
 
     // To save a separate find & add, we first always add to the sparse map.
     // In the uncommon case that this is a new property, and the array is not
     // extensible, this is not the right thing to have done - so remove again.
     if (mode != PutDirectIndexLikePutDirect && result.isNewEntry && !array->isStructureExtensible()) {
-        remove(result.iterator);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // AB18-G: see putEntry — result.iterator may dangle after a
+            // racing rehash; remove by key under the lock.
+            remove(i);
+        } else
+            remove(result.iterator);
         return typeError(globalObject, scope, shouldThrow, NonExtensibleObjectPropertyDefineError);
     }
 
@@ -166,6 +180,8 @@ bool SparseArrayValueMap::putDirect(JSGlobalObject* globalObject, JSObject* arra
         lockedEntry.forceSet(vm, this, value, attributes); // no JS, no GC allocation - lockable
         return true;
     }
+    // AB18-G: GIL-on only — iterator deref hoisted below the mode split (see putEntry).
+    SparseArrayEntry& entry = result.iterator->value;
     if (entry.attributes() & PropertyAttribute::ReadOnly)
         return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
 
@@ -180,6 +196,15 @@ JSValue SparseArrayValueMap::getConcurrently(unsigned i)
     if (iterator == m_map.end())
         return JSValue();
     return iterator->value.getConcurrently();
+}
+
+std::optional<SparseArrayEntry> SparseArrayValueMap::getEntry(unsigned i)
+{
+    Locker locker { cellLock() };
+    auto it = m_map.find(i);
+    if (it == m_map.end())
+        return std::nullopt;
+    return it->value;
 }
 
 void SparseArrayEntry::get(JSObject* thisObject, PropertySlot& slot) const
