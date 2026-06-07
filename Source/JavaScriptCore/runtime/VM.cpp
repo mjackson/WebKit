@@ -269,6 +269,12 @@ extern "C" thread_local VMLite* g_jscCurrentVMLite = nullptr;
 
 MicrotaskQueue& VM::defaultMicrotaskQueue() { return m_defaultMicrotaskQueue.get(); }
 
+#if ENABLE(GC_VALIDATION)
+// Per-thread (see the VM.h declaration comment): GIL-off N mutators share a
+// VM, and an object initialization is one thread's stack property.
+thread_local const ClassInfo* VM::s_initializingObjectClass { nullptr };
+#endif
+
 // UNGIL §F.2 (U-T8): defined in JSLock.cpp (the token machinery's home);
 // same-library linkage, deliberately not declared in any header — the
 // predicate split is an implementation detail of the two functions below.

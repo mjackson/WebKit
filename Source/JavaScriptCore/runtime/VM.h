@@ -1558,7 +1558,15 @@ private:
     void didExhaustMicrotaskQueue();
 
 #if ENABLE(GC_VALIDATION)
-    const ClassInfo* m_initializingObjectClass { nullptr };
+    // UNGIL (AB-17 verification-rung fix): an object initialization is a
+    // property of ONE thread's stack, and GIL-off N mutators share this VM —
+    // a per-VM slot false-positives the tryAllocateCellHelper
+    // !isInitializingObject() assertion (thread A mid-FunctionCodeBlock
+    // finishCreation while thread B allocates). Thread-local keeps the
+    // validation exact in both shapes; GIL-on/flag-off has one mutator per
+    // VM at a time, so behavior is unchanged (a thread initializes at most
+    // one object at a time regardless of which VM it is entered in).
+    static thread_local const ClassInfo* s_initializingObjectClass;
 #endif
 
     // SPEC-vmstate §6.4(1)/M6: m_stackPointerAtVMEntry / m_stackLimit /
@@ -1749,17 +1757,17 @@ static_assert(OBJECT_OFFSETOF(VM, m_lastStackTop) - OBJECT_OFFSETOF(VM, topCallF
 #if ENABLE(GC_VALIDATION)
 inline const ClassInfo* VM::initializingObjectClass() const
 {
-    return m_initializingObjectClass;
+    return s_initializingObjectClass;
 }
 
 inline bool VM::isInitializingObject() const
 {
-    return !!m_initializingObjectClass;
+    return !!s_initializingObjectClass;
 }
 
 inline void VM::setInitializingObjectClass(const ClassInfo* initializingObjectClass)
 {
-    m_initializingObjectClass = initializingObjectClass;
+    s_initializingObjectClass = initializingObjectClass;
 }
 #endif
 
