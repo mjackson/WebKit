@@ -2113,3 +2113,48 @@ shared-arraystorage-stress oracle restoration) are ledgered in
 docs/threads/INTEGRATE-ungil.md, section "AB17e", items 2, 3 and 6. The F3
 family gate is OPEN pending 6/6 named tests at 5/5 GIL-off full JIT with the
 restored exact-equality oracle.
+
+## AB18-S2 landing record (sig-2: i03-n3-first-install-races flake)
+
+Root cause of the ~1/20 GIL-off flake in
+JSTests/threads/objectmodel/i03-n3-first-install-races.js (always "lost
+first-install add t0/k ... got undefined", key ABSENT from the final
+structure, all threads completed): a STALE-PARENT transition publication in
+the §4.2 conversion, NOT the N3 indexed leg the round brief pointed at (the
+indexed half of the test runs clean standalone, 0/150 amplified; the lost
+adds are all in the NAMED-add half).
+
+Interleaving (amplified evidence in the AB18-S2 round: immediate read-back
+of the lost key already returns undefined; the final Object.keys lineage
+contains every other thread's adds interleaved around the hole):
+
+  1. owner thread t0 (instance tag (t0,0)) publishes S -> S_a (+p_t0) via a
+     locked or E4 transition; the structureID lane now holds S_a.
+  2. foreign thread t1 entered trySegmentedTransition(S, S_b=S+p_t1) BEFORE
+     step 1 settled: its entry check (structureID == S) passed, the TTL sets
+     of the cached cross-round structures are already chain-fired (F4), so
+     step 0 fires nothing, and the §3 dispatch routes the flat foreign word
+     to convertToSegmentedButterfly(S_b, offset, value).
+  3. convertToSegmentedButterfly captured sourceID = structureID() at ITS
+     OWN entry - which is now S_a, not S. Every later validation (step-3
+     re-read under the cell lock) and the nuke-CAS check S_a - they all
+     PASS - and the DCAS publishes newStructure = S_b, whose lineage is
+     derived from S and LACKS p_t0. t0's add is silently erased (I21
+     violation) even though t0's put already returned success.
+
+The §4.2 contract ("RESTART: the structure changed before/under the lock")
+was implemented against the WRONG baseline for transition triggers: the
+conversion validated against whatever structure was current at its own
+entry instead of the structure the published target was derived from.
+
+Fix: convertToSegmentedButterfly now takes expectedSourceOrNull; a
+transition trigger (newStructureOrNull != nullptr) RESTARTs (nullptr) unless
+the object's structureID still equals the source the target was derived
+from, and the unchanged step-3/nuke-CAS checks against that same sourceID
+carry the property through publication. In-place (nullptr-structure)
+callers pass nullptr and are unaffected. Sole transition-trigger call site:
+trySegmentedTransition's §3 dispatch (passes its expectedSource). The
+sibling protocols were audited and already carry the derived-from ID through
+their CASes (trySegmentedTransition itself, tryStructureOnlyTransition, the
+E4 lock-free leg, createInitialIndexedStorageConcurrent,
+createArrayStorageConcurrent).

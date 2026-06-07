@@ -88,7 +88,7 @@ void repatchCheckPrivateBrand(JSGlobalObject*, CodeBlock*, JSObject*, CacheableI
 void repatchSetPrivateBrand(JSGlobalObject*, CodeBlock*, JSObject*, Structure*, CacheableIdentifier, PropertyInlineCache&);
 void repatchInstanceOf(JSGlobalObject*, CodeBlock*, JSValue, JSValue prototype, PropertyInlineCache&, bool wasFound);
 void linkMonomorphicCall(VM&, JSCell*, CallLinkInfo&, CodeBlock*, JSObject* callee, CodePtr<JSEntryPtrTag>);
-void linkDirectCall(DirectCallLinkInfo&, CodeBlock*, CodePtr<JSEntryPtrTag>);
+void linkDirectCall(VM&, DirectCallLinkInfo&, CodeBlock*, CodePtr<JSEntryPtrTag>);
 void linkPolymorphicCall(VM&, JSCell*, CallFrame*, CallLinkInfo&, CallVariant);
 void resetGetBy(CodeBlock*, PropertyInlineCache&, GetByKind);
 void resetPutBy(CodeBlock*, PropertyInlineCache&, PutByKind);

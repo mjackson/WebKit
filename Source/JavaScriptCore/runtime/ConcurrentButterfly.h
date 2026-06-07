@@ -445,7 +445,20 @@ class VM;
 // caller must re-enter the WHOLE operation from §2 dispatch on the fresh
 // tag + structureID (fresh target, fresh F1/F2 checks, fresh allocation),
 // lock-free at restart.
-JS_EXPORT_PRIVATE ButterflySpine* convertToSegmentedButterfly(VM&, JSObjectWithButterfly*, Structure* newStructureOrNull, PropertyOffset, JSValue);
+//
+// AB18-S2 stale-parent guard (I21): when the trigger is a transition
+// (newStructureOrNull != nullptr), the caller MUST pass the source structure
+// it derived the target from as expectedSourceOrNull. The conversion
+// publishes newStructureOrNull only while the object's structureID still
+// equals that source (checked at entry and re-checked under the cell lock by
+// the same sourceID the nuke-CAS expects). Without it, a racing transition
+// that publishes between the caller's own source check and this function's
+// structureID capture would be silently ERASED: the conversion would
+// validate against the racer's fresh structure but publish a target derived
+// from the stale parent - a lost property add. The in-place form
+// (newStructureOrNull == nullptr) preserves whatever structure is current,
+// so it passes nullptr.
+JS_EXPORT_PRIVATE ButterflySpine* convertToSegmentedButterfly(VM&, JSObjectWithButterfly*, Structure* expectedSourceOrNull, Structure* newStructureOrNull, PropertyOffset, JSValue);
 
 // ===== §4.4 array transitions (Task 8; defined in ConcurrentButterfly.cpp) =====
 //

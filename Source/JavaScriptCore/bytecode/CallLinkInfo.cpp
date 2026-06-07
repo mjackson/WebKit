@@ -775,7 +775,7 @@ void OptimizingCallLinkInfo::initializeFromDFGUnlinkedCallLinkInfo(VM&, const DF
 // the comparand is left 0. The legacy m_target/m_codeBlock mirrors remain the
 // GC-visible state. Same R3-3 writer-writer caveat as publishRecord above:
 // GIL-removal precondition 11 (docs/threads/INTEGRATE-jit.md).
-void DirectCallLinkInfo::publishRecord(CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer)
+void DirectCallLinkInfo::publishRecord(VM& vm, CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer)
 {
     if (!Options::useJSThreads()) [[likely]]
         return;
@@ -785,37 +785,41 @@ void DirectCallLinkInfo::publishRecord(CodePtr<JSEntryPtrTag> target, CodeBlock*
     // AB18-D: atomic swap — same no-double-retire rule as
     // CallLinkInfo::publishRecord (precondition 11).
     auto* oldRecord = std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(record);
-    retireRecord(oldRecord);
+    retireRecord(vm, oldRecord);
 }
 
-void DirectCallLinkInfo::clearRecord()
+void DirectCallLinkInfo::clearRecord(VM& vm)
 {
     if (!Options::useJSThreads()) [[likely]] {
         ASSERT(!m_record);
         return;
     }
     // AB18-D: atomic for the same no-double-retire reason as publishRecord.
-    retireRecord(std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(nullptr));
+    retireRecord(vm, std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(nullptr));
 }
 
-void DirectCallLinkInfo::retireRecord(CallLinkRecord* record)
+void DirectCallLinkInfo::retireRecord(VM& vm, CallLinkRecord* record)
 {
     if (!record)
         return;
-    // Direct calls always have an owner CodeBlock (DFG/FTL pass
-    // graph.m_codeBlock at construction); reach its VM for the epoch facility
-    // (section 4.4; R4-2 — RetiredJITArtifacts resolves the epoch heap, the
-    // client's SERVER under useSharedGCHeap, from the VM internally).
-    ASSERT(m_owner);
-    retireCallLinkRecord(m_owner->vm(), record);
+    // AB18-E (UAF fix): the VM comes from the caller — the retiring mutator's
+    // VM (section 4.4; R4-2 — RetiredJITArtifacts resolves the epoch heap, the
+    // client's SERVER under useSharedGCHeap, from the VM internally). It must
+    // NOT be derived as m_owner->vm(): the retireOptimizedJITCode leak keeps
+    // this node alive (and validly on callees' m_incomingCalls lists) past its
+    // owner CodeBlock's death, so a drain (unlinkOrUpgradeIncomingCalls under
+    // a jettison stop) can reach here with m_owner a swept cell whose
+    // MarkedBlock is already freed — m_owner->vm() was a use-after-free
+    // (JSTests/threads/jit/ic-publish-reset-loops.js).
+    retireCallLinkRecord(vm, record);
 }
 
-void DirectCallLinkInfo::reset()
+void DirectCallLinkInfo::reset(VM& vm)
 {
     // SPEC-jit section 5.8: unlink the record first (single nullptr store) so
     // the flag-on fast path takes its slow path before the mirrors are
     // cleared.
-    clearRecord();
+    clearRecord(vm);
     if (isOnList())
         remove();
 #if ENABLE(JIT)
@@ -842,12 +846,12 @@ void DirectCallLinkInfo::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, Co
         if (m_codeBlock && newCodeBlock && oldCodeBlock == m_codeBlock) {
             ArityCheckMode arityCheck = oldCodeBlock->jitCode()->addressForCall(ArityCheckMode::ArityCheckNotRequired) == m_target ? ArityCheckMode::ArityCheckNotRequired : ArityCheckMode::MustCheckArity;
             auto target = newCodeBlock->jitCode()->addressForCall(arityCheck);
-            setCallTarget(newCodeBlock, CodeLocationLabel { target });
+            setCallTarget(vm, newCodeBlock, CodeLocationLabel { target });
             newCodeBlock->linkIncomingCall(nullptr, this); // This is just relinking. So owner and caller frame can be nullptr.
             return;
         }
         dataLogLnIf(Options::dumpDisassembly(), "Unlinking CallLinkInfo: ", RawPointer(this));
-        reset();
+        reset(vm);
     }
 
     // Either we were unlinked, in which case we should not have been on any list, or we unlinked
@@ -971,7 +975,7 @@ void DirectCallLinkInfo::initialize()
         MacroAssembler::repatchNearCall(m_callLocation, slowPathStart());
 }
 
-void DirectCallLinkInfo::setCallTarget(CodeBlock* codeBlock, CodeLocationLabel<JSEntryPtrTag> target)
+void DirectCallLinkInfo::setCallTarget(VM& vm, CodeBlock* codeBlock, CodeLocationLabel<JSEntryPtrTag> target)
 {
     m_codeBlock = codeBlock;
     m_target = target;
@@ -979,7 +983,7 @@ void DirectCallLinkInfo::setCallTarget(CodeBlock* codeBlock, CodeLocationLabel<J
     // SPEC-jit section 5.8: publish the new direct record (F6). Relinking to a
     // different CodeBlock (unlinkOrUpgradeImpl) replaces the record; a stale
     // reader completes through the old record's still-valid entrypoint.
-    publishRecord(target, codeBlock);
+    publishRecord(vm, target, codeBlock);
 
     if (!isDataIC()) {
         // SPEC-jit I2/I3 (section 5.8 DirectCall): this branch patches machine
@@ -1033,6 +1037,9 @@ void DirectCallLinkInfo::repatchSpeculatively()
     // thread, G10) is forbidden with shared-memory threads enabled; flag-on,
     // direct calls are data ICs and never reach this late-link task.
     RELEASE_ASSERT(!Options::useJSThreads());
+    // Flag-off only: publishRecord is a no-op, so this VM is unused by the
+    // record path; m_executable is held alive by the compilation plan.
+    VM& vm = m_executable->vm();
 
     if (m_executable->isHostFunction()) {
         CodeSpecializationKind kind = specializationKind();
@@ -1042,7 +1049,7 @@ void DirectCallLinkInfo::repatchSpeculatively()
         else
             codePtr = m_executable->generatedJITCodeWithArityCheckForConstruct();
         if (codePtr)
-            setCallTarget(nullptr, CodeLocationLabel { codePtr });
+            setCallTarget(vm, nullptr, CodeLocationLabel { codePtr });
         else
             initialize();
         return;
@@ -1061,7 +1068,7 @@ void DirectCallLinkInfo::repatchSpeculatively()
             m_codeBlock = codeBlock;
             m_target = codePtr;
             // Do not chain |this| to the calle codeBlock concurrently. It will be done in the main thread if the speculatively repatched one is still valid.
-            setCallTarget(codeBlock, CodeLocationLabel { codePtr });
+            setCallTarget(vm, codeBlock, CodeLocationLabel { codePtr });
             return;
         }
     }
@@ -1069,7 +1076,7 @@ void DirectCallLinkInfo::repatchSpeculatively()
     initialize();
 }
 
-void DirectCallLinkInfo::validateSpeculativeRepatchOnMainThread(VM&)
+void DirectCallLinkInfo::validateSpeculativeRepatchOnMainThread(VM& vm)
 {
     constexpr bool verbose = false;
     FunctionExecutable* functionExecutable = dynamicDowncast<FunctionExecutable>(m_executable);
@@ -1083,9 +1090,9 @@ void DirectCallLinkInfo::validateSpeculativeRepatchOnMainThread(VM&)
 
     if (m_codeBlock != codeBlock || m_target != codePtr) {
         if (codeBlock && codePtr)
-            setCallTarget(codeBlock, CodeLocationLabel { codePtr });
+            setCallTarget(vm, codeBlock, CodeLocationLabel { codePtr });
         else
-            reset();
+            reset(vm);
     } else
         dataLogLnIf(verbose, "Speculative repatching succeeded ", RawPointer(m_codeBlock), " ", m_target);
 

@@ -530,11 +530,11 @@ public:
 
     MacroAssembler::JumpList emitDirectFastPath(CCallHelpers&);
     MacroAssembler::JumpList emitDirectTailCallFastPath(CCallHelpers&, ScopedLambda<void()>&& prepareForTailCall);
-    void setCallTarget(CodeBlock*, CodeLocationLabel<JSEntryPtrTag>);
+    void setCallTarget(VM&, CodeBlock*, CodeLocationLabel<JSEntryPtrTag>);
     void NODELETE setMaxArgumentCountIncludingThis(unsigned);
     unsigned maxArgumentCountIncludingThis() const { return m_maxArgumentCountIncludingThis; }
 
-    void reset();
+    void reset(VM&);
 
     void validateSpeculativeRepatchOnMainThread(VM&);
 
@@ -548,10 +548,14 @@ private:
     // SPEC-jit section 5.8 (direct calls are data-IC-only flag-on, I3): record
     // publish/unlink mirroring CallLinkInfo::publishRecord/clearRecord. Direct
     // records carry no comparand (the fast path skips the comparand check).
-    // No-ops flag-off.
-    void publishRecord(CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer);
-    void clearRecord();
-    void retireRecord(CallLinkRecord*);
+    // No-ops flag-off. The VM& is the retiring mutator's VM (R4-2:
+    // RetiredJITArtifacts resolves the epoch heap from it) — it must NOT be
+    // derived from m_owner, which may be a dead cell by the time a drain
+    // reaches this node through a callee's incoming-calls list (the
+    // retireOptimizedJITCode leak keeps the node alive past its owner).
+    void publishRecord(VM&, CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer);
+    void clearRecord(VM&);
+    void retireRecord(VM&, CallLinkRecord*);
 
     CodeBlock* NODELETE retrieveCodeBlock(FunctionExecutable*);
     CodePtr<JSEntryPtrTag> retrieveCodePtr(const ConcurrentJSLocker&, CodeBlock*);

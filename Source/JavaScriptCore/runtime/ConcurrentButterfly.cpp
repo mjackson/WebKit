@@ -461,12 +461,13 @@ void validatePartiallyAliasedSpine(const ButterflySpine* spine, Butterfly* flat,
 // changed under the stop), the structure changed before/under the lock, a
 // racing conversion already published a spine (re-dispatch lands on §4.3), or
 // the butterfly vanished/was replaced incompatibly.
-ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* object, Structure* newStructureOrNull, PropertyOffset offset, JSValue value)
+ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* object, Structure* expectedSourceOrNull, Structure* newStructureOrNull, PropertyOffset offset, JSValue value)
 {
     RELEASE_ASSERT(Options::useJSThreads());
     ASSERT(vm.currentThreadIsHoldingAPILock());
     RELEASE_ASSERT(offset == invalidOffset || isOutOfLineOffset(offset)); // Inline adds are N2 (structureOnlyTransition), never §4.2 step 4.
     ASSERT(newStructureOrNull || offset == invalidOffset); // A value store needs the transition that exposes it.
+    ASSERT(!newStructureOrNull || expectedSourceOrNull); // AB18-S2: a transition trigger must name the source it derived the target from.
 
     // Planning-time source (§4.2 step 3 compares the re-read structureID
     // against this). A nuked ID here means a racing E4 publication is mid
@@ -474,6 +475,15 @@ ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* objec
     StructureID sourceID = object->structureID(); // RAW bits (M5).
     if (sourceID.isNuked())
         return nullptr; // RESTART
+    // AB18-S2 stale-parent guard (I21, see the header comment): a transition
+    // trigger may publish newStructureOrNull only while the object still has
+    // the structure the target was derived FROM. A racing transition that
+    // settled between the caller's source check and this capture would
+    // otherwise be silently erased - this function would validate (and
+    // nuke-CAS) against the racer's fresh structureID while publishing a
+    // target whose lineage lacks the racer's add (lost property, I21).
+    if (expectedSourceOrNull && sourceID != expectedSourceOrNull->id())
+        return nullptr; // RESTART: re-derive the target from the settled source.
     Structure* sourceStructure = sourceID.decode();
 
     // I31: ArrayStorage never segments (its conversions are per-event STW that
@@ -921,11 +931,11 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
             && (butterflyTID(planningWord) != currentButterflyTID() || butterflySharedWrite(planningWord)
                 || forceSegmentedButterfliesEnabled())) {
             if (source->indexingModeIncludingHistory() == newStructure->indexingModeIncludingHistory())
-                return !!convertToSegmentedButterfly(vm, object, newStructure, offset, value);
+                return !!convertToSegmentedButterfly(vm, object, source, newStructure, offset, value);
             // T4 indexing-shape transition on a shared flat object: convert in
             // place first (§4.2 nullptr form), then RESTART - the re-dispatch
             // lands back here with the object segmented and runs full §4.3.
-            convertToSegmentedButterfly(vm, object, nullptr, invalidOffset, JSValue());
+            convertToSegmentedButterfly(vm, object, nullptr, nullptr, invalidOffset, JSValue());
             return false;
         }
     }
@@ -2346,7 +2356,7 @@ bool ensureLengthSlowConcurrent(VM& vm, JSObjectWithButterfly* object, unsigned 
         // every resize allocation lands on the segmented T2 path.
         if (butterflySharedWrite(word) || butterflyTID(word) != currentButterflyTID()
             || forceSegmentedButterfliesEnabled()) {
-            convertToSegmentedButterfly(vm, object, nullptr, invalidOffset, JSValue());
+            convertToSegmentedButterfly(vm, object, nullptr, nullptr, invalidOffset, JSValue());
             continue;
         }
 
@@ -2491,7 +2501,7 @@ void shrinkButterflyForSetLengthConcurrent(VM& vm, JSObjectWithButterfly* object
         // below allocates a fresh FLAT butterfly; under stress convert instead
         // (in-place §4.2 form) and re-dispatch onto the segmented truncation.
         if (forceSegmentedButterfliesEnabled()) [[unlikely]] {
-            convertToSegmentedButterfly(vm, object, nullptr, invalidOffset, JSValue());
+            convertToSegmentedButterfly(vm, object, nullptr, nullptr, invalidOffset, JSValue());
             continue; // Success and RESTART both re-dispatch on the fresh tag.
         }
 
@@ -3622,7 +3632,7 @@ void applyForceSegmentedButterfliesStressIfNeeded(VM& vm, JSObjectWithButterfly*
         if (hasAnyArrayStorage(structure->indexingType()) || isCopyOnWrite(structure->indexingMode())) [[unlikely]]
             return;
 
-        if (convertToSegmentedButterfly(vm, object, nullptr, invalidOffset, JSValue()))
+        if (convertToSegmentedButterfly(vm, object, nullptr, nullptr, invalidOffset, JSValue()))
             return;
         // nullptr = RESTART: step 0 fired the TTL sets (the next pass
         // converts), or a racing publication moved the word (the next pass

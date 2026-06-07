@@ -2359,17 +2359,18 @@ void repatchInstanceOf(
         repatchSlowPathCall(codeBlock, propertyCache, operationInstanceOfGaveUp);
 }
 
-void linkDirectCall(DirectCallLinkInfo& callLinkInfo, CodeBlock* calleeCodeBlock, CodePtr<JSEntryPtrTag> codePtr)
+void linkDirectCall(VM& vm, DirectCallLinkInfo& callLinkInfo, CodeBlock* calleeCodeBlock, CodePtr<JSEntryPtrTag> codePtr)
 {
     // DirectCall is only used from DFG / FTL.
     // AB18-D: direct linking publishes a record and pushes onto the callee's
-    // m_incomingCalls, so it is in the precondition-11 writer set. Direct
-    // calls always have an owner CodeBlock (DFG/FTL pass graph.m_codeBlock at
-    // construction), which reaches the VM for the gilOff gate.
-    CodeBlock* ownerCodeBlock = dynamicDowncast<CodeBlock>(callLinkInfo.owner());
-    if (ownerCodeBlock && ownerCodeBlock->vm().gilOff()) [[unlikely]] {
+    // m_incomingCalls, so it is in the precondition-11 writer set. The VM is
+    // the linking mutator's, passed down from the operation (AB18-E: never
+    // derived from the owner cell — on the drain paths the owner can be a
+    // dead cell, and even here taking it from a cell would be one stale
+    // pattern more to audit).
+    if (vm.gilOff()) [[unlikely]] {
         Locker locker { CallLinkInfo::s_callLinkSerializationLock };
-        callLinkInfo.setCallTarget(uncheckedDowncast<FunctionCodeBlock>(calleeCodeBlock), CodeLocationLabel<JSEntryPtrTag>(codePtr));
+        callLinkInfo.setCallTarget(vm, uncheckedDowncast<FunctionCodeBlock>(calleeCodeBlock), CodeLocationLabel<JSEntryPtrTag>(codePtr));
         // isOnList() re-check: two mutators direct-linking the same call site
         // concurrently must not double-push the node (SentinelLinkedList
         // corruption); the second setCallTarget republishes an identical
@@ -2378,7 +2379,7 @@ void linkDirectCall(DirectCallLinkInfo& callLinkInfo, CodeBlock* calleeCodeBlock
             calleeCodeBlock->linkIncomingCall(callLinkInfo.owner(), &callLinkInfo);
         return;
     }
-    callLinkInfo.setCallTarget(uncheckedDowncast<FunctionCodeBlock>(calleeCodeBlock), CodeLocationLabel<JSEntryPtrTag>(codePtr));
+    callLinkInfo.setCallTarget(vm, uncheckedDowncast<FunctionCodeBlock>(calleeCodeBlock), CodeLocationLabel<JSEntryPtrTag>(codePtr));
     if (calleeCodeBlock)
         calleeCodeBlock->linkIncomingCall(callLinkInfo.owner(), &callLinkInfo);
 }

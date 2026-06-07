@@ -255,7 +255,7 @@ inline void JSObject::performConcurrentLockedAddSlowAction(VM& vm, ConcurrentLoc
         return;
     case ConcurrentLockedAddSlowAction::ConvertToSegmented:
         // nullptr-RESTART and success both re-dispatch at the caller (§4.2).
-        convertToSegmentedButterfly(vm, object, nullptr, invalidOffset, JSValue());
+        convertToSegmentedButterfly(vm, object, nullptr, nullptr, invalidOffset, JSValue());
         return;
     case ConcurrentLockedAddSlowAction::GrowSegmentedOutOfLine:
         ensureSegmentedOutOfLineCapacity(vm, object, Structure::outOfLineCapacity(structure()->maxOffset() + 1));

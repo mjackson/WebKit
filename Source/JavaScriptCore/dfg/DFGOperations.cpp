@@ -6319,7 +6319,7 @@ JSC_DEFINE_JIT_OPERATION(operationLinkDirectCall, void, (DirectCallLinkInfo* cal
             codePtr = functionExecutable->entrypointFor(kind, arity);
     }
 
-    linkDirectCall(*callLinkInfo, codeBlock, codePtr);
+    linkDirectCall(vm, *callLinkInfo, codeBlock, codePtr);
     OPERATION_RETURN(scope);
 }
 
