@@ -6304,10 +6304,19 @@ JSC_DEFINE_JIT_OPERATION(operationLinkDirectCall, void, (DirectCallLinkInfo* cal
         OPERATION_RETURN_IF_EXCEPTION(scope);
 
         unsigned argumentStackSlots = callLinkInfo->maxArgumentCountIncludingThis();
+        ArityCheckMode arity;
         if (argumentStackSlots < static_cast<size_t>(codeBlock->numParameters()))
-            codePtr = functionExecutable->entrypointFor(kind, ArityCheckMode::MustCheckArity);
+            arity = ArityCheckMode::MustCheckArity;
         else
-            codePtr = functionExecutable->entrypointFor(kind, ArityCheckMode::ArityCheckNotRequired);
+            arity = ArityCheckMode::ArityCheckNotRequired;
+        if (vm.gilOff()) [[unlikely]] {
+            // ANNEX CBI item 3 (AB17c F4): derive the entrypoint THROUGH the
+            // CodeBlock snapshot (matched pair), not through the
+            // executable's independently-republished m_jitCodeFor* mirror —
+            // see bytecode/RepatchInlines.h linkFor.
+            codePtr = codeBlock->jitCode()->addressForCall(arity);
+        } else
+            codePtr = functionExecutable->entrypointFor(kind, arity);
     }
 
     linkDirectCall(*callLinkInfo, codeBlock, codePtr);

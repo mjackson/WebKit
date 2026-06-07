@@ -246,7 +246,24 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
     // CodeBlock pointer below), so a sibling that still observes a non-null
     // jit-code pointer also still observes the matching CodeBlock. The
     // switch(kind) further down stores nullptr again — harmless.
-    if (!genericCodeBlock && vm.gilOffWithProcessGate()) [[unlikely]] {
+    //
+    // AB17c F4 widening (INSTALL direction too): the virtual-call readers
+    // (LLInt virtualThunkFor, JIT virtual/bound/remote thunks, and the C++
+    // entrypointFor consumers) read (m_jitCodeFor*WithArityCheck,
+    // m_codeBlockFor*) as two independent loads; with the old order
+    // (CodeBlock replaced first, jit-code mirrors stored after) a reader
+    // could pair a STALE arity-check entrypoint with the NEW CodeBlock
+    // (observed: baseline prologue argument-profiling against a DFG
+    // CodeBlock => null m_argumentValueProfiles => crash, --useFTLJIT=0).
+    // Nulling the gate first — ordered by the fence below — means a reader
+    // holding a stale non-null entrypoint can detect the install by
+    // re-reading the arity-check slot AFTER its CodeBlock load (the thunks'
+    // threaded revalidation branch; the slot stays null until
+    // entrypointFor lazily re-derives it from the NEW jit code), and a
+    // reader that sees the null gate slow-paths outright. Reader-side
+    // ordering on weak-memory targets remains the recorded IT-8 KNOWN
+    // RESIDUAL; x86-64 TSO is sound with this store order.
+    if (vm.gilOffWithProcessGate()) [[unlikely]] {
         switch (kind) {
         case CodeSpecializationKind::CodeForCall:
             m_jitCodeForCall = nullptr;

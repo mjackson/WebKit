@@ -178,7 +178,18 @@ CallLinkInfo::CallType CallLinkInfo::callTypeFor(OpcodeID opcodeID)
 
 CallLinkInfo::~CallLinkInfo()
 {
-    clearStub();
+    // AB17c F4 (precondition 11): destruction runs in sweep context on any
+    // mutator, NOT under the link lock, but clearStub ->
+    // PolymorphicCallStubRoutine::unlinkForcefully -> per-node remove()
+    // mutates incoming-calls sentinel lists the locked linkers also mutate.
+    // Take the lock here (the other clearStub callers — reset/setStub — run
+    // on locked linker paths already; see the lock-context contract at
+    // PolymorphicCallNode::unlinkForcefully).
+    if (VM::isGILOffProcess() && stub()) [[unlikely]] {
+        Locker locker { s_callLinkSerializationLock };
+        clearStub();
+    } else
+        clearStub();
     // SPEC-jit section 5.8: a CallLinkInfo is destroyed only once its owning
     // code is unreachable (post-R2 conservative scan / CodeBlock sweep), so no
     // JIT'd frame can still hold the record pointer (I16); inline delete is

@@ -269,6 +269,23 @@ static MacroAssemblerCodeRef<JITThunkPtrTag> virtualThunkFor(VM& vm, CallMode mo
         CCallHelpers::Address(GPRInfo::regT0, FunctionExecutable::offsetOfCodeBlockFor(kind)),
         GPRInfo::regT5);
     jit.storePtr(GPRInfo::regT5, CCallHelpers::calleeFrameCodeBlockBeforeTailCall());
+    if (Options::useJSThreads()) [[unlikely]] {
+        // ANNEX CBI item 3 (AB17c F4): the (arity-check entrypoint,
+        // CodeBlock) pair above is two independent racy loads against a
+        // live tier-up installCode on another thread. The gilOff writer
+        // (ScriptExecutable::installCode) retracts the arity-check mirror
+        // FIRST (storeStoreFence-ordered) and entrypointFor refills it only
+        // from the NEW jit code, so re-reading the slot AFTER the CodeBlock
+        // load and comparing with the first read detects any interleaved
+        // install (stale entry => slot is now null or a fresh value):
+        // mismatch takes the slow path, which derives a matched pair
+        // through one CodeBlock snapshot (virtualForWithFunction).
+        // Flag-off: thunk bytes unchanged.
+        slowCase.append(jit.branchPtr(
+            CCallHelpers::NotEqual,
+            CCallHelpers::Address(GPRInfo::regT0, ExecutableBase::offsetOfJITCodeWithArityCheckFor(kind)),
+            GPRInfo::regT4));
+    }
 
     // Make a tail call. This will return back to JIT code.
     auto dispatchLabel = jit.label();
@@ -1522,10 +1539,22 @@ MacroAssemblerCodeRef<JITThunkPtrTag> boundFunctionCallGenerator(VM& vm)
             GPRInfo::regT1, FunctionExecutable::offsetOfCodeBlockForCall()),
         GPRInfo::regT3);
     jit.storePtr(GPRInfo::regT3, CCallHelpers::calleeFrameCodeBlockBeforeCall());
+    CCallHelpers::Jump staleEntrypoint;
+    if (Options::useJSThreads()) [[unlikely]] {
+        // ANNEX CBI item 3 (AB17c F4): re-validate the arity-check
+        // entrypoint AFTER the codeBlock load (see virtualThunkFor); a
+        // mismatch (live tier-up install interleaved) routes to the
+        // materialize path, which derives a matched pair through one
+        // CodeBlock snapshot (materializeTargetCode, JITOperations.cpp).
+        staleEntrypoint = jit.branchPtr(
+            CCallHelpers::NotEqual,
+            CCallHelpers::Address(GPRInfo::regT1, ExecutableBase::offsetOfJITCodeWithArityCheckFor(CodeSpecializationKind::CodeForCall)),
+            GPRInfo::regT2);
+    }
 
     isNative.link(&jit);
     auto dispatch = jit.label();
-    
+
     emitPointerValidation(jit, GPRInfo::regT2, JSEntryPtrTag);
     jit.call(GPRInfo::regT2, JSEntryPtrTag);
 
@@ -1533,6 +1562,8 @@ MacroAssemblerCodeRef<JITThunkPtrTag> boundFunctionCallGenerator(VM& vm)
     jit.ret();
 
     codeNotExists.link(&jit);
+    if (staleEntrypoint.isSet())
+        staleEntrypoint.link(&jit);
 
     CCallHelpers::JumpList exceptionChecks;
 
@@ -1700,6 +1731,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> remoteFunctionCallGenerator(VM& vm)
     // that operationMaterializeRemoteFunctionTargetCode should be able to re-materialize the JIT code (except for any OOME) because we only
     // went down this code path after we found a non-null JIT code (in the noCode check) above i.e. it should be possible to materialize the JIT code.
     // FIXME: Windows x64 is not supported since operationMaterializeRemoteFunctionTargetCode returns UGPRPair.
+    auto materializePath = jit.label();
     jit.setupArguments<decltype(operationMaterializeRemoteFunctionTargetCode)>(GPRInfo::regT0);
     jit.prepareCallOperation(vm);
     jit.move(CCallHelpers::TrustedImmPtr(tagCFunction<OperationPtrTag>(operationMaterializeRemoteFunctionTargetCode)), GPRInfo::nonArgGPR0);
@@ -1717,6 +1749,16 @@ MacroAssemblerCodeRef<JITThunkPtrTag> remoteFunctionCallGenerator(VM& vm)
             GPRInfo::regT1, FunctionExecutable::offsetOfCodeBlockForCall()),
         GPRInfo::regT3);
     jit.storePtr(GPRInfo::regT3, CCallHelpers::calleeFrameCodeBlockBeforeCall());
+    if (Options::useJSThreads()) [[unlikely]] {
+        // ANNEX CBI item 3 (AB17c F4): re-validate the arity-check
+        // entrypoint AFTER the codeBlock load (see virtualThunkFor /
+        // boundFunctionCallGenerator); mismatch re-materializes a matched
+        // pair through one CodeBlock snapshot.
+        jit.branchPtr(
+            CCallHelpers::NotEqual,
+            CCallHelpers::Address(GPRInfo::regT1, ExecutableBase::offsetOfJITCodeWithArityCheckFor(CodeSpecializationKind::CodeForCall)),
+            GPRInfo::regT2).linkTo(materializePath, &jit);
+    }
 
     isNative.link(&jit);
     materialized.link(&jit);

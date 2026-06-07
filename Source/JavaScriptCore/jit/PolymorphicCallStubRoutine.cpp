@@ -43,8 +43,24 @@ void PolymorphicCallNode::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, C
     // We first remove itself from the linked-list before unlinking callLinkInfo.
     // The reason is that callLinkInfo can potentially link PolymorphicCallNode's stub itself, and it may destroy |this| (the other CallLinkInfo
     // does not do it since it is not chained in PolymorphicCallStubRoutine).
-    if (isOnList())
-        remove();
+    if (isOnList()) {
+        if (vm.gilOff()) [[unlikely]] {
+            // AB17c F4 (precondition 11): this remove() runs on a live
+            // mutator (tier-up install drain) and mutates the same sentinel
+            // list (a drain-local toBeRemoved, or a CodeBlock's
+            // m_incomingCalls) that the Repatch.cpp linkers' locked
+            // reset()/push() paths mutate — an unlocked removal here tears
+            // the neighbors of a concurrently-removed node (observed:
+            // CallLinkInfo::reset() remove() crashing on a half-unlinked
+            // node under int-gate-stop-budget). Same lock, same rule as
+            // CallLinkInfo::unlinkOrUpgradeImpl; taken BEFORE the
+            // m_callLinkInfo->unlinkOrUpgrade call below re-acquires it
+            // (non-recursive), so scope the locker to the remove only.
+            Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+            remove();
+        } else
+            remove();
+    }
 
     if (!m_cleared) {
         if (!newCodeBlock || !owner()->upgradeIfPossible(vm, oldCodeBlock, newCodeBlock, m_index)) {
@@ -58,6 +74,13 @@ void PolymorphicCallNode::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, C
 
 void PolymorphicCallNode::unlinkForcefully()
 {
+    // AB17c F4 lock-context CONTRACT (precondition 11): gilOff, the caller
+    // must hold CallLinkInfo::s_callLinkSerializationLock — this remove()
+    // mutates an incoming-calls sentinel list the locked linkers also
+    // mutate. All paths funnel through CallLinkInfo::clearStub, whose
+    // callers are the locked linker paths (reset/setStub) and
+    // ~CallLinkInfo, which takes the lock itself for this reason
+    // (CallLinkInfo.cpp).
     m_cleared = true;
     if (isOnList())
         remove();
@@ -99,8 +122,21 @@ PolymorphicCallStubRoutine::PolymorphicCallStubRoutine(unsigned headerSize, unsi
     makeGCAware(vm);
 }
 
-bool PolymorphicCallStubRoutine::upgradeIfPossible(VM&, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock, uint8_t index)
+bool PolymorphicCallStubRoutine::upgradeIfPossible(VM& vm, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock, uint8_t index)
 {
+    // SPEC-jit 5.8 F6 (AB17c F4): the in-place (slot.m_codeBlock,
+    // slot.m_target) rewrite below is a two-word mutation of dispatch state
+    // other threads are EXECUTING through (the stub reads both words
+    // lock-free); a racing reader can pair the new codeBlock with the old
+    // entrypoint — the same torn-pair class as the monomorphic mirror
+    // rewrite. GIL-off, refuse the upgrade: the caller falls back to the
+    // full unlink (record nulled under the link lock), the next call
+    // slow-paths and republishes a fresh, internally-consistent stub, and
+    // in-flight executions keep using the OLD matched pair (the replaced
+    // code stays executable — only jettison retires it, under STW).
+    if (vm.gilOff()) [[unlikely]]
+        return false;
+
     // It is possible that we can just upgrade the CallSlot and continue using this PolymorphicCallStubRoutine instead of unlinking CallLinkInfo.
     auto& callNode = leadingSpan()[index];
     auto& slot = trailingSpan()[index];

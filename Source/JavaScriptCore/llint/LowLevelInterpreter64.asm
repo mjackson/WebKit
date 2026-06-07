@@ -2938,12 +2938,19 @@ macro callHelper(opcodeName, opcodeStruct, dispatchAfterCall, valueProfileName, 
     btpnz t2, (constexpr CallLinkInfo::polymorphicCalleeMask), .opCallThreadedRecordHit
     bqneq t0, t2, .opCallSlow
 .opCallThreadedRecordHit:
-    move t1, t0 # The record must survive prepareCall (which clobbers t1-t4); callee in t0 is dead past the comparand check (already stored to the frame).
+    # Dispatch-target register contract (same as the mirror arms): t0 stays
+    # the callee (virtual thunk dereferences it), t2 = CallLinkInfo*
+    # (virtual/poly-stub targets; mono entrypoints ignore it), t5 = target.
+    # The record must survive prepareCall (clobbers t1-t4): carry it in t6 --
+    # caller-clobbered scratch on both x86_64 (rdi) and ARM64 (x7); dead
+    # before invokeCall's ARM64E a7 use.
+    move t1, t6
     prepareCall(t2, t3, t4, t1, macro(address)
-        loadp CallLinkRecord::codeBlockToTransfer[t0], t2
+        loadp CallLinkRecord::codeBlockToTransfer[t6], t2
         storep t2, address
     end)
-    loadp CallLinkRecord::target[t0], t5
+    addp %opcodeStruct%::Metadata::m_callLinkInfo, t5, t2 # CallLinkInfo* in t2; reads t5 (metadata) BEFORE the target overwrites it.
+    loadp CallLinkRecord::target[t6], t5
     jmp .dispatch
 
 .opCallSlow:
@@ -3041,12 +3048,16 @@ macro doCallVarargs(opcodeName, size, get, opcodeStruct, valueProfileName, dstVi
             btpnz t2, (constexpr CallLinkInfo::polymorphicCalleeMask), .opCallThreadedRecordHit
             bqneq t0, t2, .opCallSlow
         .opCallThreadedRecordHit:
-            move t1, t0 # Record survives prepareCall in t0; callee is dead past the comparand check.
+            # Register contract as in the callHelper copy: t0 = callee
+            # preserved, t2 = CallLinkInfo*, t5 = target; record carried in
+            # t6 across prepareCall.
+            move t1, t6
             prepareCall(t2, t3, t4, t1, macro(address)
-                loadp CallLinkRecord::codeBlockToTransfer[t0], t2
+                loadp CallLinkRecord::codeBlockToTransfer[t6], t2
                 storep t2, address
             end)
-            loadp CallLinkRecord::target[t0], t5
+            addp %opcodeStruct%::Metadata::m_callLinkInfo, t5, t2 # CallLinkInfo* in t2; reads t5 (metadata) before the target overwrites it.
+            loadp CallLinkRecord::target[t6], t5
             jmp .dispatch
 
         .opCallSlow:

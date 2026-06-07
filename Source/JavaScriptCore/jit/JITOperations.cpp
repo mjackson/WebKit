@@ -222,6 +222,12 @@ static inline UGPRPair materializeTargetCode(VM& vm, JSFunction* targetFunction)
             FunctionExecutable* functionExecutable = static_cast<FunctionExecutable*>(executable);
             functionExecutable->prepareForExecution<FunctionExecutable>(vm, targetFunction, scope, CodeSpecializationKind::CodeForCall, codeBlockSlot);
             RETURN_IF_EXCEPTION(throwScope, encodeResult(nullptr, nullptr));
+            if (vm.gilOff()) [[unlikely]] {
+                // ANNEX CBI item 3 (AB17c F4): matched (entrypoint,
+                // CodeBlock) pair derived through the one CodeBlock
+                // snapshot — see bytecode/RepatchInlines.h linkFor.
+                return encodeResult(codeBlockSlot->jitCode()->addressForCall(ArityCheckMode::MustCheckArity).taggedPtr(), codeBlockSlot);
+            }
         }
         return encodeResult(executable->entrypointFor(CodeSpecializationKind::CodeForCall, ArityCheckMode::MustCheckArity).taggedPtr(), codeBlockSlot);
     }

@@ -3211,9 +3211,29 @@ macro virtualThunkFor(offsetOfJITCodeWithArityCheck, offsetOfCodeBlock, internal
     move 0, t0
     bbneq JSCell::m_type[t5], FunctionExecutableType, .callCode
     loadp offsetOfCodeBlock[t5], t0
+if JSVALUE64
+    # ANNEX CBI item 3 (AB17c F4): the (arity-check entrypoint, codeBlock)
+    # pair above is two independent racy loads against a live tier-up
+    # installCode on another thread; a stale entrypoint paired with the new
+    # codeBlock crashes in the callee prologue. The gilOff writer
+    # (ScriptExecutable::installCode) retracts the arity-check mirror FIRST
+    # (fence-ordered), so re-reading it AFTER the codeBlock load and
+    # comparing with the first read (kept in t1) detects any interleaved
+    # install; mismatch restores the slowCase register contract (t0 =
+    # callee, reloaded from the callee frame) and takes the slow path,
+    # which derives a matched pair through one codeBlock snapshot
+    # (virtualForWithFunction). Flag-off: one not-taken branch.
+    ifJSThreadsBranch(t3, .threadsRevalidatePair)
+end
 .callCode:
     storep t0, CodeBlock - PrologueStackPointerDelta[sp]
     jmp t1, JSEntryPtrTag
+if JSVALUE64
+.threadsRevalidatePair:
+    bpeq offsetOfJITCodeWithArityCheck[t5], t1, .callCode
+    loadp Callee - PrologueStackPointerDelta[sp], t0
+    jmp slowCase
+end
 .notJSFunction:
     bbneq JSCell::m_type[t0], InternalFunctionType, slowCase
     jmp internalFunctionTrampoline

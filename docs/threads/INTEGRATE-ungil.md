@@ -921,6 +921,85 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
     GIL-on/flag-off: one predicted-false compiler-side branch, baked
     artifacts byte-identical. U-T7 lite-relative TLC/iso emission stays
     the chartered re-enable path (Heap.h IT-9 note updated in place).
+    **AB17c F4 third root cause (LLInt data-IC mirror tear — the
+    setMonomorphicCallee KNOWN RESIDUAL, discharged):**
+    int-gate-stop-budget full-JIT segfault: baseline prologue
+    argument-profiling ran against a DFG CodeBlock (null
+    m_argumentValueProfiles storage). The LLInt callHelper /
+    doCallVarargs fast paths read the mirror triple
+    (m_callee/m_codeBlock/m_monomorphicCallDestination) lock-free; a
+    live monomorphic tier-up upgrade
+    (CallLinkInfo::unlinkOrUpgradeImpl) rewrites codeBlock+destination
+    in place with the comparand still matching, so a concurrent LLInt
+    caller pairs the NEW codeBlock with the OLD entrypoint — no write
+    ordering can fix a 3-load reader. Landed the chartered fix
+    (SPEC-jit 5.8 F2): both LLInt sequences
+    (LowLevelInterpreter64.asm callHelper + doCallVarargs) now route
+    through the immutable published m_record under useJSThreads
+    (existing ifJSThreadsBranch gate; null record / comparand miss
+    falls to .opCallSlow, which already implements the empty-record
+    semantics). Flag-off: one not-taken branch, mirror path
+    byte-identical. JIT tiers were already record-routed
+    (emitFastPathImpl).
+    **AB17c F4 fourth root cause (DFG catch OSR-entry buffer not
+    per-lite, A16/U-T4b gap):** ftl-osr-entry-catch-loop-amplifier
+    failed 'torn OSR-entry locals' under --useFTLJIT=0: the A16
+    per-lite catchOSREntryBufferBakedIndex reroute was landed in FTL
+    only; DFG's JITCompiler::makeCatchOSREntryBuffer still baked one
+    shared ScratchBuffer and ExtractCatchLocal/ClearCatchLocals baked
+    its address — N threads throwing into the same hot catch block
+    clobbered each other's reconstructed locals. Landed the DFG
+    sibling: gilOff-mode compilations bake the registry index
+    (DFGJITCompiler.cpp) and the readback nodes materialize the
+    CURRENT lite's buffer via the frozen loadVMLite -> segment ->
+    [index] chain (DFGSpeculativeJIT.cpp, local helper mirroring
+    DFGOSRExit.cpp's). Fill side (DFGOSREntry::prepareCatchOSREntry)
+    already handled the index. Flag-off/GIL-on byte-identical
+    (predicted-false compiler-side branches only).
+    **AB17c F4 fifth root cause (ANNEX CBI item 3 — executable
+    (entrypoint, CodeBlock) mirror pair torn by live tier-up):**
+    residual --useFTLJIT=0 segfaults (same baseline-prologue-vs-DFG-
+    CodeBlock signature, but the torn pair came from the EXECUTABLE
+    mirrors, not the call-link): every virtual-call reader loads
+    m_jitCodeFor*WithArityCheck and m_codeBlockFor* as two independent
+    racy words; a live installCode between them pairs a stale
+    entrypoint with the new CodeBlock. Landed, per CBI item 3 ("derived
+    loads go through the codeBlock pointer — address-dependent, jit
+    F2") plus a writer-ordering + reader-revalidation pair for the
+    baked thunks:
+    (1) C++ consumers derive the entrypoint THROUGH the one CodeBlock
+    snapshot under gilOff: RepatchInlines.h linkFor +
+    virtualForWithFunction, LLIntSlowPaths.cpp (llint virtual/link
+    slow path), DFGOperations.cpp (operationLinkDirectCall),
+    JITOperations.cpp materializeTargetCode.
+    (2) ScriptExecutable::installCode now retracts the gating jit-code
+    mirrors FIRST for INSTALLS too (previously clears only),
+    storeStoreFence-ordered before the CodeBlock replacement; the
+    arity-check mirrors stay null until entrypointFor lazily re-derives
+    them from the NEW jit code.
+    (3) The pair-reading thunks re-validate the arity-check slot AFTER
+    their CodeBlock load (mismatch => slow path / materialize path,
+    which produces a matched pair via (1)): LLInt virtualThunkFor
+    (LowLevelInterpreter.asm, JSVALUE64 + ifJSThreadsBranch gate), JIT
+    virtualThunkFor, boundFunctionCallGenerator,
+    remoteFunctionCallGenerator (ThunkGenerators.cpp, useJSThreads
+    emission gate — flag-off thunk bytes unchanged).
+    (4) PolymorphicCallStubRoutine::upgradeIfPossible refuses the
+    in-place (slot.m_codeBlock, slot.m_target) rewrite under gilOff
+    (F6: never mutate published dispatch state) — caller falls back to
+    full unlink + fresh republish.
+    Weak-memory reader-side ordering remains the recorded IT-8 KNOWN
+    RESIDUAL (x86-64 TSO sound).
+    **AB17c F4 residual (NEW distinct signature, out of family):**
+    ~1/35 int-gate-stop-budget full-JIT: libpas "Alloc bit not set"
+    double-free in ParserArena::deallocateObjects under the
+    GILOffCompilationLocker (parse-result teardown in
+    generateUnlinkedFunctionCodeBlock). Allocator-level double free of
+    parser-arena memory — candidate classes: shared-AtomStringTable
+    StringImpl refcount discipline (family 2 adjacency) or a stale
+    UnlinkedCodeBlock teardown; NOT the call-link/code-lifecycle class
+    (all 7 named F4 tests pass the tier matrix otherwise). Owner:
+    next round; core signature recorded here.
   - R4-9 (per-lite drains skip the per-tick hook; MAJOR, CONFIRMED) —
     fixed: VMLite::drainDefaultMicrotaskQueue now drains with
     performMicrotaskCheckpoint<true>, matching the §E.1b.4 disposition

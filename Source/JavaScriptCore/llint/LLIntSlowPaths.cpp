@@ -2343,7 +2343,16 @@ static inline UGPRPair setUpCall(CallFrame* calleeFrame, CodeSpecializationKind 
             arity = ArityCheckMode::MustCheckArity;
         else
             arity = ArityCheckMode::ArityCheckNotRequired;
-        codePtr = functionExecutable->entrypointFor(kind, arity);
+        if (vm.gilOff()) [[unlikely]] {
+            // ANNEX CBI item 3 (AB17c F4): derive the entrypoint THROUGH the
+            // CodeBlock snapshot stored to the callee frame, not through the
+            // executable's independently-republished m_jitCodeFor* mirror —
+            // a live tier-up installCode between the two reads otherwise
+            // pairs a stale entrypoint with the new CodeBlock (see
+            // bytecode/RepatchInlines.h linkFor).
+            codePtr = codeBlock->jitCode()->addressForCall(arity);
+        } else
+            codePtr = functionExecutable->entrypointFor(kind, arity);
     }
 
     ASSERT(!!codePtr);
