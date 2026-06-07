@@ -1345,6 +1345,13 @@ static ThunkGenerator NODELETE thunkGeneratorForIntrinsic(Intrinsic intrinsic)
         return toLengthThunkGenerator;
     case WasmFunctionIntrinsic:
 #if ENABLE(WEBASSEMBLY) && ENABLE(JIT)
+        // UNGIL SD7/§I item (2) interim (AB-15): no specialized wasm call
+        // thunk under useJSThreads — calls fall back to the generic native
+        // call path, which lands in callWebAssemblyFunction where the SD7
+        // spawned-thread refusal trips (wasm stack-limit reads are
+        // carrier-published only post-AB-17). Flag-off cost: zero.
+        if (Options::useJSThreads()) [[unlikely]]
+            return nullptr;
         return Wasm::wasmFunctionThunkGenerator;
 #else
         return nullptr;
@@ -1376,13 +1383,27 @@ static Ref<NativeJITCode> jitCodeForCallTrampoline(Intrinsic intrinsic)
     switch (intrinsic) {
 #if ENABLE(WEBASSEMBLY)
     case WasmFunctionIntrinsic: {
-        static LazyNeverDestroyed<Ref<NativeJITCode>> result;
-        static std::once_flag onceKey;
-        std::call_once(onceKey, [&] {
-            result.construct(adoptRef(*new NativeJITCode(LLInt::getCodeRef<JSEntryPtrTag>(js_to_wasm_wrapper_entry), JITType::HostCallThunk, intrinsic)));
-        });
-        return result.get();
+        // UNGIL SD7/§I item (2) interim (AB-15): under useJSThreads, do NOT
+        // install the direct LLInt js_to_wasm_wrapper_entry trampoline —
+        // it enters wasm without ever reaching C++, so a spawned Thread
+        // calling a carrier-created export would run wasm against the
+        // carrier-published (VM-level) stack limits. Fall through to the
+        // generic native call trampoline instead, which invokes the
+        // executable's NativeFunction (callWebAssemblyFunction), where the
+        // SD7 spawned-thread refusal trips deterministically. Carrier calls
+        // still work (one extra host-call hop). Flag-off cost: zero.
+        if (Options::useJSThreads()) [[unlikely]]
+            goto genericTrampoline;
+        {
+            static LazyNeverDestroyed<Ref<NativeJITCode>> result;
+            static std::once_flag onceKey;
+            std::call_once(onceKey, [&] {
+                result.construct(adoptRef(*new NativeJITCode(LLInt::getCodeRef<JSEntryPtrTag>(js_to_wasm_wrapper_entry), JITType::HostCallThunk, intrinsic)));
+            });
+            return result.get();
+        }
     }
+    genericTrampoline:
 #endif
     default: {
         static LazyNeverDestroyed<Ref<NativeJITCode>> result;
@@ -1793,14 +1814,40 @@ void VM::updateStackLimits()
     // the per-lite generated-code checks will read once the chained-offset
     // emission lands). Sequenced-before any JS on this thread; never written
     // cross-thread.
-    if (liteTraps && lastSoftStackLimit != newSoftStackLimit) [[unlikely]]
+    if (liteTraps && lastSoftStackLimit != newSoftStackLimit) [[unlikely]] {
         liteTraps->setStackSoftLimit(newSoftStackLimit);
+#if OS(WINDOWS)
+        // The per-lite limit bounds LLInt-asm/JIT-generated stack usage on
+        // this thread exactly like the VM-word limit does below (see that
+        // comment for why precommit is required); spawned lites never reach
+        // the VM-word block, so the precommit must happen on this publish
+        // path too.
+        preCommitStackMemory(newSoftStackLimit);
+#endif
+    }
 
     // Carrier-only VM-word publish (see the AB-17 comment above). GIL-on:
     // liteTraps is null and this is the landed single publish,
     // byte-identical.
-    if (m_gilOff && ThreadManager::isJSThreadCurrent()) [[unlikely]]
-        return; // Spawned lite: per-lite word only (published above).
+    if (m_gilOff && ThreadManager::isJSThreadCurrent()) [[unlikely]] {
+        // Spawned lite: per-lite word only (published above) — a spawned
+        // thread must never write the VM word (carrier mirrors read it).
+        // If this thread carries THIS VM's lite, the per-lite publish above
+        // must have been available (liteTraps non-null); a silent
+        // no-publish (neither word written) would leave a STALE per-lite
+        // limit that generated code keeps checking — e.g. an off-entry
+        // updateSoftReservedZoneSize republish computed under a new
+        // reserved-zone size would be dropped with no assert. Fail-stop
+        // deterministically instead. Tolerated no-publish windows: no lite
+        // installed, or another VM's lite current (I14 mirror — this thread
+        // is not running this VM's JS; its next entry republishes via
+        // setStackPointerAtVMEntry).
+        if (!liteTraps) [[unlikely]] {
+            VMLite* lite = VMLite::currentIfExists();
+            RELEASE_ASSERT(!lite || lite->vm != this);
+        }
+        return;
+    }
     if (traps().softStackLimit() != newSoftStackLimit) {
         traps().setStackSoftLimit(newSoftStackLimit);
 #if OS(WINDOWS)
@@ -1817,20 +1864,21 @@ void VM::updateStackLimits()
     }
 }
 
-// UNGIL §A.2.2 (AB-17): out-of-line form of softStackLimitForCurrentThread
-// (VMInlines.h) for readers that cannot include VMInlines.h (JSStringInlines,
-// Yarr, JSON/LiteralParser). Same contract: GIL-off with a matching current
-// lite, the PLAIN per-lite soft limit (null falls back to the VM word —
-// a never-published per-lite limit must not disable overflow detection);
-// otherwise the VM word, byte-identical to the landed reads.
-void* VM::softStackLimitForCurrentThreadSlow() const
+// UNGIL §A.2.2 (AB-17): gilOff arm of softStackLimitForCurrentThreadSlow
+// (inline wrapper in VM.h) for readers that cannot include VMInlines.h
+// (JSStringInlines, Yarr, JSON/LiteralParser). Same contract as the
+// VMInlines.h helper: GIL-off with a matching current lite, the PLAIN
+// per-lite soft limit (null falls back to the VM word — a never-published
+// per-lite limit must not disable overflow detection); otherwise the VM
+// word. The flag-off arm lives in the VM.h wrapper so those hot paths
+// compile back to the single load (bench-gate finding).
+void* VM::softStackLimitForCurrentThreadGilOffSlow() const
 {
-    if (m_gilOff) [[unlikely]] {
-        VMLite* lite = VMLite::currentIfExists();
-        if (lite && lite->gilOff && lite->vm == this) {
-            if (void* liteLimit = lite->threadContext.traps().softStackLimit())
-                return liteLimit;
-        }
+    ASSERT(m_gilOff);
+    VMLite* lite = VMLite::currentIfExists();
+    if (lite && lite->gilOff && lite->vm == this) {
+        if (void* liteLimit = lite->threadContext.traps().softStackLimit())
+            return liteLimit;
     }
     return softStackLimit();
 }

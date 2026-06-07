@@ -1158,7 +1158,21 @@ public:
     // the GIL-on/flag-off protocol byte-identically.
     ALWAYS_INLINE void* softStackLimit() const { return traps().softStackLimit(); }
     ALWAYS_INLINE void** addressOfSoftStackLimit() { return traps().addressOfSoftStackLimit(); }
-    JS_EXPORT_PRIVATE void* softStackLimitForCurrentThreadSlow() const;
+    // Flag-off (and GIL-on) this compiles back to the single
+    // traps().softStackLimit() load behind one predictable branch — only the
+    // gilOff arm is out-of-line. The previous shape (an unconditional
+    // cross-TU JS_EXPORT_PRIVATE call) put a call + branch + load on
+    // flag-off hot paths (every RegExp match via YarrMatchingContextHolder,
+    // rope resolution, JSON/LiteralParser recursion checks), violating the
+    // flag-off-identity charter and implicated in the bench-gate red
+    // (transition-heavy-constructor +2.4-3.4%).
+    ALWAYS_INLINE void* softStackLimitForCurrentThreadSlow() const
+    {
+        if (!m_gilOff) [[likely]]
+            return softStackLimit();
+        return softStackLimitForCurrentThreadGilOffSlow();
+    }
+    JS_EXPORT_PRIVATE void* softStackLimitForCurrentThreadGilOffSlow() const;
 
     inline bool isSafeToRecurseSoft() const;
     bool isSafeToRecurse() const

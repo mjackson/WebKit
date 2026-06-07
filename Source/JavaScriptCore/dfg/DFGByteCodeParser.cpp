@@ -4837,6 +4837,11 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
 
 #if ENABLE(WEBASSEMBLY)
         case WasmFunctionIntrinsic: {
+            // UNGIL SD7/§I item (2) interim (AB-15): no CallWasm
+            // encouragement under useJSThreads (see
+            // DFGStrengthReductionPhase.cpp — the conversion is disabled).
+            if (Options::useJSThreads()) [[unlikely]]
+                return CallOptimizationResult::DidNothing;
             if (callOp != Call && !(callOp == TailCall && !allInlineFramesAreTailCalls()))
                 return CallOptimizationResult::DidNothing;
             if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))

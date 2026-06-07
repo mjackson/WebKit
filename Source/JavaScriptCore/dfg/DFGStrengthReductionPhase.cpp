@@ -1764,6 +1764,14 @@ private:
             // DirectCall to wasm function has suboptimal implementation. We avoid using DirectCall if we know that function is a wasm function.
             // https://bugs.webkit.org/show_bug.cgi?id=220339
             if (executable->intrinsic() == WasmFunctionIntrinsic && !Options::forceICFailure()) {
+                // UNGIL SD7/§I item (2) interim (AB-15): no CallWasm
+                // conversion under useJSThreads — it would call wasm
+                // directly, bypassing the SD7 spawned-thread refusal in
+                // callWebAssemblyFunction (and DFG/FTL code can run on
+                // spawned Threads, where carrier-published wasm stack
+                // limits are the wrong stack).
+                if (Options::useJSThreads()) [[unlikely]]
+                    break;
                 if (m_node->op() != Call && m_node->op() != TailCallInlinedCaller) // FIXME: We should support tail-call.
                     break;
                 if (!function)

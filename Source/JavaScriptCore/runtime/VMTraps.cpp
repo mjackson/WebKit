@@ -628,14 +628,37 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     // never swallowed: either it cleared the flag first (we service it
     // normally below) or it re-sets the bit after the retire (serviced at the
     // next poll).
-    if (vm.gilOff() && !isSpawnedGILOff && m_carrierTookSharedTermination.load()) [[unlikely]] {
+    // The shield flag lives on the VM-LEVEL instance regardless of which
+    // instance set it (takeTopPriorityTrap's per-lite carrier arm stores
+    // vm.traps().m_carrierTookSharedTermination), so the trim must consult
+    // the VM-level flag here too — a per-lite servicing instance's own copy
+    // is never set, and without this the per-lite delivery channel bypasses
+    // the shield entirely: didAcquireLock's token-acquisition OR
+    // (orVMWideTrapBitsIntoLite) re-ORs the still-set VM-word
+    // NeedTermination into the carrier's per-lite word after the host
+    // cleared and re-entered, and handleTrapsForCurrentThreadIfNeeded
+    // dispatches the per-lite instance FIRST — re-terminating the host's
+    // re-entry on every clear-and-re-enter until the siblings drain.
+    if (vm.gilOff() && !isSpawnedGILOff && vmLevelTraps.m_carrierTookSharedTermination.load()) [[unlikely]] {
         auto& registry = VMLiteRegistry::singleton();
         Locker locker { registry.lock };
-        if (m_carrierTookSharedTermination.load()) {
-            if (anyOtherLiteOfVMEntered(locker, vm))
+        if (vmLevelTraps.m_carrierTookSharedTermination.load()) {
+            if (this != &vmLevelTraps) {
+                // Per-lite instance on the shielded carrier: this lite's
+                // NeedTermination bit is an ECHO of the already-consumed
+                // raise (re-ORed at token acquisition from the VM word kept
+                // set for the siblings). Drop this lite's copy — siblings
+                // observe their OWN fanned per-lite bits, so this clear
+                // affects no one else; retiring the VM word + flag stays the
+                // VM-level instance's job below. Serialized against a FRESH
+                // fireTrapVMWide raise by this registry lock (the raise
+                // clears the flag under it), so a new raise is never trimmed.
+                clearTrapWithoutCancellingThreadStop(NeedTermination);
+                mask &= ~NeedTermination;
+            } else if (anyOtherLiteOfVMEntered(locker, vm))
                 mask &= ~NeedTermination; // Still being delivered to siblings.
             else {
-                m_carrierTookSharedTermination.store(false);
+                vmLevelTraps.m_carrierTookSharedTermination.store(false);
                 clearTrapWithoutCancellingThreadStop(NeedTermination); // Retired; the scope exit below re-derives the stop request.
                 mask &= ~NeedTermination;
             }

@@ -164,12 +164,25 @@ void VMEntryScope::setUpSlow()
         //       on a spawned thread, and a tier-up RELEASE_ASSERT
         //       ("... result = CompilationInvalidated but our replacement
         //       is ...") — concurrent compilation/replacement legs.
-        // The W1 watchdog parked-carrier livelock found at the same review
-        // (condition-wait/property-wait termination hangs GIL-off) IS fixed
-        // (Watchdog.cpp CallerState::ParkedCarrier verdict). Until (i)/(ii)
-        // are root-caused, GIL-off N-entry is LANDED-WITH-KNOWN-FAILING-
-        // RUNGS, not accepted; do not record AB-17 as verification-complete
-        // downstream of this block.
+        //   (iii) flag-off serial bench gate (Tools/threads/bench-gate.sh):
+        //       transition-heavy-constructor is consistently +2.4-3.4% over
+        //       the 2026-06-05 baseline (3x15-run medians; threshold 1%).
+        //       Measured NOT attributable to the AB-17 LLInt Group-3
+        //       discriminator sites: --useLLInt=0 (LLInt prologue never
+        //       runs) shows the same delta. Other 7 benchmarks within
+        //       threshold. Needs an A/B bisect against the pre-AB-17 tree.
+        // FIXED at the same review: the W1 watchdog parked-carrier livelock
+        // (condition-wait/property-wait termination hung GIL-off; Watchdog
+        // CallerState::ParkedCarrier verdict), the signed-vs-unsigned
+        // branchPtrAgainstSoftStackLimit conditions at all nine JIT-tier
+        // sites, and the AB-15 wasm call-path hole (jsCallICEntrypoint +
+        // wasm call trampoline/thunk/CallWasm gated under useJSThreads; SD7
+        // refusal in callWebAssemblyFunction — a spawned thread calling a
+        // carrier-created export now throws TypeError instead of running
+        // with carrier stack limits). Until (i)/(ii)/(iii) are root-caused,
+        // GIL-off N-entry is LANDED-WITH-KNOWN-FAILING-RUNGS, not accepted;
+        // do not record AB-17 as verification-complete downstream of this
+        // block.
         //
         // AB-17 round-2 amendment (review finding): the LOL tier
         // (lol/LOLJIT.cpp, --useLOLJIT, replaces Baseline) had a missed
@@ -178,6 +191,36 @@ void VMEntryScope::setUpSlow()
         // (b) additionally forced off under GIL-off at option
         // canonicalization (Options.cpp U0 block) until the tier passes the
         // full §A.1.3 COMPILED-FOR-VM audit.
+        //
+        // AB-17 round-3 amendment (review findings; AB-17 remains
+        // LANDED-WITH-KNOWN-FAILING-RUNGS, NOT accepted):
+        //  (1) Bench-gate suspect (iii) FIXED at the prime-suspect site:
+        //      VM::softStackLimitForCurrentThreadSlow was an unconditional
+        //      out-of-line JS_EXPORT_PRIVATE call on flag-off hot paths
+        //      (every RegExp match via YarrMatchingContextHolder, JSString
+        //      rope resolution, JSON/LiteralParser) — consistent with the
+        //      --useLLInt=0 A/B showing the same delta. It is now an
+        //      ALWAYS_INLINE VM.h wrapper whose flag-off arm is the single
+        //      traps().softStackLimit() load behind one m_gilOff branch;
+        //      only the gilOff arm (softStackLimitForCurrentThreadGilOffSlow)
+        //      is out-of-line. The bench gate must be RE-RUN before (iii)
+        //      is closed; do not assume green.
+        //  (2) TERM1.2 per-lite consume-side shield FIXED: handleTraps'
+        //      carrier trim now consults the VM-LEVEL
+        //      m_carrierTookSharedTermination on per-lite servicing
+        //      instances (the set-side always stored it there) and drops the
+        //      re-ORed per-lite NeedTermination echo, closing the spurious
+        //      re-termination of the host's clear-and-re-enter via the
+        //      orVMWideTrapBitsIntoLite -> per-lite-dispatch-first channel.
+        //  (3) VM::updateStackLimits spawned arm: the early return now
+        //      RELEASE_ASSERTs that a no-publish (liteTraps null) only
+        //      happens when no lite of THIS VM is current (silent stale
+        //      per-lite limit fail-stops), and the per-lite publish
+        //      precommits stack memory on OS(WINDOWS) (spawned lites never
+        //      reach the VM-word precommit block).
+        // Rungs (i) per-lite exception-state split and (ii) concurrent
+        // compilation/replacement remain OPEN; downstream must still not
+        // record AB-17 verification-complete.
         constexpr bool perLiteSoftStackLimitRerouteLanded = true; // COMPLETE §A.2.2 reroute landed (AB-17; this change).
         bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {
