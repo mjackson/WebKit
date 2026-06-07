@@ -20,9 +20,14 @@
 # Runs whose option set is rejected by the jsc build (unknown option — e.g.
 # a foreign workstream's corpus naming options whose OptionsList.h hunk has
 # not landed yet) are SKIPped, not FAILed: the option set is probed against
-# an empty program first. The API-I1..I24 coverage grep ignores //@ skip'ped
-# files (API-I14's SPEC-mandated deferral to INT 9.2-6 is reported
-# explicitly).
+# an empty program first. SKIP happens ONLY on jsc's "ERROR: invalid option"
+# stderr diagnostic; any other nonzero probe exit (notably signal deaths
+# like 134/SIGABRT under ambient JSC_* env, or probe timeouts 124/137) is a
+# FAIL of every run that needs that option set — an engine crash must never
+# masquerade as "option not supported". A run where the probe skips >50% of
+# planned runs (or skips everything that was planned) exits nonzero as
+# vacuous. The API-I1..I24 coverage grep ignores //@ skip'ped files
+# (API-I14's SPEC-mandated deferral to INT 9.2-6 is reported explicitly).
 #
 # Usage:
 #   Tools/threads/run-tests.sh [--filter=SUBSTR] [--amplify] [--list]
@@ -294,39 +299,79 @@ WARNED_NO_AMPLIFY=0
 PASS=0
 FAIL=0
 SKIPPED=0
+PLANNED_RUNS=0
+PROBE_SKIPS=0
 FAILED_TESTS=()
 TMP_OUT="$(mktemp "${TMPDIR:-/tmp}/threads-run-tests.XXXXXX")" || die "mktemp failed"
 trap 'rm -f "$TMP_OUT"' EXIT
 
-# Option-availability probe: jsc exits nonzero on an unknown option, so a
-# requireOptions header naming an option this build does not have would turn
-# every run of that file into a FAIL that is really a missing cross-workstream
-# OptionsList.h hunk (e.g. threads/vmstate files needing --useVMLite /
-# --useStructureAllocationLock before vmstate M_opts lands). Probe the run's
-# option set against an empty program first and SKIP (not FAIL) when the
-# build rejects it. Cached per option set (plain indexed arrays: macOS bash
-# 3.2 has no associative arrays).
+# Option-availability probe: a requireOptions header naming an option this
+# build does not have would turn every run of that file into a FAIL that is
+# really a missing cross-workstream OptionsList.h hunk (e.g. threads/vmstate
+# files needing --useVMLite / --useStructureAllocationLock before vmstate
+# M_opts lands). Probe the run's option set against an empty program first.
+# Contract: SKIP ONLY on jsc's "ERROR: invalid option" stderr diagnostic;
+# any other nonzero probe exit (notably signal deaths like 134/SIGABRT
+# under ambient JSC_* GIL-off env, or timeout kills 124/137) is a probe
+# CRASH and FAILs every run that needs that option set. Exit-code class is
+# NOT a discriminator: jsc CRASH()es on unknown options too when
+# validateOptions is on. >50% probe-skips fails the whole run (vacuous
+# green guard at the bottom). Cached per option set (plain indexed arrays:
+# macOS bash 3.2 has no associative arrays).
 PROBED_OPTSETS=()
-PROBED_RESULTS=()
-options_supported() { # $1 = space-joined args ("" => trivially supported)
+PROBED_RESULTS=()   # "yes" | "no" | "crash:<status>"
+PROBE_VERDICT=""    # out-param of probe_options
+probe_options() { # $1 = space-joined args ("" => trivially supported)
     local key="$1"
+    PROBE_VERDICT=yes
     [[ -z "$key" ]] && return 0
     local i
     for i in "${!PROBED_OPTSETS[@]}"; do
         if [[ "${PROBED_OPTSETS[$i]}" == "$key" ]]; then
-            [[ "${PROBED_RESULTS[$i]}" == "yes" ]]
-            return
+            PROBE_VERDICT="${PROBED_RESULTS[$i]}"
+            return 0
         fi
     done
     local probe_args=()
     read -r -a probe_args <<<"$key"
-    local verdict=no
-    if "$JSC" "${probe_args[@]}" -e '' >/dev/null 2>&1; then
-        verdict=yes
+    local probe_err
+    probe_err="$(mktemp "${TMPDIR:-/tmp}/threads-probe-err.XXXXXX")" || die "mktemp failed"
+    local status=0
+    # Wrapped in the per-test timeout: an ambient-env config that deadlocks
+    # (rather than aborts) during empty-program bring-up must not hang the
+    # whole harness at the first probe; 124/137 classify as crash below.
+    ${TIMEOUT_WRAP[@]+"${TIMEOUT_WRAP[@]}"} "$JSC" "${probe_args[@]}" -e '' >/dev/null 2>"$probe_err" || status=$?
+    if [[ "$status" -eq 0 ]]; then
+        PROBE_VERDICT=yes
+    elif grep -qs 'ERROR: invalid option' "$probe_err"; then
+        # jsc's unknown-option diagnostic (jsc.cpp CommandLine::parseArguments,
+        # Options::setOption failure path). ONLY this means "option not in
+        # this build" => SKIP is legitimate. NOTE: exit-code class alone is
+        # NOT a discriminator — jsc CRASH()es (signal death) on unknown
+        # options too when validateOptions is on, so we key on the
+        # diagnostic, not on status<128.
+        # A mixed set (unknown option AND engine crash) classifies as SKIP
+        # because the diagnostic wins — acceptable since plain-option runs
+        # bypass the probe and surface the crash as ordinary FAILs.
+        # Caveat: if WTF_DATA_LOG_FILENAME is exported, dataLog leaves
+        # stderr and a genuine unknown option would misclassify as a
+        # probe-crash FAIL (fail-loud, not green-hiding).
+        PROBE_VERDICT=no
+    else
+        # Nonzero exit WITHOUT the unknown-option diagnostic: the build
+        # accepted the option set and then died running an empty program
+        # (e.g. SIGABRT=exit 134 under ambient JSC_* GIL-off env), or hung
+        # until the timeout wrap killed it (124/137). That is a real crash
+        # of the engine under this configuration — it must surface as FAIL,
+        # never as "option not supported" SKIP.
+        PROBE_VERDICT="crash:$status"
+        echo "run-tests: PROBE CRASH (exit $status) for option set [$key]; ambient JSC_* env: ${AMBIENT_JSC_ENV:-none detected}" >&2
+        sed 's/^/     | /' "$probe_err" >&2
     fi
+    rm -f "$probe_err"
     PROBED_OPTSETS+=("$key")
-    PROBED_RESULTS+=("$verdict")
-    [[ "$verdict" == "yes" ]]
+    PROBED_RESULTS+=("$PROBE_VERDICT")
+    return 0
 }
 
 # Per-test timeout: threaded tests hang by failure mode (lost wakeup, GIL
@@ -392,11 +437,23 @@ for file in "${FILES[@]}"; do
         runindex=$((runindex + 1))
         label="$rel"
         [[ "$runindex" -gt 1 || "$runspec" != "<plain>" ]] && label="$rel [${args[*]:-default}]"
-        if ! options_supported "${args[*]:-}"; then
+        PLANNED_RUNS=$((PLANNED_RUNS + 1))
+        probe_options "${args[*]:-}"
+        case "$PROBE_VERDICT" in
+        yes) ;;
+        no)
             SKIPPED=$((SKIPPED + 1))
+            PROBE_SKIPS=$((PROBE_SKIPS + 1))
             echo "SKIP $label (option(s) not supported by this jsc build — likely a not-yet-landed OptionsList.h hunk from another workstream, not an api failure)"
             continue
-        fi
+            ;;
+        crash:*)
+            FAIL=$((FAIL + 1))
+            FAILED_TESTS+=("$label [probe-crash exit ${PROBE_VERDICT#crash:}]")
+            echo "FAIL $label (PROBE CRASH: \"$JSC\" ${args[*]:-} -e '' exited ${PROBE_VERDICT#crash:} with no unknown-option diagnostic — engine crash under this option set/ambient env, NOT a missing OptionsList.h hunk)"
+            continue
+            ;;
+        esac
         if run_one "$file" ${args[@]+"${args[@]}"}; then
             # A test whose option-default premise is inverted by ambient
             # configuration (JSC_* env, warned about above) self-reports
@@ -470,5 +527,15 @@ if [[ "$FAIL" -gt 0 ]]; then
     printf '  %s\n' "${FAILED_TESTS[@]}"
 fi
 
-[[ "$FAIL" -eq 0 && ${#MISSING[@]} -eq 0 ]] || exit 1
+PROBE_SKIP_FAIL=0
+if [[ "$PLANNED_RUNS" -gt 0 ]]; then
+    if [[ $((PROBE_SKIPS * 2)) -gt "$PLANNED_RUNS" ]]; then
+        echo "run-tests: PROBE-SKIP FAIL — $PROBE_SKIPS of $PLANNED_RUNS planned runs were skipped by the option probe (>50%); result is vacuous, refusing to exit 0"
+        PROBE_SKIP_FAIL=1
+    elif [[ "$PASS" -eq 0 && "$FAIL" -eq 0 && "$PROBE_SKIPS" -gt 0 ]]; then
+        echo "run-tests: PROBE-SKIP FAIL — nothing executed ($PROBE_SKIPS probe-skips, 0 pass, 0 fail); result is vacuous, refusing to exit 0"
+        PROBE_SKIP_FAIL=1
+    fi
+fi
+[[ "$FAIL" -eq 0 && ${#MISSING[@]} -eq 0 && "$PROBE_SKIP_FAIL" -eq 0 ]] || exit 1
 exit 0

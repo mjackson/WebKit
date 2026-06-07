@@ -27,6 +27,7 @@
 #include "IsoCellSet.h"
 
 #include "MarkedBlockInlines.h"
+#include <wtf/Atomics.h>
 
 namespace JSC {
 
@@ -58,7 +59,10 @@ Ref<SharedTask<MarkedBlock::Handle*()>> IsoCellSet::parallelNotEmptyMarkedBlockS
         
         MarkedBlock::Handle* run() final
         {
-            if (m_done)
+            // m_done is read here without m_lock by design (fast path); the
+            // transition to true happens under m_lock below. Relaxed atomic
+            // makes the monotonic-flag race well-defined.
+            if (m_done.load(std::memory_order_relaxed))
                 return nullptr;
             // SharedGC (T8 audit, I5b): parallel constraint/marking helper —
             // runs only inside the stop window once shared (deviation 4), so
@@ -68,7 +72,7 @@ Ref<SharedTask<MarkedBlock::Handle*()>> IsoCellSet::parallelNotEmptyMarkedBlockS
             auto bits = m_directory.markingNotEmptyBitsView() & m_set.m_blocksWithBits;
             m_index = bits.findBit(m_index, true);
             if (m_index >= m_directory.m_blocks.size()) {
-                m_done = true;
+                m_done.store(true, std::memory_order_relaxed);
                 return nullptr;
             }
             return m_directory.m_blocks[m_index++];
@@ -79,7 +83,7 @@ Ref<SharedTask<MarkedBlock::Handle*()>> IsoCellSet::parallelNotEmptyMarkedBlockS
         BlockDirectory& m_directory;
         size_t m_index { 0 };
         Lock m_lock;
-        bool m_done { false };
+        Atomic<bool> m_done { false };
     };
     
     return adoptRef(*new Task(*this));

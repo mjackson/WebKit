@@ -311,7 +311,11 @@ inline void JSObject::growOutOfLineStorageForConcurrentLockedAdd(VM& vm, Structu
     // storeTaggedButterflyWordConcurrent's b1-only CAS independently witnesses
     // that the word never moved across the window.
     Butterfly* newButterfly = allocateMoreOutOfLineStorage(vm, oldOutOfLineCapacity, newOutOfLineCapacity);
-    nukeStructureAndSetButterfly(vm, structureID, newButterfly);
+    // bench-transition-regress (V5B-1 extension): this function is flag-on-only
+    // (ASSERT(Options::useJSThreads()) at entry), so call the concurrent publish
+    // directly instead of re-loading the flag through the runtime-dispatch
+    // wrapper. Identical dispatch result to nukeStructureAndSetButterfly here.
+    nukeStructureAndSetButterflyConcurrent(vm, structureID, newButterfly);
     structure->setMaxOffset(vm, newMaxOffset);
     WTF::storeStoreFence();
     setStructureIDDirectly(structureID);
@@ -637,7 +641,18 @@ ALWAYS_INLINE PropertyOffset JSObject::prepareToPutDirectWithoutTransition(VM& v
             unsigned newOutOfLineCapacity = Structure::outOfLineCapacity(newMaxOffset);
             if (newOutOfLineCapacity != oldOutOfLineCapacity) {
                 Butterfly* butterfly = allocateMoreOutOfLineStorage(vm, oldOutOfLineCapacity, newOutOfLineCapacity);
-                nukeStructureAndSetButterfly(vm, structureID, butterfly);
+                // bench-transition-regress (V5B-1 extension): this function is
+                // flag-off-only (I22; ASSERT(!Options::useJSThreads()) at entry,
+                // all callers reroute to putDirectWithoutTransitionConcurrent
+                // flag-on), so inline the pre-threads publish body - no
+                // Options::useJSThreads() load on the transition fast path.
+                if (isX86() || vm.heap.mutatorShouldBeFenced()) {
+                    setStructureIDDirectly(structureID.nuke());
+                    WTF::storeStoreFence();
+                    butterflyRef().set(vm, this, butterfly);
+                    WTF::storeStoreFence();
+                } else
+                    butterflyRef().set(vm, this, butterfly);
                 structure->setMaxOffset(vm, newMaxOffset);
                 WTF::storeStoreFence();
                 setStructureIDDirectly(structureID);
@@ -921,6 +936,33 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     // instantiation is token-identical to the previous jsThreads==true paths;
     // the lambda call boundary is not a safepoint (no poll/park/allocation),
     // so the M5, FIX-2, and I18/I30 proofs carry verbatim.
+    // bench-transition-regress (V5B-1 extension): inside the templated impl
+    // below the jsThreads discriminator is statically known, so bind it at
+    // compile time at the butterfly publish sites - the flag-off instantiation
+    // is byte-identical to the pre-threads publish body, with no
+    // Options::useJSThreads() load on the transition fast path. The
+    // JSObject::nukeStructureAndSetButterfly member keeps runtime dispatch for
+    // all other callers.
+    auto nukeStructureAndSetButterflyStatic = [&]<bool jsThreadsStatic>(StructureID oldStructureID, Butterfly* newButterfly) ALWAYS_INLINE_LAMBDA {
+#if USE(JSVALUE64)
+        if constexpr (jsThreadsStatic) {
+            ASSERT(Options::useJSThreads());
+            nukeStructureAndSetButterflyConcurrent(vm, oldStructureID, newButterfly);
+            return;
+        }
+        ASSERT(!Options::useJSThreads());
+#endif
+        if (isX86() || vm.heap.mutatorShouldBeFenced()) {
+            setStructureIDDirectly(oldStructureID.nuke());
+            WTF::storeStoreFence();
+            butterflyRef().set(vm, this, newButterfly);
+            WTF::storeStoreFence();
+            return;
+        }
+
+        butterflyRef().set(vm, this, newButterfly);
+    };
+
     auto impl = [&]<bool jsThreads>() ALWAYS_INLINE_LAMBDA -> ASCIILiteral {
     while (true) {
 #if USE(JSVALUE64)
@@ -1051,7 +1093,9 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
             unsigned newOutOfLineCapacity = Structure::outOfLineCapacity(newMaxOffset);
             if (newOutOfLineCapacity != oldOutOfLineCapacity) {
                 Butterfly* butterfly = allocateMoreOutOfLineStorage(vm, oldOutOfLineCapacity, newOutOfLineCapacity);
-                nukeStructureAndSetButterfly(vm, structureID, butterfly);
+                // Statically jsThreads == false here: the constexpr jsThreads
+                // dictionary leg above returns/continues on every path.
+                nukeStructureAndSetButterflyStatic.template operator()<jsThreads>(structureID, butterfly);
                 structure->setMaxOffset(vm, newMaxOffset);
                 WTF::storeStoreFence();
                 setStructureIDDirectly(structureID);
@@ -1120,7 +1164,9 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
             if (structure->outOfLineCapacity() != newStructure->outOfLineCapacity()) {
                 ASSERT(newStructure != this->structure());
                 newButterfly = allocateMoreOutOfLineStorage(vm, structure->outOfLineCapacity(), newStructure->outOfLineCapacity());
-                nukeStructureAndSetButterfly(vm, structureID, newButterfly);
+                // Statically jsThreads == false here: the constexpr jsThreads
+                // transition leg above returns or continues.
+                nukeStructureAndSetButterflyStatic.template operator()<jsThreads>(structureID, newButterfly);
             }
 
             // This assertion verifies that the concurrent GC won't read garbage if the concurrentGC
@@ -1268,7 +1314,9 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     ASSERT(oldCapacity <= newCapacity);
     if (oldCapacity != newCapacity) {
         Butterfly* newButterfly = allocateMoreOutOfLineStorage(vm, oldCapacity, newCapacity);
-        nukeStructureAndSetButterfly(vm, structureID, newButterfly);
+        // Statically jsThreads == false here: the constexpr jsThreads
+        // transition leg above returns or continues.
+        nukeStructureAndSetButterflyStatic.template operator()<jsThreads>(structureID, newButterfly);
     }
 
     // This assertion verifies that the concurrent GC won't read garbage if the concurrentGC

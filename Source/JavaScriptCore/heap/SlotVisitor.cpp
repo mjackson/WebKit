@@ -40,6 +40,7 @@
 #include "SlotVisitorInlines.h"
 #include "StopIfNecessaryTimer.h"
 #include "VM.h"
+#include <wtf/Atomics.h>
 #include <wtf/ListDump.h>
 #include <wtf/Lock.h>
 #include <wtf/StdLibExtras.h>
@@ -466,7 +467,11 @@ void SlotVisitor::donateKnownParallel()
 
 void SlotVisitor::updateMutatorIsStopped(const AbstractLocker&)
 {
-    m_mutatorIsStopped = (m_heap.worldIsStopped() & m_canOptimizeForStoppedMutator);
+    // Written under m_rightToRun (or with the world stopped); read lock-free
+    // by the collector poll in hasAcknowledgedThatTheMutatorIsResumed(). The
+    // load-bearing happens-before is the m_rightToRun handshake; the relaxed
+    // atomic makes the lock-free poll well-defined.
+    WTF::atomicStore(&m_mutatorIsStopped, m_heap.worldIsStopped() && m_canOptimizeForStoppedMutator, std::memory_order_relaxed);
 }
 
 void SlotVisitor::updateMutatorIsStopped()
@@ -478,12 +483,12 @@ void SlotVisitor::updateMutatorIsStopped()
 
 bool SlotVisitor::hasAcknowledgedThatTheMutatorIsResumed() const
 {
-    return !m_mutatorIsStopped;
+    return !WTF::atomicLoad(const_cast<bool*>(&m_mutatorIsStopped), std::memory_order_relaxed);
 }
 
 bool SlotVisitor::mutatorIsStoppedIsUpToDate() const
 {
-    return m_mutatorIsStopped == (m_heap.worldIsStopped() & m_canOptimizeForStoppedMutator);
+    return WTF::atomicLoad(const_cast<bool*>(&m_mutatorIsStopped), std::memory_order_relaxed) == (m_heap.worldIsStopped() && m_canOptimizeForStoppedMutator);
 }
 
 void SlotVisitor::optimizeForStoppedMutator()

@@ -90,3 +90,61 @@ race:JSC::Heap::reportExtraMemoryVisited
 # (Source/JavaScriptCore/heap/Heap.cpp:765-774); lost increments/stale reads
 # only delay a refresh of an approximate memory-pressure heuristic.
 race:JSC::Heap::overCriticalMemoryThreshold
+
+# ============================================================================
+# V7 adjudication record (tsan-sharedgc-marking-races, 202-report corpus).
+# NO new suppressions added in this round — comments only. Reviewed 3/3
+# approve with binding amendments; this block records the state.
+#
+# Part A — five plain-data-race families FIXED IN CODE (not suppressed):
+#   1. IsoCellSet parallel source Task::m_done -> Atomic<bool> relaxed
+#      (heap/IsoCellSet.cpp; fully converted, class is .cpp-local).
+#   2. MarkingConstraint::m_lastVisitCount -> WTF::atomicStore/ExchangeAdd
+#      relaxed at all four .cpp accesses; doParallelWork's m_lock critical
+#      section elided (sole user).
+#   3. SlotVisitor::m_mutatorIsStopped -> WTF::atomicStore/atomicLoad relaxed
+#      at SlotVisitor.cpp:469/481/486 (also fixed bitwise & on bools -> &&).
+#   4. Heap::m_worldIsStopped -> release stores at Heap.cpp stopThePeriphery/
+#      resumeThePeriphery, relaxed self-check loads.
+#   5. Thread::m_gcThreadType bit-field RMW (Threading.cpp:410) — NOT yet
+#      fixed; requires Threading.h layout change (move out of the packed
+#      bit-field byte shared with m_isShuttingDown/m_didExit/
+#      m_isCompilationThread/m_isJSThread, make Atomic<uint8_t>). FIXME left
+#      at the site; MUST land in the header-side pass.
+#   RESIDUAL (header-side pass required, headers were out of scope for this
+#   change): plain reads remain at MarkingConstraint.h:63 lastVisitCount(),
+#   SlotVisitor.h:166 mutatorIsStopped(), Heap.h:414 worldIsStopped(),
+#   Threading.h:289 gcThreadType(). TSAN may still pair these header-inlined
+#   reads against the now-atomic .cpp stores; those reports mean "finish the
+#   header pass", not "suppress".
+#   Adjudication caveats carried from review: these five sites are upstream
+#   PRE-EXISTING races newly OBSERVED (not newly created) by the shared-GC
+#   election; the relaxed-atomic conversion permanently blinds TSAN at these
+#   sites — re-audit them if the N-mutator stop protocol grows a real
+#   ordering dependency. Ledger note: proposal counted 176 Part A / 26
+#   Part B but its enumerations sum 177/25; reconcile to exactly 202 against
+#   a FRESH TSan run before any Part B entry lands.
+#
+# Part B — remaining ~25 reports (upstream lock-free mark-bit protocol:
+# wtf/Atomics.h:55/:81 via concurrentTestAndSet, IsoCellSetInlines.h:45,
+# BlockDirectoryBits.h:98 raw word() views, FastBitVector FastBitReference
+# operator=, MarkedBlockInlines.h:265 specializedSweep, SlotVisitor.cpp:330
+# noteLiveAuxiliaryCell, :299 appendToMarkStack): DO NOT SUPPRESS YET.
+# Binding amendment replaces the proposal's control: rebuild WebKitBuild/TSan
+# at the current tree, then run the same tests in STOCK-UPSTREAM config — NO
+# thread flags at all (not GIL-off-minus-shared-heap) — with
+# --numberOfGCMarkers=8 and forced full GCs. Only signatures reproducing in
+# that stock run qualify under rule 1; everything else escalates as a
+# possible real shared-GC bug. Candidate entries (complete, untruncated
+# list; each still needs its own rule-2 justification line, and prefer
+# narrower anchors, e.g. concurrentTestAndSet over IsoCellSet::add, if
+# TSAN frame matching allows):
+#   race:JSC::IsoCellSet::add
+#   race:JSC::MarkedBlock::Handle::specializedSweep
+#   race:JSC::SlotVisitor::noteLiveAuxiliaryCell
+#   race:JSC::SlotVisitor::appendToMarkStack
+#
+# Mandatory post-apply gates (next verify round): V5a/V5b bench re-run
+# (flag-off codegen changed: GC-path atomic RMWs in shared upstream code),
+# GIL-on corpus (92 tests), pinned V2/V3/V4 rungs.
+# ============================================================================

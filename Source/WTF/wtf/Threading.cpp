@@ -407,6 +407,13 @@ bool Thread::exchangeIsCompilationThread(bool newValue)
 
 void Thread::registerGCThread(GCThreadType gcThreadType)
 {
+    // FIXME (V7 adjudication, deferred to header-side pass): m_gcThreadType
+    // is a 2-bit field packed into the same byte as m_isShuttingDown /
+    // m_didExit / m_isCompilationThread / m_isJSThread (Threading.h), so this
+    // store is a read-modify-write of that whole byte and races with
+    // concurrent writers of the sibling flags. The fix is to move
+    // m_gcThreadType out of the bit-field run and make it Atomic<uint8_t> in
+    // Threading.h; a bit-field cannot be made atomic from this side.
     Thread::currentSingleton().m_gcThreadType = static_cast<unsigned>(gcThreadType);
 }
 

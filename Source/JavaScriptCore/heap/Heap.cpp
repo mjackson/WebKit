@@ -2238,7 +2238,9 @@ void Heap::stopThePeriphery(GCConductor conn)
     // mutators are barred by the §10.4 barrier (always-fenced once shared,
     // see setMutatorShouldBeFenced()).
     ASSERT(!isSharedServer() || worldIsStoppedForAllClients()); // I5 (T8).
-    if (m_worldIsStopped) {
+    // Collector-thread-only self-check; relaxed is sufficient here. The
+    // cross-thread edge is the release store below.
+    if (WTF::atomicLoad(&m_worldIsStopped, std::memory_order_relaxed)) {
         dataLog("FATAL: world already stopped.\n");
         RELEASE_ASSERT_NOT_REACHED();
     }
@@ -2249,7 +2251,11 @@ void Heap::stopThePeriphery(GCConductor conn)
     m_mutatorDidRun = false;
 
     m_isCompilerThreadsSuspended = suspendCompilerThreads();
-    m_worldIsStopped = true;
+    // Release store pairs with worldIsStopped() readers (matches the
+    // m_worldIsStoppedForAllClients pattern). NOTE (V7 adjudication): the
+    // header-side accessor Heap.h:414 still does a plain read — converting it
+    // requires a Heap.h edit, deferred to the header-side pass.
+    WTF::atomicStore(&m_worldIsStopped, true, std::memory_order_release);
 
     forEachSlotVisitor(
         [&] (SlotVisitor& visitor) {
@@ -2312,11 +2318,11 @@ NEVER_INLINE void Heap::resumeThePeriphery()
     
     m_barriersExecuted = 0;
     
-    if (!m_worldIsStopped) {
+    if (!WTF::atomicLoad(&m_worldIsStopped, std::memory_order_relaxed)) {
         dataLog("Fatal: collector does not believe that the world is stopped.\n");
         RELEASE_ASSERT_NOT_REACHED();
     }
-    m_worldIsStopped = false;
+    WTF::atomicStore(&m_worldIsStopped, false, std::memory_order_release);
     
     // FIXME: This could be vastly improved: we want to grab the locks in the order in which they
     // become available. We basically want a lockAny() method that will lock whatever lock is available
