@@ -2427,6 +2427,53 @@ CodeBlock* CodeBlock::replacement()
     return nullptr;
 }
 
+// UNGIL FIX-2: see the declaration comment in runtime/FunctionExecutable.h.
+// Coherent by construction: ONE load of the publish slot, then everything is
+// address-dependent off that pointer (no second read of the executable's
+// m_jitCodeFor* mirrors, so no window for a sibling's installCode to swap the
+// pair underneath us). The only mutable hop is CodeBlock::m_jitCode, which
+// only ever upgrades IN PLACE on the same CodeBlock (LLInt thunk -> Baseline,
+// setupWithUnlinkedBaselineCode -> setJITCode); both the old and the new
+// value are valid code for THIS CodeBlock, so a race on that swap still
+// yields a matched (CodeBlock, entrypoint) pair.
+//
+// Lifetime, stated precisely (load-bearing fact, not hand-waving): the
+// unlocked RefPtr copy in jitCode() races setJITCode's locked in-place
+// replace. The reason load-pointer-then-ref() cannot ref freed memory is
+// that the ONLY in-place m_jitCode replace is shared-LLInt-thunk -> tier
+// code, and the displaced JITCode is isShared() (process-immortal), so the
+// writer dropping its ref never destroys it. The gilOff RELEASE_ASSERT below
+// trips loudly if a future tier is added to the in-place path whose displaced
+// JITCode is NOT shared (which would otherwise be a silent UAF; the assert
+// ideally belongs in CodeBlock::setJITCode on the displaced value — kept here
+// only because this change's write scope excludes CodeBlock.h).
+//
+// The returned entrypoint is kept alive by jitCodeKeeperOut, which the caller
+// must hold until the consuming call/install completes; the RefPtr taken here
+// is handed out, not dropped at return.
+FunctionCodeBlock* FunctionExecutable::codeBlockWithEntrypointFor(CodeSpecializationKind kind, ArityCheckMode arityCheck, CodePtr<JSEntryPtrTag>& entrypointOut, RefPtr<JSC::JITCode>& jitCodeKeeperOut)
+{
+    entrypointOut = nullptr;
+    jitCodeKeeperOut = nullptr;
+    FunctionCodeBlock* codeBlock = codeBlockFor(kind);
+    if (!codeBlock)
+        return nullptr;
+    if (RefPtr<JSC::JITCode> jitCode = codeBlock->jitCode()) {
+        if (g_jscConfig.gilOffProcess) [[unlikely]] {
+            // Detect a violated immortality premise: if the CodeBlock's
+            // m_jitCode was replaced in place, the value we copied must be
+            // either the current one or the displaced shared LLInt thunk. A
+            // non-shared JITCode that is no longer the CodeBlock's current
+            // code means a non-shared in-place replace exists — the premise
+            // documented above is broken and this read path is a UAF risk.
+            RELEASE_ASSERT(jitCode->isShared() || jitCode == codeBlock->jitCode());
+        }
+        entrypointOut = jitCode->addressForCall(arityCheck);
+        jitCodeKeeperOut = WTF::move(jitCode);
+    }
+    return codeBlock;
+}
+
 #if ENABLE(JIT)
 DFG::CapabilityLevel CodeBlock::computeCapabilityLevel()
 {

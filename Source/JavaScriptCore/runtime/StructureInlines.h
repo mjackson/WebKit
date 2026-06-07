@@ -432,22 +432,36 @@ template<typename Func>
 ALWAYS_INLINE auto Structure::addOrReplacePropertyWithoutTransition(VM& vm, PropertyName propertyName, unsigned newAttributes, const Func& func) -> decltype(auto)
 {
     ASSERT(!isCompilationThread());
-    PropertyTable* table = ensurePropertyTable(vm);
 
-    auto rep = propertyName.uid();
-
-    // SPEC-objectmodel L6(ii)/(iii) (Task 3c): flag-on, the uncached find WALK
-    // and the subsequent mutation of this PUBLISHED table form one m_lock
-    // critical section, so a racing locked add/rehash can neither tear the
-    // walk nor invalidate `findResult` between find() and addAfterFind()
-    // (I37). The loop re-checks under the lock that `table` is still this
-    // structure's published table — a racing transition may have stolen it
-    // via takePropertyTableOrCloneIfPinned (then it is private to the thief
-    // and must not be touched). GCSafe locker = m_lock + DeferGC, O1's
-    // sanctioned form for the allocating addAfterFind below. Flag-off:
-    // today's lock placement, after the find (I22).
-    std::optional<GCSafeConcurrentJSLocker> l6Locker;
+    // SPEC-objectmodel L6(ii)/(iii) (Task 3c) — mode-split, I22: the flag-on
+    // arm below holds m_lock across find+mutate (steal-recheck loop preserved
+    // verbatim); the flag-off arm is today's pre-threads body, bit- and
+    // branch-identical (no std::optional locker machinery; the lock is taken
+    // AFTER the find, exactly the old placement). Race statement, flag-on:
+    // the uncached find WALK and the subsequent mutation of this PUBLISHED
+    // table must form one m_lock critical section, so a racing locked
+    // add/rehash can neither tear the walk nor invalidate `findResult`
+    // between find() and addAfterFind() (I37). The loop re-checks under the
+    // lock that `table` is still this structure's published table — a racing
+    // transition may have stolen it via takePropertyTableOrCloneIfPinned
+    // (then it is private to the thief and must not be touched). GCSafe
+    // locker = m_lock + DeferGC, O1's sanctioned form for the allocating
+    // addAfterFind. Flag-off: exactly one mutator exists (no Thread()
+    // without useJSThreads), so no steal and no concurrent rehash is
+    // possible between find and lock — the pre-threads lock-after-find
+    // placement is unconditionally correct (I22).
+    //
+    // DUPLICATION GUARD: the tail below (pin .. checkConsistency .. return)
+    // appears VERBATIM in both arms — the flag-on arm could not be outlined
+    // into a member sibling without a Structure.h declaration. Any change to
+    // one tail MUST be mirrored in the other.
     if (Options::useJSThreads()) [[unlikely]] {
+        // ===== flag-on arm (mirror of the flag-off tail below) =====
+        PropertyTable* table = ensurePropertyTable(vm);
+
+        auto rep = propertyName.uid();
+
+        std::optional<GCSafeConcurrentJSLocker> l6Locker;
         while (true) {
             l6Locker.emplace(m_lock, vm);
             if (propertyTableOrNull() == table)
@@ -455,21 +469,63 @@ ALWAYS_INLINE auto Structure::addOrReplacePropertyWithoutTransition(VM& vm, Prop
             l6Locker.reset();
             table = ensurePropertyTable(vm);
         }
+        const GCSafeConcurrentJSLocker& locker = *l6Locker;
+
+        auto findResult = table->find(rep);
+        if (findResult.offset != invalidOffset)
+            return std::tuple { findResult.offset, findResult.attributes, false };
+
+        pin(locker, vm, table);
+
+        // SPEC-objectmodel L6 (Task 3c): direct table query; see Structure::add.
+        ASSERT(!JSC::isValidOffset(std::get<0>(table->get(propertyName.uid()))));
+
+        checkConsistency();
+        if (newAttributes & PropertyAttribute::DontEnum || propertyName.isSymbol())
+            setIsQuickPropertyAccessAllowedForEnumeration(false);
+        if (newAttributes & PropertyAttribute::ReadOnly)
+            setContainsReadOnlyProperties();
+        if (newAttributes & PropertyAttribute::DontEnum)
+            setHasNonEnumerableProperties(true);
+        if (newAttributes & PropertyAttribute::DontDelete) {
+            setHasNonConfigurableProperties(true);
+            if (newAttributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessorOrValue)
+                setHasNonConfigurableReadOnlyOrGetterSetterProperties(true);
+        }
+        if (propertyName == vm.propertyNames->underscoreProto)
+            setHasUnderscoreProtoPropertyExcludingOriginalProto(true);
+        else if (propertyName == vm.propertyNames->then)
+            setHasSpecialProperties(true);
+
+        PropertyOffset newOffset = table->nextOffset(m_inlineCapacity);
+
+        m_propertyHash = m_propertyHash ^ rep->existingSymbolAwareHash();
+        m_seenProperties.add(CompactPtr<UniquedStringImpl>::encode(rep));
+
+        auto [offset, attributes, result] = table->addAfterFind(vm, PropertyTableEntry(rep, newOffset, newAttributes), WTF::move(findResult));
+        ASSERT_UNUSED(result, result);
+        ASSERT_UNUSED(offset, offset == newOffset);
+        UNUSED_VARIABLE(attributes);
+        auto newMaxOffset = std::max(newOffset, maxOffset());
+
+        func(locker, newOffset, newMaxOffset);
+
+        ASSERT(maxOffset() == newMaxOffset);
+
+        checkConsistency();
+        return std::tuple { newOffset, newAttributes, true };
     }
+
+    // ===== flag-off arm: pre-threads body (mirror of the flag-on tail above) =====
+    PropertyTable* table = ensurePropertyTable(vm);
+
+    auto rep = propertyName.uid();
 
     auto findResult = table->find(rep);
     if (findResult.offset != invalidOffset)
         return std::tuple { findResult.offset, findResult.attributes, false };
 
-    // Keyed off l6Locker, not a second Options::useJSThreads() load (the I22
-    // latched-option pattern: the compiler cannot CSE the global load across
-    // the opaque ensurePropertyTable/find calls above). Flag-on l6Locker is
-    // always engaged (the loop above emplaced it), so this stays null;
-    // flag-off l6Locker was never engaged and we take m_lock here — exactly
-    // today's lock placement.
-    ASSERT(Options::useJSThreads() == !!l6Locker);
-    GCSafeConcurrentJSLocker flagOffLocker(l6Locker ? nullptr : &m_lock, vm);
-    const GCSafeConcurrentJSLocker& locker = l6Locker ? *l6Locker : flagOffLocker;
+    GCSafeConcurrentJSLocker locker(m_lock, vm);
 
     pin(locker, vm, table);
 
@@ -704,6 +760,21 @@ ALWAYS_INLINE Structure* Structure::addPropertyTransitionToExistingStructure(Str
     // covers every mutator caller, including the ones outside Structure.cpp
     // (JSObject.cpp, JSObjectInlines.h, LiteralParser.cpp). Flag-off: today's
     // lock-free lookup, bit-identical behavior (I22).
+    //
+    // FIX-5 family-1 closure note: this branch is the SOLE intentional
+    // flag-off delta on the transition-lookup fast path (one frozen-Config
+    // load + one predicted-false branch; the Concurrently body is out-of-line
+    // per the note below, so flag-off inlines exactly the pre-threads Impl).
+    // If/when the AB17e item-7 latched single-byte Config gate (g_jscConfig
+    // byte, gilOffWithProcessGate pattern) is introduced for useJSThreads,
+    // key this branch off that same byte so the whole family tests one
+    // read-only-page byte. Race statement: flag-on inserts publish
+    // single-slot->TransitionMap inflation and map rehashes under the
+    // source's m_lock (Structure.cpp StructureTransitionTable::add), so a
+    // flag-on lock-free get could observe a half-published m_data/map —
+    // hence the reroute; flag-off has one mutator, so the lock-free get
+    // (trySingleTransition plain m_data load below) can never race an insert
+    // and stays byte-identical to upstream.
     if (Options::useJSThreads()) [[unlikely]]
         return addPropertyTransitionToExistingStructureConcurrently(structure, propertyName.uid(), attributes, offset);
     return addPropertyTransitionToExistingStructureImpl(structure, propertyName.uid(), attributes, offset);

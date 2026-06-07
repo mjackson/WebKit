@@ -109,6 +109,27 @@ public:
         return codeBlockForConstruct();
     }
 
+    // UNGIL FIX-2 (publish/observe pairing — ANNEX CBI item 3, generalized):
+    // gilOff, dispatch publication must derive the entrypoint from the SAME
+    // CodeBlock object it transfers into CallFrameSlot::codeBlock. Pairing a
+    // separately (re-)read m_jitCodeForCall/m_jitCodeForConstruct mirror with
+    // codeBlockFor(kind) tears across a concurrent installCode (IT-8 store
+    // sequence: retract gate -> fence -> publish CodeBlock -> fence -> publish
+    // mirror) and enters one tier's machine code with another tier's CodeBlock
+    // in the frame slot — AHInvalidCodeBlock at the callee-prologue asserts
+    // with useJITAsserts, wrong JITData / null argument-profile storage in
+    // release.
+    //
+    // Returns the snapshot CodeBlock (nullptr if none is installed).
+    // entrypointOut is null iff no dispatchable code exists, in which case the
+    // caller must take its slow path. jitCodeKeeperOut receives the owning
+    // JITCode ref for the returned entrypoint: the CALLER must hold it until
+    // the call/install that consumes entrypointOut has completed — the
+    // entrypoint is a raw CodePtr with no other keeper, and a concurrent
+    // jettison + sweep may otherwise free the machine code between return and
+    // use. Defined in bytecode/CodeBlock.cpp.
+    FunctionCodeBlock* codeBlockWithEntrypointFor(CodeSpecializationKind, ArityCheckMode, CodePtr<JSEntryPtrTag>& entrypointOut, RefPtr<JSC::JITCode>& jitCodeKeeperOut);
+
     FunctionCodeBlock* baselineCodeBlockFor(CodeSpecializationKind);
         
     FunctionCodeBlock* profiledCodeBlockFor(CodeSpecializationKind kind)

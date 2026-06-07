@@ -503,14 +503,26 @@ void BlockDirectory::assertNoUnswept()
     if (!ASSERT_ENABLED)
         return;
 
-    // SharedGC (T8/I5b): outside a stop window and without MSPL, cross-client
-    // sweep state is neither stable (another client's collection may have
-    // re-snapshotted unswept bits since our sweep) nor safely readable
-    // lock-free (m_bits resize). Callers like collectNow(Sync)'s tail run on
-    // an access-holding requester, not the conductor — skip there.
+    // SharedGC (T8/I5b, FIX-3): cross-client unswept state is never
+    // assertable from a non-conductor thread, and neither of the old
+    // un-skip conditions identified the conductor:
+    //  - mutatorSlowPathLock().isHeld() is WTF::Lock's "held by ANYONE" —
+    //    another mutator's allocation slow path holding MSPL would un-skip
+    //    us while we read bits we do not own;
+    //  - worldIsStoppedForAllClients() means SOME conductor is mid-cycle,
+    //    and that cycle's snapshotUnswept() legitimately set unswept bits.
+    // Moreover, non-empty unswept is the designed shared-mode steady state:
+    // BlockDirectory::sweep's weak-bearing carve-out skips blocks with
+    // WeakBlocks when sweeping mutator-concurrently (world running, under
+    // MSPL), so even collectNow(Sync)'s own sweep deterministically leaves
+    // unswept bits; they are swept lazily in-lock (the IncrementalSweeper
+    // is disabled when isSharedServer()). Skip whenever shared. A future
+    // re-enable for a conductor inside its own stop window needs both
+    // conductor-identity tracking on Heap and an exclusion for the
+    // weak-carve-out leftovers.
     {
         auto& heap = markedSpace().heap();
-        if (heap.isSharedServer() && !heap.worldIsStoppedForAllClients() && !heap.mutatorSlowPathLock().isHeld())
+        if (heap.isSharedServer())
             return;
     }
 

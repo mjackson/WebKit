@@ -4027,6 +4027,19 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
         // top (this RESTART loop holds heap access with no bytecode poll).
         JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm);
         Structure* structure = thisObject->structure(); // M5: nuke-masked decode.
+        // FIX-4: snapshot the cacheable-dictionary pinned table's edit count
+        // BEFORE resolving the offset, so the under-lock {table, edit count}
+        // re-validation below proves the freshness of `offset` and of the
+        // plan-time clone together. Any in-place edit landing after this read
+        // bumps the count (PropertyTable.h, release store under the cell
+        // lock) and forces a RESTART before anything stale is published.
+        PropertyTable* plannedDictionaryTable = nullptr;
+        uint32_t plannedDictionaryEditCount = 0;
+        if (structure->isDictionary() && !structure->isUncacheableDictionary()) {
+            plannedDictionaryTable = structure->pinnedPropertyTableForConcurrentDelete();
+            RELEASE_ASSERT(plannedDictionaryTable); // Dictionary tables are pinned.
+            plannedDictionaryEditCount = plannedDictionaryTable->concurrentEditCount();
+        }
         unsigned attributes = 0;
         PropertyOffset offset = structure->get(vm, propertyName, attributes);
         if (!isValidOffset(offset)) {
@@ -4133,19 +4146,20 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
         // unchanged {table pointer, edit count} pair under the lock proves
         // the clone is exact. Non-dictionary sources keep the plain ID
         // validation: their tables are never edited in place once published (L6).
-        PropertyTable* plannedDictionaryTable = nullptr;
-        uint32_t plannedDictionaryEditCount = 0;
-        if (structure->isDictionary()) {
-            ASSERT(!structure->isUncacheableDictionary()); // Handled by the locked in-place leg above.
-            plannedDictionaryTable = structure->pinnedPropertyTableForConcurrentDelete();
-            RELEASE_ASSERT(plannedDictionaryTable); // Dictionary tables are pinned.
-            plannedDictionaryEditCount = plannedDictionaryTable->concurrentEditCount();
-        }
         DeferredStructureTransitionWatchpointFire deferredWatchpointFire(vm, structure);
         PropertyOffset transitionOffset = invalidOffset;
         Structure* newStructure = Structure::removePropertyTransition(vm, structure, propertyName, transitionOffset, &deferredWatchpointFire);
-        RELEASE_ASSERT(transitionOffset == offset); // Same source table, same key (dictionary staleness re-validated under the cell lock below).
-        ASSERT(newStructure->outOfLineCapacity() == structure->outOfLineCapacity());
+        // FIX-4: the transitionOffset and outOfLineCapacity checks MOVED
+        // under the cell lock below. Pre-lock they race a cacheable
+        // dictionary's in-place adds: removePropertyTransition clones the
+        // pinned table at one instant while structure->outOfLineCapacity()
+        // is re-read at another, and a racing cell-locked add can grow the
+        // table's maxOffset across an out-of-line capacity boundary in
+        // between (the V4 races/transition-vs-write JSObject.cpp:4148
+        // abort). The invariants are only checkable once the {table, edit
+        // count} snapshot has been re-validated under the cell lock, which
+        // freezes the source table. Type/flags/indexing are immutable
+        // per-Structure fields and remain safe to assert here.
         ASSERT(newStructure->typeInfo().type() == structure->typeInfo().type());
         ASSERT(newStructure->indexingModeIncludingHistory() == structure->indexingModeIncludingHistory());
         {
@@ -4153,9 +4167,31 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
             if (thisObject->structureID() != structure->id())
                 continue; // RESTART: a racing transition won while we planned/parked (I34 re-validation).
             if (plannedDictionaryTable
-                && (structure->pinnedPropertyTableForConcurrentDelete() != plannedDictionaryTable
+                && (!structure->isDictionary()
+                    || structure->pinnedPropertyTableForConcurrentDelete() != plannedDictionaryTable
                     || plannedDictionaryTable->concurrentEditCount() != plannedDictionaryEditCount))
-                continue; // RESTART: an in-place dictionary edit landed after the clone (S6 L3/L4 guard; Locker unlocks on scope exit).
+                continue; // RESTART: an in-place dictionary edit or a flatten landed after the snapshot (S6 L3/L4 guard; Locker unlocks on scope exit).
+            // FIX-4 (amended per review): the !isDictionary() re-read above
+            // closes the flatten hole — flattenDictionaryStructure renumbers
+            // offsets IN PLACE (PropertyTable::renumberPropertyOffsets does
+            // NOT bump concurrentEditCount), restores the SAME structureID,
+            // and keeps the same pinned table, but leaves the structure
+            // non-dictionary; a flatten landing while we were parked
+            // mid-plan therefore forces a RESTART here instead of
+            // publishing pre-flatten offsets into compacted slots.
+            // With structureID, dictionary-kind, table pointer, and edit
+            // count all re-validated under the cell lock — and the edit
+            // count snapshotted BEFORE the pre-lock get — the source table
+            // is frozen across get, clone, and publication: every remaining
+            // in-place dictionary mutation holds this cell lock and bumps
+            // the count. The clone is exact and `offset` is fresh, so the
+            // capacity and offset equalities are theorems, not racing
+            // observations. A mismatch here is a logic error
+            // (SPEC-objectmodel §4.2/§4.3), not a race: abort rather than
+            // silently retry against provably frozen state, which could
+            // never converge.
+            RELEASE_ASSERT(newStructure->outOfLineCapacity() == structure->outOfLineCapacity());
+            RELEASE_ASSERT(transitionOffset == offset); // Same frozen source table, same key.
             storeUndefinedIntoDoomedSlotConcurrent(thisObject, offset); // D1, BEFORE the publication.
             // ONE 64-bit header CAS under the §3.0 volatile-byte merge
             // discipline (mirrors tryStructureOnlyTransition's N2 publication;

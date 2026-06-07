@@ -1560,7 +1560,18 @@ void Heap::collectNow(Synchronousness synchronousness, GCRequest request)
             sweepSynchronously();
             dataLogIf(Options::logGC(), "]\n");
         }
-        m_objectSpace.assertNoUnswept();
+        // SharedGC: "no unswept after my sync sweep" is not an invariant when
+        // this heap serves multiple clients. collectNow(Sync)'s sweep here runs
+        // mutator-concurrently under MSPL with the world running, and
+        // BlockDirectory::sweep's weak-bearing carve-out deliberately skips
+        // blocks whose WeakSet has WeakBlocks in that mode — they stay unswept
+        // until the next world-stopped sweep (lazy in-lock sweeping is the
+        // designed shared-mode steady state; the IncrementalSweeper is disabled
+        // under isSharedServer()). So legitimately-unswept blocks remain after
+        // our own sweep, with no concurrent collection needed. Only assert when
+        // this heap serves a single client.
+        if (!isSharedServer())
+            m_objectSpace.assertNoUnswept();
         
         sweepAllLogicallyEmptyWeakBlocks();
         return;

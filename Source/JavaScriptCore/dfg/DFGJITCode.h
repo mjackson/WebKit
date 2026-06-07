@@ -37,6 +37,7 @@
 #include "ExecutionCounter.h"
 #include "JITCode.h"
 #include "JumpTable.h"
+#include <atomic>
 #include <wtf/CompactPointerTuple.h>
 #include <wtf/Lock.h>
 #include <wtf/SegmentedVector.h>
@@ -345,17 +346,27 @@ public:
     // is a single byte. Post-link updates must go through locked find()+in-place value write —
     // never set()/add() — so structural mutation is impossible by construction.
     //
+    // Post-link C++ writers that address triggers by BytecodeIndex must go through
+    // setTierUpEntryTrigger() (locked find() + in-place value write; RELEASE_ASSERTs the key
+    // exists, so structural mutation/rehash is impossible by construction). Releasing
+    // m_tierUpTriggersLock also supplies the release edge ordering setOSREntryBlock before
+    // the CompilationDone publication on weak memory. Carve-out: the compiler thread's raw
+    // single-byte store through m_forcedOSREntryTrigger in
+    // ToFTLForOSREntryDeferredCompilationCallback::compilationDidBecomeReadyAsynchronously is
+    // permitted — stable post-link address, single-byte payload, same contract as the
+    // JIT-embedded lock-free reads.
+    //
     // KNOWN GAP (out of this change's file scope): DFGToFTLForOSREntryDeferredCompilationCallback
-    // still performs an unlocked tierUpEntryTriggers.set(..., CompilationDone) in
-    // compilationDidComplete; it must be converted to the locked find()+in-place update under
-    // this lock (which also supplies the release/acquire edge ordering setOSREntryBlock before
-    // the CompilationDone publication on weak memory).
+    // ::compilationDidComplete still performs an unlocked tierUpEntryTriggers.set(...,
+    // CompilationDone); it must be converted to setTierUpEntryTrigger() below — until then the
+    // racing structural writer remains and this change only closes the reader-side windows.
     UncheckedKeyHashMap<BytecodeIndex, TriggerReason> tierUpEntryTriggers;
+    void setTierUpEntryTrigger(BytecodeIndex, TriggerReason);
     Lock m_tierUpTriggersLock;
 
     WriteBarrier<CodeBlock> m_osrEntryBlock;
-    unsigned osrEntryRetry { 0 };
-    bool abandonOSREntry { false };
+    std::atomic<unsigned> osrEntryRetry { 0 };
+    std::atomic<bool> abandonOSREntry { false };
 #endif // ENABLE(FTL_JIT)
 };
 

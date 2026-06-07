@@ -470,6 +470,26 @@ void AssemblyHelpers::jitAssertCodeBlockMatchesCurrentCalleeCodeBlockOnCallFrame
 {
     if (!Options::useJITAsserts())
         return;
+    // UNGIL FIX-2 (gilOff mode-split): with N mutators,
+    // executable->codeBlockFor(kind) is a moving publish slot — tier-up
+    // republish (ScriptExecutable::installCode, IT-8) and post-jettison
+    // reinstall legitimately advance it while activations dispatched through
+    // a coherent-but-stale CallLinkRecord are still entering or executing the
+    // OLD CodeBlock (deferred invalidation, SPEC-jit I21: resumed mutators
+    // keep executing replaced code until their next invalidation point).
+    // "callFrame->codeBlock == the executable's CURRENTLY published
+    // codeBlock" is therefore not an invariant gilOff, and the load emitted
+    // below is unordered against the installer's fences anyway. Benign by
+    // design => do not emit the check. Emission-time gate on the sticky
+    // Config-page byte (same gate as ~CallLinkInfo): the gate is evaluated
+    // while GENERATING code, so flag-off/GIL-on emitted code is
+    // byte-identical and the V5b flag-off bench rule is untouched.
+    // Accepted loss (review record): this was the only check that could catch
+    // a same-tier WRONG-FUNCTION CodeBlock in the frame slot; the retained
+    // canaries at jitAssertCodeBlockOnCallFrameWithType and
+    // jitAssertCodeBlockOnCallFrameIsOptimizingJIT only see tier mismatches.
+    if (g_jscConfig.gilOffProcess) [[unlikely]]
+        return;
     if (block.codeType() != FunctionCode)
         return;
     auto kind = block.isConstructor() ? CodeSpecializationKind::CodeForConstruct : CodeSpecializationKind::CodeForCall;

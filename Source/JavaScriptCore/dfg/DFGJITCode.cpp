@@ -415,13 +415,16 @@ void JITCode::clearOSREntryBlockAndResetThresholds(CodeBlock *dfgCodeBlock)
     BytecodeIndex osrEntryBytecode = m_osrEntryBlock->jitCode()->ftlForOSREntry()->bytecodeIndex();
     m_osrEntryBlock.clear();
     osrEntryRetry = 0;
-    {
-        Locker locker { m_tierUpTriggersLock };
-        auto it = tierUpEntryTriggers.find(osrEntryBytecode);
-        RELEASE_ASSERT(it != tierUpEntryTriggers.end()); // Key set at link time (DFGJITCompiler); insert here would rehash under JIT-embedded trigger addresses.
-        it->value = JITCode::TriggerReason::DontTrigger;
-    }
+    setTierUpEntryTrigger(osrEntryBytecode, JITCode::TriggerReason::DontTrigger);
     setOptimizationThresholdBasedOnCompilationResult(dfgCodeBlock, CompilationResult::CompilationDeferred);
+}
+
+void JITCode::setTierUpEntryTrigger(BytecodeIndex bytecodeIndex, TriggerReason reason)
+{
+    Locker locker { m_tierUpTriggersLock };
+    auto it = tierUpEntryTriggers.find(bytecodeIndex);
+    RELEASE_ASSERT(it != tierUpEntryTriggers.end()); // Key set at link time (DFGJITCompiler); insert here would rehash under JIT-embedded trigger addresses.
+    it->value = reason;
 }
 #endif // ENABLE(FTL_JIT)
 

@@ -699,9 +699,18 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
     //   watchpoints never fire inline inside Structure::create while the SAL
     //   is held: watchpoint firing may take rank-6b CodeBlock/jit locks,
     //   which are OUTER to ours and must never be acquired holding the SAL.
+    // I22 latched-option pattern (see StructureInlines.h
+    // addOrReplacePropertyWithoutTransition): one Config load at function
+    // entry; the compiler can then prove every SAL optional below is
+    // disengaged on the flag-off arm and elide the engaged-dtor checks, so
+    // the flag-off body is the pre-threads body behind a single
+    // predicted-false branch. (Options are frozen after init, so the latch
+    // is semantics-preserving; the three loads below could not be CSE'd
+    // across the opaque Structure::create / GCSafe-locker calls.)
+    const bool useSAL = Options::useStructureAllocationLock();
     std::optional<DeferGC> salDeferGC;
     std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
-    if (Options::useStructureAllocationLock()) [[unlikely]] {
+    if (useSAL) [[unlikely]] {
         salDeferGC.emplace(vm);
         if (!deferred) {
             salDeferredFire.emplace(vm, structure);
@@ -716,7 +725,7 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
         // the same latched option so flag-off emits no call at all. (Same
         // pattern at every StructureAllocationLocker site in this file.)
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
@@ -757,7 +766,7 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
         // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
         // GCSafe locker's deferred collection from starting under the SAL.
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock — a
@@ -877,10 +886,12 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
 
     // Task 3b: SAL emission — see addNewPropertyTransition for the rationale
     // (pre-lock DeferGC per O1/heap L5; deferred watchpoint fire keeps
-    // rank-6b locks out of the SAL region).
+    // rank-6b locks out of the SAL region). I22 latched-option pattern:
+    // one Config load per function (see addNewPropertyTransition).
+    const bool useSAL = Options::useStructureAllocationLock();
     std::optional<DeferGC> salDeferGC;
     std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
-    if (Options::useStructureAllocationLock()) [[unlikely]] {
+    if (useSAL) [[unlikely]] {
         salDeferGC.emplace(vm);
         if (!deferred) {
             salDeferredFire.emplace(vm, structure);
@@ -891,7 +902,7 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
     Structure* transition;
     {
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
@@ -923,7 +934,7 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
         // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
         // GCSafe locker's deferred collection from starting under the SAL.
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
@@ -1095,9 +1106,11 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
     // Even if the current structure is dictionary, we should perform transition since this changes attributes of existing properties to keep
     // structure still cacheable.
     // Task 3b: SAL emission — see addNewPropertyTransition for the rationale.
+    // I22 latched-option pattern: one Config load per function.
+    const bool useSAL = Options::useStructureAllocationLock();
     std::optional<DeferGC> salDeferGC;
     std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
-    if (Options::useStructureAllocationLock()) [[unlikely]] {
+    if (useSAL) [[unlikely]] {
         salDeferGC.emplace(vm);
         if (!deferred) {
             salDeferredFire.emplace(vm, structure);
@@ -1108,7 +1121,7 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
     Structure* transition;
     {
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
@@ -1139,7 +1152,7 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
         // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
         // GCSafe locker's deferred collection from starting under the SAL.
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
@@ -1165,9 +1178,11 @@ Structure* Structure::toDictionaryTransition(VM& vm, Structure* structure, Dicti
 
     // Task 3b: SAL emission. The DeferGC above discharges O1/heap L5; the
     // flag-gated deferred fire keeps rank-6b watchpoint firing out of the
-    // SAL region (see addNewPropertyTransition).
+    // SAL region (see addNewPropertyTransition). I22 latched-option pattern:
+    // one Config load per function.
+    const bool useSAL = Options::useStructureAllocationLock();
     std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
-    if (Options::useStructureAllocationLock() && !deferred) [[unlikely]] {
+    if (useSAL && !deferred) [[unlikely]] {
         salDeferredFire.emplace(vm, structure);
         deferred = &*salDeferredFire;
     }
@@ -1175,7 +1190,7 @@ Structure* Structure::toDictionaryTransition(VM& vm, Structure* structure, Dicti
     Structure* transition;
     {
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
@@ -1283,9 +1298,11 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
 
     // Task 3b: SAL emission. The DeferGC above discharges O1/heap L5; the
     // flag-gated deferred fire keeps rank-6b watchpoint firing out of the
-    // SAL region (see addNewPropertyTransition).
+    // SAL region (see addNewPropertyTransition). I22 latched-option pattern:
+    // one Config load per function.
+    const bool useSAL = Options::useStructureAllocationLock();
     std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
-    if (Options::useStructureAllocationLock() && !deferred) [[unlikely]] {
+    if (useSAL && !deferred) [[unlikely]] {
         salDeferredFire.emplace(vm, structure);
         deferred = &*salDeferredFire;
     }
@@ -1293,7 +1310,7 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
     Structure* transition;
     {
         std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
-        if (Options::useStructureAllocationLock()) [[unlikely]]
+        if (useSAL) [[unlikely]]
             structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }

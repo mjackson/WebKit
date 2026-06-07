@@ -6692,18 +6692,22 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
     // We aren't compiling and haven't compiled anything for OSR entry. So, try to compile
     // something.
 
-    // THREADS (DFG-1): bare find() is sound here without m_tierUpTriggersLock: the bucket
-    // array is structurally immutable post-link (no insert/remove => no rehash), iterator
-    // registration under CHECK_HASHTABLE_ITERATORS is internally mutex-protected, and we
-    // only take the value's address — we do not read ->value. Holding the lock across the
-    // TierUpEdgeLocker/compile() below would violate its leaf ordering.
-    auto triggerIterator = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
-    if (triggerIterator == jitCode->tierUpEntryTriggers.end()) {
+    // THREADS (DFG-1): do the lookup under m_tierUpTriggersLock and let the iterator be
+    // destroyed inside the locked scope; only the raw value address escapes (stable
+    // post-link: keys are never added/removed => no rehash). We must not hold the lock
+    // across the TierUpEdgeLocker/compile() below (leaf ordering), and we must not keep a
+    // live CHECK_HASHTABLE_ITERATORS-registered iterator across them either.
+    JITCode::TriggerReason* triggerAddress = nullptr;
+    {
+        Locker locker { jitCode->m_tierUpTriggersLock };
+        auto triggerIterator = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
+        if (triggerIterator != jitCode->tierUpEntryTriggers.end())
+            triggerAddress = &(triggerIterator->value);
+    }
+    if (!triggerAddress) {
         jitCode->setOptimizationThresholdBasedOnCompilationResult(codeBlock, CompilationResult::CompilationDeferred);
         return nullptr;
     }
-
-    JITCode::TriggerReason* triggerAddress = &(triggerIterator->value);
 
     // THREADS §5.7.2 (SPEC-jit Task 12): serialize the DFG->FTLForOSREntry trigger; only
     // the winner of the 0->1 CAS runs reconstruct()+newReplacement()+compile(). Losers
@@ -6770,7 +6774,12 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationTriggerTierUpNowInLoop, void, (VM* vm
 
     dataLogLnIf(Options::verboseOSR(), *codeBlock, ": Entered triggerTierUpNowInLoop with executeCounter = ", codeBlock->dfgJITData()->tierUpCounter());
 
-    if (jitCode->tierUpInLoopHierarchy.contains(bytecodeIndex))
+    bool inLoopHierarchy;
+    {
+        Locker locker { jitCode->m_tierUpTriggersLock };
+        inLoopHierarchy = jitCode->tierUpInLoopHierarchy.contains(bytecodeIndex);
+    }
+    if (inLoopHierarchy)
         tierUpCommon(vm, callFrame, bytecodeIndex, false);
     else if (shouldTriggerFTLCompile(codeBlock, jitCode))
         triggerFTLReplacementCompile(vm, codeBlock, jitCode);
