@@ -4304,4 +4304,58 @@ arm (DEBUG AND RELEASE, ASAN, U-T6);
 arm64-hardware runs for the SB1.6,
 ISB1.6 and §N.5 ping-pong arms.
 
+## ADDENDUM (post-AB-17 obligation-10/B review round)
+
+1. **SuspendExceptionScope trap-bit ops are the ONE deliberate
+   mode-UNKEYED semantic change of the obligation-10 reroute** (not a
+   byte-identical reroute): the ctor clearTrap(NeedExceptionHandling) /
+   dtor fireTrap run in ALL modes, including flag-off, where the old
+   fork code raw-saved vm.m_exception/m_lastException and left
+   bit=set/word=null inside a suspend window. The new behavior restores
+   bit<->word coherence (upstream clearException/restorePreviousException
+   semantics) and is REQUIRED by RETURN_IF_EXCEPTION's
+   EXCEPTION_ASSERT(!!exception == needHandling). Coverage: the V5a
+   flag-off identity gate (40/40) covers this site specifically. Do NOT
+   "restore" the raw saves as a perf cleanup — that reintroduces the
+   bit/word desync inside every suspend window in assert builds.
+
+2. **§A.3.2 per-park-site happens-before/poll discharge table** (the
+   FIX-2 banner in JSThreadsSafepoint.cpp was corrected to match):
+
+   | Park class | Release mechanism | HB edge to conductor sample | Re-acquire gate |
+   |---|---|---|---|
+   | Executing JS | requestStop trap + per-sample re-fire (VMManager loop) | seq_cst stop word / trap RMW | trap return path |
+   | LockObject hold | GILDroppedSection bracket (spawned: DropAllLocks; carrier: unlockAllForThreadParking -> willReleaseLock gilOff client release, JSLock.cpp) | seq_cst access-state store vs fenced registry walk (SB1 item 2) | bracket-exit gated AHA (F8/§A.3.2b) |
+   | Atomics/property wait (ThreadAtomics.cpp) | same GILDroppedSection bracket | same | same |
+   | Thread join (ThreadObject.cpp) | same GILDroppedSection bracket | same | same |
+   | Compile-side waits (BytecodeGenerator/DFGPlan GILOffCompilationLocker spins, ScriptExecutable, JSObject.h:2005) | parkSitePollAndParkForStopTheWorld per quantum | gcClientWillParkForThreadGranularStop seq_cst RHA + jsThreadsNotifyMutatorQuiesced | gcClientDidResumeFromThreadGranularStop -> gated AHA |
+   | JITWorklist::waitUntilAllPlansForVMAreReady | gcClientWillParkForThreadGranularStop bracket (whole wait) | same | same |
+   | Lookup.cpp static-property reification contention | same shape | same | same |
+   | C++ host call holding access in any OTHER unbounded wait | **UNDISCHARGED unless bracketed or polled — this is the residual root-cause-B class** | — | — |
+
+   Rule for new code: any unbounded native wait reachable while an
+   entered lite's client holds heap access must take one of the two
+   mechanisms above. Root cause B (counter-lock 5/5 watchdog timeout)
+   remains OPEN: at least one class-(2) wait is still unfound; the
+   watchdog timeout dump now names the non-quiescent lite
+   (JSThreadsSafepoint.cpp watchdogAssertStopProgress(requestStart, &vm))
+   so the next counter-lock run localizes it directly. The thread-ab17b
+   acceptance gate stays RED until that site is found and bracketed.
+
+3. **§I wasm refusal — emission/instantiation fail-stops added**:
+   RELEASE_ASSERT(!vm.gilOff()) at JSWebAssemblyModule::create and
+   JSWebAssemblyInstance::tryCreate. The 14-surface
+   throwIfWebAssemblyRefusedOnSpawnedThread gate remains the primary
+   line; the asserts convert a gate bypass (new API surface, cross-VM
+   module transfer under useSharedGCHeap, refactor) from silent
+   lost-exception behavior into a loud crash at minting.
+
+4. **Obligation-10 straddle enforcement now exists in code** (was
+   documented-only): ExceptionScope's ctor captures the resolved
+   verification storage and its dtor RELEASE_ASSERTs storage identity
+   plus the strict LIFO invariant (m_topExceptionScope == this);
+   SuspendExceptionScope ASSERTs ctor/dtor group3Primitives() identity
+   (TopCallFrameSetter precedent). Assert-class builds only; shipping
+   configurations are byte-identical.
+
 — End of handout. SPEC-ungil.md remains the doc of record. —

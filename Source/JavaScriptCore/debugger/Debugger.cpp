@@ -77,6 +77,9 @@ template<typename Functor>
 static ALWAYS_INLINE void runDebuggerWalkWithSpawnedThreadsStopped(VM& vm, const Functor& functor)
 {
     if (vm.gilOff()) [[unlikely]] {
+        // Watchdog context (review round): name this requester class in the
+        // 30s stop-watchdog crash log instead of a nil Class-A context.
+        JSThreadsSafepoint::ClassAStopWatchdogContext watchdogContext(&vm, "Debugger STW walk");
         JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambdaRef<void()>(functor));
         return;
     }

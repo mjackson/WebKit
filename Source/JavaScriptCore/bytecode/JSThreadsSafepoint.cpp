@@ -29,6 +29,7 @@
 #include "Heap.h"
 #include "HeapInlines.h"
 #include "VM.h"
+#include "VMLiteShared.h" // VMLiteRegistry: watchdog timeout participant dump.
 #include "VMManager.h"
 #include <atomic>
 #include <optional>
@@ -434,7 +435,7 @@ ClassAStopWatchdogContext::~ClassAStopWatchdogContext()
     t_pendingClassAStopContextDescription = m_previousDescription;
 }
 
-void watchdogAssertStopProgress(MonotonicTime requestStart)
+void watchdogAssertStopProgress(MonotonicTime requestStart, VM* vm) WTF_IGNORES_THREAD_SAFETY_ANALYSIS // Manual bounded tryLock of the registry leaf lock below.
 {
     if (MonotonicTime::now() - requestStart < stopTheWorldWatchdogTimeout) [[likely]]
         return;
@@ -444,25 +445,89 @@ void watchdogAssertStopProgress(MonotonicTime requestStart)
     dataLogLn("JSThreads stop-the-world failed to reach a stopped world within ",
         stopTheWorldWatchdogTimeout.seconds(), "s. Pending Class-A fire context: ",
         RawPointer(context), " (", description ? description : "<no Class-A fire pending on this thread>",
-        "). Either an escaped lock-holding direct fireAll caller (SPEC-jit annex App. 5.6(c) bucket iii; Task-11 audit table in docs/threads/INTEGRATE-jit.md / manifest M6), or a mutator parked in a native wait that holds heap access and does not call JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld per D9 quantum (FIX-2; a nil context means the requester was a jettison, which publishes no Class-A context).");
+        "). Either an escaped lock-holding direct fireAll caller (SPEC-jit annex App. 5.6(c) bucket iii; Task-11 audit table in docs/threads/INTEGRATE-jit.md / manifest M6), or a mutator parked in a native wait that holds heap access without an access-release bracket or per-quantum parkSitePollAndParkForStopTheWorld poll (FIX-2 banner, mechanisms (1)/(2)). All stopTheWorldAndRun requesters publish a ClassAStopWatchdogContext (watchpoint fire / CodeBlock jettison / OM transition stop / Debugger STW), so a nil context here means the wedged requester is NOT this thread, or a new context-less call site escaped review.");
+
+    // Review-round root-cause-B localization: name the participant(s) that
+    // failed the §A.3.2 predicate. Same walk shape as the conductor's
+    // per-sample predicate (registry leaf lock + SC fence; allocation-free),
+    // run once on the way into the fail-stop, so the crash log identifies
+    // WHICH entered lite still holds access instead of only the requester's
+    // (often nil) Class-A context.
+    if (vm) {
+        VMLite* requesterLite = VMLite::currentIfExists();
+        auto& registry = VMLiteRegistry::singleton();
+        // tryLock with a short bounded spin, NOT a blocking Locker: this is
+        // the watchdog's fail-stop path — if the wedge under diagnosis is a
+        // thread stuck while HOLDING the registry leaf lock (or the lock is
+        // corrupted by the same bug), an unconditional acquire would convert
+        // the deterministic 30s crash into an indefinite hang, the exact
+        // behavior this watchdog exists to prevent. Lose the dump, keep the
+        // crash.
+        bool lockedRegistry = false;
+        for (unsigned attempt = 0; attempt < 100; ++attempt) {
+            if (registry.lock.tryLock()) {
+                lockedRegistry = true;
+                break;
+            }
+            Thread::yield();
+        }
+        if (!lockedRegistry) {
+            dataLogLn("  (registry lock unavailable after bounded spin — possible registry-lock-holding wedge; skipping participant dump)");
+            RELEASE_ASSERT_NOT_REACHED();
+        }
+        Locker locker { AdoptLock, registry.lock };
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+        for (VMLite* lite : registry.lites) {
+            if (lite->vm != vm)
+                continue;
+            if (lite->state != VMLite::State::Live)
+                continue;
+            if (!lite->clientHeap)
+                continue;
+            dataLogLn("  entered lite ", RawPointer(lite), " tid=", lite->tid,
+                lite == requesterLite ? " [requester/conductor — exempt]" : "",
+                " clientHeap=", RawPointer(lite->clientHeap),
+                " hasHeapAccess=", lite->clientHeap->hasHeapAccess(),
+                lite != requesterLite && lite->clientHeap->hasHeapAccess() ? "  <== NON-QUIESCENT (blocking the stop)" : "");
+        }
+    }
     RELEASE_ASSERT_NOT_REACHED();
 }
 
 // ===== FIX-2 (stw-watchdog-timeout): gilOff park-site stop poll =====
 // The §A.3.2 conductor predicate is purely access-based ("parked implies
-// access-released"). The W1/D9 park-site split re-pointed the D9 quantum
-// loops (Atomics per-wait nodes, property-wait, Lock/Condition/Thread parks)
-// at the TERMINATION and WATCHDOG-CHECK predicates only — none of them polls
-// the §A.3 stop word or releases heap access, so a waiter parked across a
-// thread-granular stop request holds heap access for its entire wait and the
-// conductor's predicate cannot converge (the 30s watchdog fail-stop), while
-// the waiter's notifier is itself ticket-parked by the same fan: a true
-// deadlock that the watchdog turns into a crash. Called once per D9 quantum
-// with NO rank-3 (waiter-list/queue) lock held. Returns true if it parked;
-// the caller must treat that as a fresh acquisition episode (re-validate its
-// wait predicate / re-enqueue per the W1 disposition rules) before sleeping
-// again. Cost when no window is pending: one immutable-byte branch plus one
-// seq_cst load; GIL-on: one branch.
+// access-released"). There are TWO discharge mechanisms, by park class
+// (review-round banner correction — the original banner wrongly claimed the
+// D9 quantum loops call this helper; they never did and must not need to):
+//
+//   (1) JS-level D9 park sites (LockObject.cpp hold, ThreadAtomics.cpp
+//       property-wait, ThreadObject.cpp join) park strictly INSIDE a
+//       GILDroppedSection bracket, whose ctor releases this thread's
+//       per-client heap access for the whole wait (spawned arm:
+//       JSLock::DropAllLocks; carrier arm: unlockAllForThreadParking ->
+//       willReleaseLock's gilOff lite->clientHeap->releaseHeapAccess(),
+//       JSLock.cpp). Access-released for the entire wait satisfies the
+//       predicate with no per-quantum stop poll; re-acquisition at bracket
+//       exit funnels through the gated AHA (F8/§A.3.2b), which parks on a
+//       still-open window. These loops poll only TERMINATION and
+//       WATCHDOG-CHECK, by design.
+//
+//   (2) Compile-side / runtime waits that hold heap access across an
+//       unbounded native wait and have NO bracket — THESE are this helper's
+//       callers: BytecodeGenerator.cpp + DFGPlan.cpp (GILOffCompilationLocker
+//       tryLock spins), ScriptExecutable.cpp, JSObject.h:2005. Any NEW
+//       access-holding unbounded wait must either sit inside a
+//       GILDroppedSection-class bracket per (1) or call this helper once per
+//       wait quantum — otherwise the conductor's predicate cannot converge
+//       and the 30s watchdog fail-stops (the residual counter-lock 5/5
+//       signature is exactly an unfound class-(2) wait).
+//
+// Called once per wait quantum with NO rank-3 (waiter-list/queue) lock held.
+// Returns true if it parked; the caller must treat that as a fresh
+// acquisition episode (re-validate its wait predicate / re-enqueue per the
+// W1 disposition rules) before sleeping again. Cost when no window is
+// pending: one immutable-byte branch plus one seq_cst load; GIL-on: one
+// branch.
 bool parkSitePollAndParkForStopTheWorld(VM& vm)
 {
     if (!vm.gilOff()) [[likely]]

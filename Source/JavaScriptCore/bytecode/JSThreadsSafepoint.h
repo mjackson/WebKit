@@ -186,8 +186,13 @@ private:
 
 // RELEASE_ASSERTs (crashing with the published context) if the stop requested
 // at `requestStart` has not completed within a generous timeout. Safe to call
-// repeatedly from the wait loop; cheap when under the timeout.
-JS_EXPORT_PRIVATE void watchdogAssertStopProgress(MonotonicTime requestStart);
+// repeatedly from the wait loop; cheap when under the timeout. When the
+// requester passes its target VM (the §A.3 thread-granular conductor loop
+// does), the timeout dump also re-runs the §A.3.2 predicate walk and NAMES
+// every entered lite of that VM with its access state — so a timeout
+// identifies WHICH participant failed to quiesce, not just the requester's
+// own context (review-round root-cause-B localization).
+JS_EXPORT_PRIVATE void watchdogAssertStopProgress(MonotonicTime requestStart, VM* vm = nullptr);
 
 // FIX-2 (stw-watchdog-timeout): per-D9-quantum stop poll for gilOff native
 // park sites (Atomics.wait per-wait nodes, property-wait, Lock/Condition/

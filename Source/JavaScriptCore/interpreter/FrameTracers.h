@@ -62,10 +62,25 @@ public:
         primitives.m_lastException = nullptr;
         if (m_savedException)
             m_vm.trapsForCurrentThread().clearTrap(VMTraps::NeedExceptionHandling); // Same storage domain as the words above.
+        m_primitivesAtConstruction = &primitives;
+        m_trapsAtConstruction = &m_vm.trapsForCurrentThread();
     }
     ~SuspendExceptionScope()
     {
         auto& primitives = m_vm.group3Primitives();
+        // Rematerialized per §A.1.2; same thread+VM => same lite as ctor.
+        // The restore below is a non-idempotent write-back compiled into ALL
+        // builds (unlike the EXCEPTION_SCOPE_VERIFICATION chain), so a §F.5
+        // foreign-lite window restoring into different storage than the ctor
+        // saved from must be loud in release(+ASAN) too — a plain ASSERT
+        // compiles to nothing exactly where the desync would be silent
+        // exception loss/resurrection (see VM.cpp
+        // assertExceptionScopeVerificationFallbackArmIsSafe rationale).
+        // RELEASE_ASSERT, matching ~ExceptionScope's storage-identity check.
+        RELEASE_ASSERT(&primitives == m_primitivesAtConstruction);
+        // The trap-bit clear (ctor) / fire (below) re-resolve the same
+        // selector independently of the words: pin their storage too.
+        RELEASE_ASSERT(&m_vm.trapsForCurrentThread() == m_trapsAtConstruction);
         WTF::atomicStore(&primitives.m_exception, m_savedException, std::memory_order_relaxed);
         primitives.m_lastException = m_savedLastException;
         if (m_savedException)
@@ -75,6 +90,8 @@ private:
     VM& m_vm;
     Exception* m_savedException { nullptr };
     Exception* m_savedLastException { nullptr };
+    VMLitePrimitives* m_primitivesAtConstruction { nullptr };
+    VMTraps* m_trapsAtConstruction { nullptr };
 };
 
 class TopCallFrameSetter {

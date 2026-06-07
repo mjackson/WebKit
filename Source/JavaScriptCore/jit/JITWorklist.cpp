@@ -358,6 +358,23 @@ void JITWorklist::completeAllPlansForVM(VM& vm)
     if (!vm.numberOfActiveJITPlans())
         return;
 
+    // Soundness of the gilOff access-released wait below while this DeferGC
+    // is live (review-round record):
+    //  (a) Per-client deferral slots assert `client->hasHeapAccess() ||
+    //      worldIsStoppedForAllClients()` (AB-21), but those asserts run only
+    //      at slot TOUCHES — DeferGC's ctor (before the release) and dtor
+    //      (after gcClientDidResumeFromThreadGranularStop's gated
+    //      re-acquire). The wait body touches no deferral slot: it samples
+    //      m_plans under *m_lock and blocks on m_planCompiledOrCancelled.
+    //  (b) Releasing access does license the shared-server GC and §A.3
+    //      windows to run during the wait; DeferGC only defers THIS client's
+    //      collection participation, which is exactly the per-client
+    //      semantics — an access-released client never blocks the server.
+    //      A window's cancelAllPlansForVM mutates m_plans only under the
+    //      same *m_lock the wait loop samples under, so the wait re-derives
+    //      a coherent snapshot per wakeup; completeAllReadyPlansForVM runs
+    //      after re-acquire, access-held, with DeferGC still active — the
+    //      state it actually protects.
     DeferGC deferGC(vm);
     waitUntilAllPlansForVMAreReady(vm);
     completeAllReadyPlansForVM(vm);

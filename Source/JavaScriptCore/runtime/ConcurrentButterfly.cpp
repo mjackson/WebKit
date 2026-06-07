@@ -255,6 +255,10 @@ void jsThreadsStopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
     // holding them; `work` must not allocate in the GC heap (O4: pre-allocate
     // before requesting the stop, re-validate inside, RESTART on refit).
     RELEASE_ASSERT(!t_cellLocksHeldByConcurrentButterfly); // O2/I20 (Task 10): never block on a stop holding a §6-ranked lock; §4.3(b2) bans converting under the cell lock.
+    // Watchdog context (review round): OM transition stops are the dominant
+    // requester under property-write storms (e.g. counter-lock); a wedged
+    // stop must name this requester class instead of crashing context-nil.
+    JSThreadsSafepoint::ClassAStopWatchdogContext watchdogContext(&vm, "OM transition stop");
     JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>([&] {
         bool savedWitness = g_jsThreadsStubWorldStopped.load(std::memory_order_relaxed); // Nested veneer calls (R1.h) just nest.
         g_jsThreadsStubWorldStopped.store(true, std::memory_order_relaxed);

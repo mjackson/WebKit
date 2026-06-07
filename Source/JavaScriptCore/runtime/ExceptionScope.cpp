@@ -50,13 +50,23 @@ ExceptionScope::ExceptionScope(VM& vm, ExceptionEventLocation location)
     , m_location(location)
     , m_recursionDepth(m_previousScope ? m_previousScope->m_recursionDepth + 1 : 0)
 {
-    m_vm.exceptionScopeVerificationState().m_topExceptionScope = this;
+    auto& verificationState = m_vm.exceptionScopeVerificationState();
+    m_verificationStateAtConstruction = &verificationState;
+    verificationState.m_topExceptionScope = this;
 }
 
 ExceptionScope::~ExceptionScope()
 {
     auto& verificationState = m_vm.exceptionScopeVerificationState();
-    RELEASE_ASSERT(verificationState.m_topExceptionScope);
+    // Straddle enforcement (review round): the write-back is non-idempotent,
+    // so a scope whose lifetime straddles a t_currentVMLite install/uninstall
+    // would pop a DIFFERENT chain than the ctor pushed — cross-linking two
+    // chains silently (the exact cross-stack-linkage / stackPosition() UAR
+    // class obligation 10 closes). Assert storage identity (TopCallFrameSetter
+    // precedent), and the strict LIFO invariant: this scope IS the top of the
+    // chain it pushed onto.
+    RELEASE_ASSERT(&verificationState == m_verificationStateAtConstruction);
+    RELEASE_ASSERT(verificationState.m_topExceptionScope == this);
     verificationState.m_topExceptionScope = m_previousScope;
 }
 

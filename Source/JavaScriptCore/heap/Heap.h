@@ -562,6 +562,14 @@ public:
         WTF_MAKE_NONCOPYABLE(JSThreadsStopScope);
     public:
         JS_EXPORT_PRIVATE explicit JSThreadsStopScope(JSC::Heap&);
+        // Watchdog-covered variant (review round): acquires the GCL in
+        // bounded tryLock quanta, calling JSThreadsSafepoint::
+        // watchdogAssertStopProgress against `watchdogRequestStart` per
+        // quantum, so a conductor wedged behind a non-converging shared GC
+        // fail-stops at the 30s bound instead of hanging unwatched. Pass the
+        // same requestStart that covers the predicate-wait phase: reaching
+        // conductor tenure is part of reaching a stopped world.
+        JS_EXPORT_PRIVATE JSThreadsStopScope(JSC::Heap&, MonotonicTime watchdogRequestStart);
         JS_EXPORT_PRIVATE ~JSThreadsStopScope();
     private:
         JSC::Heap& m_heap;

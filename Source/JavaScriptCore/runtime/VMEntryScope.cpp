@@ -268,6 +268,23 @@ void VMEntryScope::setUpSlow()
         //      chartered flag-off-cost license is the --useJIT=0 bench-gate
         //      run (UNGIL-HANDOUT delta-(a) text) — subject to the same
         //      host-noise blocker as (1)-(3).
+        //
+        // AB-17 round-5 amendment (review findings):
+        //  (1) WASM FORCED OFF UNDER GIL-OFF (Options.cpp U0 block, LOLJIT
+        //      precedent): the wasm<->JS glue still emits raw VM-block
+        //      VM::exceptionOffset() loads (WasmToJS.cpp x6, JSToWasm.cpp
+        //      x3, WebAssemblyBuiltinTrampoline.cpp x1) — inert spare
+        //      storage GIL-off, i.e. silently missed exceptions on a
+        //      CARRIER-executed wasm<->JS call. The AB-15 SD7 refusal below
+        //      only covers spawned threads. Delete the Options.cpp refusal
+        //      once those ten sites are rerouted through the mode-keyed
+        //      exception-slot pattern and the wasm tier passes §A.1.3.
+        //  (2) Rung (iii) note: RETURN_IF_EXCEPTION's flag-off expansion now
+        //      evaluates gilOffWithProcessGate() (two read-only-Config-page
+        //      byte tests) before the legacy maybeNeedHandling() load. Same
+        //      class as the round-4 item-(2) exonerated m_gilOff branches;
+        //      rung (iii) remains OPEN and blocked on a quiet host per
+        //      round-4 item (3) — do not record it green without that run.
         constexpr bool perLiteSoftStackLimitRerouteLanded = true; // COMPLETE §A.2.2 reroute landed (AB-17; this change).
         bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {

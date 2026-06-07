@@ -827,6 +827,24 @@ void Options::notifyOptionsChanged()
         Options::useLOLJIT() = false;
     }
 
+    // UNGIL §A.1.3 (AB-17 round-5 amendment): the wasm tiers have not been
+    // audited for COMPILED-FOR-VM either — the wasm<->JS glue still emits
+    // raw VM-block exception-word checks (VM::exceptionOffset() loads in
+    // WasmToJS.cpp, JSToWasm.cpp, WebAssemblyBuiltinTrampoline.cpp) that are
+    // inert spare storage GIL-off, so a throwing callee of a CARRIER-executed
+    // wasm<->JS call would be silently missed (the AB-15 SD7 refusal in
+    // VMEntryScope.cpp only covers SPAWNED threads calling carrier-created
+    // exports). Per the house rule (fail-stop/refusal over silent
+    // corruption), force wasm off under the GIL-off shape — LOLJIT precedent
+    // above. Flag-off and GIL-on are unaffected; delete this once the wasm
+    // glue is rerouted through the mode-keyed exception-slot pattern
+    // (AssemblyHelpers::loadException / materializeGILOffExceptionSlot) and
+    // passes the §A.1.3 audit.
+    if (Options::useJSThreads() && !Options::useThreadGIL() && Options::useWasm()) {
+        dataLogLn("JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).");
+        Options::useWasm() = false;
+    }
+
     // ANNEX U0C write-once latch backstop (U-T14 amend, reviewer round 2):
     // gilOffProcess is OPTION-derived and IMMUTABLE for the process. The
     // real latch — the JSCConfig gilOffProcess byte — is U-T3's open

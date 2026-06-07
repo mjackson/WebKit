@@ -311,6 +311,14 @@ JSWebAssemblyInstance* JSWebAssemblyInstance::tryCreate(VM& vm, Structure* insta
 {
     auto throwScope = DECLARE_THROW_SCOPE(vm);
 
+    // UNGIL §I supersession, defense-in-depth (review round; see the matching
+    // assert in JSWebAssemblyModule::create): wasm execution requires an
+    // instance, and no instance may exist on a gilOff VM — the wasm-tier
+    // exception checks are not per-lite. A bypass of the
+    // throwIfWebAssemblyRefusedOnSpawnedThread gate dies loudly here at
+    // instantiation instead of silently losing/missing exceptions.
+    RELEASE_ASSERT(!vm.gilOff());
+
     const ModuleInformation& moduleInformation = jsModule->moduleInformation();
 
     auto exception = [&] (JSObject* error) {

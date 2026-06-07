@@ -55,6 +55,7 @@
 #include "JITStubRoutineSet.h"
 #include "JITWorklistInlines.h"
 #include "JSFinalizationRegistry.h"
+#include "JSThreadsSafepoint.h"
 #include "JSFunctionWithFields.h"
 #include "JSIterator.h"
 #include "JSMicrotaskDispatcher.h"
@@ -5477,6 +5478,29 @@ Heap::JSThreadsStopScope::JSThreadsStopScope(JSC::Heap& heap) WTF_IGNORES_THREAD
         ASSERT(!client->hasHeapAccess());
 #endif
     m_heap.m_gcConductorLock.lock();
+    m_didLock = true;
+}
+
+Heap::JSThreadsStopScope::JSThreadsStopScope(JSC::Heap& heap, MonotonicTime watchdogRequestStart) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+    : m_heap(heap)
+{
+    // Watchdog-covered GCL acquisition (review round): same bracket as the
+    // blocking ctor above, but the wait is covered by the 30s stop watchdog —
+    // a conductor queued behind a shared GC that never converges (or a GCL
+    // wedge) fail-stops with the standard timeout diagnostics instead of
+    // hanging unwatched forever. Quantum: 1ms tryLock; cost is nil on the
+    // uncontended path (first tryLock succeeds).
+    if (!m_heap.isSharedServer())
+        return;
+    ASSERT(!currentThreadHasSTWForbiddenScope()); // I14/L5.
+#if ASSERT_ENABLED
+    if (GCClient::Heap* client = GCClient::Heap::currentThreadClient())
+        ASSERT(!client->hasHeapAccess());
+#endif
+    while (!m_heap.m_gcConductorLock.tryLock()) {
+        JSThreadsSafepoint::watchdogAssertStopProgress(watchdogRequestStart, nullptr);
+        WTF::sleep(Seconds::fromMilliseconds(1));
+    }
     m_didLock = true;
 }
 

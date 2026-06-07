@@ -544,21 +544,37 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         selfClient->releaseHeapAccess();
         releasedAccess = true;
     }
+    // Watchdog budget (review round): requestStart is sampled BEFORE the
+    // arbitration park and the GCL bracket, not just before the predicate
+    // wait — reaching conductor tenure is part of reaching a stopped world,
+    // and both pre-predicate legs were previously unbounded, unwatched
+    // blocks (a wedged conductor or a non-converging shared GC hung every
+    // queued requester silently forever). One 30s budget covers all three
+    // legs end-to-end; long LEGITIMATE queues (a fire storm serializing N
+    // full stop windows) that exceed it are exactly what the watchdog must
+    // distinguish loudly rather than absorb silently.
+    MonotonicTime requestStart = MonotonicTime::now();
     {
         // HBT4 step 2: arbitration. Exactly one requesting THREAD is
-        // released as conductor; losers PARK here (WTF::Lock parks),
-        // access-released, then retry the whole sequence as later winners.
-        Locker arbitration { s_jsThreadsJobSlotLock };
+        // released as conductor; losers PARK here in bounded 1ms tryLock
+        // quanta (watchdog-covered, see above), access-released, then retry
+        // the whole sequence as later winners.
+        while (!s_jsThreadsJobSlotLock.tryLock()) {
+            JSThreadsSafepoint::watchdogAssertStopProgress(requestStart, &vm);
+            WTF::sleep(Seconds::fromMilliseconds(1));
+        }
+        Locker arbitration { AdoptLock, s_jsThreadsJobSlotLock };
 
         // HBT4 step 3 (WINNER ONLY) — the LICENSED REORDER of the landed
         // R1.i bracket: the GCL bracket comes strictly AFTER arbitration
         // (the landed order "GCL then arbitrate" deadlocks: a loser blocked
         // raw on GCL would violate HBT4.3 and could deadlock against a GC
         // conductor queued behind the same lock). At most one thread — this
-        // winner — ever blocks in GCL.lock(), and it blocks access-released;
-        // it queues behind any in-progress shared GC (§10C(b)/(e)).
+        // winner — ever blocks in the GCL acquisition, and it blocks
+        // access-released and watchdog-covered; it queues behind any
+        // in-progress shared GC (§10C(b)/(e)).
         JSC::Heap& server = vm.clientHeap.server();
-        Heap::JSThreadsStopScope stopScope(server);
+        Heap::JSThreadsStopScope stopScope(server, requestStart);
 
         // Fan (§A.2.3 / SB1 item 1): conductor tenure, then the seq_cst stop
         // word, then the per-lite stop bits. Under the U-T2 interim seam the
@@ -575,8 +591,8 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         // registry lock is dropped before every block/yield between samples,
         // and the walk NEVER runs under s_jsThreadsParkLock (leaf discipline,
         // see the lock's comment — the bounded wait absorbs the
-        // check-then-wait lost-wakeup window).
-        MonotonicTime requestStart = MonotonicTime::now();
+        // check-then-wait lost-wakeup window). requestStart was sampled
+        // before arbitration (see above): one watchdog budget end-to-end.
         for (;;) {
             if (allEnteredThreadsAreQuiescent(vm))
                 break;
@@ -591,7 +607,7 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
             // the per-lite trap words land (VMTraps.h activation checklist).
             vm.requestStop();
             WTF::storeLoadFence();
-            JSThreadsSafepoint::watchdogAssertStopProgress(requestStart);
+            JSThreadsSafepoint::watchdogAssertStopProgress(requestStart, &vm); // Pass the target VM so a timeout names the non-quiescent lite(s).
             Locker parkLocker { s_jsThreadsParkLock };
             s_jsThreadsParkCondition.waitFor(s_jsThreadsParkLock, Seconds::fromMilliseconds(1));
         }
@@ -782,6 +798,18 @@ CONCURRENT_SAFE void VMManager::requestStopAllInternal(StopReason reason)
             m_numberOfActiveVMs = 0;
         }
 
+        // INVARIANT (load-bearing for the §A.3 conductor's resume recheck,
+        // jsThreadsThreadGranularStopTheWorldAndRun cancelStop/recheck/
+        // restore): the Mode::Stopping publication below and the per-VM
+        // requestStop() fan in the iterateVMs loop further down MUST both
+        // happen under THIS single m_worldLock hold. The conductor's
+        // post-cancel VMManager::info() read acquires m_worldLock, so any
+        // fire its cancel could have raced with is observed as a non-RunAll
+        // mode and the bits are re-delivered (vm.requestStop() restores BOTH
+        // the trap bit and the entry-scope-service bit, VM.h). Splitting the
+        // publication and the fan across separate lock holds reintroduces a
+        // lost-stop-bit window (silent stop-delivery loss).
+        ASSERT(m_worldLock.isHeld());
         m_worldMode = Mode::Stopping;
 
         bool isWasmDebugger = reason == StopReason::WasmDebugger;

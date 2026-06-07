@@ -2551,6 +2551,10 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
         // inline (R1.h); otherwise we conduct a stop. Code-deletion still waits
         // on R2's conservative scan: ExecutableMemoryHandles are released only
         // by the GC sweep, never here.
+        // Watchdog context (review round): without this, a wedged jettison
+        // stop crashed with a nil context and the timeout triage could not
+        // distinguish jettison from the other context-less requesters.
+        JSThreadsSafepoint::ClassAStopWatchdogContext watchdogContext(this, "CodeBlock jettison");
         JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>(doJettison));
         return;
     }
