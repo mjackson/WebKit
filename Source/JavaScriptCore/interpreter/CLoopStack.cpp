@@ -196,8 +196,7 @@ CLoopStack::ThreadState& CLoopStack::threadStateSlow() const
     // Every caller of threadStateSlow() runs on the thread that owns (or is
     // creating) this segment, so a cache miss is exactly a thread/VM switch:
     // republish this segment's limit for the asm fast-path stack checks.
-    if (stackManager().cloopStackLimit() != static_cast<void*>(result->end))
-        stackManager().setCLoopStackLimit(result->end);
+    publishStackLimit(*result);
 
     return *result;
 }
@@ -247,9 +246,11 @@ void* CLoopStack::currentStackPointer() const
     ThreadState& state = threadState();
     // This is called at CLoop::execute entry (sp = currentStackPointer()), so
     // republishing here covers every fresh interpreter (re)entry after a GIL
-    // handoff; see the class comment in CLoopStack.h.
-    if (stackManager().cloopStackLimit() != static_cast<void*>(state.end))
-        stackManager().setCLoopStackLimit(state.end);
+    // handoff — and, for a gilOff lite thread, it is the publish that is
+    // sequenced-before the first asm doVMEntry read of the lite slot, so a
+    // fresh thread's first stack check never compares against a null limit.
+    // See the class comment in CLoopStack.h.
+    publishStackLimit(state);
     return state.currentStackPointer;
 }
 
@@ -364,10 +365,8 @@ void CLoopStack::setSoftReservedZoneSize(size_t reservedZoneSize)
     }
     // Only the calling thread's segment limit may be republished: publishing a
     // parked thread's limit would break the running thread's asm stack checks.
-    if (ThreadState* state = threadStateIfExists()) {
-        if (stackManager().cloopStackLimit() != static_cast<void*>(state->end))
-            stackManager().setCLoopStackLimit(state->end);
-    }
+    if (ThreadState* state = threadStateIfExists())
+        publishStackLimit(*state);
 }
 
 bool CLoopStack::isSafeToRecurse() const

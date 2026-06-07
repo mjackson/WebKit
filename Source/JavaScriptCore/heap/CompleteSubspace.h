@@ -101,9 +101,11 @@ private:
 
     std::array<Allocator, MarkedSpace::numSizeClasses> m_allocatorForSizeStep;
     // SharedGC (§5.3; T4): per-size-step directory table, populated at
-    // directory creation in BOTH modes (under directoryLock; unlocked reads
-    // are the same benign-race pattern as m_allocatorForSizeStep).
-    std::array<BlockDirectory*, MarkedSpace::numSizeClasses> m_directoryForSizeStep { };
+    // directory creation in BOTH modes (under directoryLock). Entries are
+    // published with release stores and read lock-free with acquire loads
+    // (ensureDirectoryForSizeStep fast path), so unlocked readers observe a
+    // fully initialized BlockDirectory.
+    std::array<std::atomic<BlockDirectory*>, MarkedSpace::numSizeClasses> m_directoryForSizeStep { };
     std::atomic<unsigned> m_tlcIndexBase { BlockDirectory::invalidTlcIndex };
     Vector<std::unique_ptr<BlockDirectory>> m_directories;
     Vector<std::unique_ptr<LocalAllocator>> m_localAllocators;
@@ -139,7 +141,10 @@ ALWAYS_INLINE Allocator CompleteSubspace::allocatorFor(size_t size, AllocatorFor
 ALWAYS_INLINE BlockDirectory* CompleteSubspace::ensureDirectoryForSizeStep(size_t sizeStepIndex)
 {
     ASSERT(sizeStepIndex < MarkedSpace::numSizeClasses);
-    if (BlockDirectory* directory = m_directoryForSizeStep[sizeStepIndex])
+    // Acquire pairs with the release stores in ensureDirectoryForSizeClass so
+    // a published pointer implies a fully initialized directory. This path
+    // only runs on a TLC slot miss, so the acquire cost is irrelevant.
+    if (BlockDirectory* directory = m_directoryForSizeStep[sizeStepIndex].load(std::memory_order_acquire))
         return directory;
     return ensureDirectoryForSizeStepSlow(sizeStepIndex);
 }

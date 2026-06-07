@@ -665,7 +665,7 @@ ALWAYS_INLINE PropertyOffset JSObject::prepareToPutDirectWithoutTransition(VM& v
 // the table entry with a hole (I9). DeferGC discharges O1: the butterfly
 // reallocation inside the lambda allocates under the cell lock (the
 // sanctioned pre-lock DeferGC form), and the lock spans no poll/park.
-inline PropertyOffset JSObject::putDirectWithoutTransitionConcurrent(VM& vm, PropertyName propertyName, JSValue value, unsigned attributes)
+inline NEVER_INLINE PropertyOffset JSObject::putDirectWithoutTransitionConcurrent(VM& vm, PropertyName propertyName, JSValue value, unsigned attributes)
 {
     ASSERT(Options::useJSThreads());
     DeferGC deferGC(vm);
@@ -814,7 +814,7 @@ ALWAYS_INLINE bool JSObject::hasOwnProperty(JSGlobalObject* globalObject, unsign
 
 #if USE(JSVALUE64)
 // See the declaration in JSObject.h. false = RESTART the whole operation.
-inline bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Structure* expectedSource, StructureID sourceID, Structure* newStructure, PropertyOffset offset, JSValue value)
+inline NEVER_INLINE bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Structure* expectedSource, StructureID sourceID, Structure* newStructure, PropertyOffset offset, JSValue value)
 {
     ASSERT(Options::useJSThreads());
     ASSERT(!expectedSource->isDictionary());
@@ -909,14 +909,19 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     // try* protocols require (false/RESTART => re-enter from a fresh
     // structureID/tag). Flag-off nothing ever RESTARTs and the loop body runs
     // exactly once - today's code (I22).
-    // I22 latched-option pattern (cf. JSObjectWithButterfly::visitButterflyImpl):
-    // the flag is immutable after VM start, but the compiler cannot CSE the
-    // global load across the opaque calls below (addOrReplacePropertyWithoutTransition,
-    // allocateMoreOutOfLineStorage, addNewPropertyTransition, attributeChangeTransition),
-    // so the unlatched form pays up to six separate option loads + tests per
-    // put on the transition slow path. Latching also cannot change re-dispatch
-    // semantics: every RESTART iteration already assumes the same flag value.
-    [[maybe_unused]] const bool jsThreads = Options::useJSThreads();
+    // V5B-1: the I22 latch is now a compile-time template parameter instead
+    // of a latched runtime bool. The flag is immutable after Config
+    // finalization, so the frozen one-byte test is read exactly once at the
+    // dispatch below and the arm taken is process-stable; splitting the latch
+    // into a template parameter cannot change which arm any RESTART iteration
+    // takes. The constexpr-false instantiation carries no park-poll call, no
+    // nuked-ID spin, no staleness recheck, and no reachable loop back-edge -
+    // the while (true) folds to straight-line code and every flag-off put
+    // site emits exactly the pre-threads body. The constexpr-true
+    // instantiation is token-identical to the previous jsThreads==true paths;
+    // the lambda call boundary is not a safepoint (no poll/park/allocation),
+    // so the M5, FIX-2, and I18/I30 proofs carry verbatim.
+    auto impl = [&]<bool jsThreads>() ALWAYS_INLINE_LAMBDA -> ASCIILiteral {
     while (true) {
 #if USE(JSVALUE64)
     // FIX-2 class-(2) poll (stw-watchdog-timeout residual): this RESTART /
@@ -924,16 +929,18 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     // mutator that keeps re-dispatching here while a SA.3 stop pends (e.g.
     // racing the very F2 fire that needs it to quiesce) holds heap access
     // for the whole spin and starves the conductor into the 30s watchdog.
-    // One immutable-byte branch flag-off/GIL-on; the helper parks
+    // Compiled only into the jsThreads instantiation; the helper parks
     // access-released across the window and the loop re-derives everything
     // afterwards (W1: every iteration is a fresh acquisition episode).
-    if (jsThreads) [[unlikely]]
+    if constexpr (jsThreads)
         JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm);
 #endif
     StructureID structureID = this->structureID();
 #if USE(JSVALUE64)
-    if (jsThreads && structureID.isNuked()) [[unlikely]]
-        continue; // M5: a racing publication is mid-flight; spin to the settled ID.
+    if constexpr (jsThreads) {
+        if (structureID.isNuked()) [[unlikely]]
+            continue; // M5: a racing publication is mid-flight; spin to the settled ID.
+    }
 #endif
     Structure* structure = structureID.decode();
     if (structure->isDictionary()) {
@@ -944,7 +951,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
         }
 
 #if USE(JSVALUE64)
-        if (jsThreads) [[unlikely]] {
+        if constexpr (jsThreads) {
             // §6 L3/L4 (review round 1): dictionary adds/replaces mutate the
             // structure and the object in tandem; serialize against deletes/
             // flatten/other adds with the cell lock (outer to the m_lock the
@@ -1097,7 +1104,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
             ASSERT(newStructure->isValidOffset(offset));
 
 #if USE(JSVALUE64)
-            if (jsThreads) [[unlikely]] {
+            if constexpr (jsThreads) {
                 // Review round 1: route through the E4 gate / locked
                 // protocols instead of the unconditional lock-free sequence.
                 if (!tryPutDirectTransitionConcurrent(vm, structure, structureID, newStructure, offset, value))
@@ -1141,14 +1148,16 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
         // - otherwise an owner T1 copying resize can silently drop it).
         // Inline replaces are cell stores (atomic for free; never copied by
         // resizes), and dictionary objects never reach this leg.
-        if (jsThreads && isOutOfLineOffset(offset)) [[unlikely]] {
-            uint64_t word = taggedButterflyWord();
-            if ((word & butterflyPointerMask) && !isSegmentedButterfly(word)
-                && !butterflySharedWrite(word) && butterflyWriterIsForeign(word)) // incl. §9.6 forceButterflySWBit
-                ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+        if constexpr (jsThreads) {
+            if (isOutOfLineOffset(offset)) [[unlikely]] {
+                uint64_t word = taggedButterflyWord();
+                if ((word & butterflyPointerMask) && !isSegmentedButterfly(word)
+                    && !butterflySharedWrite(word) && butterflyWriterIsForeign(word)) // incl. §9.6 forceButterflySWBit
+                    ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+            }
         }
 
-        if (jsThreads) [[unlikely]] {
+        if constexpr (jsThreads) {
             // I18/I30 staleness guard (same pattern as the round-4
             // dictionary-delete fix in JSObject.cpp): `offset` was resolved at
             // the line above through the m_lock-holding getConcurrently
@@ -1202,14 +1211,17 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
             DeferredStructureTransitionWatchpointFire deferredWatchpointFire(vm, structure);
             Structure* attributeChanged = Structure::attributeChangeTransition(vm, structure, propertyName, newAttributes, &deferredWatchpointFire);
 #if USE(JSVALUE64)
-            if (jsThreads && attributeChanged != structure) [[unlikely]] {
-                // Review round 1: an attribute change is a butterfly-untouched
-                // (N2) structure publication - route it through the E4 gate /
-                // locked header-CAS so racing transitions cannot clobber each
-                // other's setStructure. The value is already stored (above),
-                // so RESTART re-runs the replace idempotently.
-                if (!tryPutDirectTransitionConcurrent(vm, structure, structureID, attributeChanged, invalidOffset, JSValue()))
-                    continue;
+            if constexpr (jsThreads) {
+                if (attributeChanged != structure) [[unlikely]] {
+                    // Review round 1: an attribute change is a butterfly-untouched
+                    // (N2) structure publication - route it through the E4 gate /
+                    // locked header-CAS so racing transitions cannot clobber each
+                    // other's setStructure. The value is already stored (above),
+                    // so RESTART re-runs the replace idempotently.
+                    if (!tryPutDirectTransitionConcurrent(vm, structure, structureID, attributeChanged, invalidOffset, JSValue()))
+                        continue;
+                } else
+                    setStructure(vm, attributeChanged);
             } else
 #endif
             setStructure(vm, attributeChanged);
@@ -1237,7 +1249,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     ASSERT(newStructure->isValidOffset(offset));
 
 #if USE(JSVALUE64)
-    if (jsThreads) [[unlikely]] {
+    if constexpr (jsThreads) {
         // Review round 1: same E4-gate / locked-protocol routing as the
         // existing-structure transition leg above.
         if (!tryPutDirectTransitionConcurrent(vm, structure, structureID, newStructure, offset, value))
@@ -1271,6 +1283,16 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
         vm.invalidateStructureChainIntegrity(VM::StructureChainIntegrityEvent::Add);
     return { };
     } // while (true)
+    };
+
+#if USE(JSVALUE64)
+    // V5B-1: frozen-Config one-byte test; the threads instantiation is taken
+    // only behind this predicted-false branch, so flag-off put sites carry
+    // the pre-threads body plus this single branch.
+    if (Options::useJSThreads()) [[unlikely]]
+        return impl.template operator()</* jsThreads */ true>();
+#endif
+    return impl.template operator()</* jsThreads */ false>();
 }
 
 inline bool JSObject::mayBePrototype() const

@@ -74,7 +74,9 @@ BlockDirectory* CompleteSubspace::ensureDirectoryForSizeClass(const AbstractLock
     ASSERT(sizeClass);
     size_t index = MarkedSpace::sizeClassToIndex(sizeClass);
     ASSERT(MarkedSpace::s_sizeClassForSizeStep[index] == sizeClass);
-    if (BlockDirectory* directory = m_directoryForSizeStep[index])
+    // Relaxed is sufficient: all writers hold directoryLock, which supplies
+    // happens-before for this locked reader.
+    if (BlockDirectory* directory = m_directoryForSizeStep[index].load(std::memory_order_relaxed))
         return directory;
 
     if (false)
@@ -96,13 +98,14 @@ BlockDirectory* CompleteSubspace::ensureDirectoryForSizeClass(const AbstractLock
 
     // Publish the per-size-step directory entries only after the directory is
     // fully initialized: the TLC slow path reads m_directoryForSizeStep
-    // without the lock (benign race; null => it takes this lock).
-    WTF::storeStoreFence();
+    // without the lock (null => it takes this lock). Per-entry release stores
+    // pair with the acquire load in ensureDirectoryForSizeStep, ordering all
+    // of the initialization above before each entry becomes visible.
     size_t fillIndex = index;
     for (;;) {
         if (MarkedSpace::s_sizeClassForSizeStep[fillIndex] != sizeClass)
             break;
-        m_directoryForSizeStep[fillIndex] = directory;
+        m_directoryForSizeStep[fillIndex].store(directory, std::memory_order_release);
         if (!fillIndex--)
             break;
     }

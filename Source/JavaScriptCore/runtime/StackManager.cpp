@@ -38,6 +38,12 @@ CONCURRENT_SAFE void StackManager::requestStop()
         mirror.m_trapAwareSoftStackLimit.storeRelaxed(stopRequestMarker());
 }
 
+// Note (V7-1, C_LOOP): cancelStop restores m_trapAwareSoftStackLimit from
+// m_softStackLimit, which on CLoop builds may be null/stale until the next
+// setCLoopStackLimit republish (next CLoopStack publish hook, i.e. the next
+// native/slow-path call). This is the same self-correcting residual the
+// carrier slot already has flag-on; the per-lite publish reroute
+// (CLoopStack::publishStackLimit) does not widen it.
 CONCURRENT_SAFE void StackManager::cancelStop()
 {
     if (Options::forceTrapAwareStackChecks()) [[unlikely]]

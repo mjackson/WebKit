@@ -146,6 +146,22 @@ namespace JSC {
         static std::atomic<uint64_t> s_stackEpoch;
 
         StackManager& stackManager() const;
+        // V7-1 (UNGIL sec A.2.2, C_LOOP arm): the StackManager whose
+        // m_cloopStackLimit / m_trapAwareSoftStackLimit the RUNNING thread's
+        // LLInt checks read. GIL-off threads on a gilOff lite use the lite's
+        // own StackManager (the VMLiteCLoopStackLimitOffset reroute in the
+        // asm stack checks); everyone else uses the containing carrier
+        // StackManager, byte-identically to the flag-off protocol. The
+        // discriminator mirrors gilOffGroup3Check byte-for-byte:
+        // JSCConfig::gilOffProcess byte, then lite presence, then
+        // lite->gilOff — deliberately NOT VM::gilOffWithProcessGate(),
+        // whose extra owner-VM/pre-latch terms could diverge from the asm
+        // side and silently split publish slot from read slot.
+        StackManager& publishTargetStackManager() const;
+        // Single republish hook used by all five C++ publish sites
+        // (threadStateSlow, currentStackPointer, setSoftReservedZoneSize,
+        // setCurrentStackPointer, ensureCapacityFor).
+        void publishStackLimit(ThreadState&) const;
         VM& vm() const;
 
         ALWAYS_INLINE ThreadState& threadState() const

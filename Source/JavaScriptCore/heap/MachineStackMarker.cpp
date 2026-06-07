@@ -89,7 +89,30 @@ static std::pair<void*, size_t> NODELETE captureStack(Thread& thread, void* stac
     return std::make_pair(begin, endWithRedZone - begin);
 }
 
-SUPPRESS_ASAN
+// V7-3 (TSAN): `src` is the raw stack of a thread that Thread::suspend()
+// has stopped (signal-suspended on POSIX, thread_suspend on Darwin) — see
+// tryCopyOtherThreadStacks: a thread is copied only if its suspend()
+// succeeded. On POSIX, success means the target's signal handler saved its
+// registers and sem_post()ed globalSemaphoreForSuspendResume before the
+// scanner's sem_wait() returned; the target may still be executing a few
+// handler instructions (it posts before entering sigsuspend), but any
+// concurrent writes are confined to its signal-handler frame, which the
+// kernel places below the interrupted SP minus the red zone — disjoint
+// from the [stackTop - redZoneAdjustment, origin] span captureStack hands
+// us. The COPIED SPAN is therefore quiescent, and the target's prior plain
+// stores into it are ordered by signal delivery + the semaphore pair. TSAN
+// cannot model signal-suspension as a happens-before edge over all of the
+// parked thread's prior stack stores, and `dst` can be fastMalloc memory
+// recycled (without TSAN-visible synchronization inside bmalloc) from
+// allocations the scanned thread freed. Conservative scanning is typeless
+// byte inspection: a stale/torn word can only cause spurious retention,
+// never a dangling root. Keep this suppression on copyMemory ONLY — the
+// suspend/resume handshake and the getRegisters/m_platformRegisters path
+// stay TSAN-instrumented (copyMemory is essentially the only reader of
+// remote stack bytes, so detection of a genuine "suspend lied" bug here is
+// reduced; restoring it via explicit __tsan_acquire/__tsan_release edges
+// around the ThreadingPOSIX suspend handshake is a tracked follow-up).
+SUPPRESS_ASAN SUPPRESS_TSAN
 static void NODELETE copyMemory(void* dst, const void* src, size_t size)
 {
     size_t dstAsSize = reinterpret_cast<size_t>(dst);
