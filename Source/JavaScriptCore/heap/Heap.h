@@ -1821,8 +1821,34 @@ ALWAYS_INLINE GCClient::Heap& Heap::allocationClientForCurrentThread(VMType& vm,
         // THIS thread owns the main client's access or the world is stopped.
         // hasHeapAccess() alone would pass while ANOTHER thread holds the
         // main client's access — the exact racy fallback. If a legitimate
-        // unstamped caller trips this, stamp that caller; never weaken it.
-        ASSERT(vm.heap.worldIsStoppedForAllClients()
+        // unstamped MUTATOR trips this, stamp that caller; never weaken the
+        // mutator leg.
+        //
+        // FIX-3 carve-out (IT-9 interim; DELETE together with the IT-9 OPEN
+        // note above when allocationClientForJITCodegen's consumers land):
+        // JIT worklist threads are unstamped BY DESIGN and CANNOT be stamped
+        // (no GCClient exists for them — the "stamp that caller" remedy is
+        // unsatisfiable). They reach this resolver only through the
+        // mode-blind VM.h static iso accessors (e.g. vm.ropeStringSpace()
+        // via allocatorForConcurrently<JSRopeString> in compileMakeRope,
+        // DFGSpeculativeJIT.cpp): a pure pointer read used to bake an
+        // Allocator into the artifact, never a FreeList pop on this thread.
+        // The baked-main-client Allocator is the PRE-EXISTING I11 hole that
+        // IT-9 tracks; aborting every concurrent compile here neither
+        // prevents it (release builds do not assert) nor localizes it, and
+        // makes the whole GIL-off full-JIT ladder unrunnable. Mutator-side
+        // strength is unchanged: a compilation thread can never legally
+        // construct a cell — both JSCell constructors
+        // ASSERT(!isCompilationThread()) (runtime/JSCellInlines.h:60/66),
+        // and on the barrier path Heap::addToRememberedSet asserts
+        // ASSERT(!Options::useConcurrentJIT() || !isCompilationThread())
+        // (Heap.cpp). Under --useConcurrentJIT=0 the latter leg is vacuous,
+        // but a synchronously-compiling thread is the stamped mutator itself
+        // and returns at the stamped early branch above, never reaching this
+        // tripwire — so the exempted population is exactly the
+        // pointer-read-only callers.
+        ASSERT(Thread::currentSingleton().isCompilationThread()
+            || vm.heap.worldIsStoppedForAllClients()
             || vmOriginalClient.m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton());
     }
     return vmOriginalClient;

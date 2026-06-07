@@ -189,6 +189,16 @@ private:
 // repeatedly from the wait loop; cheap when under the timeout.
 JS_EXPORT_PRIVATE void watchdogAssertStopProgress(MonotonicTime requestStart);
 
+// FIX-2 (stw-watchdog-timeout): per-D9-quantum stop poll for gilOff native
+// park sites (Atomics.wait per-wait nodes, property-wait, Lock/Condition/
+// Thread parks, GC-completion waits). If a §A.3 thread-granular window
+// targets `vm` and the caller is not its conductor, releases the caller's
+// own client heap access, wakes the conductor's sampler, parks until resume,
+// and re-acquires (re-running the §A.3.2b admission gates). Returns true if
+// it parked — the caller must re-validate its wait predicate before sleeping
+// again. Must be called with no rank-3 lock held. No-op GIL-on.
+JS_EXPORT_PRIVATE bool parkSitePollAndParkForStopTheWorld(VM&);
+
 // ===== GIL-removal tripwire (review round 1) =====
 //
 // The jit workstream ships several KNOWN GIL-SOUND-ONLY gaps (consolidated

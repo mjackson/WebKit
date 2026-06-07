@@ -5313,7 +5313,11 @@ GCClient::Heap& allocationClientForCurrentThread(VM& vm, GCClient::Heap& vmOrigi
         // stopped — otherwise this fallback would silently reintroduce the
         // exact cross-thread FreeList race in release builds. Converts the
         // remaining window into a deterministic debug abort.
-        ASSERT(vm.heap.worldIsStoppedForAllClients() || vmOriginalClient.hasHeapAccess());
+        // FIX-3: mirrors the Heap.h member's IT-9 compilation-thread
+        // carve-out (see the comment there); JIT worklist threads are
+        // unstampable pointer-read-only callers.
+        ASSERT(Thread::currentSingleton().isCompilationThread()
+            || vm.heap.worldIsStoppedForAllClients() || vmOriginalClient.hasHeapAccess());
     }
     return vmOriginalClient;
 }

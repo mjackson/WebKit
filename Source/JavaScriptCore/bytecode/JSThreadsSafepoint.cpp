@@ -68,6 +68,16 @@ namespace JSC {
 // `work` inline while sibling mutators execute the very code being patched.
 void jsThreadsThreadGranularStopTheWorldAndRun(VM&, const ScopedLambda<void()>&);
 bool jsThreadsThreadGranularWorldIsStopped();
+// FIX-2 (stw-watchdog-timeout): additional same-library §A.3 seams consumed by
+// parkSitePollAndParkForStopTheWorld below. Owners: VMManager.cpp (stop word,
+// conductor tenure, sampler wakeup, NVS ticket) and heap/Heap.cpp (per-thread
+// park access pairing) — same U-T5 seam discipline as the two above.
+bool jsThreadsStopPendingFor(VM&);
+bool jsThreadsCurrentThreadIsStopConductor();
+void jsThreadsNotifyMutatorQuiesced();
+void jsThreadsParkForStopWindow(VM&);
+void gcClientWillParkForThreadGranularStop();
+void gcClientDidResumeFromThreadGranularStop();
 
 namespace JSThreadsSafepoint {
 
@@ -398,8 +408,50 @@ void watchdogAssertStopProgress(MonotonicTime requestStart)
     dataLogLn("JSThreads stop-the-world failed to reach a stopped world within ",
         stopTheWorldWatchdogTimeout.seconds(), "s. Pending Class-A fire context: ",
         RawPointer(context), " (", description ? description : "<no Class-A fire pending on this thread>",
-        "). Likely an escaped lock-holding direct fireAll caller (SPEC-jit annex App. 5.6(c) bucket iii; see the Task-11 audit table in docs/threads/INTEGRATE-jit.md / manifest M6).");
+        "). Either an escaped lock-holding direct fireAll caller (SPEC-jit annex App. 5.6(c) bucket iii; Task-11 audit table in docs/threads/INTEGRATE-jit.md / manifest M6), or a mutator parked in a native wait that holds heap access and does not call JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld per D9 quantum (FIX-2; a nil context means the requester was a jettison, which publishes no Class-A context).");
     RELEASE_ASSERT_NOT_REACHED();
+}
+
+// ===== FIX-2 (stw-watchdog-timeout): gilOff park-site stop poll =====
+// The §A.3.2 conductor predicate is purely access-based ("parked implies
+// access-released"). The W1/D9 park-site split re-pointed the D9 quantum
+// loops (Atomics per-wait nodes, property-wait, Lock/Condition/Thread parks)
+// at the TERMINATION and WATCHDOG-CHECK predicates only — none of them polls
+// the §A.3 stop word or releases heap access, so a waiter parked across a
+// thread-granular stop request holds heap access for its entire wait and the
+// conductor's predicate cannot converge (the 30s watchdog fail-stop), while
+// the waiter's notifier is itself ticket-parked by the same fan: a true
+// deadlock that the watchdog turns into a crash. Called once per D9 quantum
+// with NO rank-3 (waiter-list/queue) lock held. Returns true if it parked;
+// the caller must treat that as a fresh acquisition episode (re-validate its
+// wait predicate / re-enqueue per the W1 disposition rules) before sleeping
+// again. Cost when no window is pending: one immutable-byte branch plus one
+// seq_cst load; GIL-on: one branch.
+bool parkSitePollAndParkForStopTheWorld(VM& vm)
+{
+    if (!vm.gilOff()) [[likely]]
+        return false;
+    if (!jsThreadsStopPendingFor(vm)) [[likely]]
+        return false;
+    // HBT3.2: the conductor never parks on its own window. A D9 wait reached
+    // from inside the conductor's `work` closure is already world-stopped;
+    // parking it here would self-deadlock the window.
+    if (jsThreadsCurrentThreadIsStopConductor())
+        return false;
+    // Same order as the AHA §A.3.2b gate (Heap.cpp): publish access-released
+    // (seq_cst RHA via the U-T5 pairing helper — idempotent, owns the
+    // thread_local pairing flag), wake the conductor's predicate sampler,
+    // ticket-park until the stop word clears, then re-acquire. Re-acquisition
+    // funnels through acquireHeapAccess's F8/§A.3.2b gates, so a back-to-back
+    // window (or a GC stop that arrived meanwhile) re-parks this thread
+    // instead of admitting it; the ISB1.2 stop-generation sync on the AHA
+    // path covers any code the window patched before this thread can re-enter
+    // JIT code.
+    gcClientWillParkForThreadGranularStop();
+    jsThreadsNotifyMutatorQuiesced();
+    jsThreadsParkForStopWindow(vm);
+    gcClientDidResumeFromThreadGranularStop();
+    return true;
 }
 
 bool worldIsStopped(VM& vm)
