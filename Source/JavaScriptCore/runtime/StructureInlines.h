@@ -452,11 +452,28 @@ ALWAYS_INLINE auto Structure::addOrReplacePropertyWithoutTransition(VM& vm, Prop
     // placement is unconditionally correct (I22).
     //
     // DUPLICATION GUARD: the tail below (pin .. checkConsistency .. return)
-    // appears VERBATIM in both arms — the flag-on arm could not be outlined
-    // into a member sibling without a Structure.h declaration. Any change to
-    // one tail MUST be mirrored in the other.
+    // appears VERBATIM in both arms — the flag-on arm cannot be outlined
+    // into a member sibling without a Structure.h declaration (and a
+    // friend-free file-local helper cannot compile: pin() is private). Any
+    // change to one tail MUST be mirrored in the other.
     if (Options::useJSThreads()) [[unlikely]] {
         // ===== flag-on arm (mirror of the flag-off tail below) =====
+        // F1 residual (AB17g): outlined into a NEVER_INLINE IIFE so that
+        // flag-off instantiations of every put site carry only the
+        // predicted-false byte test + a never-taken call, not the
+        // GCSafeConcurrentJSLocker + steal-retry machinery inlined into an
+        // ALWAYS_INLINE template (icache/register-pressure parity with
+        // pre-threads). Pure code placement: an identical instruction
+        // sequence executes in both modes — the m_lock critical section
+        // (find + mutate under one locker, steal-recheck loop) is unchanged,
+        // so no new interleaving exists. INVARIANT (apply-time check): every
+        // control path in this arm returns THROUGH the lambda; any
+        // fall-through into the flag-off tail below is a semantic change,
+        // not code placement. If a CI toolchain rejects NEVER_INLINE in this
+        // position, this outlining is deferred outside-scope (revert to the
+        // plain arm) — do NOT substitute a file-local helper (see guard
+        // note above).
+        return ([&]() NEVER_INLINE -> std::tuple<PropertyOffset, unsigned, bool> {
         PropertyTable* table = ensurePropertyTable(vm);
 
         auto rep = propertyName.uid();
@@ -514,6 +531,7 @@ ALWAYS_INLINE auto Structure::addOrReplacePropertyWithoutTransition(VM& vm, Prop
 
         checkConsistency();
         return std::tuple { newOffset, newAttributes, true };
+        })();
     }
 
     // ===== flag-off arm: pre-threads body (mirror of the flag-on tail above) =====
@@ -765,10 +783,20 @@ ALWAYS_INLINE Structure* Structure::addPropertyTransitionToExistingStructure(Str
     // flag-off delta on the transition-lookup fast path (one frozen-Config
     // load + one predicted-false branch; the Concurrently body is out-of-line
     // per the note below, so flag-off inlines exactly the pre-threads Impl).
-    // If/when the AB17e item-7 latched single-byte Config gate (g_jscConfig
-    // byte, gilOffWithProcessGate pattern) is introduced for useJSThreads,
-    // key this branch off that same byte so the whole family tests one
-    // read-only-page byte. Race statement: flag-on inserts publish
+    // AB17g RULING (supersedes the earlier re-key suggestion here): KEEP
+    // this branch keyed on Options::useJSThreads() and record it as within
+    // SPEC-jit I1's permitted delta — it already reads
+    // g_jscConfig.options.useJSThreads on the frozen read-only Config page,
+    // i.e. it IS the single one-byte-test form. Explicitly DO NOT re-key it
+    // to g_jscConfig.gilOffProcess: GIL-ON useJSThreads mode (V6) has N
+    // mutators, and StructureTransitionTable::add's single-slot->map
+    // inflation allocates (can GC => GIL yield) between map construction
+    // and the m_data publish. Keyed on gilOffProcess (==0 GIL-on) a lookup
+    // would take the lock-free Impl and trySingleTransition would load the
+    // half-published m_data; keyed on useJSThreads (==1) it routes to the
+    // locked Concurrently variant and cannot observe the torn word.
+    // Flag-off both keys read 0 and the pre-threads Impl is inlined
+    // unchanged. Race statement: flag-on inserts publish
     // single-slot->TransitionMap inflation and map rehashes under the
     // source's m_lock (Structure.cpp StructureTransitionTable::add), so a
     // flag-on lock-free get could observe a half-published m_data/map —

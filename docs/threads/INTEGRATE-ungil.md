@@ -1713,3 +1713,142 @@ OPEN, F4 OPEN.** This round's code deltas: Butterfly.h release CAS x2 (+
 residual records), CallLinkInfo.cpp comment supersession x2 (no behavior),
 heap/Heap.h Config-page gate swap, JSObject.cpp residual record. Any
 implementer summary claiming a green family supersedes nothing here.
+
+## AB17g — apply round for F1-transition-heavy-flagoff-residual (3/3 approve, with binding amendments)
+
+Scope rule for this round: writes confined to InlineCacheCompiler.cpp,
+StructureInlines.h, Structure.cpp, INTEGRATE-ungil.md. No build this round —
+the next verify round builds and adjudicates. Gate state is NOT flipped here:
+**F1 stays RED/OPEN** (see item 6).
+
+1. **U-T14 golden-disasm adjudication ORDERED FIRST (owed, next verify
+   round).** Before any further F1 code churn: dump make()'s
+   Baseline/DFG/FTL code and the put IC stubs flag-off
+   (JSC_dumpDisassembly=true JSC_dumpDFGDisassembly=true on the bench-gate
+   transition-heavy-constructor source, no thread flags) on the current
+   Release binary AND on a same-toolchain pre-threads reference build; diff
+   against SPEC-jit I1's permitted-delta list (consolidated AB17d items
+   1/9/11 + AB17c LLInt + AB17e dtor gates + AB17f item 3). Source-audit
+   expectation: BYTE-IDENTICAL — every threads split on the flag-off
+   put-transition emission path is an emission-time C++ branch whose
+   flag-off arm is verbatim pre-threads (InlineCacheCompiler.cpp
+   transitionHandlerImpl ~5865 flag-on-only breakpoint; compiled-per-case
+   AccessCase::Transition RELEASE_ASSERT(!Options::useJSThreads()) at
+   ~3787/~3945/~3972 then unmodified emission; Replace defer ~3731;
+   FTLLowerDFGToB3.cpp compilePutByOffset ~13468, compileMultiPutByOffset
+   ~13574/~13597, compileAllocate/ReallocatePropertyStorage ~11957-11979;
+   AssemblyHelpers FLAG-OFF IDENTITY block ~656). If the diff is clean, the
+   perf-record "hot PCs in [JIT] make()" is NOT evidence of an emitted-code
+   delta (it merely localizes the loop) and the residual is the C++
+   operation tail (butterfly reallocation per constructed object) plus
+   measurement. If NOT clean, the offending site is by construction one of
+   the enumerated branches; fix = restore that arm's exact pre-threads
+   emission.
+
+2. **Latch-before-designation reorder (PRIMARY code fix) — NOT LANDED this
+   round: root cause is outside this round's writable set (VM.cpp, VM.h,
+   JSCConfig.h).** Chartered for the next round that owns those files, with
+   the reviewers' BINDING amendments folded in:
+   (a) MECHANISM IS A SPLIT, NOT A REORDER of Config::finalize(): extract
+       the s_gilOffProcessLatchOnce call_once body (JSCConfig.h ~79-100,
+       minus WTF::Config::finalize(), keeping the options.isFinalized and
+       isPermanentlyFrozen RELEASE_ASSERTs) into a standalone latch-only
+       entry (Config::latchGILOffProcess()), invoked strictly BEFORE the
+       VM ctor's m_gilOff designation at VM.cpp ~407 (or once in
+       JSC::initialize after Options::finalize — simpler to reason about).
+       Config::finalize() stays at VM.cpp ~711 unchanged: the spent
+       call_once makes its latch a no-op and the forceFencedBarrier options
+       store at ~709-710 keeps its required position BEFORE the freeze
+       (M8/GT#7). Moving the finalize() call itself is FORBIDDEN — it
+       faults every first flag-on VM (V1/V2/V3/V5a/V6 all crash).
+   (b) Then drop the second fallback term from VM::gilOffWithProcessGate()
+       (VM.h ~644-655: delete the `if (g_jscConfig.options.useJSThreads)
+       [[unlikely]] return m_gilOff;` term), halving every flag-off
+       gilOffWithProcessGate site — most relevantly
+       Heap::allocationClientForCurrentThread (Heap.h ~1833), which runs
+       once per constructed object in transition-heavy-constructor via
+       operationReallocateButterflyToHavePropertyStorage* — from two
+       predicted-false read-only-page byte tests to one.
+   (c) HB/proof obligation: rewrite the VM.h ~624-641 comment to the new
+       invariant "gilOffProcess==0 implies m_gilOff==0 in every reachable
+       state on every thread", with the FULL four-case reader enumeration:
+       (i) constructing thread — program order, latch before designation;
+       (ii) concurrent embedder second-VM ctors — the call_once return edge
+       (JSCConfig.h ~60-63), valid because the latch now precedes every
+       gate call in each ctor body; (iii) Thread()-spawned mutators —
+       pthread_create publication; (iv) helper threads (compiler/GC/
+       watchdog/sampling) and VMLiteRegistry walkers — generalize the
+       JSCConfig.h ~64-70 reader-side visibility premise from "LLInt
+       readers" to every C++ gilOffWithProcessGate reader (each reaches the
+       VM through a lock/queue publication happening-after ctor completion,
+       hence after the latch). pthread_create alone is NOT a sufficient HB
+       statement. Safety: the only window the dropped fallback covered is
+       the first-VM-ctor JSLockHolder before Config finalize; no Thread()
+       can exist there (spawn requires a constructed VM), so latching
+       earlier creates no state where a second mutator reads
+       gilOffProcess==0 while m_gilOff==1.
+   (d) Add a debug assert in the VM ctor that the latch ran before
+       designation (g_jscConfig.gilOffProcess set in any isGILOffProcess()
+       ctor reaching the ~407 designation).
+   (e) The AB17e item-5 / AB17f item-10 "too risky for a solo round"
+       deferral is superseded ONLY because this lands via the full
+       propose/review/apply loop. The gate change is mode-shared: V6 GIL-on
+       (92-test corpus) and the V1 GIL-off smoke rung MUST re-run on the
+       post-reorder binary before any F1 adjudication (the
+       provably-equivalent predicate change is exactly what those rungs
+       check).
+
+3. **(3a) Dispatcher do-not-rekey RULING LANDED (StructureInlines.h
+   addPropertyTransitionToExistingStructure ~778).** KEEP keyed on
+   Options::useJSThreads() and record as within I1's permitted delta — it
+   already reads the frozen read-only Config page, i.e. it IS the single
+   one-byte-test form the FIX-5 note asked for. DO NOT re-key to
+   g_jscConfig.gilOffProcess: GIL-ON useJSThreads (V6) has N mutators and
+   StructureTransitionTable::add's single-slot->map inflation allocates
+   (can GC => GIL yield) between map construction and the m_data publish;
+   keyed on gilOffProcess (==0 GIL-on) the lookup would take the lock-free
+   Impl and trySingleTransition would load the half-published m_data.
+   Keyed on useJSThreads it routes to the locked Concurrently variant.
+   The in-code comment's earlier "re-key when the latched gate exists"
+   sentence is superseded in place.
+
+4. **(3b) Flag-on arm outlining LANDED (StructureInlines.h
+   addOrReplacePropertyWithoutTransition ~458).** The flag-on
+   GCSafeConcurrentJSLocker + steal-retry arm is wrapped in a NEVER_INLINE
+   IIFE returning std::tuple<PropertyOffset, unsigned, bool>, so flag-off
+   instantiations of every put site carry only the predicted-false byte
+   test + a never-taken call. Pure code placement; the m_lock critical
+   section is unchanged — no new interleaving. Apply-time check (reviewer
+   amendment C) VERIFIED: both control paths in the arm (found-existing
+   early return; add tail return) return through the lambda; no
+   fall-through into the flag-off tail exists. The proposed file-local
+   static-helper fallback is REJECTED as uncompilable (Structure::pin is
+   private — Structure.h ~1173 — plus m_propertyHash/m_seenProperties
+   access): if any CI toolchain (clang/gcc/MSVC) rejects NEVER_INLINE in
+   the lambda position, the outlining is deferred outside-scope and the
+   plain arm restored — recorded in the in-code comment. Build risk owned
+   by the next verify round (no build this round by charter). Note:
+   Structure::add itself (StructureInlines.h ~263) has NO mode split (the
+   locker is unconditional, pre-threads form) — the AB17f item-7 phrase
+   "Structure::add l6Locker arm" denotes THIS site; no second sibling
+   exists to outline.
+
+5. **(3c) No InlineCacheCompiler.cpp or Structure.cpp change.** Audit found
+   no flag-off-reachable delta there (the Concurrently variant is already
+   out-of-line in Structure.cpp per the dispatcher's icache note). Both
+   files verified present and untouched this round.
+
+6. **F1 stays RED — V5b adjudication protocol unchanged and unmet.** The
+   two 5-run sessions behind the "+10.59% (was +1.78%)" headline are
+   INADMISSIBLE under the binding AB17e item-4 protocol (this host:
+   documented ~9% run-to-run spread, a prior independent 9-run median of
+   +1.13%, and a same-suite bench reading 12.2% FASTER than baseline);
+   equally, those sessions cannot prove the regression GREW. Closure
+   requires: quiet host, pinned CPU/governor, interleaved A/B against a
+   same-toolchain reference build, >=15 runs, number recorded here. No
+   green claim is made for this round's deltas; they are candidates whose
+   effect only the adjudicated number can confirm.
+
+This round's code deltas: StructureInlines.h x2 (item 3 comment
+supersession; item 4 NEVER_INLINE IIFE outlining). Ledger: this section.
+Gate state after AB17g: **F1 OPEN, F3 OPEN, F4 OPEN** (unchanged).
