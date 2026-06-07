@@ -2632,6 +2632,53 @@ private:
             m_out.constIntPtr(OBJECT_OFFSETOF(ScratchBuffer, m_buffer)));
     }
 
+    // UNGIL §A.1.3 (U-T4b; obligation-10 audit follow-up): the CURRENT
+    // thread's VMLite*, materialized via the same opaque-patchpoint idiom as
+    // bakedScratchBufferPointer above (Effects::none() is sound per §A.1.2 —
+    // the lite is fixed for a thread while it runs JS, so B3 may hoist/CSE
+    // freely). gilOff compilations only.
+    LValue currentVMLitePointer()
+    {
+        ASSERT(vm().gilOff());
+        PatchpointValue* patchpoint = m_out.patchpoint(pointerType());
+        patchpoint->effects = Effects::none();
+        patchpoint->setGenerator(
+            [] (CCallHelpers& jit, const StackmapGenerationParams& params) {
+                jit.loadVMLite(params[0].gpr());
+            });
+        return patchpoint;
+    }
+
+    // Mode-split publish of m_callFrame as the CURRENT thread's topCallFrame
+    // (direct native / custom accessor calls and callPreflight): GIL-off the
+    // per-lite Group-3 word — the word the callee's frame tracers and any
+    // VM::throwException topJSCallFrame walk read; the baked VM-block store
+    // would both miss those reads AND be a cross-thread scribble the §J.2
+    // GILParkSavedExecutionState premise asserts catch. GIL-on / flag-off:
+    // the legacy absolute store, byte-identical.
+    void emitPublishTopCallFrame()
+    {
+        if (vm().gilOff()) [[unlikely]] {
+            m_out.storePtr(m_callFrame, m_out.address(m_heaps.root, currentVMLitePointer(), VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topCallFrame()));
+            return;
+        }
+        m_out.storePtr(m_callFrame, m_out.absolute(&vm().topCallFrame));
+    }
+
+    // Mode-split load of the CURRENT thread's live exception word (the
+    // B3-level sibling of AssemblyHelpers::loadException): GIL-off
+    // VM::setException publishes through the lite's
+    // VMLitePrimitives::m_exception and the raw VM-block word always reads
+    // null — an absolute load would silently MISS pending exceptions in
+    // FTL'd code. GIL-on / flag-off: the legacy m_vmValue load,
+    // byte-identical.
+    LValue loadCurrentThreadException()
+    {
+        if (vm().gilOff()) [[unlikely]]
+            return m_out.load64(m_out.address(m_heaps.root, currentVMLitePointer(), VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_exception()));
+        return m_out.load64(m_vmValue, m_heaps.VM_exception);
+    }
+
     void compileExtractOSREntryLocal()
     {
         if (vm().gilOff()) [[unlikely]] {
@@ -14727,7 +14774,7 @@ IGNORE_CLANG_WARNINGS_END
                 auto emitCallTarget = [&]() {
                     jit.emitFunctionPrologue();
                     jit.emitPutToCallFrameHeader(nullptr, CallFrameSlot::codeBlock);
-                    jit.storePtr(GPRInfo::callFrameRegister, &vm->topCallFrame);
+                    jit.emitPublishTopCallFrameForHostCall(*vm); // UNGIL §A.1.3 mode split (direct native call).
                     if (calleeScope)
                         jit.move(CCallHelpers::TrustedImmPtr(calleeScope), GPRInfo::argumentGPR0);
                     else {
@@ -15916,7 +15963,7 @@ IGNORE_CLANG_WARNINGS_END
         // The following function is not an operation: we directly call a custom accessor getter.
         // Since the getter does not have code setting topCallFrame, As is the same to IC, we should set topCallFrame in caller side.
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
-        m_out.storePtr(m_callFrame, m_out.absolute(&vm().topCallFrame));
+        emitPublishTopCallFrame(); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
         auto getter = m_node->customAccessor();
         auto* uid = m_node->cacheableIdentifier().uid();
         if (Options::useJITCage())
@@ -15932,7 +15979,7 @@ IGNORE_CLANG_WARNINGS_END
         // The following function is not an operation: we directly call a custom accessor setter.
         // Since the setter does not have code setting topCallFrame, As is the same to IC, we should set topCallFrame in caller side.
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
-        m_out.storePtr(m_callFrame, m_out.absolute(&vm().topCallFrame));
+        emitPublishTopCallFrame(); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
         auto setter = m_node->customAccessor();
         auto* uid = m_node->cacheableIdentifier().uid();
         if (Options::useJITCage())
@@ -22130,7 +22177,7 @@ IGNORE_CLANG_WARNINGS_END
             // FIXME: Revisit JSGlobalObject.
             // https://bugs.webkit.org/show_bug.cgi?id=203204
             JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
-            m_out.storePtr(m_callFrame, m_out.absolute(&vm().topCallFrame));
+            emitPublishTopCallFrame(); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
             if (Options::useJITCage()) {
                 setJSValue(
                     vmCall(Int64, vmEntryCustomGetter, weakPointer(globalObject), lowCell(m_node->child1()), m_out.constIntPtr(m_graph.identifiers()[m_node->callDOMGetterData()->identifierNumber]), m_out.constIntPtr(m_node->callDOMGetterData()->customAccessorGetter.taggedPtr())));
@@ -27366,7 +27413,7 @@ IGNORE_CLANG_WARNINGS_END
             m_out.constInt32(callSiteIndex.bits()),
             tagFor(CallFrameSlot::argumentCountIncludingThis));
 #if !USE(BUILTIN_FRAME_ADDRESS) || ASSERT_ENABLED
-        m_out.storePtr(m_callFrame, m_out.absolute(&vm().topCallFrame));
+        emitPublishTopCallFrame(); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
 #endif
     }
 
@@ -27405,7 +27452,7 @@ IGNORE_CLANG_WARNINGS_END
             ASSERT(!isExceptionOperationResult<OperationResultType>);
             // We can't exit due to an exception, so we also can't throw an exception.
 #if ASSERT_ENABLED
-            LValue exception = m_out.load64(m_vmValue, m_heaps.VM_exception);
+            LValue exception = loadCurrentThreadException();
             m_out.verify(m_out.isZero64(exception));
 #endif
         }
@@ -27422,18 +27469,18 @@ IGNORE_CLANG_WARNINGS_END
         if constexpr (isB3SupportedExceptionOperationResult<OperationResultType>) {
             exception = result->type().isTuple() ? m_out.extract(result, 1) : result;
 #if ASSERT_ENABLED
-            LValue vmException = m_out.load64(m_vmValue, m_heaps.VM_exception);
+            LValue vmException = loadCurrentThreadException();
             m_out.verify(m_out.equal(exception, vmException));
 #endif
         } else
-            exception = m_out.load64(m_vmValue, m_heaps.VM_exception);
+            exception = loadCurrentThreadException();
 
         if (Options::useExceptionFuzz()) {
 #if !USE(BUILTIN_FRAME_ADDRESS) || ASSERT_ENABLED
-            m_out.storePtr(m_callFrame, m_out.absolute(&vm().topCallFrame));
+            emitPublishTopCallFrame(); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
 #endif
             m_out.call(Void, m_out.operation(operationExceptionFuzz), weakPointer(globalObject));
-            exception = m_out.load64(m_vmValue, m_heaps.VM_exception);
+            exception = loadCurrentThreadException();
         }
 
         LValue hadException = m_out.notZero64(exception);

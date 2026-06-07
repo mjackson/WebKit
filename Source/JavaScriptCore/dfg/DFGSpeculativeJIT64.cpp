@@ -1018,7 +1018,7 @@ void SpeculativeJIT::emitCall(Node* node)
             auto emitCallTarget = [&]() {
                 emitFunctionPrologue();
                 emitPutToCallFrameHeader(nullptr, CallFrameSlot::codeBlock);
-                storePtr(GPRInfo::callFrameRegister, &vm().topCallFrame);
+                emitPublishTopCallFrameForHostCall(vm()); // UNGIL §A.1.3 mode split (direct native call: the callee and its throws read the per-lite word GIL-off).
                 if (calleeScope)
                     move(CCallHelpers::TrustedImmPtr(calleeScope), GPRInfo::argumentGPR0);
                 else {

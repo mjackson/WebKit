@@ -11699,7 +11699,7 @@ void SpeculativeJIT::compileCallDOMGetter(Node* node)
 
         flushRegisters();
 
-        storePtr(GPRInfo::callFrameRegister, &vm().topCallFrame);
+        emitPublishTopCallFrameForHostCall(vm()); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
         emitStoreCodeOrigin(m_currentNode->origin.semantic);
         if (Options::useJITCage())
             callOperation(vmEntryCustomGetter, resultRegs, LinkableConstant::globalObject(*this, node), CellValue(baseGPR), TrustedImmPtr(identifierUID(node->callDOMGetterData()->identifierNumber)), TrustedImmPtr(getter.taggedPtr()));
@@ -11821,7 +11821,7 @@ void SpeculativeJIT::compileCallCustomAccessorGetter(Node* node)
 
     flushRegisters();
 
-    storePtr(GPRInfo::callFrameRegister, &vm().topCallFrame);
+    emitPublishTopCallFrameForHostCall(vm()); // UNGIL §A.1.3 mode split.
     emitStoreCodeOrigin(m_currentNode->origin.semantic);
 
     JSValueRegsFlushedCallResult result(this);
@@ -11850,7 +11850,7 @@ void SpeculativeJIT::compileCallCustomAccessorSetter(Node* node)
 
     flushRegisters();
 
-    storePtr(GPRInfo::callFrameRegister, &vm().topCallFrame);
+    emitPublishTopCallFrameForHostCall(vm()); // UNGIL §A.1.3 mode split.
     emitStoreCodeOrigin(m_currentNode->origin.semantic);
 
     if (Options::useJITCage())

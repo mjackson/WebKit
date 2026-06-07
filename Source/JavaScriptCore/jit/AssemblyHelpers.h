@@ -124,6 +124,37 @@ public:
 #endif
     }
 
+    // UNGIL §A.1.3 (emission side; obligation-10 audit follow-up): publish
+    // callFrameRegister as the CURRENT thread's topCallFrame before a call
+    // that has no operation prologue to do it (direct native calls, custom
+    // accessor getter/setter calls, IC custom slots). The callee (and any
+    // throw it performs — VM::throwException's topJSCallFrame walk) reads
+    // the per-lite word GIL-off; a baked &vm.topCallFrame store would both
+    // miss that read AND be a cross-thread scribble on the shared VM block
+    // (the §J.2 GILParkSavedExecutionState premise asserts catch it).
+    // Unlike prepareCallOperation this is UNCONDITIONAL (the host callee
+    // always needs topCallFrame). GIL-on / flag-off: the legacy absolute
+    // store, byte-identical. Scratch discipline: per-arch reserved temp only
+    // — the same register the absolute storePtr already clobbers.
+    void emitPublishTopCallFrameForHostCall(VM& vm)
+    {
+        if (vm.gilOff()) [[unlikely]] {
+#if CPU(ARM64)
+            // Cache-invalidating accessor: see prepareCallOperation above.
+            GPRReg scratchGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+            GPRReg scratchGPR = scratchRegister(); // r11, already clobbered by the GIL-on absolute store.
+#else
+            // SPEC-jit annex App. R5: no gilOff support on this platform;
+            // loadVMLite fail-stops at emission before this store is reached.
+            GPRReg scratchGPR = GPRInfo::nonArgGPR0;
+#endif
+            loadVMLite(scratchGPR);
+            storePtr(GPRInfo::callFrameRegister, Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topCallFrame())));
+        } else
+            storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
+    }
+
     // UNGIL §A.2.2 (AB-17): the one soft-stack-limit comparison emitter for
     // every Baseline/DFG/FTL/thunk/varargs/Yarr stack-check site. Compares
     // LIMIT (lhs) <cond> candidateGPR (rhs), exactly like the landed

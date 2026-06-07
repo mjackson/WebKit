@@ -3459,7 +3459,7 @@ void InlineCacheCompiler::generateAccessCase(unsigned index, AccessCase& accessC
             InlineCacheCompiler::emitDataICPrepareForCall(jit);
         jit.makeSpaceOnStackForCCall();
 
-        jit.storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
+        jit.emitPublishTopCallFrameForHostCall(vm); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
 
         // getter: EncodedJSValue (*GetValueFunc)(JSGlobalObject*, EncodedJSValue thisValue, PropertyName);
         // setter: bool (*PutValueFunc)(JSGlobalObject*, EncodedJSValue thisObject, EncodedJSValue value, PropertyName);
@@ -5545,7 +5545,7 @@ static void customGetterHandlerImpl(VM& vm, CCallHelpers& jit, JSValueRegs baseJ
     // to make some space here.
     InlineCacheCompiler::emitDataICPrepareForCall(jit);
     jit.makeSpaceOnStackForCCall();
-    jit.storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
+    jit.emitPublishTopCallFrameForHostCall(vm); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
 
     // EncodedJSValue (*GetValueFunc)(JSGlobalObject*, EncodedJSValue thisValue, PropertyName);
     jit.loadPtr(CCallHelpers::Address(GPRInfo::handlerGPR, InlineCacheHandler::offsetOfGlobalObject()), scratch1GPR);
@@ -6040,7 +6040,7 @@ static void customSetterHandlerImpl(VM& vm, CCallHelpers& jit, JSValueRegs baseJ
     // to make some space here.
     InlineCacheCompiler::emitDataICPrepareForCall(jit);
     jit.makeSpaceOnStackForCCall();
-    jit.storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
+    jit.emitPublishTopCallFrameForHostCall(vm); // UNGIL §A.1.3 mode split (per-lite GIL-off; absolute store GIL-on, byte-identical).
 
     // bool (*PutValueFunc)(JSGlobalObject*, EncodedJSValue thisObject, EncodedJSValue value, PropertyName);
     jit.loadPtr(CCallHelpers::Address(GPRInfo::handlerGPR, InlineCacheHandler::offsetOfGlobalObject()), scratch1GPR);
