@@ -73,6 +73,20 @@ public:
     CodePtr<JITStubRoutinePtrTag> jumpTarget() const { return m_jumpTarget; }
 
     void aboutToDie();
+
+    // THREADS (AB18-F): disarm the owner-clearing watchpoint of a DISPLACED
+    // handler at retire time. Flag-on, RetiredJITArtifacts::retireHandlerChain
+    // leaks (or epoch-defers) displaced chains instead of destroying them
+    // inline, so without this the watchpoint stays installed on a live
+    // WatchpointSet with m_owner pointing at a CodeBlock that can be swept
+    // long before the chain is freed — a later fire then dereferences the
+    // dead cell (sig-1 UAF family). Flag-off, publishHandlerChainHead's
+    // inline oldHead->deref() destroys the same watchpoint at the same
+    // program point, so disarming here is exactly as safe as the flag-off
+    // behavior; JIT'd readers racing through the displaced chain never touch
+    // m_watchpoint.
+    void disarmClearingWatchpointOnRetire();
+
     bool containsPC(void* pc) const
     {
         if (!m_stubRoutine)

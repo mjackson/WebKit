@@ -27,6 +27,7 @@
 
 #include "JITStubRoutine.h"
 #include <wtf/HashMap.h>
+#include <wtf/Lock.h>
 #include <wtf/Range.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
@@ -72,6 +73,16 @@ private:
         uintptr_t startAddress;
         GCAwareJITStubRoutine* routine;
     };
+    // THREADS (AB18-F): serializes add() only. Under useJSThreads/useVMLite
+    // every thread shares this one Heap, and makeGCAware() runs on mutator
+    // IC-miss slow paths holding only per-CodeBlock locks — two mutators
+    // missing on different CodeBlocks reach add() concurrently, and an
+    // unlocked Vector::append is a torn-size/lost-entry corruption. Every
+    // other member function (clearMarks / prepareForConservativeScan /
+    // markSlow / traceMarkedStubRoutines / deleteUnmarkedJettisonedStubRoutines
+    // / destructor) runs with mutators stopped (GC phases / VM death) and
+    // deliberately stays lock-free.
+    Lock m_lock;
     Vector<Routine> m_routines;
     Vector<GCAwareJITStubRoutine*> m_immutableCodeRoutines;
     Range<uintptr_t> m_range { 0, 0 };

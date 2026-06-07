@@ -2158,3 +2158,34 @@ sibling protocols were audited and already carry the derived-from ID through
 their CASes (trySegmentedTransition itself, tryStructureOnlyTransition, the
 E4 lock-free leg, createInitialIndexedStorageConcurrent,
 createArrayStorageConcurrent).
+
+CORRECTION (AB18 verify round, AB18-S3): the sentence above overstated the
+sibling audit. Carrying the derived-from ID through their OWN CASes was
+necessary but NOT sufficient: two legs of
+createInitialIndexedStorageConcurrent also acted as UN-EXCLUDED writers
+against the LOCKED protocols' lane-ownership assumption ("under the cell
+lock the semantic bytes are ours alone"), so they could land a nuke-CAS
+inside tryStructureOnlyTransition's / trySegmentedTransition FirstInstall's
+check->CAS windows and trip their fail-stop RELEASE_ASSERTs (crash-on-race,
+sub-microsecond window; not exercised by i03-n3-first-install-races, whose
+named and indexed halves use disjoint objects):
+  1. the N3 lock-free leg ran with NO cell lock once the source TTL sets
+     were fired (foreignButterflyLessInstall is false for owner AND foreign
+     threads in the fired-sets regime) — "sets fired" excludes E4 elision
+     races but not the cell-locked named protocols;
+  2. the E4 owner fast path checked the TTL sets BEFORE
+     Butterfly::createUninitialized (a poll site) and never revalidated them
+     inside the AssertNoGC publication window — a foreign transitioner's
+     step-0 set fire could land at that poll.
+Fix (AB18-S3, JSObject.cpp): the N3 leg now revalidates
+{structureID, word==0, owner TID, both source TTL sets} with FRESH loads
+inside a poll-free AssertNoGC window and publishes lock-free only in the
+owner+sets-valid case; the fired-sets case publishes under the CELL LOCK
+(re-check under the lock; lost race => re-plan, never abort). The E4 owner
+leg gained the I29 fresh-load revalidation inside its AssertNoGC block,
+mirroring tryPutDirectTransitionConcurrent. The locked protocols' step-5 /
+N2 exclusivity comments now name the indexed installers explicitly.
+Regression test: JSTests/threads/objectmodel/i08-named-vs-indexed-first-install.js
+(races named adds with indexed first-installs on the SAME shared object).
+createArrayStorageConcurrent publishes only inside a §10.6 stop and needed
+no change.

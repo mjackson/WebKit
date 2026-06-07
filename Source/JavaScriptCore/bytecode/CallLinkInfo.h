@@ -521,6 +521,12 @@ public:
 
     JSCell* owner() const { return m_owner; }
 
+    // AB18-F: only meaningful under CallLinkInfo::s_callLinkSerializationLock
+    // gilOff, where it names the CodeBlock whose m_incomingCalls list this
+    // node sits on whenever isOnList() (every push/remove of the node and
+    // every m_codeBlock write happens under that lock gilOff).
+    CodeBlock* codeBlock() const { return m_codeBlock; }
+
     void unlinkOrUpgradeImpl(VM&, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock);
 
     void visitWeak(VM&);

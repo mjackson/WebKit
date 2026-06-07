@@ -318,6 +318,17 @@ Ref<PolymorphicAccessJITStubRoutine> createICJITStubRoutine(
 Ref<PolymorphicAccessJITStubRoutine> createPreCompiledICJITStubRoutine(const MacroAssemblerCodeRef<JITStubRoutinePtrTag>& code, VM& vm, JSCell* owner)
 {
     auto stub = adoptRef(*new PolymorphicAccessJITStubRoutine(JITStubRoutine::Type::PolymorphicAccessJITStubRoutineType, code, vm, { }, { }, owner, true));
+    // THREADS (AB18, resolves RetiredJITArtifacts FIXME (a)): flag-on, register
+    // with the GC at CREATION — single-threaded per routine and pre-publication —
+    // so RetiredJITArtifacts::retireHandlerChain never has to lazily promote a
+    // published routine (two mutators retiring chains that share one stateless
+    // precompiled stub would race the !isGCAware()/makeGCAware() pair and
+    // double-append to JITStubRoutineSet => double jettison/delete). Flag-off
+    // keeps the create-without-makeGCAware optimization (data-only handlers on
+    // shared immutable CTI thunks) and the race-free single-mutator lazy
+    // promotion in retireHandlerChain.
+    if (Options::useJSThreads()) [[unlikely]]
+        stub->makeGCAware(vm);
     return stub;
 }
 

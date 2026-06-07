@@ -2179,9 +2179,26 @@ Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKin
         // createArrayStorageConcurrent leg. Otherwise an owner-thread E4 plain
         // store elided on the still-valid writeThreadLocal set races our
         // lock-free publication. Route the foreign-keyed install (incl. §9.6
-        // forceButterflySWBit) through the shared per-event-stop leg below;
-        // once every relevant set is already fired there is nothing left to
-        // elide against and the lock-free nuke-CAS protocol is sound again.
+        // forceButterflySWBit) through the shared per-event-stop leg below.
+        //
+        // AB18-S3: "every relevant set is already fired" excludes E4 elision
+        // races, but it does NOT make the lock-free nuke-CAS protocol sound:
+        // in the fired-sets regime named adds on this same word==0 object run
+        // the CELL-LOCKED protocols (AB18-R1-H routing:
+        // tryStructureOnlyTransition / trySegmentedTransition FirstInstall),
+        // whose lane-ownership argument assumes every non-stop writer of the
+        // structureID lane holds the cell lock — they fail-stop
+        // (RELEASE_ASSERT) on any CAS divergence in the semantic bytes. A
+        // lock-free nuke-CAS from this leg can land in their under-lock
+        // check->CAS window and trip those asserts. So this leg splits:
+        //   - owner + both source TTL sets observed valid by FRESH loads
+        //     inside a poll-free window (I29): lock-free publication is
+        //     exclusive — a foreign locked transitioner must fire the sets
+        //     under a §10.6 stop first, and that stop cannot land inside the
+        //     poll-free window;
+        //   - otherwise (sets fired, any TID): publish under the CELL LOCK,
+        //     so the locked protocols' under-lock re-check serializes against
+        //     us (lost race on either side => RESTART/re-plan, never abort).
         bool foreignButterflyLessInstall = !word
             && (currentButterflyTID() != oldStructure->transitionThreadLocalTID() || forceButterflySWBitEnabled())
             && (oldStructure->transitionThreadLocalIsStillValid() || oldStructure->writeThreadLocalIsStillValid()
@@ -2190,25 +2207,67 @@ Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKin
         if (!word && !foreignButterflyLessInstall) {
             ASSERT(!propertySize);
             unsigned vectorLength = Butterfly::optimalContiguousVectorLength(propertyCapacity, length);
-            Butterfly* newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, sizeof(EncodedJSValue) * vectorLength);
+            Butterfly* newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, sizeof(EncodedJSValue) * vectorLength); // May GC/poll => revalidate below (I29).
             newButterfly->setPublicLength(length);
             newButterfly->setVectorLength(vectorLength);
             fillFlatLanes(newButterfly, targetType, vectorLength);
             for (unsigned k = 0; k < propertyCapacity; ++k)
                 (newButterfly->propertyStorage() - (k + 1))->clear(); // outOfLineSize == 0; zero the slack so GC never sees garbage.
             WTF::storeStoreFence(); // Contents before publication.
-            uint32_t previousBits = idAtomic->compareExchangeStrong(oldStructureID.bits(), oldStructureID.nuke().bits());
-            if (previousBits != oldStructureID.bits())
-                continue; // N3 loser (a racing transition nuked/CASed first): re-plan; the allocation is dropped unreferenced.
-            WTF::storeStoreFence();
-            if (!casButterfly(object, 0, encodeButterfly(newButterfly, currentButterflyTID(), false))) {
-                // Defensive: while we hold the nuked structureID lane no
-                // butterfly publication should land; un-nuke and re-plan.
-                idAtomic->store(oldStructureID.bits(), std::memory_order_seq_cst);
-                continue;
+            bool publishedLockFree = false;
+            {
+                AssertNoGC assertNoGC; // AB18-S3 (I29): revalidation -> publication, poll-free.
+                if (this->structureID() != oldStructureID || object->taggedButterflyWord())
+                    continue; // A racing transition/install moved the lane at the allocation poll: re-plan; the allocation drops unreferenced.
+                if (currentButterflyTID() == oldStructure->transitionThreadLocalTID()
+                    && !forceButterflySWBitEnabled()
+                    && oldStructure->transitionThreadLocalIsStillValid()
+                    && oldStructure->writeThreadLocalIsStillValid()) {
+                    // Owner + sets valid by FRESH loads in this poll-free
+                    // window: no foreign locked window can open before our
+                    // publication (its step-0 set fire needs a §10.6 stop).
+                    uint32_t previousBits = idAtomic->compareExchangeStrong(oldStructureID.bits(), oldStructureID.nuke().bits());
+                    if (previousBits != oldStructureID.bits())
+                        continue; // N3 loser (a racing transition nuked/CASed first): re-plan; the allocation is dropped unreferenced.
+                    WTF::storeStoreFence();
+                    if (!casButterfly(object, 0, encodeButterfly(newButterfly, currentButterflyTID(), false))) {
+                        // Defensive: while we hold the nuked structureID lane no
+                        // butterfly publication should land; un-nuke and re-plan.
+                        idAtomic->store(oldStructureID.bits(), std::memory_order_seq_cst);
+                        continue;
+                    }
+                    WTF::storeStoreFence();
+                    setStructure(vm, newStructure);
+                    publishedLockFree = true;
+                }
             }
-            WTF::storeStoreFence();
-            setStructure(vm, newStructure);
+            if (!publishedLockFree) {
+                // Fired-sets regime (owner or foreign): the cell-locked named
+                // protocols are un-excluded racers on this lane — publish
+                // under the cell lock (AB18-S3, see the leg comment above).
+                bool publishedLocked = false;
+                {
+                    Locker locker { object->cellLock() };
+                    if (this->structureID() == oldStructureID && !object->taggedButterflyWord()) {
+                        uint32_t previousBits = idAtomic->compareExchangeStrong(oldStructureID.bits(), oldStructureID.nuke().bits());
+                        if (previousBits == oldStructureID.bits()) {
+                            WTF::storeStoreFence();
+                            if (casButterfly(object, 0, encodeButterfly(newButterfly, currentButterflyTID(), false))) {
+                                WTF::storeStoreFence();
+                                setStructure(vm, newStructure);
+                                publishedLocked = true;
+                            } else {
+                                // Defensive: under the cell lock with the lane
+                                // nuked no butterfly publication should land;
+                                // un-nuke and re-plan.
+                                idAtomic->store(oldStructureID.bits(), std::memory_order_seq_cst);
+                            }
+                        }
+                    }
+                }
+                if (!publishedLocked)
+                    continue; // A racing transition won (re-checked under the lock): re-plan on the settled state.
+            }
             vm.writeBarrier(this);
             applyForceSegmentedButterfliesStressIfNeeded(vm, object); // §9.6 N3 coverage.
             if (isSegmentedButterfly(object->taggedButterflyWord())) [[unlikely]]
@@ -2233,6 +2292,19 @@ Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKin
             fillFlatLanes(newButterfly, targetType, vectorLength);
             {
                 AssertNoGC assertNoGC; // Straight-line copy -> publish window (I34-style; no polls).
+                // AB18-S3 (I29): revalidate with FRESH loads after the
+                // createUninitialized poll above, mirroring the named E4 leg
+                // (tryPutDirectTransitionConcurrent). A foreign conversion /
+                // locked transitioner's step-0 set fire (a §10.6 stop) can
+                // land at that poll; publishing lock-free in the fired-sets
+                // regime would race its cell-locked window (fail-stop
+                // RELEASE_ASSERT on its side). Sets observed valid inside
+                // this poll-free window => no such window can open before
+                // our publication.
+                if (this->structureID() != oldStructureID || object->taggedButterflyWord() != word
+                    || !oldStructure->transitionThreadLocalIsStillValid()
+                    || !oldStructure->writeThreadLocalIsStillValid())
+                    continue; // Re-plan on the settled state; the allocation drops unreferenced.
                 for (unsigned k = 0; k < propertyCapacity; ++k) {
                     if (k < propertySize)
                         (newButterfly->propertyStorage() - (k + 1))->setWithoutWriteBarrier((oldButterfly->propertyStorage() - (k + 1))->get());

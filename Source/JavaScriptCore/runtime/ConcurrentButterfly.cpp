@@ -467,7 +467,7 @@ ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* objec
     ASSERT(vm.currentThreadIsHoldingAPILock());
     RELEASE_ASSERT(offset == invalidOffset || isOutOfLineOffset(offset)); // Inline adds are N2 (structureOnlyTransition), never §4.2 step 4.
     ASSERT(newStructureOrNull || offset == invalidOffset); // A value store needs the transition that exposes it.
-    ASSERT(!newStructureOrNull || expectedSourceOrNull); // AB18-S2: a transition trigger must name the source it derived the target from.
+    RELEASE_ASSERT(!newStructureOrNull || expectedSourceOrNull); // AB18-S2: a transition trigger must name the source it derived the target from. RELEASE: the stale-parent guard below is load-bearing only when the source is named; a future caller (e.g. JIT-tier E4 emission, SPEC-jit 5.5) passing a transition with a null source would silently reopen the I21 lost-add window in release builds.
 
     // Planning-time source (§4.2 step 3 compares the re-read structureID
     // against this). A nuked ID here means a racing E4 publication is mid
@@ -1168,7 +1168,11 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
             // ---- Step 5: nuke + publish under the §3.0 discipline (M5/M3).
             // The semantic structureID lane is lock-owned here (E4
             // transitioners are excluded: either the sets are fired, or we ARE
-            // the single owner thread), so the nuke CAS must succeed.
+            // the single owner thread; the indexed installers — AB18-S3,
+            // createInitialIndexedStorageConcurrent / createArrayStorageConcurrent —
+            // publish either under this same cell lock, under a §10.6 stop, or
+            // inside an owner poll-free sets-valid window, all of which exclude
+            // this locked window), so the nuke CAS must succeed.
             uint32_t previousIDBits = structureIDAtomic(object)->compareExchangeStrong(sourceID.bits(), sourceID.nuke().bits());
             RELEASE_ASSERT(previousIDBits == sourceID.bits());
 
@@ -1409,7 +1413,9 @@ bool tryStructureOnlyTransition(VM& vm, JSObject* object, Structure* expectedSou
         if (previousHeader == expectedHeader)
             break;
         // Under the cell lock the semantic bytes are ours alone (E4
-        // transitioners were excluded by step 0 / ownership; foreign SW
+        // transitioners were excluded by step 0 / ownership; the indexed
+        // installers publish locked / under a stop / in an owner poll-free
+        // sets-valid window — AB18-S3; foreign SW
         // DCASes touch only the butterfly word); only the volatile bytes (GC
         // cellState CAS, lock parked bit - GT#2) may move. Anything else is
         // taxonomy (d): logic error (§3.0 step 4).

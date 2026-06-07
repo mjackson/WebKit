@@ -3190,3 +3190,120 @@ any other E4 failure.
 the two manifests agree. No transition fast path is emitted yet — the three
 Repatch GiveUpOnCache gates stand — so this is a constraint on the future
 E4 emission, GIL-removal precondition 5.)
+
+## AB18-E / S1 (major, FIXED — landing record; recorded one round late, flagged by the AB18 verify review): DirectCallLinkInfo::retireRecord derived the retire VM from a dead owner cell (MarkedBlock::vm() UAF)
+
+* **Signature (sig-1, standalone capture):** ASAN heap-use-after-free in
+  `MarkedBlock::vm()` reached via `m_owner->vm()` inside
+  `DirectCallLinkInfo::retireRecord`, reproduced ~1/10 standalone by
+  `JSTests/threads/jit/ic-publish-reset-loops.js` under the pinned GIL-off
+  flags. (The full symbolized stack lives in the AB18-E implementer report;
+  it was not copied into this ledger when the fix landed — that omission is
+  what this entry repairs.)
+* **Mechanism:** `RetiredJITArtifacts::retireOptimizedJITCode` flag-on
+  DELIBERATELY leaks optimized JITCode (N6 leak-until-integration,
+  `RetiredJITArtifacts.h` ~96-117), which keeps `DirectCallLinkInfo` nodes
+  alive — and validly enqueued on callees' `m_incomingCalls` lists — past
+  their owner CodeBlock's death. A drain
+  (`CodeBlock::unlinkOrUpgradeIncomingCalls` under a jettison stop) then
+  legitimately reaches `retireRecord` on a node whose `m_owner` is a swept
+  cell in a freed MarkedBlock; the pre-fix `m_owner->vm()` dereferenced that
+  freed block header. The owner-derived form was introduced by R4-2 (epoch
+  heap resolution), which is why no earlier round saw it.
+* **Fix delta:** `retireRecord` (CallLinkInfo.cpp:801-815) now takes the
+  retiring mutator's `VM&` from the caller; plumbed through `clearRecord`,
+  `Repatch.h:91` / `linkDirectCall` (Repatch.cpp:2362-2371, AB18-D writer
+  set), and the DFG operation call site (DFGOperations.cpp,
+  `linkDirectCall(vm, ...)`). Rule (AB18-E): a retire-path VM must come from
+  the operation/caller, NEVER be re-derived from a cell.
+* **Epoch semantics unchanged:** flag-on `epochCoversEveryJSThread()` is
+  constant-false, so retirement still leaks (the free side is untouched);
+  the fix removes only the dead-owner dereference on the drain path. The
+  drain path was audited for remaining dead-owner dereferences
+  (unlinkOrUpgradeImpl / reset / clearRecord / setCallTarget / visitWeak /
+  PolymorphicCallNode): none remain.
+* **Family closures landed with this record (AB18 verify round):**
+  1. `PropertyInlineCache::reset` was the one surviving cell-derived retire
+     VM (`codeBlock->vm()` at PropertyInlineCache.cpp); it now takes `VM&`
+     from every caller (Repatch.cpp `fireWatchpointsAndClearStubIfNeeded`,
+     `PropertyInlineCacheClearingWatchpoint::fireInternal` — which previously
+     RECEIVED a VM& and discarded it — and the visitWeak-driven GC reset).
+  2. `createPreCompiledICJITStubRoutine` now calls `makeGCAware` at creation
+     flag-on, retiring the unserialized lazy `makeGCAware` promotion in
+     `RetiredJITArtifacts::retireHandlerChain` (old FIXME (a)): two mutators
+     retiring chains sharing one stateless precompiled stub could race the
+     `!isGCAware()/makeGCAware()` pair and double-append to
+     JITStubRoutineSet — a double-jettison/double-free in this same family.
+     The lazy promotion is now flag-off-only with a flag-on fail-stop.
+* **OPEN — evidence gap on the second half of sig-1:**
+  `jit/shared-arraystorage-stress.js` (30/30 standalone, fails under
+  whole-corpus load) is attributed to this same root cause by signature
+  family ONLY. No ASAN capture or symbolized stack from a corpus-load
+  failure of THAT test is on record. Per the flaky-bug closure rule, sig-1
+  must NOT be declared fully closed until either (a) one corpus-load failure
+  of shared-arraystorage-stress is captured on an ASAN binary and the stack
+  matches retireRecord/MarkedBlock::vm(), or (b) the corpus-load
+  configuration passes a pinned-seed pre-fix-vs-post-fix A/B. If its stack
+  turns out to be the AB17f item-6 F4 baseline-IC-repatch family (NO landed
+  fix), V3 stays red. The pinned V3 rung must be re-run on the post-fix
+  binary either way (AB17f item-8 stale-baselines rule).
+
+## AB18-F (review-round repair of the AB18-E family closure): four residuals fixed; sig-1 remains HALF-CLOSED
+
+Adversarial review of the AB18-E landing found the family closure overstated.
+Verified against the tree and fixed in this round:
+
+1. **(major, FIXED) `PropertyInlineCache::reset` tail still derived the retire
+   VM from the owner cell.** The function took `VM&` per AB18-E and used it
+   for the inlined-handler retire, but ended with `deref(codeBlock->vm())`
+   (PropertyInlineCache.cpp:505) — the exact MarkedBlock-header read the
+   in-function comment bans. Now `deref(vm)`. Note the deeper repatch helpers
+   (`resetGetBy`/`resetPutBy` -> `resetStubAsJumpInAccess`) still derive
+   `codeBlock->vm()`; that is acceptable ONLY because item 3 below closes the
+   dead-owner reachability of reset() — if a new reset path through
+   retired/leaked state ever appears, those helpers need the same plumbing.
+
+2. **(blocker, FIXED) `JITStubRoutineSet::add` was an unlocked Vector append
+   reachable from N mutators.** Under useVMLite all threads share one
+   Heap/JITStubRoutineSet; `makeGCAware` runs on IC-miss slow paths holding
+   only per-CodeBlock locks, and the AB18-E FIXME(a) closure
+   (`createPreCompiledICJITStubRoutine` -> makeGCAware at creation) put it on
+   the dominant flag-on data-IC path. The pre-existing
+   `createICJITStubRoutine` sites had the same exposure. add() now takes a
+   JITStubRoutineSet-internal Lock (GC-side members stay lock-free: they run
+   with mutators stopped). This was a candidate mechanism for the
+   shared-arraystorage corpus-load failure that the family-signature
+   attribution could not exclude.
+
+3. **(blocker, FIXED) Displaced handler chains kept
+   `PropertyInlineCacheClearingWatchpoint` armed past owner CodeBlock death.**
+   Flag-on, `RetiredJITArtifacts::retireHandlerChain` leaks (or epoch-defers)
+   displaced chains; each leaked handler's watchpoint stayed INSTALLED on a
+   live WatchpointSet with `m_owner` = the CodeBlock. `~CodeBlock`'s
+   aboutToDie() walk covers only ATTACHED chains, so a post-sweep fire read
+   the dead cell (fireInternal's guard dereferences are themselves the UAF)
+   and then ran the full reset/repatch chain against it — an uncovered,
+   still-live instance of the sig-1 UAF family. retireHandlerChain now
+   disarms every node's watchpoint (new
+   `InlineCacheHandler::disarmClearingWatchpointOnRetire`) on BOTH the epoch
+   and leak arms, matching flag-off inline-destruction semantics at the same
+   program points.
+
+4. **(major, FIXED) `linkDirectCall` gilOff loser path could strand the node
+   on the WRONG callee's incoming-calls list.** The isOnList() skip assumed
+   both racers resolved the same calleeCodeBlock; a tier-up install between
+   the racers' resolutions breaks that, leaving the published record pointing
+   at CodeBlock B while the node sits on A's m_incomingCalls — jettisoning B
+   then cannot unlink this caller (jettison/int-gate regression class). Under
+   s_callLinkSerializationLock, isOnList() implies the node is on
+   `codeBlock()`'s list, so the linker now delists on mismatch before
+   republishing and relinks against the resolved callee.
+
+**Status correction (gate enforcement):** AB18-E's "ROOT-CAUSED AND FIXED"
+claim for sig-1 applies to the standalone ic-publish-reset-loops capture
+ONLY. Per the OPEN clause above, sig-1 stays HALF-CLOSED until (a) an ASAN
+corpus-load capture of shared-arraystorage-stress matches a landed fix's
+stack, or (b) the pinned-seed pre/post corpus-load A/B passes. Items 2 and 3
+above are additional candidate mechanisms for that second half, so the A/B
+must be run on a binary containing THIS round's fixes, and the pinned V3
+rung must be re-run regardless (AB17f item-8 stale-baselines rule).

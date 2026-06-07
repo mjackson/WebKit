@@ -145,19 +145,42 @@ void RetiredJITArtifacts::retireHandlerChain(VM& vm, RefPtr<InlineCacheHandler>&
     // !isCompilationThread(), which matches this facility's mutator-side call
     // sites (IC slow paths, world-stopped resets, jettison).
     //
-    // FIXME(THREADS-INTEGRATE(jit)): (a) post-GIL, two mutators retiring
-    // chains that share one stateless precompiled stub can race the
-    // !isGCAware()/makeGCAware() pair and double-append to JITStubRoutineSet;
-    // the durable fix is makeGCAware at creation in
-    // createPreCompiledICJITStubRoutine. (b) makeGCAware registers with
-    // vm.heap, not epochHeapFor(vm); revisit which heap's JITStubRoutineSet
-    // shared-server clients register with when useSharedGCHeap lands.
+    // AB18: FIXME (a) is RESOLVED — flag-on, createPreCompiledICJITStubRoutine
+    // now calls makeGCAware at CREATION (single-threaded per routine,
+    // pre-publication), so the lazy promotion below is reachable flag-off ONLY
+    // (single mutator, race-free). Flag-on it would be the race the old FIXME
+    // described: two mutators retiring chains that share one stateless
+    // precompiled stub racing the !isGCAware()/makeGCAware() pair and
+    // double-appending to JITStubRoutineSet (double jettison/delete, same UAF
+    // family as AB18-E/S1) — hence the fail-stop below instead of a mutation.
+    //
+    // FIXME(THREADS-INTEGRATE(jit)) (b, still open): makeGCAware registers
+    // with vm.heap, not epochHeapFor(vm); revisit which heap's
+    // JITStubRoutineSet shared-server clients register with when
+    // useSharedGCHeap lands (this now applies uniformly to ALL stub creation
+    // sites, which also register with the creating vm.heap).
     for (auto* cursor = head.get(); cursor; cursor = cursor->next()) {
         if (auto* routine = cursor->stubRoutine()) {
-            if (!routine->isGCAware()) [[unlikely]]
+            if (!routine->isGCAware()) [[unlikely]] {
+                RELEASE_ASSERT(!Options::useJSThreads()); // Flag-on every retirable routine is GC-aware at creation; promoting a published routine here would race (see above).
                 routine->makeGCAware(vm);
+            }
             RELEASE_ASSERT(routine->isGCAware());
         }
+        // AB18-F (sig-1 family): disarm each displaced handler's owner-
+        // clearing watchpoint NOW, on BOTH arms below. The epoch arm defers
+        // destruction past the owner CodeBlock's possible death, and the
+        // leak arm never destroys at all — either way an armed
+        // PropertyInlineCacheClearingWatchpoint would survive on a live
+        // WatchpointSet with m_owner pointing at a sweepable CodeBlock;
+        // a later fire would read the dead cell (fireInternal's
+        // wasDestructed()/isPendingDestruction() guards are themselves the
+        // UAF once the MarkedBlock is freed). ~CodeBlock cannot cover these:
+        // its aboutToDie() walk sees only chains still ATTACHED to the IC,
+        // and displaced chains are by definition not. Disarming here is
+        // exactly the flag-off behavior (inline destruction of the displaced
+        // chain at the same program point destroys the same watchpoint).
+        cursor->disarmClearingWatchpointOnRetire();
     }
 
 #if defined(JSC_JIT_HAS_GC_SAFEPOINT_EPOCH)

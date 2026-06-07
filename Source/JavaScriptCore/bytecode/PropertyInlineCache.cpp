@@ -363,7 +363,7 @@ AccessGenerationResult PropertyInlineCache::addAccessCase(const GCSafeConcurrent
     return result;
 }
 
-void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, CodeBlock* codeBlock)
+void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, VM& vm, CodeBlock* codeBlock)
 {
     clearBufferedStructures();
     clearInlineAccessSelfState();
@@ -388,8 +388,14 @@ void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, CodeBlock*
             if (Options::useJSThreads()) [[unlikely]]
                 displacedInlinedHandler = handlerIC->m_inlinedHandler;
             handlerIC->clearInlinedHandler(codeBlock);
+            // AB18-E rule: retire against the CALLER's VM&, never
+            // codeBlock->vm() — deriving the retire VM through the cell's
+            // MarkedBlock is the stale-owner pattern behind the
+            // DirectCallLinkInfo::retireRecord UAF (sig-1); any future reset
+            // path reached through retired/leaked IC state would reproduce
+            // it byte-for-byte.
             if (displacedInlinedHandler) [[unlikely]]
-                RetiredJITArtifacts::retireHandlerChain(codeBlock->vm(), WTF::move(displacedInlinedHandler));
+                RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
         }
     }
 
@@ -496,7 +502,11 @@ void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, CodeBlock*
         break;
     }
 
-    deref(codeBlock->vm());
+    // AB18-F: use the caller's VM& (same rule as the inlined-handler retire
+    // above) — `deref(codeBlock->vm())` re-derived the retire VM through the
+    // owner cell's MarkedBlock header, the exact sig-1 stale-owner pattern
+    // this function's own comment bans.
+    deref(vm);
     setCacheType(locker, CacheType::Unset);
 }
 
@@ -576,7 +586,7 @@ void PropertyInlineCache::visitWeak(const ConcurrentJSLockerBase& locker, CodeBl
     if (isValid)
         return;
 
-    reset(locker, codeBlock);
+    reset(locker, vm, codeBlock);
     resetByGC = true;
 }
 

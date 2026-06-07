@@ -66,6 +66,10 @@ void JITStubRoutineSet::add(GCAwareJITStubRoutine* routine)
     RELEASE_ASSERT(!isCompilationThread());
     ASSERT(!routine->m_isJettisoned);
 
+    // THREADS (AB18-F): see m_lock's declaration comment — N mutators sharing
+    // one Heap reach this append concurrently from IC-miss slow paths.
+    Locker locker { m_lock };
+
     if (routine->m_isCodeImmutable) {
         m_immutableCodeRoutines.append(routine);
         return;

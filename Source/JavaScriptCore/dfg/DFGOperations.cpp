@@ -6482,7 +6482,12 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationTriggerTierUpNow, void, (VM* vmPointe
         bool triggersEmpty;
         unsigned triggersSize;
         {
-            Locker locker { jitCode->m_tierUpTriggersLock };
+            // DFG-1, flag-gated (I22): flag-off stays today's unlocked
+            // single-mutator read; the key set is structurally immutable
+            // post-link either way.
+            std::optional<Locker<Lock>> threadsLocker;
+            if (Options::useJSThreads()) [[unlikely]]
+                threadsLocker.emplace(jitCode->m_tierUpTriggersLock);
             triggersEmpty = jitCode->tierUpEntryTriggers.isEmpty();
             triggersSize = jitCode->tierUpEntryTriggers.size();
         }
@@ -6517,7 +6522,10 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
     
     bool triggeredSlowPathToStartCompilation = false;
     {
-        Locker locker { jitCode->m_tierUpTriggersLock };
+        // DFG-1, flag-gated (I22): see triggerTierUpNow above.
+        std::optional<Locker<Lock>> threadsLocker;
+        if (Options::useJSThreads()) [[unlikely]]
+            threadsLocker.emplace(jitCode->m_tierUpTriggersLock);
         auto triggerEntry = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
         if (triggerEntry != jitCode->tierUpEntryTriggers.end()) {
             switch (triggerEntry->value) {
@@ -6644,7 +6652,10 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
         // a progressively inner loop if it takes too long for control to reach an outer loop.
 
         auto tryTriggerOuterLoopToCompile = [&] {
-            Locker locker { jitCode->m_tierUpTriggersLock };
+            // DFG-1, flag-gated (I22): see triggerTierUpNow above.
+            std::optional<Locker<Lock>> threadsLocker;
+            if (Options::useJSThreads()) [[unlikely]]
+                threadsLocker.emplace(jitCode->m_tierUpTriggersLock);
             auto tierUpHierarchyEntry = jitCode->tierUpInLoopHierarchy.find(originBytecodeIndex);
             if (tierUpHierarchyEntry == jitCode->tierUpInLoopHierarchy.end())
                 return false;
@@ -6699,7 +6710,10 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
     // live CHECK_HASHTABLE_ITERATORS-registered iterator across them either.
     JITCode::TriggerReason* triggerAddress = nullptr;
     {
-        Locker locker { jitCode->m_tierUpTriggersLock };
+        // DFG-1, flag-gated (I22): see triggerTierUpNow above.
+        std::optional<Locker<Lock>> threadsLocker;
+        if (Options::useJSThreads()) [[unlikely]]
+            threadsLocker.emplace(jitCode->m_tierUpTriggersLock);
         auto triggerIterator = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
         if (triggerIterator != jitCode->tierUpEntryTriggers.end())
             triggerAddress = &(triggerIterator->value);

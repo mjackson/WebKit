@@ -243,6 +243,15 @@ void InlineCacheHandler::aboutToDie()
     m_watchpoint.reset();
 }
 
+void InlineCacheHandler::disarmClearingWatchpointOnRetire()
+{
+    // See the header comment (AB18-F). Destroying the watchpoint removes it
+    // from its WatchpointSet's list, with the same serialization constraints
+    // the flag-off inline destruction of displaced chains already has at the
+    // identical displacement program points.
+    m_watchpoint.reset();
+}
+
 bool InlineCacheHandler::visitWeak(VM& vm)
 {
     bool isValid = true;

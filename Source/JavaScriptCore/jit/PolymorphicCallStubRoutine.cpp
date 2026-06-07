@@ -53,10 +53,14 @@ void PolymorphicCallNode::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, C
         // remove() crashing on a half-unlinked node under
         // int-gate-stop-budget). Same lock, same rule as
         // CallLinkInfo::unlinkOrUpgradeImpl. isOnList() MUST be
-        // (re-)checked UNDER the lock: the drain hands us this node from an
-        // unlocked begin() read, and a locked linker can have removed it in
-        // the window before we acquire. The lock is recursive, so the
-        // nested m_callLinkInfo->unlinkOrUpgrade below re-acquires cheaply.
+        // (re-)checked UNDER the lock. Since AB18-C the drain
+        // (CodeBlock::unlinkOrUpgradeIncomingCalls) holds this same
+        // recursive lock across its entire {takeFrom, isEmpty, begin,
+        // unlinkOrUpgrade} traversal, so when we arrive from the drain this
+        // acquisition nests cheaply; the re-check stays load-bearing for the
+        // destruction-context removers that race us from other threads. The
+        // lock is recursive, so the nested m_callLinkInfo->unlinkOrUpgrade
+        // below re-acquires cheaply.
         Locker locker { CallLinkInfo::s_callLinkSerializationLock };
         if (isOnList())
             remove();

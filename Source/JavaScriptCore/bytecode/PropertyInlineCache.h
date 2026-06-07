@@ -144,7 +144,12 @@ public:
 
     AccessGenerationResult addAccessCase(const GCSafeConcurrentJSLocker&, JSGlobalObject*, CodeBlock*, ECMAMode, CacheableIdentifier, RefPtr<AccessCase>);
 
-    void reset(const ConcurrentJSLockerBase&, CodeBlock*);
+    // AB18-E rule: the VM& is the caller's (the retiring mutator's), never
+    // re-derived from a cell inside — reset() retires the displaced inlined
+    // handler chain, and deriving the retire VM via codeBlock->vm()
+    // (MarkedBlock header) is the exact stale-owner pattern that produced the
+    // DirectCallLinkInfo::retireRecord UAF (CallLinkInfo.cpp:805).
+    void reset(const ConcurrentJSLockerBase&, VM&, CodeBlock*);
 
     // Drops the IC's generated-dispatch state at jettison/destruction time.
     // With useJSThreads (SPEC-jit section 5.1/section 4.4, I9) the dropped

@@ -448,7 +448,7 @@ ALWAYS_INLINE static void fireWatchpointsAndClearStubIfNeeded(VM& vm, PropertyIn
 
         {
             GCSafeConcurrentJSLocker locker(codeBlock->m_lock, vm);
-            propertyCache.reset(locker, codeBlock);
+            propertyCache.reset(locker, vm, codeBlock);
         }
     }
 }
@@ -2370,11 +2370,22 @@ void linkDirectCall(VM& vm, DirectCallLinkInfo& callLinkInfo, CodeBlock* calleeC
     // pattern more to audit).
     if (vm.gilOff()) [[unlikely]] {
         Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        // AB18-F loser-path fix: two mutators direct-linking the same call
+        // site concurrently must not double-push the node (SentinelLinkedList
+        // corruption) — but the loser may also have resolved a DIFFERENT
+        // calleeCodeBlock than the winner (a tier-up install can land between
+        // the two racers' prepareForExecution resolutions). If we left the
+        // node on the OLD callee's m_incomingCalls while publishing the new
+        // target, jettisoning the new callee could never unlink this caller
+        // (it is not on the new callee's list), so the call site would keep
+        // dispatching into jettisoned code. Under the lock, isOnList() implies
+        // the node sits on codeBlock()'s list, so delist on mismatch and
+        // relink below. Same-callee losers keep the old behavior: skip the
+        // re-push; the second setCallTarget republishes an identical record,
+        // which is benign.
+        if (callLinkInfo.isOnList() && callLinkInfo.codeBlock() != calleeCodeBlock)
+            callLinkInfo.remove();
         callLinkInfo.setCallTarget(vm, uncheckedDowncast<FunctionCodeBlock>(calleeCodeBlock), CodeLocationLabel<JSEntryPtrTag>(codePtr));
-        // isOnList() re-check: two mutators direct-linking the same call site
-        // concurrently must not double-push the node (SentinelLinkedList
-        // corruption); the second setCallTarget republishes an identical
-        // record, which is benign.
         if (calleeCodeBlock && !callLinkInfo.isOnList())
             calleeCodeBlock->linkIncomingCall(callLinkInfo.owner(), &callLinkInfo);
         return;

@@ -356,10 +356,10 @@ public:
     // permitted — stable post-link address, single-byte payload, same contract as the
     // JIT-embedded lock-free reads.
     //
-    // KNOWN GAP (out of this change's file scope): DFGToFTLForOSREntryDeferredCompilationCallback
-    // ::compilationDidComplete still performs an unlocked tierUpEntryTriggers.set(...,
-    // CompilationDone); it must be converted to setTierUpEntryTrigger() below — until then the
-    // racing structural writer remains and this change only closes the reader-side windows.
+    // The former KNOWN GAP is closed (DFG-1, this round): DFGToFTLForOSREntryDeferredCompilationCallback
+    // ::compilationDidComplete was converted to setTierUpEntryTrigger() (locked find() +
+    // in-place value write), so the locked-writer set is complete — no post-link structural
+    // writer of tierUpEntryTriggers remains and the no-rehash guarantee holds.
     UncheckedKeyHashMap<BytecodeIndex, TriggerReason> tierUpEntryTriggers;
     void setTierUpEntryTrigger(BytecodeIndex, TriggerReason);
     Lock m_tierUpTriggersLock;
