@@ -2102,3 +2102,14 @@ pattern at its two write-backs - that change is in owned JSObject.cpp and
 this part applies it in its next write window, gated on this §61 diff
 landing (the re-find is only sound once putEntry stops writing through stale
 references itself).
+
+## AB17c/AB17e F3 landing record (pointer)
+
+The F3 family fixes (O2/GT11 transition-vs-write watchdog gates, S6 L3/L4
+cacheable-dictionary staleness guard, I21 CAS-max) and their complete
+flatten-site enumeration, per-fix named invariants, and honest test evidence
+(including the 4/5 spawned-thread-butterfly-stress red gate and the
+shared-arraystorage-stress oracle restoration) are ledgered in
+docs/threads/INTEGRATE-ungil.md, section "AB17e", items 2, 3 and 6. The F3
+family gate is OPEN pending 6/6 named tests at 5/5 GIL-off full JIT with the
+restored exact-equality oracle.

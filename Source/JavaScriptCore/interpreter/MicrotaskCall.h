@@ -48,6 +48,14 @@ public:
 
     ~MicrotaskCall()
     {
+        // AB17e F4 (object-lifetime closure): delist FIRST, before the member
+        // teardown below — same contract as ~CachedCall. A locked drain can
+        // be mid-unlinkOrUpgradeImpl on this node (reading m_addressForCall /
+        // m_codeBlock) when this object dies; removeOnDestruction acquires
+        // the link lock unconditionally gilOff. ~CallLinkInfoBase's own
+        // gilOff delist would run only AFTER this store — too late.
+        if (g_jscConfig.gilOffProcess) [[unlikely]]
+            removeOnDestruction();
         m_addressForCall = nullptr;
     }
 

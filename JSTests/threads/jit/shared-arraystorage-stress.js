@@ -63,13 +63,18 @@ if (typeof $vm === "undefined" || !$vm.ensureArrayStorage) {
                 const i = (slot + k * THREADS) % LEN;
                 writeAt(arr, i, encode(slot, w, k & 7)); // foreign write: SW path
                 const back = readAt(arr, i);
-                // Between our write and the read the owner may have
-                // shift/unshifted (index remap) — membership, not equality:
-                if (typeof back === "number" && back !== 0) {
-                    const s = Math.floor(back / 1000000);
-                    if (s < 0 || s >= THREADS)
-                        throw new Error("read decoded to invalid writer slot: " + back);
-                }
+                // AB17e oracle restore: exact equality, not membership. The
+                // wave barrier makes intervening relayout impossible — the
+                // owner only shift/unshifts BETWEEN waves while every writer
+                // is parked (it blocks in waitUntil(done >= (w+1)*THREADS)
+                // during wave w), and stripes are disjoint
+                // (LEN % THREADS == 0, so i % THREADS == slot). Nothing can
+                // run between our write and this read on index i; anything
+                // but the exact value is a LOST or torn write.
+                if (back !== encode(slot, w, k & 7))
+                    throw new Error("lost/torn write at " + i + " (wave " + w
+                        + ", slot " + slot + ", k " + k + "): expected "
+                        + encode(slot, w, k & 7) + " got " + String(back));
             }
             Atomics.add(done, "count", 1);
         }
@@ -86,12 +91,18 @@ if (typeof $vm === "undefined" || !$vm.ensureArrayStorage) {
             const lastK = WRITES_PER_WAVE - 1;
             const i = (slot + lastK * THREADS) % LEN;
             const v = readAt(arr, i);
-            shouldBeTrue(typeof v === "number", "slot value must be a number");
-            // The slot may have been overwritten by a colliding (i mod LEN)
-            // stripe index from the same wave, but never lost back to a
-            // stale pre-wave value of a DIFFERENT wave epoch:
-            if (v !== 0 && Math.floor(v / 1000) % 1000 > w)
-                throw new Error("value from the future at " + i + ": " + v);
+            // AB17e oracle restore: exact equality — a LOST write (slot
+            // still holding warmup 0 or a wave w-1 epoch) must FAIL here,
+            // not pass silently. Only stripe `slot` ever writes index i
+            // (LEN % THREADS == 0); the k values colliding on i within the
+            // wave are k ≡ lastK (mod LEN/THREADS), all from this same
+            // stripe and all earlier than k = lastK, so the wave's final
+            // write to i is encode(slot, w, lastK & 7); no writer is
+            // mid-wave now and the owner has not yet relayouted.
+            if (v !== encode(slot, w, lastK & 7))
+                throw new Error("lost write at " + i + " (wave " + w
+                    + ", slot " + slot + "): expected "
+                    + encode(slot, w, lastK & 7) + " got " + String(v));
         }
         // Owner relayout between waves: shift + unshift (vector move /
         // indexBias change => AS-COPY under the cell lock flag-on).

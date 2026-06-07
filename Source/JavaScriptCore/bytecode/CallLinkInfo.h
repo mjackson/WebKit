@@ -461,6 +461,18 @@ public:
 
     ~DirectCallLinkInfo()
     {
+        // AB17e F4 (object-lifetime closure): delist FIRST, before any member
+        // teardown. The I16 argument below covers JIT'd FRAMES only — a
+        // locked drain (CodeBlock::unlinkOrUpgradeIncomingCalls) reaches this
+        // node through the CALLEE's incoming list even though the owner is
+        // dead, and its unlinkOrUpgradeImpl reads m_target/m_codeBlock/
+        // m_record. removeOnDestruction acquires the link lock
+        // unconditionally gilOff, so we either delist before any drain
+        // observes the node or block until the drain loop ends; after the
+        // locked delist the object is unreachable from any list and the
+        // teardown below cannot race a drain.
+        if (g_jscConfig.gilOffProcess) [[unlikely]]
+            removeOnDestruction();
         m_target = { };
         m_codeBlock = nullptr;
         // SPEC-jit section 5.8: a DirectCallLinkInfo is destroyed only once its

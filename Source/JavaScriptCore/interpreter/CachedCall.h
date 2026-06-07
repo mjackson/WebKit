@@ -48,6 +48,17 @@ public:
 
     ~CachedCall()
     {
+        // AB17e F4 (object-lifetime closure): delist FIRST, before the member
+        // teardown below. A locked drain
+        // (CodeBlock::unlinkOrUpgradeIncomingCalls) can be
+        // mid-unlinkOrUpgradeImpl on this node (reading m_addressForCall /
+        // m_protoCallFrame) when this stack object dies; removeOnDestruction
+        // acquires the link lock unconditionally gilOff, so we either delist
+        // before any drain observes the node or block until the drain loop
+        // ends. ~CallLinkInfoBase's own gilOff delist would run only AFTER
+        // this store — too late.
+        if (g_jscConfig.gilOffProcess) [[unlikely]]
+            removeOnDestruction();
         m_addressForCall = nullptr;
     }
 

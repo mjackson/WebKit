@@ -43,13 +43,16 @@ namespace JSC {
 
 // AUD1.N2 routing (1) — the keystone reroute. GIL-off the per-match scratch
 // lives OFF the cell (per-thread buffer, RegExp.cpp banner); flag-off/GIL-on
-// this is byte-identically the old ovectorSpan(): one predicted-false byte
-// test, then the cell vector. The matchInline ASSERT below (and the
-// RELEASE_ASSERTs in RegExp::match/matchConcurrently) backstop any future
-// caller that bypasses this routing.
+// this is the old ovectorSpan() behind the Config-page gate. The matchInline
+// ASSERT below (and the RELEASE_ASSERTs in RegExp::match/matchConcurrently)
+// backstop any future caller that bypasses this routing. AB17e: unified on
+// gilOffWithProcessGate (was raw vm.gilOff()) so the per-match flag-off
+// predicate matches compileIfNecessary's in this same file — same value by
+// the equivalence invariant (VM.h), loads only the read-only Config page
+// flag-off.
 ALWAYS_INLINE std::span<int> RegExp::ovectorSpan(VM& vm)
 {
-    if (vm.gilOff()) [[unlikely]]
+    if (vm.gilOffWithProcessGate()) [[unlikely]]
         return regExpGilOffPerThreadMatchOvector(*this);
     return m_ovector.mutableSpan();
 }
@@ -125,7 +128,9 @@ ALWAYS_INLINE void RegExp::compileIfNecessary(VM& vm, Yarr::CharSize charSize, s
     // CompilerThread callers never reach this (matchInline gates on
     // matchFrom; matchConcurrently already holds the cellLock). Flag-off/
     // GIL-on: byte-identically the historical lock-free path.
-    if (vm.gilOff()) [[unlikely]] {
+    // AB17d (bench I3 follow-up): Config-page gate — this predicate runs on
+    // every mutator RegExp match flag-off.
+    if (vm.gilOffWithProcessGate()) [[unlikely]] {
         Locker locker { cellLock() };
         if (hasCodeFor(charSize))
             return;
@@ -274,8 +279,9 @@ ALWAYS_INLINE bool RegExp::hasMatchOnlyCodeFor(Yarr::CharSize charSize)
 
 ALWAYS_INLINE void RegExp::compileIfNecessaryMatchOnly(VM& vm, Yarr::CharSize charSize, std::optional<StringView> sampleString)
 {
-    // AUD1.N2 residual (A) — same shape and rationale as compileIfNecessary.
-    if (vm.gilOff()) [[unlikely]] {
+    // AUD1.N2 residual (A) — same shape and rationale as compileIfNecessary
+    // (AB17e: unified on the Config-page gate like its sibling above).
+    if (vm.gilOffWithProcessGate()) [[unlikely]] {
         Locker locker { cellLock() };
         if (hasMatchOnlyCodeFor(charSize))
             return;

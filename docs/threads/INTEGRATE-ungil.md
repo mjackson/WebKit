@@ -1291,3 +1291,425 @@ EXECUTED K4/N7 tables verbatim — these subsections add call sites only.
    `VM::isGILOffProcess()` is the C++ twin (see (i) row 6/ledger row 1
    note); U-T14 re-audits the flag-off branch budget against jit I1's
    permitted-delta list.
+
+## AB17d — solo verification round over the AB17c adversarial findings
+
+Each reviewer finding was re-verified against the tree; dispositions below
+(FIXED = landed this round; REFUTED = false positive with evidence;
+OPEN = confirmed, carried with owner).
+
+1. **entrypointFor lazy refill + unconverted priming consumers (BLOCKER,
+   CONFIRMED, FIXED).** ExecutableBase::entrypointFor's unsynchronized
+   arity-mirror refill could store an entrypoint derived from the OLD jit
+   code after a concurrent installCode retracted the slot — a stable stale
+   value the thunk slot-recompare cannot detect — and the unconditional
+   generatedJITCodeFor deref could hit installCode's transient null.
+   Fix (ExecutableBase.h): under the gilOffProcess Config gate the lazy
+   cache is NEVER written and the jit-code read is null-checked. Since
+   installCode/clearCode only ever store null to the mirror, script
+   executables now have a permanently-null arity slot gilOff: the virtual
+   thunks' non-null gate routes every script callee to the slow path, which
+   derives a matched (entrypoint, CodeBlock) pair through one CodeBlock
+   snapshot. Host executables publish once at construction and never
+   retract. The two unconverted priming consumers are gated off under the
+   same byte (JSBoundFunction.cpp boundThisNoArgsFunctionCall,
+   JSRemoteFunction.cpp); WebAssemblyFunction.h:98 was a FALSE POSITIVE —
+   its enclosing function already returns nullptr under
+   Options::useJSThreads() before reaching the call (WebAssemblyFunction.h
+   ~:91). Deliberate cost: gilOff virtual-mode calls to script functions
+   always take the C++ slow path (monomorphic/polymorphic ICs unaffected —
+   their pairs are published under the link lock). Flag-off: one
+   predicted-false Config-page byte test per site.
+
+2. **Thunk arity-slot revalidation ABA (BLOCKER, CONFIRMED, FIXED by the
+   same change).** The value-equality recompare was ABA-vulnerable across
+   jettison/reinstall of the same CodeBlock (arity entrypoints are
+   addresses in long-lived JITCode objects and recur). With the refill
+   gated off, the only values a script executable's slot can ever hold
+   gilOff are null — value recurrence is impossible because no non-null
+   value is ever (re)published. ThunkGenerators.cpp comment updated; the
+   recompare branch is retained as defense-in-depth.
+
+3. **PropertyTable plan-time clone races in-place edits (BLOCKER,
+   REFUTED).** The claimed interleaving requires the planner's clone to run
+   unlocked. It does not: Structure::takePropertyTableOrCloneIfPinned
+   (Structure.cpp:1224, useJSThreads arm) performs the pinned-table
+   copy() under GCSafeConcurrentJSLocker on the SOURCE structure's m_lock,
+   and every in-place dictionary edit (addAfterFind/take/
+   updateAttributeIfExists) runs under the same m_lock via Structure::add's
+   l6Locker (StructureInlines.h:449-462) — clone and edit are mutually
+   excluded, so the clone can never miss an in-flight add and the rehash
+   index-vector free (PropertyTable.h destroyIndexVector) can never run
+   concurrently with the clone's read (the claimed UAF). The single
+   pre-edit bump is sufficient in this design: with mutual exclusion the
+   edit count only needs to detect edits that complete between the locked
+   clone and the locked publication validation, and any such edit's bump is
+   ordered before the validation read by the cell lock the editors also
+   hold (JSObject.cpp:4148 Locker vs putDirectInternal's S6 leg). The
+   odd/even seqlock proposal is unnecessary.
+
+4. **unlinkOrUpgradeIncomingCalls unlocked drain iteration (MAJOR,
+   CONFIRMED, FIXED).** The drain's isEmpty()/begin() reads ran outside
+   s_callLinkSerializationLock while destruction-context removers
+   (CallLinkInfoBase::removeOnDestruction) mutate nodes parked in the
+   drain's local toBeRemoved list under the lock — torn sentinel reads,
+   and begin() could hand out a node freed before the per-node lock
+   acquisition. Fix (CodeBlock.cpp): the gilOff drain now holds the
+   (recursive) lock across the entire {takeFrom, isEmpty, begin,
+   unlinkOrUpgrade} loop; a sweeper either removes a node before the drain
+   observes it or blocks until the node is off the local list.
+
+5. **GC-heap allocation under s_callLinkSerializationLock re-creates GT11
+   (MAJOR, REFUTED as stated; comment fixed).** linkPolymorphicCall takes
+   DeferGCForAWhile BEFORE acquiring the lock (Repatch.cpp:325-341), so
+   allocation inside the locked linker cannot initiate a collection or a
+   world-stop request while the lock is held — lazy-sweep destructor runs
+   (the reason the lock is recursive) are allocation-side sweeping, not
+   stop requests, and do not park. The GT11 wedge requires a stop REQUEST
+   or safepoint park by the holder; neither is reachable from the locked
+   linkers. The stale "non-recursive" AB18-C text was removed with the
+   item-4 rewrite. RESIDUAL WATCH: any future locked caller without a
+   DeferGC bracket re-opens this — record a rule: no GC-heap allocation
+   under this lock without an active DeferGC.
+
+6. **"28-cell matrix ALL GREEN" overclaim (MAJOR, CONFIRMED).** The F4
+   verification gate is RE-STATED AS NOT MET. The two recorded residual
+   crash classes (libpas double-free cores /tmp/cores/core.591777,
+   core.643552; --useDFGJIT=0 mid-instruction-PC core.640254-class) remain
+   OPEN named items. The item-1/2/4 fixes this round plausibly bear on the
+   second class (stale-entrypoint family) — the 28-cell matrix must be
+   re-run after this round before any F4 green claim.
+
+7. **F1 closure unproven (BLOCKER, CONFIRMED — this is the missing AB17c
+   F1 entry).** No post-fix transition-heavy-constructor number was ever
+   recorded in-tree; the gate is FORMALLY RED until V5b adjudicates with
+   the 9-run-median default (or repeated 5-run sessions) on a quiet
+   machine against the pinned Release binary, and records the number HERE.
+   Given the implementer's own same-binary drift data (+6.12% → +11.36%),
+   a single marginal pass is inconclusive; re-run. bench-gate.sh and
+   baseline.json were verified untouched this round (no threshold
+   tampering).
+
+8. **I3 false-sharing mechanism unsubstantiated flag-off (MAJOR,
+   CONFIRMED, comment corrected).** The VM.h I3 comment now carries an
+   explicit MECHANISM CAVEAT: no cross-core fetch_or writer is active in
+   the flag-off bench configuration; the change stands on strict flag-off
+   cost reduction only. perf c2c substantiation remains OWED (V5b, with
+   the bench adjudication).
+
+9. **Residual raw m_gilOff/gilOff() loads flag-off-reachable (MAJOR,
+   CONFIRMED, FIXED).** Routed through gilOffWithProcessGate():
+   softStackLimitForCurrentThreadSlow (VM.h — the comment-documented hot
+   one), adaptiveStringSearcherTables, disallowVMEntryCountSlot,
+   RegExpInlines.h compileIfNecessary, CodeBlock.cpp linkIncomingCall +
+   unlinkOrUpgradeIncomingCalls. Remaining raw gilOff() sites are
+   gilOff-arm-only or cold; per-site rulings owed to the U-T14 re-audit.
+
+10. **No layout separation for the service word (MAJOR, CONFIRMED,
+    FIXED).** m_entryScopeServicesRawBits is now isolated by 64B
+    never-accessed pads on each side (VM.h) — guarantees line exclusivity
+    regardless of allocation base alignment (alignas(64) deliberately
+    avoided: FastMalloc/TZone do not honor over-alignment). Members are
+    outside the frozen X-macro span; no spec revision required.
+
+11. **Flag-off branch-budget accretion (MAJOR, CONFIRMED as process
+    debt).** No individual violation found by the reviewer or this round;
+    the owed U-T14 golden-disasm re-audit of the put/transition fast path
+    against jit I1's permitted-delta list MUST run as part of V5, and now
+    also covers the new Config-page byte tests added this round (items 1,
+    9) and the priming-site tests.
+
+12. **property-wtr-isolation.js lost wakeup (MAJOR, CONFIRMED, recorded
+    EXPECTED-FAIL).** The sole V2/V3 corpus failure matches the unlanded
+    MC-WAIT S3a suspect (docs/threads/CVE-AUDIT-STATUS.md CHECK-NOW:
+    property-wait pre-enqueue re-validation, handout §C.3, NOT landed =>
+    lost wakeup), possibly compounded by numeric-key→uid canonicalization
+    on the notify path. NOT introduced this family-round. Until §C.3
+    lands (charter as a named family next round, owner TBD), V2/V3 ladder
+    accounting carries this test as EXPECTED-FAIL with this citation
+    rather than a silent red rung.
+
+13. **Bench gate formally red (MAJOR, CONFIRMED).** Same disposition as
+    item 7: V5b adjudication on the pinned binary is the only closure
+    path; no drift argument is accepted as a fix.
+
+## AB17e — solo round over the post-AB17d adversarial findings
+
+Dispositions (FIXED = landed this round; REFUTED = false positive with
+evidence; OPEN = confirmed, carried). Tree re-built (Release jsc) after the
+changes below.
+
+1. **F4 sentinel-lock coverage does not cover OBJECT LIFETIME (BLOCKER,
+   CONFIRMED, FIXED).** The AB17c "seventh fix" closed the LIST races but
+   not the lifetime race: delisting was the LAST act of destruction
+   (~CallLinkInfoBase), and the teardown preceding it was unlocked —
+   ~CallLinkInfo's `delete m_record` (and its stub()-gated check-then-act
+   lock), ~DirectCallLinkInfo's wholly unlocked teardown, ~CachedCall /
+   ~MicrotaskCall's m_addressForCall store. A locked drain
+   (CodeBlock::unlinkOrUpgradeIncomingCalls) legitimately begin()'s a
+   still-listed node owned by a dying caller and uses it across
+   unlinkOrUpgradeImpl (revertCall/publishRecord touch m_record) — UAF /
+   double-retire, consistent with the libpas double-free residual class
+   (core.591777 / core.643552). Second interleaving: ~CallLinkInfoBase's
+   UNLOCKED `if (isOnList())` pre-check reads false in the window after
+   the drain's in-loop remove() while the drain is still mid-call on the
+   object, skipping the lock entirely. FIX (invariant: precondition 11,
+   extended to object lifetime — "delisting is the FIRST act of
+   destruction; a destructor either completes its locked delist before the
+   drain takes the list, or blocks until the drain loop ends"):
+   - ~CallLinkInfoBase (CallLinkInfoBase.h): gilOff arm calls
+     removeOnDestruction() UNCONDITIONALLY (no unlocked isOnList gate);
+     flag-off keeps the historical inline isOnList()/remove() pair behind
+     one g_jscConfig.gilOffProcess byte test.
+   - removeOnDestruction (CallLinkInfoBase.cpp): unconditional lock
+     acquire gilOff, isOnList() re-checked only under the lock; mode gate
+     switched from the out-of-line 5-Options VM::isGILOffProcess() to the
+     inline Config-page byte (also closes finding 7's flag-off-work
+     objection for this path).
+   - ~CallLinkInfo (CallLinkInfo.cpp): gilOff, one lock hold across
+     {delist, clearStub, delete m_record}; the unlocked stub() pre-check
+     and unlocked record delete are gone.
+   - ~DirectCallLinkInfo (CallLinkInfo.h), ~CachedCall (CachedCall.h),
+     ~MicrotaskCall (MicrotaskCall.h): locked delist FIRST
+     (removeOnDestruction), member teardown only after — sound because a
+     node delisted under the lock is unreachable by any subsequent drain.
+   Participant enumeration (all CallLinkInfoBase most-derived types):
+   CallLinkInfo (+Baseline/Optimizing) FIXED above; DirectCallLinkInfo
+   FIXED above; CachedCall FIXED above; MicrotaskCall FIXED above;
+   PolymorphicCallNode has NO derived-dtor teardown (POD members), so the
+   base-dtor unconditional-lock fix covers it.
+   VERIFICATION OWED: the full 28-cell matrix re-run (7 tests x 4 tier
+   caps x 5 runs, pinned GIL-off flags) and re-triage of the two residual
+   core classes against this fix. F4 gate remains OPEN until then.
+
+2. **F3 GT11 watchdog fix incomplete — sibling flatten sites under
+   codeBlock->m_lock (BLOCKER, CONFIRMED, FIXED).** Verified: tryCacheGetBy
+   holds GCSafeConcurrentJSLocker(codeBlock->m_lock) across Repatch.cpp
+   ~735's direct flattenDictionaryStructure call and all
+   prepareChainForCaching calls; Structure::flattenDictionaryStructure
+   (Structure.cpp) routes UNCONDITIONALLY to the §10.6 per-event stop under
+   useJSThreads — so any gilOff IC-caching attempt meeting a dictionary in
+   the chain re-created the watchdogAssertStopProgress wedge. RULE LANDED
+   (invariant O2/GT11): gilOff, NEVER flatten from any IC-caching or
+   chain-prep path; flattening happens only from unlocked runtime sites.
+   COMPLETE site enumeration of flattenDictionaryStructure /
+   flattenDictionaryObject callers reachable flag-on, with rulings:
+   - Repatch.cpp actionForCell (~415): gated RetryCacheLater (AB17c, was
+     the one fixed site).
+   - Repatch.cpp tryCacheGetBy unset/proto arm (~738): gated
+     RetryCacheLater (THIS ROUND).
+   - ObjectPropertyConditionSet.cpp prepareChainForCaching (~596): gated
+     std::nullopt => callers GiveUpOnCache (THIS ROUND). Covers every
+     tryCache* (get/put/in/instanceof/delete) caller in Repatch.cpp,
+     LLIntSlowPaths.cpp:984, and StructureRareData.cpp:212/225.
+   - Operations.cpp normalizePrototypeChain (~140): gated
+     InvalidPrototypeChain (THIS ROUND). Covers LLIntSlowPaths.cpp:1327
+     (flag-off-only via useUnthreadedLLIntPropertyCaches, but gated anyway)
+     and :1667 (reachable flag-on under codeBlock->m_lock), and
+     JSPropertyNameEnumeratorInlines.h:68.
+   - Repatch.cpp delete-IC flatten (~1738): UNREACHABLE flag-on (GiveUp
+     gate at ~1725) — no change needed.
+   - LLIntSlowPaths.cpp:981-ish flatten: behind
+     RELEASE_ASSERT(!Options::useJSThreads()) — no change needed.
+   Any future flattenDictionaryStructure caller must be audited against
+   this enumeration. VERIFICATION OWED: a proto-chain-dictionary arm for
+   transition-vs-write, and the 6 named F3 tests at 5/5.
+
+3. **AB17c F3 ledger entries missing (MAJOR, CONFIRMED, FIXED — this
+   section is the record).** Per-fix named invariants for the F3 family:
+   - O2/GT11 transition-vs-write stw-watchdog root cause: Repatch.cpp
+     actionForCell gate (AB17c) + the three sibling-site gates above
+     (AB17e), site enumeration above.
+   - S6 L3/L4 cacheable-dictionary staleness guard: JSObject.cpp ~4115.
+   - I21 CAS-max: JSObject.cpp ~731 / Butterfly.h ~198.
+   Test evidence (honest): 5 of the 6 named tests passed 5/5 GIL-off full
+   JIT in the implementer's runs; spawned-thread-butterfly-stress was 4/5 —
+   a RED gate. F3 gate is OPEN until 6/6 at 5/5 with the strengthened
+   shared-arraystorage-stress oracle (see item 6).
+
+4. **F1 flag-off bench regression — gate red, no code fix landed (BLOCKER,
+   CONFIRMED, OPEN; cannot be closed by this solo round).** Re-affirmed:
+   no flag-off hot-path work was removed; the I3 layout/Config-gate changes
+   are disclaimed as a root-cause fix in VM.h itself. Independent
+   measurement recorded by a reviewer this round: 9 fresh runs of the exact
+   gate protocol on the just-built Release binary gave median +1.13% vs
+   baseline — the +10.59% does NOT reproduce, and the run-to-run spread on
+   this host (~9%, and a same-suite megamorphic-access reading 12.2% FASTER
+   than baseline) is an order of magnitude above the 1% threshold, so NO
+   number from this host/protocol (red or green) is admissible. CLOSURE
+   PATH (binding): V5b on a quiet host — pinned CPU/governor, interleaved
+   A/B runs of a same-toolchain reference build vs current binary (or
+   same-session --record re-baseline per BENCH.md), >= 15 runs — number
+   recorded HERE. Note the gate was already red pre-round (+1.78%); the
+   regression-to-+10.59% claim and any single-session green are both
+   session noise.
+
+5. **gilOffWithProcessGate "strictly cost-reducing" claim wrong on op
+   count (MAJOR, CONFIRMED, comment FIXED; latch reorder NOT taken).**
+   The VM.h comment now states the real trade: TWO predicted-false
+   Config-page byte tests flag-off vs the ONE this-relative member
+   load+branch it replaced; the win is the read-only page (no
+   concurrently-mutated line), not fewer ops. The latch-before-designation
+   reorder that would drop the fallback term is deferred (touches the VM
+   ctor / JSLockHolder window — too risky for a solo round) and remains
+   the recorded path to a true one-byte-test gate. RegExpInlines.h
+   unified: ovectorSpan (per-match hot) and compileIfNecessaryMatchOnly
+   now use gilOffWithProcessGate like compileIfNecessary (equivalence
+   invariant makes the swap behavior-identical).
+
+6. **F3 stress-test oracle weakened in the round it started passing
+   (MAJOR, CONFIRMED, FIXED).** shared-arraystorage-stress.js restored to
+   a lost-write-detecting oracle: writer readback is exact equality
+   (back === encode(slot, w, k & 7) — sound under the wave barrier: the
+   owner relayouts only between waves while all writers are parked, and
+   stripes are disjoint since LEN % THREADS == 0), and the owner post-wave
+   check requires the exact wave-w encode at the checked stripe index (a
+   stale warmup-0 / wave w-1 value now FAILS instead of passing silently).
+   The F3 5/5 evidence must be re-collected with this oracle.
+
+7. **New unconditional flag-off work on teardown paths (MAJOR, CONFIRMED,
+   FIXED for the dtor paths; LLInt branch recorded as budget debt).**
+   ~CallLinkInfoBase and removeOnDestruction now gate on the inline
+   g_jscConfig.gilOffProcess byte (no out-of-line cross-DSO call, no
+   5-Options re-derivation, flag-off arm inlined in the header) — see item
+   1. The ~CallLinkInfo dtor likewise. The AB17c LLInt
+   callHelper/doCallVarargs per-call g_config byte test
+   (LowLevelInterpreter64.asm ifJSThreadsBranch ~1709) is ADDED to the
+   owed U-T14 permitted-delta re-audit list (with AB17d items 1/9/11).
+
+8. **Verification overclaims ("28-cell ALL GREEN", "6 tests 5/5")
+   (MAJOR/BLOCKER, CONFIRMED).** Formal gate state, superseding any
+   implementer summary: F1 OPEN (item 4), F3 OPEN (items 2/3/6), F4 OPEN
+   (item 1). Mechanism LANDED is not behavior DELIVERED; no green claim on
+   flaky passes. The AB17d-era 28-cell runs are additionally STALE
+   evidence — this round changed the code under test again.
+
+## AB17f — solo verification round over the post-AB17e adversarial findings
+
+Dispositions (FIXED = landed this round; CONFIRMED-OPEN = real, carried with
+its ledger-specified closure path; REFUTED-AS-STATED = claim corrected with
+file:line evidence; ALREADY-RECORDED = real but the tree already records it).
+Tree re-built (Release jsc) after the changes below. This round is
+docs+comments+two-narrow-code-fixes only; NO gate state changes: F1, F3, F4
+remain OPEN exactly as AB17e item 8 rules.
+
+1. **I21 dense-store length publication relaxed-only (MAJOR, CONFIRMED,
+   FIXED).** Verified: both bumpPublicLengthToAtLeast copies (Butterfly.h
+   flat ~203, ButterflySpine ~434) CAS-maxed with memory_order_relaxed, and
+   every dense-store writer (JSObject.cpp trySetIndexQuicklyConcurrent
+   Int32/Contiguous/Double arms ~774-851 and the segmented arms) issues the
+   element store plain before the bump — TSO-only publication, unrecorded
+   (unlike the IT-8 convention). FIX: the successful CAS is now
+   memory_order_release in both copies (free on x86-64: atomic RMW is
+   already fully fenced, so zero bench-gate exposure), and the reader-side
+   acquire gap (tryGetIndexQuicklyConcurrent's relaxed publicLength load,
+   JSObject.cpp ~691/~709) is recorded as a named KNOWN RESIDUAL (I21
+   publication, TSO-sound, ARM64 open — benign form: spurious hole =>
+   generic-path fallback) at Butterfly.h, ButterflySpine, and
+   updatePublicLengthAfterDenseStoreConcurrent (JSObject.cpp ~736).
+   Chartered with the IT-8 reader-side residual (same arm64 round).
+
+2. **Stale load-bearing AB18-D comment in setMonomorphicCallee (MAJOR,
+   CONFIRMED, FIXED).** Verified the contradiction: the comment claimed the
+   LLInt data-IC fast path "is NOT yet routed through m_record", but the
+   AB17c third fix landed exactly that reroute
+   (LowLevelInterpreter64.asm .opCallThreadedRecord at callHelper :2918 and
+   doCallVarargs :3041, behind ifJSThreadsBranch :1709). Comment rewritten:
+   mirrors are GC/unlink state flag-on (read under the link lock by
+   unlinkOrUpgradeImpl — whose upgrade arm relies on the rewrite being
+   invisible to flag-on fast paths — and by visitWeak); the published
+   record is the sole flag-on dispatch source; the obsolete ARM64
+   mirror-reader KNOWN RESIDUAL is redirected to the IT-8 record. The
+   payload-first/fence/comparand-last store order itself is KEPT
+   (belt-and-braces; costs nothing on the already-gated arm). clearCallee's
+   sibling rationale annotated the same way. No behavior change.
+
+3. **Heap::allocationClientForCurrentThread raw vm.gilOff() on every C++
+   allocation (part of the flag-off accretion finding, CONFIRMED, FIXED for
+   this site).** Verified at heap/Heap.h ~1833: raw m_gilOff member
+   load+branch, conspicuously not routed through the Config-page gate the
+   AB17d item-9 ruling applied to its siblings (e.g.
+   adaptiveStringSearcherTables, VM.h ~295). Switched to
+   vm.gilOffWithProcessGate() — derivation-equivalent (m_gilOff is true
+   only in a useJSThreads process, so the gate's false arm coincides;
+   VM.h :642-652), flag-off now reads only the frozen read-only Config
+   page. Added to the owed U-T14 permitted-delta list with the rest.
+
+4. **F1 bench gate (BLOCKER, CONFIRMED-OPEN — no change).** The reviewer is
+   right and the ledger already says so (AB17e item 4): no flag-off fix
+   landed, the +1.13%/9-run independent median is still above the 1%
+   threshold, this host is inadmissible, and the binding V5b quiet-host
+   interleaved-A/B (>=15 runs) protocol has not been executed. Nothing in
+   this round claims otherwise. The latch-before-designation reorder
+   remains the recorded code-fix path if the adjudicated number is red.
+
+5. **F3 gate (BLOCKER, CONFIRMED-OPEN — no change).** Per AB17e items 3/6:
+   spawned-thread-butterfly-stress 4/5 is a red gate; all pre-restoration
+   shared-arraystorage-stress 5/5 evidence is void (oracle verified
+   restored at JSTests/threads/jit/shared-arraystorage-stress.js:74,102);
+   the proto-chain-dictionary arm is owed. Closure: 6/6 at 5/5 GIL-off full
+   JIT with the restored oracle, root-causing the 1/5 failure (no
+   re-rolls). The item-1 release fix above is in-family for F3's
+   lost-element signatures and must be in the binary those runs use.
+
+6. **F4 gate (BLOCKER, CONFIRMED-OPEN — no change).** Per AB17e items 1/8:
+   all 28-cell evidence is stale (post-dates the lifetime fix), and two
+   residual core classes are open (libpas double-free core.591777/643552 —
+   plausibly the lifetime fix, unverified; mid-instruction-PC core.640254
+   under --useDFGJIT=0). CONFIRMED in-family per the Repatch finding: no
+   landed fix covers live baseline IC repatch/reset (resetGetBy/resetPutBy
+   repatchSlowPathCall family, InlineCacheCompiler stub replacement)
+   against concurrent execution, and no named invariant exists for that
+   surface. CHARTER (next F4 round): triage core.640254-class to the exact
+   rewritten range; name the invariant (epoch-retire replaced jump targets,
+   or route baseline IC dispatch through an immutable published record like
+   the call path); then the fresh 28-cell matrix on the post-fix binary.
+
+7. **Flag-off hot path "not restored to old form" / new branches outside
+   the permitted delta (MAJOR, CONFIRMED-OPEN).** Verified reachable
+   flag-off accretion: putDirectInternal Options::useJSThreads() +
+   RESTART-arm branches (JSObjectInlines.h ~899+),
+   addPropertyTransitionToExistingStructure dispatch
+   (StructureInlines.h ~707), Structure::add l6Locker arm
+   (StructureInlines.h ~450), the AB17c LLInt ifJSThreadsBranch per-op byte
+   tests (LowLevelInterpreter64.asm :1709/:1869-2896,
+   LowLevelInterpreter.asm virtualThunkFor), RegExpInlines
+   ovectorSpan/compileIfNecessaryMatchOnly two-byte-test gates (:53,:280),
+   ~CallLinkInfoBase dtor byte test, and this round's item-3 gate. No
+   flag-off-reachable TLS reads found (the VMLite::currentIfExists sites
+   all sit behind gates false flag-off) — consistent with the reviewer.
+   The "strictly cost-reducing" wording was already retracted (AB17e item
+   5; VM.h ~605-616). OWED, unchanged: the U-T14 golden-disasm
+   permitted-delta audit over the consolidated list (AB17d items 1/9/11 +
+   AB17c LLInt + AB17e dtor gates + AB17f item 3), and the
+   latch-before-designation reorder as the single change that drops the
+   second byte test from every gilOffWithProcessGate site.
+
+8. **Stale baselines V6/V1/V5a (MAJOR, CONFIRMED-OPEN).** Correct: the
+   AB17c/d/e LLInt record reroute and virtualThunkFor revalidation execute
+   GIL-ON under useJSThreads=1, and no post-edit V6/V1/V5a run is recorded.
+   The full pinned ladder (V0, V1 smoke, V5a identity, V6 GIL-on corpus,
+   V2/V3) must re-run on the current tree before any family closure;
+   property-wtr-isolation.js stays a cited EXPECTED-FAIL (CVE-AUDIT-STATUS
+   CHECK-NOW §C.3) in V2/V3 accounting.
+
+9. **installCode reader-side TSO-only (MAJOR, ALREADY-RECORDED).** The
+   exact gap the reviewer names is recorded in-file as the IT-8 KNOWN
+   RESIDUAL (ScriptExecutable.cpp :286, :347-353 — "writer-side fence
+   only; ARM64 load-load reordering... chartered for the next IT-8
+   round"). Real, open, chartered; the arm64 CI shipping point stands —
+   the IT-8 arm64 round must precede any arm64 GIL-off release artifact.
+   No further in-tree action this round.
+
+10. **RegExpInlines "two byte tests where prior code had one" (MAJOR,
+    CONFIRMED, already conceded).** Accurate op count; AB17e item 5 already
+    corrected the comment and recorded the latch reorder as the path to a
+    true one-byte gate. Folded into the item-7 owed audit list. No code
+    change (the reorder is explicitly deferred as too risky for a solo
+    round — that ruling stands).
+
+Formal gate state after AB17f, unchanged from AB17e item 8: **F1 OPEN, F3
+OPEN, F4 OPEN.** This round's code deltas: Butterfly.h release CAS x2 (+
+residual records), CallLinkInfo.cpp comment supersession x2 (no behavior),
+heap/Heap.h Config-page gate swap, JSObject.cpp residual record. Any
+implementer summary claiming a green family supersedes nothing here.

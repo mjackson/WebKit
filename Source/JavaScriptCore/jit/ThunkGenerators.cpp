@@ -270,17 +270,21 @@ static MacroAssemblerCodeRef<JITThunkPtrTag> virtualThunkFor(VM& vm, CallMode mo
         GPRInfo::regT5);
     jit.storePtr(GPRInfo::regT5, CCallHelpers::calleeFrameCodeBlockBeforeTailCall());
     if (Options::useJSThreads()) [[unlikely]] {
-        // ANNEX CBI item 3 (AB17c F4): the (arity-check entrypoint,
-        // CodeBlock) pair above is two independent racy loads against a
-        // live tier-up installCode on another thread. The gilOff writer
-        // (ScriptExecutable::installCode) retracts the arity-check mirror
-        // FIRST (storeStoreFence-ordered) and entrypointFor refills it only
-        // from the NEW jit code, so re-reading the slot AFTER the CodeBlock
-        // load and comparing with the first read detects any interleaved
-        // install (stale entry => slot is now null or a fresh value):
-        // mismatch takes the slow path, which derives a matched pair
-        // through one CodeBlock snapshot (virtualForWithFunction).
-        // Flag-off: thunk bytes unchanged.
+        // ANNEX CBI item 3 (AB17c F4; AB17d amendment): the (arity-check
+        // entrypoint, CodeBlock) pair above is two independent racy loads
+        // against a live tier-up installCode on another thread. AB17d
+        // closed the value-recurrence/ABA hole in the original slot-
+        // recompare scheme at the source: gilOff-process, entrypointFor
+        // NEVER refills the arity mirror (ExecutableBase.h), and
+        // installCode/clearCode only ever store null to it, so for a
+        // SCRIPT executable the slot is permanently null gilOff and the
+        // non-null gate above already routed every script callee to the
+        // slow path (virtualForWithFunction), which derives a matched pair
+        // through one CodeBlock snapshot. Host executables set the slot
+        // once at construction and never retract — no install can race.
+        // The recompare below is therefore belt-and-braces for any future
+        // writer, not the load-bearing defense. Flag-off: thunk bytes
+        // unchanged.
         slowCase.append(jit.branchPtr(
             CCallHelpers::NotEqual,
             CCallHelpers::Address(GPRInfo::regT0, ExecutableBase::offsetOfJITCodeWithArityCheckFor(kind)),

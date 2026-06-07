@@ -1823,14 +1823,19 @@ ALWAYS_INLINE MutatorState& Heap::mutatorStateSlot()
 }
 
 // SPEC-ungil §B / I4 (apply-scope items (1)+(2); see the declaration comment
-// above): per-thread allocation-client dispatch. Mirrors deferralDepthSlot()
-// but gated on vm.gilOff().
+// above): per-thread allocation-client dispatch. Mirrors deferralDepthSlot().
+// AB17f (bench I3 consistency, extends the AB17d item-9 ruling): gated on
+// vm.gilOffWithProcessGate(), not the raw m_gilOff member load — this
+// predicate runs on EVERY C++ allocation, so flag-off it must read the frozen
+// read-only Config page rather than a VM line that can carry
+// concurrently-mutated state. Derivation-equivalent to gilOff() (m_gilOff is
+// true only in a useJSThreads process; the gate's false arm coincides).
 template<typename VMType>
 ALWAYS_INLINE GCClient::Heap& Heap::allocationClientForCurrentThread(VMType& vm, GCClient::Heap& vmOriginalClient)
 {
     static_assert(std::is_same_v<VMType, VM>, "templated solely to defer instantiation until VM is complete");
     ASSERT(&vmOriginalClient.server() == &vm.heap);
-    if (vm.gilOff()) [[unlikely]] {
+    if (vm.gilOffWithProcessGate()) [[unlikely]] {
         GCClient::Heap* client = GCClient::Heap::currentThreadClient();
         if (client && &client->server() == &vm.heap) {
             // I2: an allocating thread must hold ITS client's access; a

@@ -178,18 +178,42 @@ CallLinkInfo::CallType CallLinkInfo::callTypeFor(OpcodeID opcodeID)
 
 CallLinkInfo::~CallLinkInfo()
 {
-    // AB17c F4 (precondition 11): destruction runs in sweep context on any
-    // mutator, NOT under the link lock, but clearStub ->
-    // PolymorphicCallStubRoutine::unlinkForcefully -> per-node remove()
-    // mutates incoming-calls sentinel lists the locked linkers also mutate.
-    // Take the lock here (the other clearStub callers — reset/setStub — run
-    // on locked linker paths already; see the lock-context contract at
-    // PolymorphicCallNode::unlinkForcefully).
-    if (VM::isGILOffProcess() && stub()) [[unlikely]] {
+    // AB17e F4 (object-lifetime closure of precondition 11): gilOff,
+    // DELISTING IS THE FIRST ACT OF DESTRUCTION and the entire teardown is
+    // one lock hold. The previous shape (clearStub locked only when stub()
+    // was non-null — an unlocked check-then-act — then an UNLOCKED
+    // `delete m_record`, with delisting deferred to ~CallLinkInfoBase as the
+    // LAST act) left the lifetime race open: a dead caller's CallLinkInfo
+    // stays linked on a LIVE callee's m_incomingCalls until destruction, so
+    // a locked drain (CodeBlock::unlinkOrUpgradeIncomingCalls, a live-mutator
+    // tier-up path) could legitimately begin() this still-listed node and be
+    // mid-unlinkOrUpgradeImpl — reading mode/m_callee/m_codeBlock, touching
+    // m_record via revertCall/publishRecord — while a lazy-sweep mutator
+    // freed m_record (the libpas double-free residual class). Holding
+    // s_callLinkSerializationLock from before any member teardown gives the
+    // required mutual exclusion: this destructor either delists the node
+    // before the drain takes the list, or blocks here until the drain loop
+    // ends (the drain holds the lock across its entire traversal). The lock
+    // is recursive — sweep can run from allocation inside a locked linker.
+    // clearStub's PolymorphicCallStubRoutine::unlinkForcefully per-node
+    // remove()s still need the lock regardless (they mutate incoming-calls
+    // sentinel lists the locked linkers also mutate). The mode gate is the
+    // inline Config-page byte, not the 5-Options VM::isGILOffProcess()
+    // re-derivation (flag-off pays one predicted not-taken byte test).
+    if (g_jscConfig.gilOffProcess) [[unlikely]] {
         Locker locker { s_callLinkSerializationLock };
+        if (isOnList())
+            remove();
         clearStub();
-    } else
-        clearStub();
+        // SPEC-jit section 5.8 (I16): owning code unreachable, and with the
+        // node now delisted under the lock no drain can republish or retire
+        // m_record; inline delete is sound (destruction can run in
+        // heap-internal contexts where RetiredJITArtifacts::retire is not
+        // allowed, heap ranks 7-9).
+        delete std::exchange(m_record, nullptr);
+        return;
+    }
+    clearStub();
     // SPEC-jit section 5.8: a CallLinkInfo is destroyed only once its owning
     // code is unreachable (post-R2 conservative scan / CodeBlock sweep), so no
     // JIT'd frame can still hold the record pointer (I16); inline delete is
@@ -282,20 +306,23 @@ void CallLinkInfo::setMonomorphicCallee(VM& vm, JSCell* owner, JSObject* callee,
 {
     RELEASE_ASSERT(!(std::bit_cast<uintptr_t>(callee) & polymorphicCalleeMask));
     if (Options::useJSThreads()) [[unlikely]] {
-        // AB18-D (amended per review): the LLInt data-IC fast path is NOT yet
-        // routed through m_record — it reads the mirror fields lock-free
-        // (LowLevelInterpreter64.asm callHelper: load m_callee, compare, load
-        // m_codeBlock, load m_monomorphicCallDestination). So the payload
-        // (codeBlock, destination) must be visible BEFORE the comparand can
-        // match, or a racing reader matches the callee and jumps a still-null
-        // destination (pc==0). Comparand store last, behind a
-        // storeStoreFence. Gated so the flag-off store order is untouched;
-        // under the GIL (single mutator) the order is invisible.
-        // KNOWN RESIDUAL: writer-side ordering only — sufficient on TSO
-        // (x86-64); a weak-memory (ARM64) reader has no loadLoad/address
-        // dependency on this LLInt path. The complete fix is rerouting the
-        // LLInt fast path through the published record (SPEC-jit 5.8 F2),
-        // an llint/ change outside this item's file set.
+        // AB18-D, superseded by AB17c F4 third fix / corrected AB17f: the
+        // LLInt monomorphic fast path IS now routed through the published
+        // m_record flag-on (LowLevelInterpreter64.asm .opCallThreadedRecord
+        // at callHelper ~2918 and doCallVarargs ~3041, behind
+        // ifJSThreadsBranch) — no flag-on fast path reads the mirror triple
+        // (m_callee / m_codeBlock / m_monomorphicCallDestination) lock-free
+        // any more. Flag-on, the mirrors are GC/unlink state: read under the
+        // CallLinkInfo link lock by unlinkOrUpgradeImpl (whose upgrade arm
+        // RELIES on the mirror rewrite being invisible to flag-on fast
+        // paths) and by visitWeak. publishRecord below is the sole flag-on
+        // dispatch publication; its ordering contract — and the real
+        // weak-memory reader-side gap — is the IT-8 KNOWN RESIDUAL recorded
+        // in ScriptExecutable.cpp / publishRecord, not a mirror-order
+        // residual here. The payload-first + storeStoreFence + comparand-last
+        // mirror order is KEPT as belt-and-braces (it is what makes any
+        // future lock-free mirror reader fail safe, and it costs nothing on
+        // this already-gated arm); flag-off store order is untouched.
         m_codeBlock = codeBlock;
         m_monomorphicCallDestination = codePtr;
         WTF::storeStoreFence();
@@ -314,7 +341,12 @@ void CallLinkInfo::setMonomorphicCallee(VM& vm, JSCell* owner, JSObject* callee,
 void CallLinkInfo::clearCallee()
 {
     if (Options::useJSThreads()) [[unlikely]] {
-        // AB18-D (amended per review; same shape as clearStub's flag-on rule):
+        // AB18-D (amended per review; same shape as clearStub's flag-on rule).
+        // AB17f note: flag-on fast paths no longer read these mirrors (see
+        // setMonomorphicCallee — they dispatch on the published record), so
+        // the rationale below now defends only a hypothetical future
+        // lock-free mirror reader; the conservative comparand-only clear is
+        // kept as belt-and-braces.
         // unpublish ONLY the comparand. A lock-free LLInt mirror reader that
         // matched the old callee just before this clear must still load a
         // CONSISTENT (codeBlock, destination) pair for that callee — nulling

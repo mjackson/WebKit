@@ -84,3 +84,35 @@ shouldBe(o.seq, N * PER);
 shouldBeTrue(/^tag([0-3]|-main)$/.test(o.shared), "o.shared must be a written value, got " + o.shared);
 // churn ends at the last re-add
 shouldBe(o.churn, ROUNDS - 1);
+
+// AB17e O2/GT11 proto-chain-dictionary arm: hot IC-cached gets THROUGH a
+// dictionary prototype from multiple threads. Before the sibling-site gates
+// (Repatch.cpp tryCacheGetBy unset/proto arm, prepareChainForCaching,
+// normalizePrototypeChain) this shape requested a §10.6 per-event stop while
+// holding codeBlock->m_lock — a deterministic 30s watchdog wedge. The arm is
+// green iff it completes (no wedge) with exact values; the self-property
+// dictionary path is covered by the actionForCell gate and the rounds above.
+{
+    const proto = {};
+    for (let i = 0; i < 200; ++i)
+        proto["pp" + i] = i;
+    delete proto.pp0; // dictionary + churn => stays dictionary, unflattened
+    const child = Object.create(proto);
+    child.own = 7;
+    const pgate = { go: 0 };
+    const readers = spawnN(N, which => {
+        while (Atomics.load(pgate, "go") === 0)
+            Atomics.wait(pgate, "go", 0, 100);
+        let sum = 0;
+        for (let i = 0; i < 50000; ++i)
+            sum += child.pp5 + child.own; // proto-hit get: IC attempt meets a proto-chain dictionary
+        return sum;
+    });
+    Atomics.store(pgate, "go", 1);
+    Atomics.notify(pgate, "go", Infinity);
+    let mainSum = 0;
+    for (let i = 0; i < 50000; ++i)
+        mainSum += child.pp5 + child.own;
+    shouldBe(mainSum, 50000 * 12);
+    shouldBe(joinAll(readers).join(","), Array(N).fill(50000 * 12).join(","));
+}

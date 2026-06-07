@@ -735,6 +735,18 @@ static InlineCacheAction tryCacheGetBy(JSGlobalObject* globalObject, CodeBlock* 
                 if (structure->isDictionary()) {
                     if (structure->hasBeenFlattenedBefore())
                         return GiveUpOnCache;
+                    if (vm.gilOff()) [[unlikely]] {
+                        // O2/GT11 (AB17e: sibling site of the actionForCell
+                        // gate): we hold codeBlock->m_lock (rank 6b) with
+                        // heap access, and flag-on flattenDictionaryStructure
+                        // ALWAYS routes through the §10.6 per-event stop —
+                        // requesting a stop here wedges the conductor's
+                        // quiescence predicate into the 30s watchdog. Rule:
+                        // gilOff, NEVER flatten from any IC-caching path;
+                        // flattening happens only from unlocked runtime
+                        // sites. Perf forgone, never a correctness change.
+                        return RetryCacheLater;
+                    }
                     structure->flattenDictionaryStructure(vm, uncheckedDowncast<JSObject>(baseCell));
                     return RetryCacheLater; // We may have changed property offsets.
                 }

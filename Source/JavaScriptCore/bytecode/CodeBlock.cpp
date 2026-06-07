@@ -2344,7 +2344,9 @@ void CodeBlock::linkIncomingCall(JSCell* caller, CallLinkInfoBase* incoming)
     // cached-call setup push from a live mutator with no lock held. gilOff,
     // serialize the push here (recursive lock: the locked linkers also call
     // through this function).
-    if (vm().gilOff()) [[unlikely]] {
+    // AB17d (bench I3 follow-up): gilOffWithProcessGate keeps the flag-off
+    // predicate load off the contended VM line (Config-page byte tests).
+    if (vm().gilOffWithProcessGate()) [[unlikely]] {
         Locker locker { CallLinkInfo::s_callLinkSerializationLock };
         m_incomingCalls.push(incoming);
         return;
@@ -2356,29 +2358,41 @@ void CodeBlock::unlinkOrUpgradeIncomingCalls(VM& vm, CodeBlock* newCodeBlock)
 {
 IGNORE_GCC_WARNINGS_BEGIN("dangling-pointer")
     SentinelLinkedList<CallLinkInfoBase, BasicRawSentinelNode<CallLinkInfoBase>> toBeRemoved;
-    if (vm.gilOff()) [[unlikely]] {
-        // AB18-C: m_incomingCalls is pushed by the Repatch.cpp linkers
-        // (linkMonomorphicCall / linkDirectCall / linkPolymorphicCallImpl)
-        // under CallLinkInfo::s_callLinkSerializationLock (precondition 11),
-        // and the per-node unlinkOrUpgradeImpl drains under the SAME lock —
-        // but this takeFrom() rewired every node's prev/next OUTSIDE it. The
-        // two live-mutator callers (ScriptExecutable::installCode tier-up
-        // drain, and the destructor drain on a lazy-sweep mutator) therefore
-        // race the locked pushes: SentinelLinkedList corruption, or a node
-        // silently dropped from both lists so its published call record is
-        // never unlinked and outlives the code it targets. Take the lock for
-        // the takeFrom ONLY and release before the drain loop: each
-        // unlinkOrUpgrade() re-acquires the same non-recursive lock
-        // (CallLinkInfo.cpp:225,784). Nodes parked in toBeRemoved stay
-        // isOnList(), so the linkers' locked isOnList() re-check still
-        // prevents a double push in the window between takeFrom and drain.
-        // The jettison caller runs world-stopped; the lock is uncontended
-        // there because link-lock holders never park at a safepoint (the
-        // invariant already recorded at unlinkOrUpgradeImpl).
+    if (vm.gilOffWithProcessGate()) [[unlikely]] {
+        // AB18-C (amended AB17d): m_incomingCalls is pushed by the
+        // Repatch.cpp linkers (linkMonomorphicCall / linkDirectCall /
+        // linkPolymorphicCallImpl) under
+        // CallLinkInfo::s_callLinkSerializationLock (precondition 11), and
+        // the per-node unlinkOrUpgradeImpl and the destruction-context
+        // removers (CallLinkInfoBase::removeOnDestruction) serialize on the
+        // SAME (recursive) lock. The previous shape took the lock for
+        // takeFrom() ONLY and drained with unlocked isEmpty()/begin() reads.
+        // That left two holes: (a) nodes parked in toBeRemoved remain
+        // isOnList(), so a lazy-sweep mutator destroying a caller's
+        // CallLinkInfo legitimately remove()s it — under the lock — from
+        // THIS thread's local list, racing the unlocked isEmpty()/begin()
+        // (torn sentinel head reads); and (b) begin() could return a node
+        // the sweeper then frees before unlinkOrUpgradeImpl re-acquired the
+        // lock — the under-lock isOnList() re-check dereferences freed
+        // memory and cannot save that interleaving. Hold the lock across
+        // the ENTIRE {takeFrom, isEmpty, begin, unlinkOrUpgrade} drain: a
+        // destruction-context remover now either removes the node before we
+        // observe it or blocks until the node is off this list, and the
+        // nested unlinkOrUpgradeImpl / linkIncomingCall acquisitions are
+        // admissible because the lock is recursive (CallLinkInfo.h). The
+        // unlink/upgrade path performs no GC-heap allocation, so holders
+        // still never initiate a collection (no-park invariant preserved);
+        // the jettison caller runs world-stopped and is uncontended.
         Locker locker { CallLinkInfo::s_callLinkSerializationLock };
         toBeRemoved.takeFrom(m_incomingCalls);
-    } else
-        toBeRemoved.takeFrom(m_incomingCalls);
+        // Note that upgrade may relink CallLinkInfo into newCodeBlock, and it is possible that |this| and newCodeBlock are the same.
+        // This happens when newCodeBlock is installed by upgrading LLInt to Baseline. In that case, |this|'s m_incomingCalls will
+        // be accumulated correctly.
+        while (!toBeRemoved.isEmpty())
+            toBeRemoved.begin()->unlinkOrUpgrade(vm, this, newCodeBlock);
+        return;
+    }
+    toBeRemoved.takeFrom(m_incomingCalls);
 
     // Note that upgrade may relink CallLinkInfo into newCodeBlock, and it is possible that |this| and newCodeBlock are the same.
     // This happens when newCodeBlock is installed by upgrading LLInt to Baseline. In that case, |this|'s m_incomingCalls will

@@ -200,12 +200,26 @@ public:
     // setPublicLength store; deliberate truncation (setLength/shrink) also
     // stays a plain store - shrink-vs-grow is program-order racy by SAB
     // semantics.
+    //
+    // AB17f (I21 publication ordering): the successful CAS is a RELEASE so
+    // the dense element store program-order before it (the
+    // trySetIndexQuicklyConcurrent setWithoutWriteBarrier / raw double
+    // store) cannot be reordered AFTER the length becomes visible — a
+    // relaxed bump let a weak-memory reader observe the bumped length while
+    // missing the element. Free on x86-64 (every atomic RMW is already a
+    // full fence). KNOWN RESIDUAL (I21 publication, reader side): readers
+    // (tryGetIndexQuicklyConcurrent and friends) load publicLength relaxed
+    // with no acquire/dependency edge, so ARM64 load-load reordering can
+    // still pair a fresh length with a stale (empty) element read; the
+    // benign outcome is a spurious hole => generic-path fallback, same
+    // class as the IT-8 reader-side residual (ScriptExecutable.cpp).
+    // TSO-sound; ARM64 reader-side acquire is chartered with IT-8.
     void bumpPublicLengthToAtLeast(uint32_t newLength)
     {
         uint32_t* location = reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(this) + offsetOfPublicLength());
         uint32_t current = WTF::atomicLoad(location, std::memory_order_relaxed);
         while (current < newLength) {
-            uint32_t observed = WTF::atomicCompareExchangeStrong(location, current, newLength, std::memory_order_relaxed);
+            uint32_t observed = WTF::atomicCompareExchangeStrong(location, current, newLength, std::memory_order_release);
             if (observed == current)
                 return;
             current = observed;
@@ -431,13 +445,17 @@ struct ButterflySpine {
     // (notTTLTID), so EVERY segmented dense-store length bump must use this
     // instead of setPublicLength; plain setPublicLength remains for deliberate
     // truncation (shrink drivers) and world-stopped/pre-publication writers.
+    // AB17f: successful CAS is a RELEASE so the fragment-slot store before it
+    // is published with the length — see Butterfly::bumpPublicLengthToAtLeast
+    // for the full I21 publication rationale and the recorded reader-side
+    // (ARM64 acquire) KNOWN RESIDUAL.
     void bumpPublicLengthToAtLeast(uint32_t newLength)
     {
         RELEASE_ASSERT(indexedFragmentCount); // C2
         uint32_t* location = headerSlotWord(0);
         uint32_t current = WTF::atomicLoad(location, std::memory_order_relaxed);
         while (current < newLength) {
-            uint32_t observed = WTF::atomicCompareExchangeStrong(location, current, newLength, std::memory_order_relaxed);
+            uint32_t observed = WTF::atomicCompareExchangeStrong(location, current, newLength, std::memory_order_release);
             if (observed == current)
                 return;
             current = observed;

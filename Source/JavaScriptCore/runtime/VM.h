@@ -290,7 +290,9 @@ public:
     // No tier bakes the tables' address (all consumers are C++ operations).
     WTF::AdaptiveStringSearcherTables& adaptiveStringSearcherTables()
     {
-        if (gilOff()) [[unlikely]]
+        // AB17d (bench I3 follow-up): Config-page gate, not the raw member
+        // load — this is on every adaptive string search flag-off.
+        if (gilOffWithProcessGate()) [[unlikely]]
             return gilOffPerThreadStringSearcherTables();
         return m_stringSearcherTables.get(*this);
     }
@@ -536,7 +538,8 @@ public:
     // exists (verified: C++ sites only).
     ALWAYS_INLINE unsigned& disallowVMEntryCountSlot()
     {
-        if (gilOff()) [[unlikely]]
+        // AB17d (bench I3 follow-up): Config-page gate, not the raw member load.
+        if (gilOffWithProcessGate()) [[unlikely]]
             return gilOffPerThreadDisallowVMEntryCount();
         return m_disallowVMEntryCountSharedGILOn;
     }
@@ -591,12 +594,32 @@ public:
     // Bench item I3 (flag-off residual on transition-heavy-constructor):
     // keep the hot C++ Group-3 accessors (frame tracers, exception checks,
     // stack-limit checks) off the VM cache line that also carries the
-    // concurrently-mutated m_entryScopeServicesRawBits word. Flag-off, the
-    // legacy per-site `m_gilOff` load shares a line with that word, so every
-    // CONCURRENT_SAFE service fetch_or from a collector/watchdog thread
-    // turned the next predicate load into a cross-core coherence miss. This
-    // gate decides on the frozen, read-only Config page instead and only
-    // touches m_gilOff when the process can actually be GIL-off.
+    // concurrently-mutated m_entryScopeServicesRawBits word, by deciding on
+    // the frozen, read-only Config page and only touching m_gilOff when the
+    // process can actually be GIL-off.
+    // MECHANISM CAVEAT (AB17d review): the original false-sharing story —
+    // "every CONCURRENT_SAFE service fetch_or from a collector/watchdog
+    // thread turned the next predicate load into a coherence miss" — is NOT
+    // substantiated for the plain flag-off single-threaded bench
+    // configuration: the known cross-thread fetch_or writers (Watchdog,
+    // NeedStopTheWorld, ResetTerminationRequest) are all inactive there, and
+    // the mutator's own non-atomic service writes cannot false-share with
+    // itself. The change is justified on the weaker ground of a layout
+    // trade, NOT a static op-count reduction (AB17e correction: the earlier
+    // "strictly cost-reducing" wording was wrong) — flag-off this predicate
+    // executes TWO predicted-false byte tests where raw gilOff() executed
+    // ONE this-relative member load+branch; what it buys is that the loads
+    // hit the frozen read-only Config page instead of a VM line that can
+    // carry concurrently-mutated state. The second (useJSThreads fallback)
+    // test exists only for the pre-latch first-VM-ctor window and can be
+    // dropped if a later round latches gilOffProcess before the m_gilOff
+    // designation; the coherence-miss mechanism IS real in flag-on
+    // configurations that have remote writers (GIL'd useJSThreads watchdog /
+    // stop requests), which is also why the word is now line-isolated by
+    // padding (see m_entryScopeServicesPadBefore/After). Do not cite this
+    // comment as evidence the flag-off regression class is closed; the bench
+    // gate adjudicates that (Tools/threads/bench-gate.sh, AB17c F1 ledger
+    // entry).
     //
     // Equivalence invariant (MUST hold in every reachable state): this
     // predicate returns exactly m_gilOff. Proof obligations:
@@ -694,7 +717,17 @@ private:
         OptionSet<ConcurrentEntryScopeService, ConcurrencyTag::Atomic> m_concurrentEntryScopeServices;
     };
 
+    // AB17d (bench I3 layout, review finding): isolate the concurrently
+    // fetch_or'd service word on its own cache line — 64B of never-accessed
+    // padding on each side guarantees no other VM member (the hot Group-3
+    // VMLitePrimitives tail above; the m_gilOff/didEnterVM byte group below)
+    // shares the word's line REGARDLESS of the allocation's base alignment.
+    // alignas(64) is deliberately not used: FastMalloc/TZone allocation does
+    // not honor over-aligned types. These members sit AFTER the frozen
+    // VMLitePrimitives X-macro span (L1-L5), so no spec revision is needed.
+    char m_entryScopeServicesPadBefore[64] { };
     uint16_t m_entryScopeServicesRawBits { 0 };
+    char m_entryScopeServicesPadAfter[64] { };
     static_assert(sizeof(EntryScopeServicesBits) == sizeof(m_entryScopeServicesRawBits));
 
     // UNGIL §A.1.5 (U-T1): the same packing, expressed as raw bit positions,
@@ -1241,7 +1274,12 @@ public:
     // (transition-heavy-constructor +2.4-3.4%).
     ALWAYS_INLINE void* softStackLimitForCurrentThreadSlow() const
     {
-        if (!m_gilOff) [[likely]]
+        // AB17d (bench I3 follow-up): this is the comment-documented hottest
+        // flag-off consumer of the predicate (every RegExp match, rope
+        // resolution, JSON recursion check) — decide on the read-only Config
+        // page, not the m_gilOff member that shares a line with the
+        // concurrently-written service word.
+        if (!gilOffWithProcessGate()) [[likely]]
             return softStackLimit();
         return softStackLimitForCurrentThreadGilOffSlow();
     }

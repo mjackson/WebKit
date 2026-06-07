@@ -733,6 +733,12 @@ JSValue JSObject::tryGetIndexQuicklyConcurrent(unsigned i, ArrayProfile* arrayPr
 // (only the owner can be in a dense grow while SW=0: a foreign grower flips SW
 // first, §3 F1). Segmented words use ButterflySpine::bumpPublicLengthToAtLeast
 // at their own sites.
+// AB17f (I21 publication ordering): the CAS-max bump is now a RELEASE, so the
+// element store above each call is published no later than the length; the
+// reader-side acquire gap (ARM64) is the KNOWN RESIDUAL recorded at
+// Butterfly::bumpPublicLengthToAtLeast. The owner-exclusive (SW=0) plain
+// setPublicLength arm is inside the same residual: foreign READERS of an SW=0
+// word get SAB-granularity staleness at worst (spurious hole => generic path).
 static ALWAYS_INLINE void updatePublicLengthAfterDenseStoreConcurrent(uint64_t word, Butterfly* butterfly, unsigned i)
 {
     if (i < butterfly->publicLength()) [[likely]]
