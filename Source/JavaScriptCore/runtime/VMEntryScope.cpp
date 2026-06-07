@@ -145,6 +145,32 @@ void VMEntryScope::setUpSlow()
         // (serialized under m_lock — no cross-thread clobber; spawned lites
         // publish only their own word).
         //
+        // AB-17 ACCEPTANCE STATUS (review round; READ BEFORE TRUSTING
+        // "LANDED" ABOVE): the reroute legs are landed, but the headline
+        // GIL-off acceptance rung is NOT green. The pinned command
+        //   jsc --useJSThreads=1 --useThreadGIL=0 --useVMLite=1
+        //       --useSharedAtomStringTable=1 --useSharedGCHeap=1
+        //       --useThreadGILOffUnsafe=1 JSTests/threads/smoke.js
+        // fails intermittently (6/10 Release runs in the round's
+        // measurement) on DOWNSTREAM N-entry legs, not the soft-limit
+        // reroute itself:
+        //   (i) Debug/ASAN, deterministic: stack-use-after-return in
+        //       ThrowScope::~ThrowScope -> ExceptionScope::stackPosition()
+        //       on a spawned thread — the VM-level exception-scope
+        //       verification chain (m_topExceptionScope) is still shared
+        //       across lites and points into the carrier's stack (per-lite
+        //       exception-state split leg, §A.1 VM-lite split).
+        //   (ii) Release, intermittent: SIGSEGV inside Baseline-JIT'd code
+        //       on a spawned thread, and a tier-up RELEASE_ASSERT
+        //       ("... result = CompilationInvalidated but our replacement
+        //       is ...") — concurrent compilation/replacement legs.
+        // The W1 watchdog parked-carrier livelock found at the same review
+        // (condition-wait/property-wait termination hangs GIL-off) IS fixed
+        // (Watchdog.cpp CallerState::ParkedCarrier verdict). Until (i)/(ii)
+        // are root-caused, GIL-off N-entry is LANDED-WITH-KNOWN-FAILING-
+        // RUNGS, not accepted; do not record AB-17 as verification-complete
+        // downstream of this block.
+        //
         // AB-17 round-2 amendment (review finding): the LOL tier
         // (lol/LOLJIT.cpp, --useLOLJIT, replaces Baseline) had a missed
         // prologue soft-limit read. It is now (a) rerouted through

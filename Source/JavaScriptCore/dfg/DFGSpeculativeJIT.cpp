@@ -147,7 +147,7 @@ static void emitStackOverflowCheck(JITCompiler& jit, MacroAssembler::JumpList& s
     if (maxFrameSize > Options::reservedZoneSize()) [[unlikely]]
         stackOverflow.append(jit.branchPtr(MacroAssembler::Above, GPRInfo::regT1, GPRInfo::callFrameRegister));
 #endif
-    stackOverflow.append(jit.branchPtrAgainstSoftStackLimit(jit.vm(), MacroAssembler::GreaterThan, GPRInfo::regT1)); // UNGIL §A.2.2 (AB-17): per-lite GIL-off.
+    stackOverflow.append(jit.branchPtrAgainstSoftStackLimit(jit.vm(), MacroAssembler::Above, GPRInfo::regT1)); // UNGIL §A.2.2 (AB-17): per-lite GIL-off; unsigned, matching the landed AbsoluteAddress form.
 }
 
 void SpeculativeJIT::compile()

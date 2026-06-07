@@ -157,7 +157,7 @@ RefPtr<BaselineJITCode> LOLJIT::compileAndLinkWithoutFinalizing(JITCompilationEf
     // COMPILED-FOR-VM rule — this reroute is belt-and-braces so the "every
     // generated-code soft-limit read rerouted" invariant holds by
     // construction even if that coercion is later lifted.
-    stackOverflow.append(branchPtrAgainstSoftStackLimit(*m_vm, GreaterThan, regT1));
+    stackOverflow.append(branchPtrAgainstSoftStackLimit(*m_vm, Above, regT1)); // Unsigned, matching the landed AbsoluteAddress form.
 
     move(regT1, stackPointerRegister);
     checkStackPointerAlignment();

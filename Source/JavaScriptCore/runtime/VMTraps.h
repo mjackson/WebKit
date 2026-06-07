@@ -542,8 +542,22 @@ private:
 // ThreadObject. The VMEntryScope::setUpSlow gate flipped
 // (perLiteSoftStackLimitRerouteLanded = true); VM::updateStackLimits'
 // N-entered refusal walk is deleted and the VM word is carrier-published
-// only. The original checklist text is preserved below as the contract of
-// record:
+// only.
+//
+// ACCEPTANCE AMENDMENT (review round; the items are LANDED but AB-17 is
+// NOT verification-complete): the pinned GIL-off acceptance command
+// (smoke.js under the six GIL-off flags) still fails intermittently on
+// downstream N-entry legs — (i) Debug/ASAN deterministic
+// stack-use-after-return in ThrowScope::~ThrowScope on a spawned thread
+// (VM-level exception-scope chain shared across lites; per-lite
+// exception-state split leg) and (ii) Release intermittent SIGSEGV in
+// Baseline-JIT'd code / tier-up "CompilationInvalidated" RELEASE_ASSERT
+// (concurrent compilation legs). The W1 parked-carrier watchdog livelock
+// (item 4's verdict keyed the parked carrier to its non-advancing CPU
+// budget; condition-wait/property-wait termination hung GIL-off) is FIXED
+// via Watchdog CallerState::ParkedCarrier. See the AB-17 ACCEPTANCE
+// STATUS block in VMEntryScope.cpp for the full failing-rung record. The
+// original checklist text is preserved below as the contract of record:
 //   (1) LANDED (AB-17): VMLite.h `VMThreadContext threadContext` L2 append +
 //       the perThreadTrapsIfExists flip (VMLite.cpp, keyed on lite.gilOff).
 //   (2) JSLock.cpp / VMLiteShared (§F.1): the GIL-off token-acquisition edges

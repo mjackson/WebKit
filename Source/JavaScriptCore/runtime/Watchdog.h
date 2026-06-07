@@ -106,7 +106,17 @@ public:
     void setTimeLimit(Seconds limit, ShouldTerminateCallback = nullptr, void* data1 = nullptr, void* data2 = nullptr);
     Seconds getTimeLimit() const { return m_timeLimit; }
 
-    bool shouldTerminate(JSGlobalObject*);
+    // W1 verdict mode (GIL-off only): a §J.3-parked carrier accrues ~zero CPU
+    // while parked, so the CPU-budget re-arm arm of the entered-carrier
+    // verdict (cpuTime < m_cpuDeadline => re-arm + no-terminate) can NEVER
+    // trip for it — every W1 episode would re-arm and re-park forever, an
+    // unkillable park (the exact failure mode D9/annex W forbids). For a
+    // parked carrier the wall-clock deadline is authoritative: skip the
+    // CPU-budget arm, keep the stale-timer rejection and the embedder
+    // callback (annex-W shape (a) extension semantics preserved).
+    enum class CallerState : bool { Entered, ParkedCarrier };
+
+    bool shouldTerminate(JSGlobalObject*, CallerState = CallerState::Entered);
 
     // UNGIL annex W W1 (GIL-off only): the parked-carrier service step, to be
     // called by a §J.3 park site that observed NeedWatchdogCheck and has

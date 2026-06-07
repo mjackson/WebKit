@@ -129,6 +129,14 @@ public:
     // LIMIT (lhs) <cond> candidateGPR (rhs), exactly like the landed
     // `branchPtr(cond, AbsoluteAddress(vm.addressOfSoftStackLimit()), reg)`
     // form — which the flag-off/GIL-on arm still emits byte-for-byte.
+    // `cond` must be the SAME UNSIGNED condition the landed form used
+    // (Above for overflow-taken polarity, BelowOrEqual for the
+    // haveStackSpace/stackOk polarity): these are pointer comparisons, and a
+    // signed condition would both change the flag-off emission bytes and
+    // mis-order addresses straddling the sign bit (review round: every call
+    // site audited back to unsigned; siblings in the same functions —
+    // JIT.cpp/DFG !CPU(ADDRESS64) `Above` twins, Yarr's BelowOrEqual
+    // MatchingContextHolder limit check, LLInt's bpa/bpbeq — are unsigned).
     // GIL-off (COMPILED-FOR-VM mode, §A.1.3: vm.gilOff() is VM-immutable, so
     // the split is a compile-time property of the code being emitted): the
     // limit is PER-THREAD state — load the CURRENT thread's VMLite and read

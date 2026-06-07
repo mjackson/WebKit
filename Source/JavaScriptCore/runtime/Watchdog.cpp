@@ -90,7 +90,7 @@ void Watchdog::setTimeLimit(Seconds limit, ShouldTerminateCallback callback, voi
         startTimer(m_timeLimit);
 }
 
-bool Watchdog::shouldTerminate(JSGlobalObject* globalObject)
+bool Watchdog::shouldTerminate(JSGlobalObject* globalObject, CallerState callerState)
 {
     assertWatchdogStateAccess(m_vm); // W4. W1 service from a reacquired parked carrier satisfies this too.
 
@@ -114,11 +114,32 @@ bool Watchdog::shouldTerminate(JSGlobalObject* globalObject)
         m_deadline = MonotonicTime::infinity();
         m_wallClockArmed = false;
 
-        auto cpuTime = CPUTime::forCurrentThread();
-        if (cpuTime < m_cpuDeadline) {
-            auto remainingCPUTime = m_cpuDeadline - cpuTime;
-            startTimer(remainingCPUTime);
-            return false;
+        // W1 parked-carrier verdict (see Watchdog.h CallerState): a parked
+        // carrier's CPU clock does not advance, so consulting the CPU budget
+        // here would re-arm and return no-terminate on EVERY W1 episode —
+        // the carrier re-parks, the timer re-fires after the (constant)
+        // remaining CPU budget worth of wall time, and the park never fails:
+        // an unkillable park / livelock (reproduced GIL-off by
+        // api/condition-wait-termination.js and
+        // atomics/property-wait-termination.js before this arm existed).
+        // The wall-clock deadline (already validated above) is authoritative
+        // for a parked carrier; fall through to the embedder callback, which
+        // can still grant an extension (annex-W shape (a)).
+        if (callerState != CallerState::ParkedCarrier) {
+            auto cpuTime = CPUTime::forCurrentThread();
+            if (cpuTime < m_cpuDeadline) {
+                auto remainingCPUTime = m_cpuDeadline - cpuTime;
+                startTimer(remainingCPUTime);
+                return false;
+            }
+        } else {
+            // The parked verdict consumes this arming: clear the (bypassed)
+            // CPU budget so the case-3 restart below ("callback did nothing
+            // — allow another cycle") sees callbackAlreadyStartedTimer ==
+            // false and actually re-arms; otherwise a do-nothing extension
+            // callback would leave the watchdog permanently disarmed against
+            // a still-parked carrier (the livelock's quieter twin).
+            m_cpuDeadline = noTimeLimit;
         }
     }
 
@@ -164,16 +185,19 @@ bool Watchdog::serviceCheckFromReacquiredParkedCarrier(VM& vm)
     // exit reacquisition — so the W4 predicate (real JSLock held, not
     // spawned) holds here exactly as for an entered carrier.
     //
-    // WIRING (U-T11): driven through the reacquire/service/re-release
-    // episode helper reacquireParkedCarrierAndServiceWatchdogCheck
-    // (JSLock.cpp), whose first consumer is the SD6 per-wait TA sync park
-    // (WaiterListManager.cpp), including the r15 F2 old-node disposition on
-    // the no-terminate return. The remaining §J.3 park sites (join,
-    // cond.wait, lock.hold, property Atomics.wait — LockObject.cpp/
-    // ConditionObject.cpp/ThreadObject.cpp/ThreadAtomics.cpp, outside this
-    // task's owned-file set) re-point with their owning tasks; until then
-    // they keep the landed fold-into-termination behavior GIL-off too
-    // (conservative: the watchdog's no-extension verdict is termination).
+    // WIRING (U-T11; updated at AB-17): driven through the reacquire/
+    // service/re-release episode helper
+    // reacquireParkedCarrierAndServiceWatchdogCheck (JSLock.cpp). ALL §J.3
+    // park sites are now re-pointed consumers of this W1 episode: the SD6
+    // per-wait TA sync park (WaiterListManager.cpp, the first consumer,
+    // including the r15 F2 old-node disposition on the no-terminate return),
+    // join (ThreadObject.cpp), cond.wait (ConditionObject.cpp), lock.hold
+    // (LockObject.cpp), and property Atomics.wait (ThreadAtomics.cpp) — the
+    // AB-17 W1/D9 park-site split. The landed GIL-on fold-into-termination
+    // shape no longer runs GIL-off at any park site; the verdict below uses
+    // the parked-carrier mode of shouldTerminate() (wall clock authoritative
+    // — a parked carrier accrues no CPU, so the CPU-budget arm would
+    // livelock; see Watchdog.h CallerState).
     ASSERT(vm.gilOff());
     ASSERT(!ThreadManager::isJSThreadCurrent()); // SD14: spawned threads never service the watchdog.
     ASSERT(vm.apiLock().currentThreadIsHoldingLock());
@@ -212,11 +236,14 @@ bool Watchdog::serviceCheckFromReacquiredParkedCarrier(VM& vm)
     VMEntryScope* entryScope = vm.currentThreadEntryScope();
     RELEASE_ASSERT(entryScope);
 
-    // Callback semantics and CPU re-arm identical to an entered carrier:
-    // stale-timer rejection, CPU-budget re-arm, embedder callback with
-    // extension support (shape (a) of the U-T2 corpus), timer restart on
-    // no-terminate — all inside shouldTerminate().
-    if (!watchdog->shouldTerminate(entryScope->globalObject()))
+    // Callback semantics identical to an entered carrier — stale-timer
+    // rejection, embedder callback with extension support (shape (a) of the
+    // U-T2 corpus), timer restart on no-terminate — EXCEPT the CPU-budget
+    // re-arm, which is skipped via CallerState::ParkedCarrier: a parked
+    // carrier accrues no CPU, so the budget arm would no-terminate + re-arm
+    // on every episode forever (unkillable park). Wall clock is
+    // authoritative for the parked verdict.
+    if (!watchdog->shouldTerminate(entryScope->globalObject(), CallerState::ParkedCarrier))
         return false; // Caller: r15 F2 old-node disposition, then re-park (new episode).
 
     // Terminate: VM-wide (rule 3) — the looping spawned threads observe it at

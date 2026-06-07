@@ -739,17 +739,18 @@ void VMLite::backfillBakedScratchBuffers()
 //   - per-lite readers (D9 park-lite polls, the W1 captured-lite poll) now
 //     observe their own per-thread word.
 //
-// STILL NOT N-ENTRY ACTIVATABLE: the flip is necessary but NOT sufficient —
-// the generated-code soft-stack-limit reads (LLInt/Baseline/DFG/FTL still
-// read the VM-level word), the §F.1 lite-REGISTRATION VM-word backfill
-// (VMLiteShared; the JSLock.cpp token-acquisition orVMWideTrapBitsIntoLite
-// calls ARE landed and now do real work), the VMTrapsInlines.h vm() reroute
-// through VMTraps::m_liteOwnerVM (the offset arithmetic is VM-embedded-only),
-// the park-site W1/D9 split, and the C++ VM::softStackLimit() reader reroute
-// must all land before N-mutator GIL-off entry is enabled. The activation
-// checklist lives with the seam declaration in VMTraps.h; the
-// VMEntryScope::setUpSlow gate (perLiteSoftStackLimitRerouteLanded, still
-// false) keeps refusing the second concurrent entry until those legs land.
+// N-ENTRY ACTIVATED (AB-17 §A.2.2 reroute change): the once-blocking legs are
+// ALL landed in the AB-17 diff — generated-code soft-stack-limit reads
+// rerouted per-lite (LLInt chained offsets + branchPtrAgainstSoftStackLimit
+// at every JIT-tier site), the §F.1 lite-REGISTRATION VM-word backfill
+// (VMLiteRegistry::registerLite), the VMTraps::vm() reroute via
+// m_liteOwnerVM, the park-site W1/D9 split, and the C++ VM::softStackLimit()
+// reader reroute. The VMEntryScope::setUpSlow gate flipped
+// (perLiteSoftStackLimitRerouteLanded = true) and the N-entered refusal walk
+// self-retired: a second concurrent entry is no longer refused. The
+// activation checklist (with its post-flip STATUS block, including the
+// known-failing GIL-off acceptance rungs) lives with the seam declaration in
+// VMTraps.h.
 
 VMTraps* perThreadTrapsIfExists(VMLite& lite)
 {

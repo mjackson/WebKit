@@ -2126,7 +2126,7 @@ void AssemblyHelpers::getArityPadding(VM& vm, unsigned numberOfParameters, GPRRe
     and32(TrustedImm32(~1U), scratchGPR0);
     lshiftPtr(TrustedImm32(3), scratchGPR0);
     subPtr(stackPointerRegister, scratchGPR0, scratchGPR1);
-    stackOverflow.append(branchPtrAgainstSoftStackLimit(vm, GreaterThan, scratchGPR1)); // UNGIL §A.2.2 (AB-17): per-lite GIL-off.
+    stackOverflow.append(branchPtrAgainstSoftStackLimit(vm, Above, scratchGPR1)); // UNGIL §A.2.2 (AB-17): per-lite GIL-off; unsigned, matching the landed AbsoluteAddress form.
 }
 
 #if USE(JSVALUE64)
