@@ -78,6 +78,53 @@ static bool anyOtherLiteOfVMEntered(VM& vm)
     return anyOtherLiteOfVMEntered(locker, vm);
 }
 
+#if ASSERT_ENABLED
+// §A.2.2 item 3c finding (h): the registry lock is demoted from leaf rank by
+// the stop fan (VMLiteRegistry::lock -> per-lite m_trapSignalingLock ->
+// per-lite StackManager::m_mirrorLock). This counter is nonzero exactly while
+// the current thread holds a PER-LITE m_trapSignalingLock; every registry-
+// lock acquisition in the trap machinery asserts it is zero. COVERAGE
+// (finding-(h) follow-up): every m_trapSignalingLock acquisition in this
+// file that can run on a per-lite instance constructs a
+// PerLiteTrapSignalingLockDepthScope, so the counter is a true "any per-lite
+// signaling lock held" predicate — not one limited to
+// updateThreadStopRequestIfNeeded. The two acquisitions NOT scoped are
+// per-lite-unreachable by construction: willDestroyVM's SignalSender drain
+// and the SignalSender machinery itself exist only when usePollingTraps is
+// off, and useJSThreads forces usePollingTraps=1 (SPEC-jit M2b), so a
+// per-lite instance (gilOff only) never has a SignalSender — and the
+// condition wait there releases the lock, which would falsify a naive scope.
+static thread_local unsigned t_perLiteTrapSignalingLockDepth { 0 };
+void assertNoPerLiteTrapSignalingLockHeldOnCurrentThread()
+{
+    ASSERT(!t_perLiteTrapSignalingLockDepth);
+}
+#endif
+
+// RAII bump of t_perLiteTrapSignalingLockDepth (no-op on the VM-embedded
+// instance, where liteOwnerVM is null, and in release builds). Construct
+// immediately after taking m_trapSignalingLock; pass m_liteOwnerVM.
+class PerLiteTrapSignalingLockDepthScope {
+public:
+#if ASSERT_ENABLED
+    explicit PerLiteTrapSignalingLockDepthScope(VM* liteOwnerVM)
+        : m_isPerLite(!!liteOwnerVM)
+    {
+        if (m_isPerLite)
+            ++t_perLiteTrapSignalingLockDepth;
+    }
+    ~PerLiteTrapSignalingLockDepthScope()
+    {
+        if (m_isPerLite)
+            --t_perLiteTrapSignalingLockDepth;
+    }
+private:
+    bool m_isPerLite;
+#else
+    explicit PerLiteTrapSignalingLockDepthScope(VM*) { }
+#endif
+};
+
 #if ENABLE(SIGNAL_BASED_VM_TRAPS)
 
 struct VMTraps::SignalContext {
@@ -196,6 +243,7 @@ void VMTraps::tryInstallTrapBreakpoints(VMTraps::SignalContext& context, StackBo
             return; // Let the SignalSender try again later.
 
         Locker locker { AdoptLock, *m_trapSignalingLock };
+        PerLiteTrapSignalingLockDepthScope signalingDepthScope { m_liteOwnerVM }; // Finding (h): keep the depth counter a true predicate.
         if (!needHandling(VMTraps::AsyncEvents)) {
             // Too late. Someone else already handled the trap.
             return;
@@ -477,35 +525,11 @@ CONCURRENT_SAFE void VMTraps::requestThreadStopIfNeeded(Locker<Lock>& locker)
     m_threadStopRequested = true;
 }
 
-#if ASSERT_ENABLED
-// §A.2.2 item 3c finding (h): the registry lock is demoted from leaf rank by
-// the stop fan (VMLiteRegistry::lock -> per-lite m_trapSignalingLock ->
-// per-lite StackManager::m_mirrorLock). This counter is nonzero exactly while
-// the current thread holds a PER-LITE m_trapSignalingLock; every registry-
-// lock acquisition in the trap machinery asserts it is zero. (Grep audit
-// recorded with this change: per-lite takeTopPriorityTrap never reaches the
-// anyOtherLiteOfVMEntered registry walk — that branch is keyed
-// `this == &vm.traps()` — and the per-lite request/cancel paths take only the
-// per-lite mirror lock beneath the signaling lock.)
-static thread_local unsigned t_perLiteTrapSignalingLockDepth { 0 };
-void assertNoPerLiteTrapSignalingLockHeldOnCurrentThread()
-{
-    ASSERT(!t_perLiteTrapSignalingLockDepth);
-}
-#endif
-
 CONCURRENT_SAFE void VMTraps::updateThreadStopRequestIfNeeded()
 {
     {
         Locker locker { *m_trapSignalingLock };
-#if ASSERT_ENABLED
-        if (m_liteOwnerVM)
-            ++t_perLiteTrapSignalingLockDepth;
-        auto signalingDepthScope = makeScopeExit([&] {
-            if (m_liteOwnerVM)
-                --t_perLiteTrapSignalingLockDepth;
-        });
-#endif
+        PerLiteTrapSignalingLockDepthScope signalingDepthScope { m_liteOwnerVM }; // Finding (h).
 
         bool shouldStop = needHandling(AsyncEvents);
 
@@ -629,6 +653,15 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
 
     auto takeTopPriorityTrap = [&] (VMTraps::BitField mask) -> Event {
         Locker locker { *m_trapSignalingLock };
+        // Finding (h) follow-up: this lock runs on per-lite instances at
+        // every handleTrapsForCurrentThreadIfNeeded poll; the scope makes a
+        // registry acquisition under it (e.g. a future extension of the
+        // TERM1.2 walk below to per-lite instances) trip the rank assert at
+        // runtime instead of relying on the grep-audit comment alone. The
+        // anyOtherLiteOfVMEntered registry walk below is reachable only on
+        // the VM-level instance (`this == &vm.traps()` key), where this
+        // scope is a no-op — the lock graph is unchanged.
+        PerLiteTrapSignalingLockDepthScope signalingDepthScope { m_liteOwnerVM };
 
         // Note: the EventBitShift is already sorted in highest to lowest priority
         // i.e. a bit shift of 0 is highest priority, etc.
@@ -660,16 +693,19 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
                 // delivery obligation is TOKEN-scoped — a token-holding
                 // sibling between entry scopes (teardown -> completion
                 // drain, or between drain iterations) re-enters with the
-                // bit gone if this clear fires in that window. That hole is
-                // closed by the AB-17 tripwire (VMEntryScope::setUpSlow
-                // refuses any second concurrent entry). §A.2.1 is LANDED
-                // (perThreadTrapsIfExists no longer aliases for gilOff
-                // lites), so this VM-word interim is reachable only through
-                // vm.traps() polls (see the this == &vm.traps() key below);
-                // the tripwire is held by setUpSlow's
-                // perLiteSoftStackLimitRerouteLanded constant (still false)
-                // until the full §A.2.2 reroute lands — the alias probe
-                // alone no longer holds it.
+                // bit gone if this clear fires in that window. POST-AB-17:
+                // the setUpSlow refusal tripwire that used to close that
+                // hole is RETIRED (perLiteSoftStackLimitRerouteLanded is
+                // true and §A.2.1 de-aliased the per-lite words, so both
+                // retirement keys are satisfied). Delivery to a
+                // between-entry-scope token holder is now guaranteed by the
+                // per-lite fanned words instead: fireTrapVMWide fans
+                // NeedTermination into every REGISTERED lite's OWN word
+                // (entered or not), so a sibling re-entering through a
+                // fresh VMEntryScope still observes its own bit regardless
+                // of this VM-word clear. §A.2.1 being landed also means
+                // this VM-word interim is reachable only through
+                // vm.traps() polls (see the this == &vm.traps() key below).
                 if (event == NeedTermination && vm.gilOff() && this == &vm.traps()) [[unlikely]] {
                     // Interim-alias shape only: a per-lite word (this !=
                     // &vm.traps(), §A.2.1 landed) is single-observer — rule-3
@@ -919,8 +955,9 @@ void VMTraps::fireTerminationVMWideAfterParkedCarrierService()
     // that disposition by re-raising fireTrapVMWide(NeedTermination) (the
     // fresh-raise rule clears the flag under the registry lock), so the
     // termination is delivered at the caller's next trap poll instead of
-    // being trimmed and retired. Sole current caller-side revoke:
-    // waitSyncWithPerWaitNode (WaiterListManager.cpp).
+    // being trimmed and retired. Current caller-side revokes:
+    // waitSyncWithPerWaitNode (WaiterListManager.cpp) and the W1 episode in
+    // ConditionObject's wait loop (ConditionObject.cpp, disposition (a)).
     m_carrierTookSharedTermination.store(true);
 }
 
@@ -1122,9 +1159,22 @@ bool parkLitePollWatchdogCheckRequested(VM& vm, VMLite* parkLite)
     // carrier-only bit; mask it out on the reader side too.
     if (ThreadManager::isJSThreadCurrent())
         return false;
+    // AB-17 §A.2.2 (item 4, post-§A.2.1 de-alias): the watchdog bit is
+    // CARRIER-ONLY and raised via fireTrap() on the VM-LEVEL word — it is
+    // deliberately NEVER fanned into per-lite words (rule-3 exemption,
+    // §A.2.7-8), and a §J.3-PARKED carrier acquires no token, so the
+    // token-acquisition OR cannot mirror it either. This poller IS the
+    // carrier the bit targets: consult the VM word alongside the park
+    // lite's own word (which still matters for the alias/no-capture
+    // fallbacks). Without the VM-word read the W1 episode never triggers
+    // de-aliased — the parked carrier livelocks and watchdog termination is
+    // never delivered (observed: lock-hold-termination / property-wait-
+    // termination GIL-off timeouts).
+    if (vm.traps().needHandling(VMTraps::NeedWatchdogCheck))
+        return true;
     VMTraps* traps = parkLite ? perThreadTrapsIfExists(*parkLite) : nullptr;
     if (!traps)
-        traps = &vm.traps();
+        return false; // The VM word above was the only remaining source.
     return traps->needHandling(VMTraps::NeedWatchdogCheck);
 }
 

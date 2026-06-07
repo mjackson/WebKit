@@ -61,13 +61,12 @@ inline ActiveScratchBufferScope::~ActiveScratchBufferScope()
 // only no-lite threads. This helper reads the PLAIN per-lite soft limit
 // (StackManager::m_softStackLimit, dual-published by VM::updateStackLimits
 // from the entering thread's own StackBounds) — deliberately NOT the
-// trap-aware word. Trap delivery still flows exclusively through the
-// VM-level VMTraps instance (LLIntSlowPaths handleTrapsIfNeeded), so this
-// reroute is inert w.r.t. the unlanded item-3c stop fan and item-3b
-// servicing reroute: it changes which thread's OVERFLOW limit a C++ reader
-// compares against, never trap observability. The LLInt/JIT generated-code
-// read sites still read the VM word and may be rerouted ONLY atomically
-// with 3c + 3b (see the ACTIVATION CHECKLIST in VMTraps.h).
+// trap-aware word: it changes which thread's OVERFLOW limit a C++ reader
+// compares against, never trap observability. Trap delivery is the per-lite
+// trap-aware word's job (item-3c stop fan + item-3b servicing dispatch, both
+// LANDED in the AB-17 change, as is the LLInt/JIT generated-code reroute —
+// those sites now read the per-lite word GIL-off; see the ACTIVATION
+// CHECKLIST — STATUS block in VMTraps.h).
 ALWAYS_INLINE void* softStackLimitForCurrentThread(const VM& vm)
 {
     if (vm.gilOff()) [[unlikely]] {

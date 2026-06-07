@@ -144,6 +144,14 @@ void VMEntryScope::setUpSlow()
         // VM-level word is now published by CARRIER entries only
         // (serialized under m_lock — no cross-thread clobber; spawned lites
         // publish only their own word).
+        //
+        // AB-17 round-2 amendment (review finding): the LOL tier
+        // (lol/LOLJIT.cpp, --useLOLJIT, replaces Baseline) had a missed
+        // prologue soft-limit read. It is now (a) rerouted through
+        // branchPtrAgainstSoftStackLimit like the other JIT-tier sites and
+        // (b) additionally forced off under GIL-off at option
+        // canonicalization (Options.cpp U0 block) until the tier passes the
+        // full §A.1.3 COMPILED-FOR-VM audit.
         constexpr bool perLiteSoftStackLimitRerouteLanded = true; // COMPLETE §A.2.2 reroute landed (AB-17; this change).
         bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {

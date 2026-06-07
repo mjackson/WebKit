@@ -631,13 +631,12 @@ macro branchIfGilOffGroup3ToT5(gilOffLabel)
     gilOffGroup3Check(loadCurrentVMLiteToT5, t5, gilOffLabel)
 end
 
-# STAGED for the sec A.2.2 prologue stack-check reroute (AB-17 item 3) -- defined
-# but NOT yet expanded anywhere. t2 (rdx / x2) is dead at the shared prologue
-# stack-check site (the existing code clobbers it with CodeBlock::m_vm
-# immediately) and no args are live there; do NOT reuse at any other site
-# without re-checking scratch discipline. The reroute itself must land only
-# with the complete atomic bundle (see the VMLite*SoftStackLimitOffset
-# comment above and VMTraps.h checklist items 3/3c).
+# LANDED with the sec A.2.2 prologue stack-check reroute (AB-17 item 3):
+# expanded via branchIfGilOffGroup3ToT2 at the shared prologue stack-check
+# site (the sole expansion). t2 (rdx / x2) is dead there (the existing code
+# clobbers it with CodeBlock::m_vm immediately) and no args are live; do NOT
+# reuse at any other site without re-checking scratch discipline. State of
+# the world: the VMTraps.h ACTIVATION CHECKLIST -- STATUS block.
 macro loadCurrentVMLiteToT2()
     if X86_64
         emit "movq g_jscCurrentVMLite@GOTTPOFF(%rip), %rdx"   # t2 == rdx

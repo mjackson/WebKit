@@ -815,6 +815,18 @@ void Options::notifyOptionsChanged()
         Options::useThreadGIL() = true;
     }
 
+    // UNGIL §A.2.2 (AB-17 follow-up): the LOL tier has not been audited for
+    // the §A.1.3 COMPILED-FOR-VM rule (per-lite Group-3 state, butterfly TID
+    // tags, etc. beyond the now-rerouted prologue soft-stack-limit check in
+    // LOLJIT.cpp). Per the house rule (fail-stop/refusal over silent
+    // corruption), force it off under the GIL-off shape rather than let an
+    // unaudited tier compile spawned-thread code. Flag-off and GIL-on are
+    // unaffected; delete this once LOL passes the §A.1.3 audit.
+    if (Options::useJSThreads() && !Options::useThreadGIL() && Options::useLOLJIT()) {
+        dataLogLn("JSC: disabling useLOLJIT under GIL-off (LOL tier not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17).");
+        Options::useLOLJIT() = false;
+    }
+
     // ANNEX U0C write-once latch backstop (U-T14 amend, reviewer round 2):
     // gilOffProcess is OPTION-derived and IMMUTABLE for the process. The
     // real latch — the JSCConfig gilOffProcess byte — is U-T3's open

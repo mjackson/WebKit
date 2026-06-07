@@ -441,8 +441,9 @@ public:
     // per-lite instance (item 3b); Watchdog's clearTrap on a per-lite
     // instance already reaches requestThreadStopIfNeeded via
     // updateThreadStopRequestIfNeeded today, so the request path must
-    // resolve through m_liteOwnerVM first. Interim until the full
-    // VMTrapsInlines.h item-3b reroute lands.
+    // resolve through m_liteOwnerVM first. The item-3b servicing reroute is
+    // LANDED (AB-17; VMTraps::vm() itself now consults m_liteOwnerVM) — this
+    // helper remains the explicit form for paths that predate that change.
     ALWAYS_INLINE VM& liteAwareVM() const { return m_liteOwnerVM ? *m_liteOwnerVM : vm(); }
 private:
 
@@ -526,7 +527,9 @@ private:
 // VMLiteRegistry::registerLite (setLiteOwnerVM + OR + per-lite stop-request
 // derivation, under the registry lock); (3) every generated-code and C++
 // soft-limit read rerouted (LLInt chained offsets now referenced;
-// AssemblyHelpers::branchPtrAgainstSoftStackLimit at all JIT-tier sites;
+// AssemblyHelpers::branchPtrAgainstSoftStackLimit at all JIT-tier sites,
+// INCLUDING the LOL tier's prologue check — LOL is additionally forced off
+// under GIL-off at option canonicalization pending its §A.1.3 audit;
 // softStackLimitForCurrentThread[Slow] for C++); (3c) the single-controller
 // stop fan (VM-level updateThreadStopRequestIfNeeded fans each lite's OWN
 // update; per-lite shouldStop = lite word | VM word with the carrier-only
