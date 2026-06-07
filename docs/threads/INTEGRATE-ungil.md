@@ -897,6 +897,30 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
     immutable-after-publication). Audited the other two cached gilOff
     bytes (Watchdog.cpp:73, LockObject.cpp:87): both are constructed
     lazily after the VM ctor completes, so they stamp correctly.
+    **AB17c F4 second root cause (IT-9 consumer landed, funnel form):**
+    residual counter-lock segfault inside JIT inline allocation
+    (scrambled FreeList pop, result register 0 past the empty check):
+    DFG/FTL bake `JITAllocator::constant` from
+    `allocatorForConcurrently<Type>`, which for ISO subspaces returned
+    the main client's per-thread LocalAllocator
+    (GCClient::IsoSubspace::allocatorFor is unconditionally non-null) —
+    the PRE-EXISTING I11 hole the Heap.h FIX-3 carve-out documents
+    ("the baked-main-client Allocator is the ... hole that IT-9
+    tracks"). With the artifact executed by every lite, N threads
+    popped ONE FreeList unlocked (observed in compileNewFunction's
+    inline JSFunction allocation). Landed the IT-9 consumer at the
+    funnel: `allocatorForConcurrently` (runtime/JSCellInlines.h)
+    returns an empty Allocator when `vm.gilOff()`, so every JS-tier
+    inline-allocation emitter takes its existing null-constant
+    slow-path arm (AssemblyHelpers::emitAllocate appends an
+    unconditional jump), and the slow path re-dispatches per-thread via
+    allocationClientForCurrentThread — mirroring the §5.5
+    CompleteSubspace rule (server arrays never populated) for iso.
+    CompleteSubspace bake sites (auxiliarySpace, allocation profiles)
+    already produced empty allocators under useSharedGCHeap.
+    GIL-on/flag-off: one predicted-false compiler-side branch, baked
+    artifacts byte-identical. U-T7 lite-relative TLC/iso emission stays
+    the chartered re-enable path (Heap.h IT-9 note updated in place).
   - R4-9 (per-lite drains skip the per-tick hook; MAJOR, CONFIRMED) —
     fixed: VMLite::drainDefaultMicrotaskQueue now drains with
     performMicrotaskCheckpoint<true>, matching the §E.1b.4 disposition

@@ -531,6 +531,21 @@ void JITCompiler::makeCatchOSREntryBuffer()
 {
     if (m_graph.m_maxLocalsForCatchOSREntry) {
         uint32_t numberOfLiveLocals = std::max(*m_graph.m_maxLocalsForCatchOSREntry, 1u); // Make sure we always allocate a non-null catchOSREntryBuffer.
+        if (vm().gilOff()) [[unlikely]] {
+            // UNGIL §A.1.6 (ANNEX A16, U-T4b) — AB17c F4: DFG sibling of the
+            // FTL catch-entry reroute (FTLLowerDFGToB3.cpp:311-317). The
+            // artifact is executed by every lite of the VM; a baked shared
+            // ScratchBuffer lets two threads throwing into the same hot
+            // catch block clobber each other's reconstructed locals
+            // (observed: ftl-osr-entry-catch-loop-amplifier under
+            // --useFTLJIT=0, where catchy() tops out at DFG). Bake a
+            // process-wide registry INDEX instead; the fill side
+            // (DFGOSREntry::prepareCatchOSREntry) and the readback nodes
+            // (ExtractCatchLocal / ClearCatchLocals, DFGSpeculativeJIT.cpp)
+            // resolve it through the CURRENT lite.
+            m_jitCode->common.catchOSREntryBufferBakedIndex = vm().allocateBakedScratchBufferIndex(sizeof(JSValue) * numberOfLiveLocals);
+            return;
+        }
         m_jitCode->common.catchOSREntryBuffer = vm().scratchBufferForSize(sizeof(JSValue) * numberOfLiveLocals);
     }
 }

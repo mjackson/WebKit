@@ -147,6 +147,26 @@ DEFINE_VISIT_OUTPUT_CONSTRAINTS_WITH_MODIFIER(inline, JSCell);
 template<typename Type>
 inline Allocator allocatorForConcurrently(VM& vm, size_t allocationSize, AllocatorForMode mode)
 {
+    // IT-9 consumer (SPEC-ungil §B / I4, JIT-codegen leg; see
+    // Heap::allocationClientForJITCodegen's declaration comment, Heap.h):
+    // this is the single funnel every JIT emitter bakes a
+    // JITAllocator::constant from (DFG createOSREntries/NewObject/MakeRope,
+    // FTL allocateObject/MakeRope, AssemblyHelpers emitAllocateJSObject
+    // templates). GIL-off there is NO client whose LocalAllocator may be
+    // baked into an artifact: the artifact is executed by EVERY lite of the
+    // VM, and a baked per-client iso LocalAllocator makes N threads pop ONE
+    // FreeList unlocked (observed: JIT inline-allocation segfault under
+    // races/counter-lock.js — scrambled-head pop returned null past the
+    // empty check). CompleteSubspace already returns an empty Allocator
+    // under useSharedGCHeap (§5.5 server arrays never populated); this gate
+    // extends the same rule to the per-client ISO subspaces. Baking an
+    // empty Allocator makes every inline allocation take the slow path,
+    // which re-dispatches per-thread through allocationClientForCurrentThread
+    // at run time. Interim until U-T7 §B.4 item (1) (lite-relative TLC/iso
+    // emission) lands. GIL-on/flag-off: one predicted-false compiler-side
+    // branch; baked artifacts are byte-identical.
+    if (vm.gilOff()) [[unlikely]]
+        return { };
     if (auto* subspace = subspaceForConcurrently<Type>(vm))
         return subspace->allocatorFor(allocationSize, mode);
     return { };

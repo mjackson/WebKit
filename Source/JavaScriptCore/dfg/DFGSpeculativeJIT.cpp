@@ -17819,10 +17819,51 @@ void SpeculativeJIT::compileHasIndexedProperty(Node* node, S_JITOperation_GCZ sl
     });
 }
 
+#if USE(JSVALUE64)
+// UNGIL §A.1.6 (ANNEX A16, U-T4b) — AB17c F4: per-lite catch OSR-entry
+// buffer materialization for gilOff-mode DFG compilations (sibling of the
+// DFGOSRExit.cpp materializePerLiteScratchBuffer / FTLSaveRestore helpers;
+// duplicated per the same no-cross-TU-dependency rationale). Clobbers only
+// `dest`; loads are address-dependent against the release-publishing
+// install (VMLite::ensureScratchBufferAtIndex).
+static void materializePerLiteCatchOSREntryBuffer(AssemblyHelpers& jit, unsigned bakedIndex, GPRReg dest)
+{
+    ASSERT(bakedIndex < VMLite::maxScratchSegments * VMLite::scratchSegmentSize);
+    jit.loadVMLite(dest);
+    jit.loadPtr(
+        MacroAssembler::Address(
+            dest,
+            static_cast<int32_t>(VMLite::offsetOfScratchSegments() + static_cast<ptrdiff_t>(bakedIndex >> VMLite::scratchSegmentShift) * sizeof(void*))),
+        dest);
+    jit.loadPtr(
+        MacroAssembler::Address(
+            dest,
+            static_cast<int32_t>(static_cast<ptrdiff_t>(bakedIndex & (VMLite::scratchSegmentSize - 1)) * sizeof(void*))),
+        dest);
+}
+#endif // USE(JSVALUE64)
+
 void SpeculativeJIT::compileExtractCatchLocal(Node* node)
 {
     JSValueRegsTemporary result(this);
     JSValueRegs resultRegs = result.regs();
+
+#if USE(JSVALUE64)
+    if (vm().gilOff()) [[unlikely]] {
+        // A16 (AB17c F4): the buffer is a per-lite registry index, not a
+        // baked shared pointer — see JITCompiler::makeCatchOSREntryBuffer
+        // and the FTL sibling (compileExtractCatchLocal,
+        // FTLLowerDFGToB3.cpp).
+        unsigned bakedIndex = jitCode()->common.catchOSREntryBufferBakedIndex;
+        RELEASE_ASSERT(bakedIndex != std::numeric_limits<unsigned>::max());
+        GPRTemporary buffer(this);
+        GPRReg bufferGPR = buffer.gpr();
+        materializePerLiteCatchOSREntryBuffer(*this, bakedIndex, bufferGPR);
+        loadValue(Address(bufferGPR, OBJECT_OFFSETOF(ScratchBuffer, m_buffer) + node->catchOSREntryIndex() * sizeof(JSValue)), resultRegs);
+        jsValueResult(resultRegs, node);
+        return;
+    }
+#endif
 
     JSValue* ptr = &reinterpret_cast<JSValue*>(jitCode()->common.catchOSREntryBuffer->dataBuffer())[node->catchOSREntryIndex()];
     loadValue(ptr, resultRegs);
@@ -17831,6 +17872,21 @@ void SpeculativeJIT::compileExtractCatchLocal(Node* node)
 
 void SpeculativeJIT::compileClearCatchLocals(Node* node)
 {
+#if USE(JSVALUE64)
+    if (vm().gilOff()) [[unlikely]] {
+        // A16 (AB17c F4): zero the CURRENT lite's buffer's active length
+        // (offset 0 of the resolved ScratchBuffer — mirrors the FTL
+        // sibling, compileClearCatchLocals in FTLLowerDFGToB3.cpp).
+        unsigned bakedIndex = jitCode()->common.catchOSREntryBufferBakedIndex;
+        RELEASE_ASSERT(bakedIndex != std::numeric_limits<unsigned>::max());
+        GPRTemporary scratch(this);
+        GPRReg scratchGPR = scratch.gpr();
+        materializePerLiteCatchOSREntryBuffer(*this, bakedIndex, scratchGPR);
+        storePtr(TrustedImmPtr(nullptr), Address(scratchGPR));
+        noResult(node);
+        return;
+    }
+#endif
     ScratchBuffer* scratchBuffer = jitCode()->common.catchOSREntryBuffer;
     ASSERT(scratchBuffer);
     GPRTemporary scratch(this);

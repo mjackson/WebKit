@@ -2893,6 +2893,7 @@ macro callHelper(opcodeName, opcodeStruct, dispatchAfterCall, valueProfileName, 
     move t3, sp
     addp CallerFrameAndPCSize, sp
 
+    ifJSThreadsBranch(t1, .opCallThreadedRecord)
     loadp %opcodeStruct%::Metadata::m_callLinkInfo.m_callee[t5], t1
     btpz t1, (constexpr CallLinkInfo::polymorphicCalleeMask), .notPolymorphic
     prepareCall(t2, t3, t4, t1, macro(address)
@@ -2913,6 +2914,37 @@ macro callHelper(opcodeName, opcodeStruct, dispatchAfterCall, valueProfileName, 
     loadp %opcodeStruct%::Metadata::m_callLinkInfo.m_monomorphicCallDestination[t5], t5
 .dispatch:
     invokeCall(opcodeName, size, opcodeStruct, valueProfileName, dstVirtualRegister, dispatch, t5, t1, JSEntryPtrTag)
+
+.opCallThreadedRecord:
+    # AB17c F4 (SPEC-jit 5.8 F2): flag-on, route this data-IC fast path
+    # through the immutable published record. The mirror triple
+    # (m_callee/m_codeBlock/m_monomorphicCallDestination) can be observed
+    # half-rewritten during a live monomorphic tier-up upgrade
+    # (CallLinkInfo::unlinkOrUpgradeImpl's in-place mirror rewrite), pairing
+    # the NEW codeBlock with the OLD entrypoint (observed: baseline prologue
+    # argument-profiling against a DFG CodeBlock => null
+    # m_argumentValueProfiles storage => crash). Records are immutable after
+    # publication (init -> storeStoreFence -> single m_record store) and
+    # retired through the section 4.4 epoch, so the (comparand, target,
+    # codeBlockToTransfer) triple read through ONE record pointer is always
+    # execution-compatible; a stale record's target stays callable until
+    # epoch expiry. Null record / comparand miss => .opCallSlow, which IS
+    # the empty-record semantics (default-call thunk, null codeBlock).
+    # Flag-off: one not-taken branch (ifJSThreadsBranch above), mirror path
+    # byte-identical.
+    loadp %opcodeStruct%::Metadata::m_callLinkInfo.m_record[t5], t1
+    btpz t1, .opCallSlow
+    loadp CallLinkRecord::comparand[t1], t2
+    btpnz t2, (constexpr CallLinkInfo::polymorphicCalleeMask), .opCallThreadedRecordHit
+    bqneq t0, t2, .opCallSlow
+.opCallThreadedRecordHit:
+    move t1, t0 # The record must survive prepareCall (which clobbers t1-t4); callee in t0 is dead past the comparand check (already stored to the frame).
+    prepareCall(t2, t3, t4, t1, macro(address)
+        loadp CallLinkRecord::codeBlockToTransfer[t0], t2
+        storep t2, address
+    end)
+    loadp CallLinkRecord::target[t0], t5
+    jmp .dispatch
 
 .opCallSlow:
     # 64bit:t0 32bit(t0,t1) is callee
@@ -2977,6 +3009,7 @@ macro doCallVarargs(opcodeName, size, get, opcodeStruct, valueProfileName, dstVi
             loadConstantOrVariable(size, t1, t0)
             metadata(t5, t2)
 
+            ifJSThreadsBranch(t1, .opCallThreadedRecord)
             loadp %opcodeStruct%::Metadata::m_callLinkInfo.m_callee[t5], t1
             btpz t1, (constexpr CallLinkInfo::polymorphicCalleeMask), .notPolymorphic
             prepareCall(t2, t3, t4, t1, macro(address)
@@ -2997,6 +3030,24 @@ macro doCallVarargs(opcodeName, size, get, opcodeStruct, valueProfileName, dstVi
             loadp %opcodeStruct%::Metadata::m_callLinkInfo.m_monomorphicCallDestination[t5], t5
         .dispatch:
             invokeCall(opcodeName, size, opcodeStruct, valueProfileName, dstVirtualRegister, dispatch, t5, t1, JSEntryPtrTag)
+
+        .opCallThreadedRecord:
+            # AB17c F4 (SPEC-jit 5.8 F2): record-routed fast path; see the
+            # callHelper copy of this block for the full rationale (torn
+            # mirror pair during live monomorphic tier-up upgrade).
+            loadp %opcodeStruct%::Metadata::m_callLinkInfo.m_record[t5], t1
+            btpz t1, .opCallSlow
+            loadp CallLinkRecord::comparand[t1], t2
+            btpnz t2, (constexpr CallLinkInfo::polymorphicCalleeMask), .opCallThreadedRecordHit
+            bqneq t0, t2, .opCallSlow
+        .opCallThreadedRecordHit:
+            move t1, t0 # Record survives prepareCall in t0; callee is dead past the comparand check.
+            prepareCall(t2, t3, t4, t1, macro(address)
+                loadp CallLinkRecord::codeBlockToTransfer[t0], t2
+                storep t2, address
+            end)
+            loadp CallLinkRecord::target[t0], t5
+            jmp .dispatch
 
         .opCallSlow:
             # 64bit:t0 32bit(t0,t1) is callee

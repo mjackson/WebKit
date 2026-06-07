@@ -523,8 +523,17 @@ public:
     // NOTE: intentionally UNREFERENCED this round — the consuming edits
     // (static iso accessors in VM.h need a mode-aware, pointer-returning
     // Concurrently variant; iso subspaceFor overloads drop the mode) are a
-    // separate change set; do NOT delete as dead code. IT-9 stays open
-    // (Heap.h:1804 tripwire still reachable) until those consumers land.
+    // separate change set; do NOT delete as dead code.
+    // AB17c F4 STATUS: the consumer landed in FUNNEL form —
+    // allocatorForConcurrently (runtime/JSCellInlines.h) now returns an
+    // empty Allocator when vm.gilOff(), which is semantically this
+    // resolver's null arm applied at the single choke point every
+    // JITAllocator::constant bake flows through (observed crash it closes:
+    // baked per-client iso LocalAllocator => N threads popping ONE FreeList
+    // unlocked in DFG NewFunction inline allocation). The per-accessor
+    // rewiring (and U-T7 lite-relative emission, which would re-enable
+    // inline allocation GIL-off) remains open; keep this resolver for that
+    // landing.
     template<typename VMType>
     static GCClient::Heap* allocationClientForJITCodegen(VMType& vm, GCClient::Heap& vmOriginalClient);
 
