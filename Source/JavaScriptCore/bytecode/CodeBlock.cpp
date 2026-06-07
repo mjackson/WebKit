@@ -1014,8 +1014,40 @@ CodeBlock::~CodeBlock()
 #endif
     } else {
         if (auto* jitData = baselineJITData()) {
-            m_jitData = nullptr;
-            delete jitData;
+            // UNGIL §5.7.2 (AB18-B): flag-on, leak the BaselineJITData AND keep
+            // m_jitData intact, mirroring the DFG arm above (SPEC-jit §5.3 / I7).
+            // The shared unlinked baseline machine code is retired epoch-deferred,
+            // not freed by this sweep, and a sibling lite that loaded
+            // {entrypoint, codeBlock} from a CallLinkInfo / ScriptExecutable before
+            // unlinkOrUpgradeIncomingCalls() above can still be entering the
+            // prologue, which does
+            //   loadPairPtr(Address(codeBlock, CodeBlock::offsetOfJITData()), ...)
+            // (JIT.cpp:651-653) on THIS cell. Nulling the field here is what turns
+            // that straggler into the near-null tier-up/constant-pool write at
+            // null+0x8..0x18; deleting it turns the same window into a UAF. Unlike
+            // the DFG arm, the field itself must survive because baseline reloads
+            // it at every entry and OSR-exit/loop-entry re-materialization.
+            //
+            // No clearWatchpoints() analogue is needed here: BaselineJITData owns
+            // no privately-owned jettisoning watchpoints (unlike DFG::JITData),
+            // and its property inline caches were already neutralized via
+            // aboutToDie()/deref(vm) above, which routes stubs through
+            // RetiredJITArtifacts flag-on. The asymmetry with the DFG arm is
+            // deliberate.
+            //
+            // Known residuals (accepted, same class as the DFG-arm leak):
+            // (a) a straggler executing an IC site (not just the prologue) can
+            //     still touch retired stub memory; (b) the prologue's loadPairPtr
+            //     also loads m_metadata — its teardown later in this destructor
+            //     leaves the same window for offsetOfMetadataTable and may need
+            //     the identical flag-on leak in a follow-up; (c) the "machine
+            //     code stays valid" premise holds only for shared baseline code —
+            //     a non-shareable BaselineJITCode is freed with the m_jitCode
+            //     member ref regardless of jitData.
+            if (!Options::useJSThreads()) [[likely]] {
+                m_jitData = nullptr;
+                delete jitData;
+            }
         }
     }
 #endif // ENABLE(JIT)

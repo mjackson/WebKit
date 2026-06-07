@@ -6467,14 +6467,24 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationTriggerTierUpNow, void, (VM* vmPointe
         triggerFTLReplacementCompile(vm, codeBlock, jitCode);
 
     if (codeBlock->hasOptimizedReplacement()) {
-        if (jitCode->tierUpEntryTriggers.isEmpty()) {
+        // Belt-and-braces: the key set is structurally immutable post-link, so isEmpty()/size()
+        // are constants; the lock just keeps this site consistent with the "all post-link C++
+        // access is locked" rule.
+        bool triggersEmpty;
+        unsigned triggersSize;
+        {
+            Locker locker { jitCode->m_tierUpTriggersLock };
+            triggersEmpty = jitCode->tierUpEntryTriggers.isEmpty();
+            triggersSize = jitCode->tierUpEntryTriggers.size();
+        }
+        if (triggersEmpty) {
             CODEBLOCK_LOG_EVENT(codeBlock, "delayFTLCompile", ("replacement in place, delaying indefinitely"));
             // There is nothing more we can do, the only way this will be entered
             // is through the function entry point.
             jitCode->dontOptimizeAnytimeSoon(codeBlock);
             return;
         }
-        if (jitCode->osrEntryBlock() && jitCode->tierUpEntryTriggers.size() == 1) {
+        if (jitCode->osrEntryBlock() && triggersSize == 1) {
             CODEBLOCK_LOG_EVENT(codeBlock, "delayFTLCompile", ("trigger in place, delaying indefinitely"));
             // There is only one outer loop and its trigger must have been set
             // when the plan completed.
@@ -6497,26 +6507,29 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
     JITCode* jitCode = codeBlock->jitCode()->dfg();
     
     bool triggeredSlowPathToStartCompilation = false;
-    auto tierUpEntryTriggers = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
-    if (tierUpEntryTriggers != jitCode->tierUpEntryTriggers.end()) {
-        switch (tierUpEntryTriggers->value) {
-        case JITCode::TriggerReason::DontTrigger:
-            // The trigger isn't set, we entered because the counter reached its
-            // threshold.
-            break;
+    {
+        Locker locker { jitCode->m_tierUpTriggersLock };
+        auto triggerEntry = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
+        if (triggerEntry != jitCode->tierUpEntryTriggers.end()) {
+            switch (triggerEntry->value) {
+            case JITCode::TriggerReason::DontTrigger:
+                // The trigger isn't set, we entered because the counter reached its
+                // threshold.
+                break;
 
-        case JITCode::TriggerReason::CompilationDone:
-            // The trigger was set because compilation completed. Don't unset it
-            // so that further DFG executions OSR enter as well.
-            break;
+            case JITCode::TriggerReason::CompilationDone:
+                // The trigger was set because compilation completed. Don't unset it
+                // so that further DFG executions OSR enter as well.
+                break;
 
-        case JITCode::TriggerReason::StartCompilation:
-            // We were asked to enter as soon as possible and start compiling an
-            // entry for the current bytecode location. Unset this trigger so we
-            // don't continually enter.
-            tierUpEntryTriggers->value = JITCode::TriggerReason::DontTrigger;
-            triggeredSlowPathToStartCompilation = true;
-            break;
+            case JITCode::TriggerReason::StartCompilation:
+                // We were asked to enter as soon as possible and start compiling an
+                // entry for the current bytecode location. Unset this trigger so we
+                // don't continually enter.
+                triggerEntry->value = JITCode::TriggerReason::DontTrigger;
+                triggeredSlowPathToStartCompilation = true;
+                break;
+            }
         }
     }
 
@@ -6622,6 +6635,7 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
         // a progressively inner loop if it takes too long for control to reach an outer loop.
 
         auto tryTriggerOuterLoopToCompile = [&] {
+            Locker locker { jitCode->m_tierUpTriggersLock };
             auto tierUpHierarchyEntry = jitCode->tierUpInLoopHierarchy.find(originBytecodeIndex);
             if (tierUpHierarchyEntry == jitCode->tierUpInLoopHierarchy.end())
                 return false;
@@ -6636,7 +6650,9 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
             for (auto iter = tierUpHierarchyEntry->value.rbegin(), end = tierUpHierarchyEntry->value.rend(); iter != end; ++iter) {
                 BytecodeIndex osrEntryCandidate = *iter;
 
-                if (jitCode->tierUpEntryTriggers.get(osrEntryCandidate) == JITCode::TriggerReason::StartCompilation) {
+                auto candidateTrigger = jitCode->tierUpEntryTriggers.find(osrEntryCandidate);
+                RELEASE_ASSERT(candidateTrigger != jitCode->tierUpEntryTriggers.end()); // tierUpInLoopHierarchy values are guaranteed OSR-entry trigger sites (DFGJITCode.h:322).
+                if (candidateTrigger->value == JITCode::TriggerReason::StartCompilation) {
                     // This means that we already asked this loop to compile. If we've reached here, it
                     // means program control has not yet reached that loop. So it's taking too long to compile.
                     // So we move on to asking the inner loop of this loop to compile itself.
@@ -6646,7 +6662,7 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
                 // This is where we ask the outer to loop to immediately compile itself if program
                 // control reaches it.
                 dataLogLnIf(Options::verboseOSR(), "Inner-loop ", originBytecodeIndex, " in ", *codeBlock, " setting parent loop ", osrEntryCandidate, "'s trigger and backing off.");
-                jitCode->tierUpEntryTriggers.set(osrEntryCandidate, JITCode::TriggerReason::StartCompilation);
+                candidateTrigger->value = JITCode::TriggerReason::StartCompilation;
                 return true;
             }
 
@@ -6667,6 +6683,11 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
     // We aren't compiling and haven't compiled anything for OSR entry. So, try to compile
     // something.
 
+    // THREADS (DFG-1): bare find() is sound here without m_tierUpTriggersLock: the bucket
+    // array is structurally immutable post-link (no insert/remove => no rehash), iterator
+    // registration under CHECK_HASHTABLE_ITERATORS is internally mutex-protected, and we
+    // only take the value's address — we do not read ->value. Holding the lock across the
+    // TierUpEdgeLocker/compile() below would violate its leaf ordering.
     auto triggerIterator = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
     if (triggerIterator == jitCode->tierUpEntryTriggers.end()) {
         jitCode->setOptimizationThresholdBasedOnCompilationResult(codeBlock, CompilationResult::CompilationDeferred);

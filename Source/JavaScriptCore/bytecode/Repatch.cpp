@@ -1164,6 +1164,27 @@ static InlineCacheAction tryCachePutBy(JSGlobalObject* globalObject, CodeBlock* 
             }
         }
 
+        if (vm.gilOff()) [[unlikely]] {
+            // OM-1 (gilOff() mode-split): the slow-path operation snapshotted
+            // oldStructure BEFORE running the put, and the PutPropertySlot was
+            // filled in DURING the put. GIL-off, another mutator can transition
+            // baseCell between those points and now, so (oldStructure,
+            // slot.cachedOffset()) may describe two different shapes. Publishing
+            // that torn pair keys an IC on oldStructure that stores/loads at a
+            // foreign offset: oldStructure-shaped objects then take wrong-offset
+            // hits (named-property corruption; non-object "setter" cells reaching
+            // JSC::call). Revalidate here, under the codeBlock lock, and refuse
+            // to cache anything structure-keyed when the cell no longer wears
+            // oldStructure. The cacheable NewProperty transition legitimately
+            // leaves the cell in newStructure; let it fall through to the
+            // useJSThreads GiveUpOnCache below (SPEC-jit 5.5 Task 8) so hot
+            // transition sites still get the gave-up repatch instead of
+            // retrying forever.
+            bool isCacheableTransition = slot.base() == baseValue && slot.isCacheablePut() && slot.type() == PutPropertySlot::NewProperty;
+            if (!isCacheableTransition && !newCase && !isProxyObject && baseValue.asCell()->structure() != oldStructure)
+                return RetryCacheLater;
+        }
+
         if (!newCase && slot.base() == baseValue && slot.isCacheablePut()) {
             if (slot.type() == PutPropertySlot::ExistingProperty) {
                 // This assert helps catch bugs if we accidentally forget to disable caching
@@ -1172,7 +1193,28 @@ static InlineCacheAction tryCachePutBy(JSGlobalObject* globalObject, CodeBlock* 
                 // to disable caching, we may come down this path. The Replace IC does not
                 // know how to model these types of structure transitions (or any structure
                 // transition for that matter).
-                RELEASE_ASSERT(baseValue.asCell()->structure() == oldStructure);
+                if (vm.gilOff()) [[unlikely]] {
+                    // OM-1: structure equality was re-checked above, but an
+                    // A->B->A interleaving can still leave slot.cachedOffset()
+                    // computed against an intermediate shape. Bind the offset to
+                    // oldStructure's own table (getConcurrently: structure-lock
+                    // walk; codeBlock-lock -> structure-lock is the existing
+                    // concurrent-JIT order) before publishing a Replace case or
+                    // firing the replacement watchpoint at that offset. The kind
+                    // must match too: a same-offset entry that is an Accessor /
+                    // Custom / ReadOnly property must not take a data-Replace IC
+                    // (it would clobber a GetterSetter box or a read-only slot).
+                    // Cacheable dictionaries mutate their table in place under
+                    // the SAME structureID, which the IC's structure guard
+                    // cannot see; refuse those outright.
+                    if (oldStructure->isDictionary())
+                        return RetryCacheLater;
+                    unsigned attributes;
+                    PropertyOffset tableOffset = oldStructure->getConcurrently(propertyName.uid(), attributes);
+                    if (tableOffset != slot.cachedOffset() || (attributes & (PropertyAttribute::Accessor | PropertyAttribute::CustomAccessorOrValue | PropertyAttribute::ReadOnly)))
+                        return RetryCacheLater;
+                } else
+                    RELEASE_ASSERT(baseValue.asCell()->structure() == oldStructure);
 
                 oldStructure->didCachePropertyReplacement(vm, slot.cachedOffset());
 
@@ -1306,6 +1348,24 @@ static InlineCacheAction tryCachePutBy(JSGlobalObject* globalObject, CodeBlock* 
                 ObjectPropertyConditionSet conditionSet;
                 RefPtr<PolyProtoAccessChain> prototypeAccessChain;
                 PropertyOffset offset = slot.cachedOffset();
+
+                if (vm.gilOff() && slot.base() == baseValue) [[unlikely]] {
+                    // OM-1: same A->B->A tear as the Replace path, for the
+                    // self-Setter case. The published Setter AccessCase is keyed
+                    // on oldStructure and loads-then-calls the cell at `offset`;
+                    // a torn offset (or a same-offset DATA property) makes the
+                    // IC call a non-callable cell (the counter-lock
+                    // "cell->isObjectSlow() in asObject from JSC::call"
+                    // signature). Bind the offset to oldStructure's own table
+                    // and require the entry to actually be an Accessor. The
+                    // prototype-Setter branch below recomputes the offset
+                    // against oldStructure's chain itself and needs no extra
+                    // check here.
+                    unsigned attributes;
+                    PropertyOffset tableOffset = oldStructure->getConcurrently(propertyName.uid(), attributes);
+                    if (tableOffset != offset || !(attributes & PropertyAttribute::Accessor))
+                        return RetryCacheLater;
+                }
 
                 if (slot.base() != baseValue) {
                     auto cacheStatus = prepareChainForCaching(globalObject, baseCell, propertyName.uid(), slot.base());

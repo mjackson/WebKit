@@ -70,10 +70,14 @@ RegExp* RegExpCache::lookupOrCreate(VM& vm, const String& patternString, OptionS
         // cleared by GC whose finalizer has not yet run), and weakAdd's
         // map.set() already tolerates overwriting a zombie, so that case
         // falls through to the existing add path unchanged.
+        // WS1.2: construct the Weak BEFORE taking m_lock (no handle creation
+        // under leaf locks); a losing duplicate is destroyed after release
+        // (handle declared before the Locker, so the Locker unwinds first).
+        Weak<RegExp> handle(regExp, this);
         Locker locker { m_lock };
         if (RegExp* winner = m_weakCache.get(key))
             return winner;
-        weakAdd(m_weakCache, key, Weak<RegExp>(regExp, this));
+        weakAdd(m_weakCache, key, WTF::move(handle));
         return regExp;
     }
 }
@@ -98,6 +102,7 @@ void RegExpCache::addToStrongCache(RegExp* regExp)
     if (pattern.length() > maxStrongCacheablePatternLength)
         return;
 
+    Locker locker { m_lock };
     m_strongCache[m_nextEntryInStrongCache] = regExp;
     m_nextEntryInStrongCache++;
     if (m_nextEntryInStrongCache == maxStrongCacheableEntries)
@@ -106,21 +111,29 @@ void RegExpCache::addToStrongCache(RegExp* regExp)
 
 void RegExpCache::deleteAllCode()
 {
-    m_strongCache.fill(nullptr);
-    m_nextEntryInStrongCache = 0;
-
-    Locker locker { m_lock };
-    for (auto& [key, weakHandle] : m_weakCache) {
-        RegExp* regExp = weakHandle.get();
-        if (!regExp) // Skip zombies.
-            continue;
-        regExp->deleteCode();
+    Vector<RegExp*> liveRegExps;
+    {
+        Locker locker { m_lock };
+        m_strongCache.fill(nullptr);
+        m_nextEntryInStrongCache = 0;
+        liveRegExps.reserveInitialCapacity(m_weakCache.size());
+        for (auto& [key, weakHandle] : m_weakCache) {
+            if (RegExp* regExp = weakHandle.get())
+                liveRegExps.append(regExp);
+        }
     }
+    // deleteCode() takes the RegExp cellLock; it must run OUTSIDE m_lock
+    // (RegExp::compile holds cellLock when calling addToStrongCache, so the
+    // process-wide order is cellLock -> m_lock; the caller runs from the
+    // mutator with heap access, keeping the snapshotted cells alive).
+    for (auto* regExp : liveRegExps)
+        regExp->deleteCode();
 }
 
 template<typename Visitor>
 void RegExpCache::visitAggregateImpl(Visitor& visitor)
 {
+    Locker locker { m_lock };
     for (auto cell : m_strongCache)
         visitor.appendUnbarriered(cell);
     visitor.appendUnbarriered(m_emptyRegExp);

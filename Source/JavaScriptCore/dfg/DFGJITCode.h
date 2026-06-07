@@ -38,6 +38,7 @@
 #include "JITCode.h"
 #include "JumpTable.h"
 #include <wtf/CompactPointerTuple.h>
+#include <wtf/Lock.h>
 #include <wtf/SegmentedVector.h>
 
 namespace JSC {
@@ -335,7 +336,22 @@ public:
     // Map each bytecode of CheckTierUpAndOSREnter to its trigger forcing OSR Entry.
     // This can never be modified after it has been initialized since the addresses of the triggers
     // are used by the JIT.
+    //
+    // THREADS (DFG-1): GIL-off, N mutators reach the tier-up slow paths concurrently on the
+    // same CodeBlock. m_tierUpTriggersLock guards every post-link C++ access (find/iterate/
+    // value-write) to tierUpEntryTriggers and to tierUpInLoopHierarchy. JIT'd code keeps
+    // reading the embedded TriggerReason bytes lock-free; that stays sound because keys are
+    // never added or removed after link (no rehash => stable value addresses) and the payload
+    // is a single byte. Post-link updates must go through locked find()+in-place value write —
+    // never set()/add() — so structural mutation is impossible by construction.
+    //
+    // KNOWN GAP (out of this change's file scope): DFGToFTLForOSREntryDeferredCompilationCallback
+    // still performs an unlocked tierUpEntryTriggers.set(..., CompilationDone) in
+    // compilationDidComplete; it must be converted to the locked find()+in-place update under
+    // this lock (which also supplies the release/acquire edge ordering setOSREntryBlock before
+    // the CompilationDone publication on weak memory).
     UncheckedKeyHashMap<BytecodeIndex, TriggerReason> tierUpEntryTriggers;
+    Lock m_tierUpTriggersLock;
 
     WriteBarrier<CodeBlock> m_osrEntryBlock;
     unsigned osrEntryRetry { 0 };
