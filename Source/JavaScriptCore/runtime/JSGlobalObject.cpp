@@ -1500,7 +1500,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 void JSGlobalObject::init(VM& vm)
 {
-    ASSERT(vm.traps().isDeferringTermination());
+    ASSERT(vm.trapsForCurrentThread().isDeferringTermination()); // Per-thread deferral keying (DeferTermination.h).
     ASSERT(vm.currentThreadIsHoldingAPILock());
     auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 

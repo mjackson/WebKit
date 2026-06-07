@@ -889,6 +889,21 @@ ALWAYS_INLINE Identifier JSString::toIdentifier(JSGlobalObject* globalObject) co
     VM& vm = getVM(globalObject);
     if (valueInternal().impl()->isAtom())
         return Identifier::fromString(vm, Ref { *static_cast<AtomStringImpl*>(valueInternal().impl()) });
+    // GIL-off: vm.lastAtomizedIdentifier{String,AtomString}Impl is a
+    // SINGLE-MUTATOR memoization pair (two plain Ref members) — N threads
+    // racing it interleave the two writes and the read below, returning the
+    // WRONG identifier for this string (cross-thread key confusion: property
+    // reads/writes land on another thread's last-atomized key), and the
+    // unsynchronized Ref assignments race ref/deref (UAF). Bypass the cache:
+    // atomize through the shared atom table directly (thread-safe under
+    // useSharedAtomStringTable) and keep the swap-publication path.
+    // GIL-on / flag-off: branch dead, memoization byte-identical.
+    if (vm.gilOff()) [[unlikely]] {
+        Ref<AtomStringImpl> atom = AtomStringImpl::add(valueInternal().impl()).releaseNonNull();
+        if (!valueInternal().impl()->isAtom())
+            swapToAtomString(vm, RefPtr { atom.ptr() });
+        return Identifier::fromString(vm, WTF::move(atom));
+    }
     if (vm.lastAtomizedIdentifierStringImpl.ptr() != valueInternal().impl()) {
         vm.lastAtomizedIdentifierStringImpl = *valueInternal().impl();
         vm.lastAtomizedIdentifierAtomStringImpl = AtomStringImpl::add(valueInternal().impl()).releaseNonNull();

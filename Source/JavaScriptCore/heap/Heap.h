@@ -846,6 +846,13 @@ public:
 
     void appendPossiblyAccessedStringFromConcurrentThreads(String&& string)
     {
+        // GIL-off, N mutators reach this from JSString::swapToAtomString
+        // concurrently — an unlocked Vector::append races reserveCapacity
+        // (one thread memcpys out of a buffer a sibling just freed). The
+        // lock is leaf-rank and uncontended in the single-mutator
+        // configurations (one cheap CAS per first-atomization; this is
+        // atomization-rate, not transition-rate).
+        Locker locker { m_possiblyAccessedStringsFromConcurrentThreadsLock };
         m_possiblyAccessedStringsFromConcurrentThreads.append(WTF::move(string));
     }
 
@@ -1219,8 +1226,9 @@ private:
     Vector<WeakBlock*> m_logicallyEmptyWeakBlocks;
     size_t m_indexOfNextLogicallyEmptyWeakBlockToSweep { WTF::notFound };
 
-    Vector<String> m_possiblyAccessedStringsFromConcurrentThreads;
-    
+    Lock m_possiblyAccessedStringsFromConcurrentThreadsLock; // Leaf; guards the vector below (N gilOff mutators append; GC-end clear).
+    Vector<String> m_possiblyAccessedStringsFromConcurrentThreads WTF_GUARDED_BY_LOCK(m_possiblyAccessedStringsFromConcurrentThreadsLock);
+
     RefPtr<GCActivityCallback> m_fullActivityCallback;
     RefPtr<GCActivityCallback> m_edenActivityCallback;
     const Ref<IncrementalSweeper> m_sweeper;

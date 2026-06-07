@@ -1656,7 +1656,7 @@ void VM::setException(Exception* exception)
 void VM::throwTerminationException()
 {
     ASSERT(hasTerminationRequest());
-    ASSERT(!traps().isDeferringTermination());
+    ASSERT(!trapsForCurrentThread().isDeferringTermination()); // Per-thread deferral keying (DeferTermination.h).
     // Termination can occur while executing DFG/FTL code that has set
     // doesGC expectations. Reset the expectation so that subsequent
     // heap access (e.g. JSLock re-acquisition) doesn't hit a stale

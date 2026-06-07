@@ -53,7 +53,16 @@ inline Structure* Structure::storedPrototypeStructure() const
 
 ALWAYS_INLINE JSValue Structure::storedPrototype(const JSObject* object) const
 {
-    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || object->structure() == this);
+    // The object->structure() == this conjunct is a SINGLE-MUTATOR staleness
+    // tripwire: it assumes nobody re-tags the object's structureID between
+    // the caller's sample and this read. Under useJSThreads shared objects a
+    // racing foreign transition legitimately installs a new structureID
+    // while a reader walks with its SAMPLED structure — exactly what
+    // SPEC-objectmodel M7/I24 license (the reader orders or re-checks before
+    // any offset-bearing storage deref; the sampled structure's own
+    // m_prototype is immutable, so this read is stable). Flag-off: assert
+    // unchanged.
+    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || Options::useJSThreads() || object->structure() == this);
     if (hasMonoProto())
         return storedPrototype();
     return object->getDirect(knownPolyProtoOffset);
@@ -61,7 +70,9 @@ ALWAYS_INLINE JSValue Structure::storedPrototype(const JSObject* object) const
 
 ALWAYS_INLINE JSObject* Structure::storedPrototypeObject(const JSObject* object) const
 {
-    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || object->structure() == this);
+    // See storedPrototype(object) above: sampled-structure readers are legal
+    // under useJSThreads (SPEC-objectmodel M7/I24); flag-off unchanged.
+    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || Options::useJSThreads() || object->structure() == this);
     if (hasMonoProto())
         return storedPrototypeObject();
     JSValue proto = object->getDirect(knownPolyProtoOffset);

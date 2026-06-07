@@ -63,6 +63,18 @@ inline JSCell* getJSFunction(JSValue); // Defined in JSObjectInlines.h
 // false. Callers gate on isUncacheableDictionary() first (5.7.3).
 JS_EXPORT_PRIVATE bool threadRestrictCheck(JSGlobalObject*, JSObject*);
 
+// Same-library seam redeclaration (the threadRestrictCheck pattern above):
+// owner is bytecode/JSThreadsSafepoint.h — generic-path headers need not
+// include it. Consumed by the M7(c) stabilization loop in
+// getOwnNonIndexPropertySlot below so a reader spinning on a torn
+// (attributes, value) pair stays park-capable per W1/D9 (the in-flight
+// writer may itself be parked by, or be the conductor of, a §A.3 window —
+// spinning with heap access held would wedge that window into the 30s
+// watchdog fail-stop).
+namespace JSThreadsSafepoint {
+JS_EXPORT_PRIVATE bool parkSitePollAndParkForStopTheWorld(VM&);
+}
+
 class ArrayProfile;
 class Exception;
 class GetterSetter;
@@ -1958,6 +1970,51 @@ ALWAYS_INLINE bool JSObject::getOwnNonIndexPropertySlot(VM& vm, Structure* struc
     ASSERT(!parseIndex(propertyName));
 
     JSValue value = getDirect(offset);
+
+    // UNGIL (SPEC-objectmodel I9/M7(c)): under useJSThreads a foreign
+    // defineProperty publishes the slot VALUE (release) before the new
+    // structureID, so a racing reader can observe a torn pair — its sampled
+    // structure's attributes (plain data) with the freshly stored
+    // GetterSetter/CustomGetterSetter cell (or the reverse, or a cleared
+    // slot). Interpreting the value under mismatched attributes either trips
+    // the single-mutator asserts below or leaks the raw GetterSetter cell as
+    // the property value — a heap state no sequential interleaving produces
+    // (the §C.2 Missing-arm contract). Stabilize per M7(c): re-derive
+    // (structure, attributes, offset, value) from the CURRENT structureID
+    // until one self-consistent pair is observed under an unchanged
+    // structureID; the in-flight writer publishes its structureID promptly,
+    // so the spin is bounded by the write's publication. Flag-off: branch
+    // dead, behavior byte-identical.
+    if (Options::useJSThreads()) [[unlikely]] {
+        for (;;) {
+            bool valueIsGetterSetter = !!value && value.isCell() && value.asCell()->type() == GetterSetterType;
+            bool valueIsCustomGetterSetter = !!value && value.isCell() && value.asCell()->type() == CustomGetterSetterType;
+            bool consistent = !!value
+                && (valueIsGetterSetter == !!(attributes & PropertyAttribute::Accessor))
+                && (!valueIsCustomGetterSetter || (attributes & PropertyAttribute::CustomAccessorOrValue));
+            if (consistent) {
+                WTF::loadLoadFence(); // M7(c): order the structureID re-load after the value load.
+                if (structureID().decode() == structure)
+                    break;
+            }
+            // Park-capability (W1/D9): the in-flight writer may be parked by
+            // — or be the conductor of — a §A.3 stop window; spinning here
+            // with heap access held would wedge that window (watchdog
+            // fail-stop). Release/park/re-acquire across any pending window,
+            // then re-sample.
+            JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm);
+            Thread::yield();
+            structure = structureID().decode();
+            offset = structure->get(vm, propertyName, attributes);
+            if (!isValidOffset(offset)) {
+                if (!TypeInfo::hasStaticPropertyTable(inlineTypeFlags()))
+                    return false;
+                return getOwnStaticPropertySlot(vm, propertyName, slot);
+            }
+            value = getDirect(offset);
+        }
+    }
+
     if (value.isCell()) {
         ASSERT(value);
         JSCell* cell = value.asCell();
@@ -1975,7 +2032,7 @@ ALWAYS_INLINE bool JSObject::getOwnNonIndexPropertySlot(VM& vm, Structure* struc
             break;
         }
     }
-    
+
     slot.setValue(this, attributes, value, offset);
     return true;
 }

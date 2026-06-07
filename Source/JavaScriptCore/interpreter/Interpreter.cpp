@@ -891,7 +891,7 @@ private:
 // Replace an exception which passes across a marshalling boundary with a TypeError for its handler's global object.
 static void sanitizeRemoteFunctionException(VM& vm, JSRemoteFunction* remoteFunction, Exception* exception)
 {
-    ASSERT(vm.traps().isDeferringTermination());
+    ASSERT(vm.trapsForCurrentThread().isDeferringTermination()); // Per-thread deferral keying (DeferTermination.h).
     auto scope = DECLARE_THROW_SCOPE(vm);
     ASSERT(exception);
     ASSERT(!vm.isTerminationException(exception));

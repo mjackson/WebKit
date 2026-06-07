@@ -2806,6 +2806,26 @@ JSValue atomicSlotLockFreeLoop(JSGlobalObject* globalObject, VM& vm, JSObject* o
             status = AtomicSlotStatus::LockedRevalidate;
             return { };
         }
+        // §C.2 accessor-clobber fix (I9 in-flight define): putDirectInternal's
+        // define-own arm publishes the GetterSetter/CustomGetterSetter VALUE
+        // before the attribute change lands (putDirectOffset under the cell
+        // lock; attributeChangeTransition after it drops), so the probe's
+        // attributes and this provenance can both still read "plain data"
+        // while the slot already holds the accessor cell. CASing a primitive
+        // over it converts a racing accessor into a data property — a heap
+        // state no sequential interleaving of Atomics ops can produce (D3/D7).
+        // Restart: the re-probe spins until the writer's publication lands,
+        // then classifies Accessor and throws the precise TypeError. Plain
+        // data values can never legitimately BE these internal cell types
+        // (GetterSetter is never JS-exposed; CustomValue slots never reach
+        // the lock-free arms — the probe rejects CustomAccessorOrValue).
+        if (current.isCell()) [[likely]] {
+            JSType currentType = current.asCell()->type();
+            if (currentType == GetterSetterType || currentType == CustomGetterSetterType) [[unlikely]] {
+                status = AtomicSlotStatus::Restart;
+                return { };
+            }
+        }
         JSValue newValue;
         if (!atomicSlotEvaluate(globalObject, request, current, newValue, status))
             return current;
@@ -2878,6 +2898,18 @@ JSValue JSObject::atomicSlotReadModifyWrite(JSGlobalObject* globalObject, Unique
         JSValue current = slot->get();
         if (!current)
             return { }; // Quarantined/cleared slot (D1/I30 family): re-probe.
+        // §C.2 accessor-clobber fix (see atomicSlotLockFreeLoop): a dictionary
+        // define-own stores the accessor cell under the cell lock but runs
+        // attributeChangeTransition AFTER dropping it, so the locked
+        // attribute re-resolve above can still read "plain data" while the
+        // slot already holds the GetterSetter. Never write over an accessor
+        // cell: restart, and the re-probe classifies once the attribute
+        // publication lands.
+        if (current.isCell()) [[likely]] {
+            JSType currentType = current.asCell()->type();
+            if (currentType == GetterSetterType || currentType == CustomGetterSetterType) [[unlikely]]
+                return { }; // In-flight define (value published first): re-probe.
+        }
         JSValue newValue;
         if (!atomicSlotEvaluate(globalObject, request, current, newValue, status))
             return current;

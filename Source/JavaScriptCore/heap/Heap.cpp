@@ -2784,7 +2784,12 @@ void Heap::finalize()
     vm().stringSplitCache.clear();
     vm().jsonAtomStringCache.clearJSStrings();
 
-    m_possiblyAccessedStringsFromConcurrentThreads.clear();
+    {
+        // World-stopped here, but take the leaf lock anyway so the lock
+        // discipline (and TSAN) sees one consistent guard for the vector.
+        Locker locker { m_possiblyAccessedStringsFromConcurrentThreadsLock };
+        m_possiblyAccessedStringsFromConcurrentThreads.clear();
+    }
 
     immutableButterflyToStringCache.clear();
     

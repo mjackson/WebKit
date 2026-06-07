@@ -41,22 +41,45 @@ acquire(lite):
     1. if lite->m_nativeLockDepth { ++depth; return; }   // reentrant
     2. loop:
        a. STOP POLL FIRST (spec §3.2.2 / SPEC-ungil §A.3.2-2b,
-          SPEC-ungil.md:216-218): if this lite's stop/trap bit is
-          set, park on the lite's OWN NVS ticket per the standard
-          §J.3 park protocol (tokens KEPT; heap access kept at §A.3
-          JSThreads stops, but a rule-8 GC stop's NVS park performs
-          the F8 MANDATORY revert + gated re-acquisition,
-          SPEC-ungil.md:289-298 — legal with NL held, spec NA-I13
-          rev-3 exemption; rev-2's "heap access KEPT, as at every
-          §A.3 park" was wrong for GC stops, R2.6); on wake, run the
-          §A.3.2b post-wake poll BEFORE continuing.
+          SPEC-ungil.md:216-218), SPLIT BY TRAP CLASS (rev 6, R5.6
+          — rev 5's predicate lumped "stop/trap"; a sticky
+          termination trap has no resume and never clears until the
+          thread's OWN §E.2 close, so the rev-5 (a)->park->(a) loop
+          never reached the CAS: a terminated NL waiter hung or
+          quantum-livelocked forever, never completing the
+          acquisition NA-I12 mandates — join() (SD8) and ~VM
+          (EXIT1.9 teardown rule below) wedged. Rev-5 step-(a) text
+          of record in PART B round 5):
+          - STOP-CLASS (a stop actually IN PROGRESS, validated
+            against the stop word per SPEC-ungil §A.3.2b): park on
+            the lite's OWN NVS ticket per the standard §J.3 park
+            protocol (tokens KEPT; heap access kept at §A.3
+            JSThreads stops, but a rule-8 GC stop's NVS park
+            performs the F8 MANDATORY revert + gated
+            re-acquisition, SPEC-ungil.md:289-298 — legal with NL
+            held, spec NA-I13 rev-3 exemption; rev-2's "heap access
+            KEPT, as at every §A.3 park" was wrong for GC stops,
+            R2.6); on wake, run the §A.3.2b post-wake poll BEFORE
+            continuing.
+          - TERMINATION-ONLY (SPEC-ungil §A.2.4/TERM1: VM-wide,
+            STICKY, no conductor, no resume; delivery at parks is
+            D9 10ms-quantum POLLING, SPEC-ungil.md rule 6): do NOT
+            park and do NOT abort — proceed to (b)/(c) and COMPLETE
+            the acquisition (NA-I12). The termination is delivered
+            by the existing post-call exception check at the §4
+            bracket / the next JS-level poll after the native frame
+            unwinds; acquire() itself is not a JS-level delivery
+            point and MUST NOT become one (throwing out of acquire
+            would bypass the depth/word bookkeeping).
        b. w = m_word.load(); if (w & ownerMask) == 0 and
           m_word.compareExchangeWeak(w, lite->tid | (w & hasParkedBit)):
           CAS WON. Re-poll the stop bit (it may have been set since
-          (a)); if set, park on the NVS ticket WHILE HOLDING NL —
-          explicitly legal, no conductor ever acquires NL (spec
-          NA-I10) — and run the §A.3.2b post-wake poll before
-          proceeding. Then lite->m_nativeLockDepth = 1; return.
+          (a)); if a STOP-CLASS trap is set, park on the NVS ticket
+          WHILE HOLDING NL — explicitly legal, no conductor ever
+          acquires NL (spec NA-I10) — and run the §A.3.2b post-wake
+          poll before proceeding; a TERMINATION-ONLY trap never
+          parks here either (rev 6, same split as (a)). Then
+          lite->m_nativeLockDepth = 1; return.
           INVARIANT (R1.2): acquire() NEVER returns without a stop
           poll after its final park of either kind; a waiter woken
           by the holder's mid-stop-window release cannot run the
@@ -144,6 +167,25 @@ Worst-case added stop latency per NL waiter = one quantum +
 scheduling; with the 10ms default this is invisible against the 30s
 watchdog (NA-T4 bounds it).
 
+REV 5 (R4.7) — the two holder shapes this paragraph previously left
+unanalyzed (it covered only holder-is-STOPPED):
+HOLDER-AS-CONDUCTOR: a Locked native that fires a Class-4
+invalidation (haveABadTime, SPEC-ungil §K.5 rule 5) or a synchronous
+collection becomes the §A.3/GC conductor WITH NL held — legal per
+spec §3.5's rev-5 conductor-HOLD clause (BL1.6); it never ACQUIRES
+NL (NA-I10). Liveness: its NL waiters are by definition not
+entered-and-running JS — each is either already NVS-parked (step
+(a)) or parked on the NL bucket, where the bounded deadline fires
+within one quantum, the stop bit is observed at (a), and the waiter
+NVS-parks; the conductor's fan-out therefore completes, worst case
++one quantum per waiter, same bound as the stopped-holder case.
+HOLDER-AS-LOSER: an NL holder that loses §A.3 arbitration parks on
+the §LK.4b pending-job-slot mutex ACCESS-RELEASED for the winner's
+whole stop window, WITH NL held. Same waiter math (its NL waiters
+NVS-park within one quantum and satisfy the winner's stop); the NL
+release arrives after the loser's wake + retry. Both shapes are
+pinned by NA-T4's rev-5 conductor-holds-NL arm.
+
 Teardown: ~VM blocks until VM-empty (SPEC-ungil EXIT1.9); an empty VM
 has no entered lites, hence m_word == 0 — destructor asserts it. A
 thread exiting (EXIT1) with m_nativeLockDepth != 0 is a structural
@@ -151,33 +193,69 @@ bug: close (§E.2) asserts depth == 0 (drop scopes are stack-strict,
 ANNEX EX1).
 
 ## ANNEX EX1 — re-entry drop scope (BINDING; spec §3.3 index)
+## (CTOR FORMS REWRITTEN rev 5 — R4.5; rev-4 single-signature text
+## of record in PART B round 4)
 
     class NativeLockDropScope {  // also the public embedder type
     public:
-        ALWAYS_INLINE NativeLockDropScope(VMLite* lite)
-            : m_lite(lite), m_savedDepth(0)
+        // DEFAULT form — EX1 sites 1-7. REV 5 (R4.5): rev 4's sole
+        // signature `NativeLockDropScope(VMLite* lite)` forced
+        // every call site to materialize the lite argument BEFORE
+        // the ctor body's level-0 gate ran (C++ evaluates argument
+        // expressions eagerly), and the only current-lite source on
+        // these common paths is the TLS slot t_currentVMLite
+        // (runtime/VMLite.cpp:67; L4 accessor block VMLite.h:
+        // 333-345) — i.e. a TLS load per JS entry in flag-off/
+        // GIL-on processes, contradicting the NA-I1 restatement
+        // R3.11 itself wrote ("lite/depth loads never execute").
+        // The current-lite resolve now happens INSIDE the ctor,
+        // strictly after the level-0 gate.
+        ALWAYS_INLINE NativeLockDropScope()
+            : m_lite(nullptr), m_savedDepth(0)
         {
             // REV 4 (R3.11): level-0 gate FIRST. The call sites
             // (items 1-6 below) are COMMON-PATH C++ — they execute
-            // identically in every configuration (rev 3's "the
-            // call sites are themselves on gilOff-mode-split
-            // paths" was false). Flag-off/GIL-on processes
-            // therefore pay exactly one predictable global-byte
-            // branch here and never reach the lite/depth loads
-            // (NA-I1 as restated rev 4).
+            // identically in every configuration. Flag-off/GIL-on
+            // processes pay exactly one predictable global-byte
+            // branch here; the TLS, lite and depth loads below
+            // never execute (NA-I1 as restated rev 5).
             if (!g_jscConfig.gilOffProcess) [[likely]] return;
+            // gilOff process only: resolve the current lite via the
+            // frozen L4 accessor (VMLite::currentIfExists(), backed
+            // by thread_local t_currentVMLite, VMLite.cpp:67).
+            initSlow(VMLite::currentIfExists());
+        }
+        // EXPLICIT-LITE form — EX1 site 8 ONLY (spec NA-I21/BL1.2):
+        // the §F.5 nested-entry funnel is keyed on the THREAD's
+        // gilOff-VM (VM A) lite, NOT the entered VM's, and at its
+        // F8-revert point t_currentVMLite is being swapped to VM
+        // B's lite — so the funnel passes the pre-swap lite it
+        // already holds (the §6.4.4 VMLite::setCurrent return
+        // value, retained in the §F.5 LIFO restore tuple). Same
+        // body minus the TLS resolve; level-0 gate still first.
+        ALWAYS_INLINE explicit NativeLockDropScope(VMLite* gilOffVMLite)
+            : m_lite(nullptr), m_savedDepth(0)
+        {
+            if (!g_jscConfig.gilOffProcess) [[likely]] return;
+            initSlow(gilOffVMLite);
+        }
+    private:
+        ALWAYS_INLINE void initSlow(VMLite* lite)
+        {
             // dead-cheap when ineligible (GIL-on VMs' lites
             // coexisting in a gilOff process; rev 2: carriers of
             // the gilOff VM ARE eligible per revised NA-I9): one
             // byte test on already-resident lite state; depth==0
             // (the overwhelmingly common case) costs one more load.
             if (!lite || !lite->nativeLockEligible) [[likely]] return;
+            m_lite = lite;
             if (uint32_t d = lite->m_nativeLockDepth) {
                 m_savedDepth = d;
                 lite->m_nativeLockDepth = 1;     // collapse
                 nativeSerialLock(lite).release(lite); // to zero
             }
         }
+    public:
         ~NativeLockDropScope()
         {
             if (!m_savedDepth) [[likely]] return;
@@ -246,6 +324,31 @@ this rev, NOT the definition):
    any case a DIFFERENT lock), so no inner-VM scope can release VM
    A's NL; this is the one callee-defined site keyed on a lite OTHER
    than the entered VM's.
+9. THE SECOND CALLEE-DEFINED FAMILY (NEW rev 6, R5.1 — spec
+   NA-I26; FULL walk = ANNEX SC2.1): every caller of `vmEntryToWasm`
+   (the inline wrapper, llint/LLIntThunks.h:72). The
+   `vmEntryToJavaScript*` family closes ONLY the C++->JS boundary;
+   wasm is a second native-code-to-JS channel — wasm calls its JS
+   imports through the JIT-emitted wasmToJS stub via
+   `CallLinkInfo::emitDataICFastPath` (wasm/js/WasmToJS.cpp:350),
+   machine code with no vmEntry symbol, structurally invisible to
+   the §3.3 funnel and to every NA-T7 token family. Known caller
+   set at this rev (the TWELFTH NA-T7 token family DEFINES it):
+   `callWebAssemblyFunction` (wasm/js/WebAssemblyFunction.cpp:94 —
+   the dominant carrier JS->wasm entry under useJSThreads, per the
+   tree's own :70-72 comment: warm IC disabled, this is "the single
+   cold JS->wasm entry"; the executable is forced Locked per §2.1,
+   so the §4 bracket holds NL on entry — the scope releases it for
+   the WHOLE wasm activation and every wasm->JS import inside it),
+   `Interpreter::executeCallImpl`'s wasm arm
+   (interpreter/Interpreter.cpp:1316 — MISSED by rev 5's §4.5
+   enumeration entirely), and the runJSMicrotask wasm arm
+   (runtime/JSMicrotask.cpp:203 — rev 5 exempt-cited it as ":204"
+   with the rationale "carrier JS-to-Wasm is not a host-native
+   call", which was true of that arm but concealed that the
+   DOMINANT carrier JS->wasm path IS a host-native call; exempt-cite
+   SUPERSEDED, the arm now instantiates the scope — depth 0 there
+   in practice, zero work). Default ctor form at all three.
 
 Strictness: scopes are stack-nested (LIFO) by construction (C++
 automatic storage); a scope NEVER outlives its native frame. The
@@ -261,18 +364,36 @@ the reacquire inherits the rewritten NL1 loop verbatim, including
 the R1.2 post-wake/post-CAS stop-poll-before-return invariant (the
 rev-1 wake-mid-stop hole applied to this reacquire too).
 
-Interaction with termination (SPEC-ungil §A.2.4, VM-wide v1): a
-termination trap observed during the dtor's reacquire parks/polls per
-NL1 step (b) and then COMPLETES the reacquire (spec NA-I12); the
-exception then unwinds the native frames above, each releasing
-through the §4 brackets to depth 0 before the thread reaches its §E.2
-close (which asserts depth 0, NL1 teardown rule).
+Interaction with termination (SPEC-ungil §A.2.4, VM-wide v1;
+REWRITTEN rev 6, R5.6 — the rev-5 sentence "parks/polls per NL1
+step (b)" routed a sticky, resume-less trap into a park with no
+completion path, contradicting its own "COMPLETES the reacquire";
+text of record in PART B round 5): a termination trap observed
+during the dtor's reacquire POLLS and proceeds per the NL1 rev-6
+TERMINATION-ONLY arm — it parks ONLY if a stop is concurrently in
+progress (stop-class arm) — and COMPLETES the reacquire (spec
+NA-I12); the exception then unwinds the native frames above, each
+releasing through the §4 brackets to depth 0 before the thread
+reaches its §E.2 close (which asserts depth 0, NL1 teardown rule).
 
 ## ANNEX PT1 — seed policy table (BINDING; spec §2.2 index)
 
-Grouping = the unit a §5 audit row covers. "Registration" = where the
-ConcurrentOk marker lands (lut marker or getHostFunction parameter,
-spec §2.1). Every group below still requires its NA1 rows executed
+Grouping = the unit a §5 audit row covers. "Registration" = where
+the ConcurrentOk marker lands — one of THREE mechanisms (spec §2.1
+as amended rev 6, R5.5; rev 5's two-mechanism header was wrong for
+most of this table's own rows): (i) the getHostFunction/
+hostFunctionStub parameter (direct registrations), (ii) the static
+.lut.h grammar marker, (iii) the JSC_NATIVE_* macro layer's
+defaulted NativeConcurrency argument threaded through
+putDirectNativeFunction(WithoutTransition) + JSFunction::create
+into getHostFunction (FULL plumbing = ANNEX SC2.5) — the mechanism
+PT1.A/PT1.B/PT1.C use via the JSC_NATIVE_* macros
+(ObjectPrototype.cpp:65-66, ArrayPrototype.cpp:107-124) and
+PT1.D/PT1.F use via bare putDirectNativeFunctionWithoutTransition
+calls (MathObject.cpp:93ff, AtomicsObject.cpp:94); PT1.E
+parse/stringify = (ii) (JSONObject.lut.h); PT1.G = (i)/(iii) at
+the SPEC-api natives' registration sites. Every group below still
+requires its NA1 rows executed
 before useJSThreads ships default-on (spec §5.2); this table is the
 APPROVED CANDIDATE LIST, not a waiver of evidence.
 
@@ -420,6 +541,51 @@ NA-I21 (no nested window under NL) + NA-I22 (no G11 block under
 NL) + BL1.4's negative edge (no NLS::m_lock block under NL); each
 violation has a constructible deadlock above.
 
+BL1.6 Conductor-hold clause (NEW rev 5, R4.7 — blocker; the NLH1.4
+hole one row over). SPEC-ungil makes the CALLER of a Class-4
+invalidation the §A.3 conductor: §K.5 rule 5
+(SPEC-ungil.md:768-780) — JSGlobalObject::haveABadTime,
+JS-reachable, "whole body under ONE §A.3 stop; conductor = caller"
+— and the HBT4 order pin binds ALL §A.3 conductors to
+release-access -> arbitration -> GCL, losers parking on the §LK.4b
+slot mutex ACCESS-RELEASED (SPEC-ungil.md:240-247, :873-886). Any
+un-audited Locked native (NA-I6 default — defineProperty/
+setPrototypeOf paths, the $vm/gc() natives PT1 keeps Locked, sort
+excluded from PT1.B) can reach haveABadTime or a synchronous
+collection mid-body, i.e. WITH the §4 bracket's NL held. Three rev-4
+defects composed: (1) NA-I13 forbade exactly this voluntary
+transition and debug-asserted — its sole exemption was §J.3
+park-site MANDATORY F8 reverts, which a conductor bracket / loser
+park is not; a legal, SPEC-ungil-MANDATED path fired the assert
+(the R2.6 bug class recurring). (2) The LK.1c row had no analog of
+the clause the OTHER long-hold lock needed for precisely this shape
+— SPEC-ungil.md:883-885 "a hold(fn) conductor (Class-A fire, §K.5,
+OM stops) may HOLD NLS on entry, never ACQUIRES it" (NLH1.4);
+NA-I10 addressed only ACQUISITION, and the §LK.4b held-with
+enumeration did not license NL held with the slot, leaving the
+NL > slot and NL > GCL edges outside both rows' both-sides scope.
+(3) ANNEX NL1's conductor-side analysis treated only
+holder-is-STOPPED. RESOLUTION: (a) LK.1c conductor-HOLD clause
+(spec §3.5): an §A.3/GC conductor MAY hold NL on entry, never
+acquires it; acyclicity walk for the new edges NL > §LK.4b-slot >
+GCL — sound because slot and GCL holders never acquire NL (NA-I10's
+negative edge), so no cycle through NL closes; the loser case (NL
+held across an access-released slot park) is live per the NL1 rev-5
+conductor paragraph (NL waiters deadline to NVS parks within one
+quantum; fan-out completes; release after loser wake). The §LK.4b
+held-with amendment ("long-hold NL EXCLUDED", NLS-style wording)
+joins the §9.1 SUPERSESSION-PENDING scope — §9.1 as previously
+written did not cover §LK.4b. (b) NA-I13's exemption extended to
+the HBT4 conductor-bracket transitions (release-access,
+arbitration, gated reacquire, loser slot park) when the thread is a
+§K.5/heap-rule §A.3 conductor or arbitration loser; VOLUNTARY
+native-side transitions remain forbidden and asserted. (c) NL1
+conductor paragraph extended (holder-as-conductor, holder-as-loser);
+NA-T4 gains the conductor-holds-NL arm: a Locked native triggers
+haveABadTime (and a gc()-style sync collection) on T1 while T2
+waits on NL and T3 runs JS — stop completes within the watchdog, no
+NA-I13 assert, NL still held at T1's resume.
+
 ## ANNEX SC1 — rev-4 surface closures (BINDING; spec §2.6/§4.4/§6 index)
 ## (NEW rev 4 — round-3 findings R3.1/R3.3/R3.4/R3.6)
 
@@ -535,6 +701,432 @@ with the UNGIL §A.1.3 comment) becomes unreachable in gilOff mode
 and is RETAINED byte-identical for GIL-on processes — disposition:
 superseded by suppression, not ripped out.
 
+## ANNEX CF1 — creation closure, policy key, trampolines
+## (BINDING; spec §1.3/§1.5/§2.1/§2.4 index; NEW rev 5 —
+## R4.1/R4.2/R4.3/R4.6)
+
+CF1.1 Creation closure (R4.1, filed 2x). The tree has exactly THREE
+`NativeExecutable::create` call sites (grep re-verified this round):
+jit/JITThunks.cpp:282 and runtime/VM.cpp:1441 (the two policy
+funnels) and wasm/js/WebAssemblyFunction.cpp:101 —
+`WebAssemblyFunction::create` first interns a base via
+`getHostFunction(callWebAssemblyFunction, ..., WasmFunctionIntrinsic,
+...)` at :99, then mints a deliberately NON-interned clone sharing
+the same m_function/m_constructor ("Since ClosureCall uses this
+executable as an identity for Wasm CallIC thunk, we need to make it
+diversified", :100). Rev 4's §2.1 ("every NativeExecutable creation
+funnels through exactly two constructors of policy") and NA-I5's
+"consulted by EVERY creation on BOTH funnels" were therefore
+falsified by the tree; the site had NO policy input (NA-I3's "the
+byte is written in the ctor from the policy input at the creation
+site" was undefined there), and NO lint saw it — neither NA-T6 nor
+rev-4 NA-T7's eight token families grepped NativeExecutable::create
+callers, so the closure claim was unpinned and a future direct
+creator would have escaped silently (this site is precedent that
+they get written). RESOLUTION: (a) `NativeExecutable::create` itself
+carries the `NativeConcurrency` parameter with a HARD DEFAULT of
+Locked — NA-I6 extended from "every funnel" to "every creation";
+un-plumbed direct creators are conservatively safe by construction.
+(b) The wasm site is EXEMPT-CITED: forced Locked
+(callWebAssemblyFunction is reachable on NL-eligible lites — which
+are exactly the gilOff VM's lites, NA-I9 — via .call/.apply/CallIC
+slow paths on wasm exports; the §4.5 wasm exempt-cite covers ONLY
+the runJSMicrotask vmEntryToWasm CALL arm, not this CREATION
+[rev-6 note, R5.1: that §4.5 exempt-cite is itself SUPERSEDED —
+the vmEntryToWasm arms now carry the NA-I26 drop scope, SC2.1;
+this clause's CREATION disposition is unchanged]; spawned-Wasm
+refusal semantics per SPEC-ungil §I trip inside the body). It CONSULTS the NA-I5 table like every creation: the table is
+per-PAIR (CF1.2), so the many diversified clones of the
+(callWebAssemblyFunction, callHostFunctionAsConstructor) pair are
+ONE policy entry — if that pair were ever flipped at the funnel, the
+clones follow the table; the two-live-executables-different-bits
+divergence the reviewer constructed cannot arise. (c) NA-T7 NINTH
+token family: `NativeExecutable::create(` callers, each a funnel or
+exempt-cited — a new direct creator is a lint failure.
+
+CF1.2 Policy key (R4.2 + R4.6 — two independent defects, one fix).
+`HostFunctionKey` is `std::tuple<TaggedNativeFunction,
+TaggedNativeFunction, ImplementationVisibility, String>`
+(jit/JITThunks.h:224; equal() at JITThunks.cpp:102). Rev 4 keyed the
+strong policy table AND the conflict RELEASE_ASSERT on the full key.
+DEFECT 1 — UNBOUNDEDNESS (R4.2): the name leg is a dynamic runtime
+String. `JSNativeStdFunction::getHostFunction` registers the SAME
+pointer (runStdFunction) under a caller-supplied per-instance name
+(runtime/JSNativeStdFunction.cpp:55-58); `JSCustomGetterFunction::
+create` keys `String(propertyName.publicName())` per property
+(runtime/JSCustomGetterFunction.cpp:66 — reviewer's "get
+<propertyName>" is the DISPLAY name minted at :71-72, not the key
+name; the substance — per-property dynamic key names — stands); and
+spec §2.4 makes getHostFunction the embedder API, so Bun mints
+std-function-backed natives with user/runtime-derived names for the
+life of the process. Each distinct tuple appended one entry FOREVER
+to an append-only strong table, pinning the name String — rev 4's
+recorded rationale "entries never removed — size bounded by distinct
+host functions" was false (not a re-litigation of R1.4's
+weak-vs-strong decision: the decision's boundedness premise was
+wrong). DEFECT 2 — ALIAS ESCAPE (R4.6): the same body registered
+under different names or visibilities produced DISTINCT keys, so
+conflicting NativeConcurrency inputs never hit the assert: one alias
+mints ConcurrentOk executables while another mints Locked ones for
+the SAME body, whose "serial" guarantee then serializes nothing (the
+body runs concurrently via the ConcurrentOk alias against the Locked
+alias's holder) — precisely the §0.3 property NA-I5 exists to
+protect, arriving via aliases instead of registration order; it also
+defeated §5.2 flip discipline (a flip missing one of several
+registration sites was silent) and split the enforcement granularity
+(key) from the audit granularity (AT1 rows = the body). RESOLUTION:
+PolicyKey = the `(m_function, m_constructor)` TaggedNativeFunction
+pair; name and visibility are NOT policy inputs (a per-name policy
+split for one body is exactly the alias defect); the table is
+bounded by distinct code-address pairs — genuinely "distinct host
+functions"; the RELEASE_ASSERT compares per-pair, strictly stronger
+(order- AND alias-independent). Name-dependent policy, if ever
+wanted, must be argued in a spec rev with an honest growth bound
+(e.g. store only explicit ConcurrentOk grants). NA-T8 gains the
+same-function-different-name and different-visibility
+conflicting-registration arms; §5.2 consequence recorded: a flip
+must update every registration site of the symbol — the pair-keyed
+assert now enforces it.
+
+CF1.3 Dispatch trampolines (R4.3). Spec §1.1 grounds the bit on
+"function identity"; for JSNativeStdFunction the premise fails:
+every instance shares ONE NativeFunction, `runStdFunction`
+(runtime/JSNativeStdFunction.cpp:60-65 — downcasts the callee cell
+and invokes the std::function stored ON the cell), so the §1.2 byte
+— and the CF1.2 per-pair policy — identifies only the TRAMPOLINE
+while the semantic body lives in per-cell state the key cannot see.
+Failure modes rev 4 permitted: (a) ratchet hole — an NA1 row
+flipping the runStdFunction key ConcurrentOk satisfied NA-I18
+textually (symbol + registration site + evidence for the lambdas the
+campaign exercised) yet blessed EVERY lambda ANY code EVER installs,
+including ones written after the audit; the §1.4 obligation ("every
+reachable path of the native's body") is undischargeable for an open
+set of bodies, and nothing in §5 said so; (b) §2.4's "mark its own
+audited natives ConcurrentOk at its call sites" was unimplementable
+for std-function natives — per-call-site policy at key granularity
+meant two Bun sites installing different lambdas with different
+policies RELEASE_ASSERT (process abort), and the rev-4 escape
+(distinct names) silently changed the audit unit; under CF1.2's
+per-pair key the name escape is gone BY DESIGN, which makes this
+clause load-bearing rather than advisory. RESOLUTION (NA-I25): a
+NativeExecutable whose function is a dispatch trampoline (body
+determined by callee-cell or out-of-band state; runStdFunction named
+as the in-tree instance) is PERMANENTLY Locked — NA1 rows for its
+pair may only carry Locked-keep; ANNEX AT1 gains the mandatory "body
+closed over key?" field (yes/no + argument: the auditor must
+establish that the function pointer fully determines the audited
+body before ANY flip — the field forces noticing a dispatch
+trampoline); §2.4 amended: Bun's ConcurrentOk opt-in exists only for
+natives with DEDICATED function pointers. Per-cell affinity (a bit
+on the JSNativeStdFunction cell / NativeStdFunction-side policy) is
+charted as NA-X6, post-v1. The API/JSCallbackFunction family (same
+structural shape) is unaffected in v1: §2.4 forces C-API Locked
+unconditionally.
+
+## ANNEX SC2 — rev-6 surface closures (BINDING; spec §2.4/§2.7/
+## §3.3/§4.4/§4.5/§4.6/§1.3 index; NEW rev 6 — round-5 findings
+## R5.1-R5.5/R5.7)
+
+SC2.1 Wasm channel (R5.1, blocker; spec NA-I26, §3.3/§4.5 index;
+EX1 site 9 carries the caller list). Composition rev 5 committed
+to without analyzing the DROP side: (1) §2.1/CF1.1 force
+callWebAssemblyFunction Locked; (2) wasm execution is carrier-only
+but PERMITTED v1 (SPEC-ungil §I; the refusal helper at
+wasm/js/WebAssemblyFunction.cpp:69-78 throws only on spawned
+threads) and carriers are NL-eligible (NA-I9); (3) under
+useJSThreads the warm JS->wasm call IC is DISABLED
+(WebAssemblyFunction.cpp:70-72 — callWebAssemblyFunction is "the
+single cold JS->wasm entry"), so in exactly the gilOff
+configuration EVERY carrier JS->wasm export call lands on the §4
+bracket, acquires NL, and ran the ENTIRE wasm activation
+(vmEntryToWasm, :94) WITH NL HELD. Consequences rev 5 missed:
+(a) NA-I11 funnel escape — wasm calls its JS imports through the
+JIT-emitted wasmToJS stub (CallLinkInfo::emitDataICFastPath,
+wasm/js/WasmToJS.cpp:350), no vmEntryToJavaScript* symbol on the
+path, so user JS executed under NL: the R1.3/R2.2 escape class on
+a channel the prefix-matched symbol family is STRUCTURALLY unable
+to close. (b) Constructible mutator-vs-mutator deadlock crossing
+BL1.4's negative edge with no assert and no conductor: T1
+(carrier) wasm export -> §4 bracket holds NL -> JS import runs
+lock.hold(cb) on contended L (or Atomics.wait/cond.wait) — T1
+blocks on a G11 primitive HOLDING NL; T2 holds L inside
+lock.hold(fn2); fn2 calls any Locked native (any Intl call) ->
+blocks on NL. AB/BA, no stop in progress, no watchdog. NA-I22/
+PT1.G does not help: lock.hold is ConcurrentOk but is entered
+while the CALLER's frame holds NL from the wasm bracket. (c) Even
+import-free: a long wasm number-crunch serialized every Locked
+native of the VM behind it — the §3.3 "GIL regrows" collapse on a
+shipping configuration (Bun runs wasm). NOT re-litigation: CF1.1
+(rev 5) and the §4.5 exempt-cite addressed the ACQUIRE side only;
+the exempt-cite's "carrier JS-to-Wasm is not a host-native call"
+was true for the microtask arm it covered and false for the
+dominant path. RESOLUTION (NA-I26): vmEntryToWasm callers are a
+SECOND callee-defined drop-scope family (EX1 site 9 — three known
+callers: WebAssemblyFunction.cpp:94, Interpreter.cpp:1316 (missed
+entirely by rev 5), JSMicrotask.cpp:203 (exempt-cite superseded));
+each instantiates the default-ctor NativeLockDropScope around the
+vmEntryToWasm call, releasing NL for the whole activation and
+every wasm->JS import inside it, reacquiring at scope exit per
+NA-I12. NA-T7 gains the TWELFTH token family (`vmEntryToWasm`
+call-expression callers; the LLIntThunks.h:72 inline wrapper is
+the definitional symbol). §3.3 now states explicitly that the
+vmEntryToJavaScript* family closes only the C++->JS boundary and
+any OTHER native-code-to-JS channel needs its own named drop
+family. Charters: NA-T3 wasm arm; NA-T11(d) deadlock witness.
+NOTE for the SPEC-ungil owner (recorded, not actioned here): the
+Interpreter.cpp:1316 and JSMicrotask.cpp:203 arms reach
+vmEntryToWasm WITHOUT passing callWebAssemblyFunction's
+spawned-thread refusal helper — a possible §I enforcement gap
+OUTSIDE this spec's scope.
+
+SC2.2 JSClassRef / JSCallbackObject embedder callbacks (R5.2,
+major; spec NA-I27, §2.7 index). The C-API callback-object family
+is squarely inside the §0.1 threat ("embedder native ... arbitrary
+C++") and fell through every closure: JSCallbackObject installs
+ClassInfo-methodTable overrides (API/JSCallbackObject.h:211-225 —
+getOwnPropertySlot, put, putByIndex, deleteProperty,
+getCallData/getConstructData, getOwnSpecialPropertyNames,
+customHasInstance) whose bodies invoke raw JSClassRef embedder
+callbacks (API/JSCallbackObjectFunctions.h: hasProperty :164,
+getProperty :175, convertToType :250, setProperty :282-306/:349-373,
+deleteProperty :415, initialize :139, static-table entry->
+getProperty/setProperty arms, getPropertyNames family :619-675).
+These (a) mint no NativeExecutable; (b) reach no §4 emitter, §2.6
+funnel, or §4.4 surface; (c) match no rev-5 NA-T7 family; (d) are
+NOT GlobalObjectMethodTable hooks, so NA-I24/SC1.3 (scoped to
+GlobalObjectMethodTable.h:58-71) does not reach them; UNGIL-HANDOUT
+R30 covers the callback DATA maps, not the BODIES. Hook invocation
+needs no C-API entry: a carrier JSObjectMake's a callback object
+into the shared heap; any spawned thread's plain `obj.x` dispatches
+the methodTable and runs the embedder's C callback concurrently
+with the carrier — no serializer, in a spec whose purpose is
+"un-audited native bodies are correct-but-serial". §2.4's sole
+deflection ("SPEC-api keeps C-API entry carrier-bound anyway")
+carried no cite and is FALSE: SPEC-api rev 14 is the
+Thread/Lock/Condition JS-API spec; grep finds no C-API/JSClassRef
+clause (verified this round). Inconsistency: the FUNCTION face
+(JSObjectMakeFunctionWithCallback -> JSCallbackFunction,
+InternalFunction-backed) is NA-I8-serialized while the OBJECT face
+of the same API was fully concurrent. RESOLUTION (option (a) —
+bracket; the hooks are ordinary C++ funnels, NA-I20's shape):
+NA-I27 — on NL-eligible lites, every JSClassRef-callback INVOCATION
+EXPRESSION in JSCallbackObjectFunctions.h (and JSCallbackConstructor
+/APICallbackFunction construct/call impls where not already funneled
+through NA-I28's bracketed paths) is NL-bracketed via the §4.1
+helper, unconditionally ("Locked" unrepresentable — no byte
+exists, the §2.6 custom-accessor rationale verbatim). JS re-entry
+from inside a callback (C-API calls back in) reaches the EX1
+funnels and drops NL normally. EXEMPT-CITED, NOT bracketed:
+JSObjectFinalizeCallback invocations (JSCallbackObjectFunctions.h
+:87) — finalizers run in GC/sweep context where NL acquisition is
+forbidden (NA-I10); their safety story is the C-API finalize
+contract (no JSC re-entry permitted from finalize) + heap sweep
+discipline, named here so the exclusion is recorded, not silent.
+NA-T7 gains the ELEVENTH token family: invocation expressions
+through `JSObject*Callback`/`JSClass*Callback`-typed locals in
+API/** (greppable from the typedef set, JSObjectRef.h), each
+bracketed or exempt-cited. NA-I24/SC1.3 amended BY THIS CLAUSE:
+the "raw methodTable hooks excluded" sentence covers
+GlobalObjectMethodTable hooks ONLY; the ClassInfo-methodTable
+embedder-callback family is NA-I27-bracketed, not excluded.
+Post-v1 refusal alternative (publication refusal / hook-time
+spawned-thread throw, the JSWebAssemblyHelpers.h:61 shape) charted
+as NA-X7.
+
+SC2.3 CallData-native-without-NativeExecutable + the handleHostCall
+funnels (R5.3, blocker; spec NA-I28, §4.5/§4.6 index). Two in-tree
+host-call dispatch funnels invoke the host body as a direct C++
+call of the CallData function pointer: llint/LLIntSlowPaths.cpp
+handleHostCall (`callData.native.function(...)` :2222, construct
+arm :2243) and bytecode/RepatchInlines.h handleHostCall (:96,
+:117; reached from linkFor/virtualFor). Neither was in NA-I17's
+"COMPLETE" set, and NA-T7 could not see them: the
+HostFunctionPtrTag is hidden inside TaggedNativeFunction
+(runtime/NativeFunction.h:40), so the call expression matches no
+family. VERIFIED dispatch structure: both funnels are reached ONLY
+for callables that are neither JSFunction nor InternalFunction
+(LLIntSlowPaths.cpp:2263-2270; RepatchInlines.h:138-167 —
+JSFunction callees take the executable's covered entrypoint,
+InternalFunctions take the NA-I8 trampoline), i.e. EXACTLY the
+no-NativeExecutable family: ProxyObject (performProxyCall
+installed at runtime/ProxyObject.cpp:644, performProxyConstruct
+:703 — engine code), JSCallbackObject callAsFunction/
+callAsConstructor (API/JSCallbackObjectFunctions.h getCallData
+:545ff/getConstructData :461ff — arbitrary client C), and
+JSCallbackConstructor (API/JSCallbackConstructor.cpp:75). For this
+family "Locked" is unrepresentable — the NA-I24-analog clause rev
+5 never wrote. Two adjacent clauses were also wrong: (1) §2.4(b)
+"the public C API mints Locked executables UNCONDITIONALLY" —
+JSObjectMakeFunctionWithCallback creates JSCallbackFunction,
+`final : public InternalFunction` (API/JSCallbackFunction.h:37),
+which mints NO NativeExecutable; its serialization is NA-I8's
+InternalFunction arm; an implementer sent to find the minting site
+would find none. CORRECTED in §2.4. (2) §4.5's bracket recipe
+"executable from the CallData/callee" was unimplementable at
+Interpreter::executeCallImpl's native arm (Interpreter.cpp:1320)
+for executable-less callees. RESOLUTION (NA-I28, the NA-I8/NA-I20
+disposition — "no executable byte exists" => unconditional):
+on NL-eligible lites, (a) BOTH handleHostCall funnels NL-bracket
+the `native.function(...)` invocation unconditionally (release
+before their exception checks per NA-I14); (b) the §4.5 C++ helper
+is SPECIFIED for the executable-less case: callee is a JSFunction
+=> read the NativeExecutable byte (existing recipe); otherwise =>
+treat as Locked unconditionally (InternalFunction => NA-I8;
+everything else => this clause). Applies to executeCall/
+executeConstruct native arms and the runJSMicrotask native arm
+alike. NA-T7 gains the TENTH token family: `native.function(`
+call-expression sites (both funnels + the Interpreter/JSMicrotask
+arms' vmEntryToNative dispatch is already family 3), each
+bracketed or exempt-cited. Re-entry inside these bodies
+(performProxyCall runs the trap JS via the §3.3 funnels) drops NL
+normally — proxies stay correct-but-serial at the apply face, as
+§0.3 intends for un-audited paths; an engine-side NA1 audit may
+later flip the funnels to byte-keyed treatment for specific
+callables (NA-X8, post-v1).
+
+SC2.4 Intrinsic admission gating (R5.4, major; spec NA-I29,
+§4.4.1 index; SUPERSEDES the adequacy implication of the
+§4.4.1b/d nullptr-generator RULEs and SC1.2's "alongside the
+§4.4.1b suppression" wording — both texts of record stand as
+mechanism for surfaces (b)/(d) ONLY). VERIFIED: the Intrinsic does
+NOT travel with the thunk generator — JITThunks::hostFunctionStub
+constructs ALL THREE forCall JITCode arms with `intrinsic`
+regardless of generator (jit/JITThunks.cpp:271-279: DirectJITCode,
+NativeDOMJITCode, AND the plain NativeJITCode arm), the no-JIT arm
+bakes it via jitCodeForCallTrampoline(intrinsic)
+(runtime/VM.cpp:1441), and handleIntrinsicCall keys on
+callee.intrinsicFor -> ExecutableBase::intrinsic() ->
+NativeExecutable::intrinsic() -> generatedJITCodeFor(CodeForCall)
+->intrinsic() (dfg/DFGByteCodeParser.cpp:2095-2098,
+runtime/NativeExecutable.cpp:90-92, runtime/
+ExecutableBaseInlines.h:43-54). Passing a nullptr generator
+suppresses only the specialized thunk; DFG still inlines the
+native's semantics with no bracket. LIVE for natives the spec
+ships Locked: ArrayUnshiftIntrinsic (DFGByteCodeParser.cpp:2747),
+ArraySpliceIntrinsic (:2855) — both excluded from PT1.B;
+ObjectAssignIntrinsic (:3749) — not in PT1.A;
+StringPrototypeReplaceIntrinsic (:3851) — excluded from PT1.C.
+Surfaces (e)/(f) likewise key on the executable's intrinsic
+(IntrinsicGetterAccessCase.cpp:50; canEmitIntrinsicGetter takes
+the getter JSFunction), so "alongside b" named a mechanism that
+does not reach them. RESOLUTION (NA-I29, NA-I23's locally-
+verifiable parser/admission-side style — chosen over stripping
+the Intrinsic at gilOff registration, whose collateral kills
+profiling identity, the §4.3 fallback and getter intrinsics
+wholesale): in gilOff configs, handleIntrinsicCall (guard at
+DFGByteCodeParser.cpp:2095-2098), handleIntrinsicGetter
+(:5263/:6743) and canEmitIntrinsicGetter
+(InlineCacheCompiler.cpp:4473) BAIL unless the callee
+NativeExecutable's m_concurrentOk byte is set (constant-foldable,
+NA-I3; lint-pinned by NA-T6, which now checks the GUARDS exist
+rather than set-emptiness alone). The b/d nullptr suppressions
+REMAIN (they close the thunk/CallDOM arms); NA-I29 closes the
+parser/IC admission the generator never controlled.
+
+SC2.5 Macro-layer policy plumbing (R5.5, major; spec §2.1 third
+mechanism; NA-I30). Rev 5 named two landing sites for the
+ConcurrentOk marker, but nearly the whole PT1 seed registers
+through neither: JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION
+sites (runtime/ObjectPrototype.cpp:65-66, runtime/
+ArrayPrototype.cpp:107-124) expand to putDirectNativeFunction/
+putDirectNativeFunctionWithoutTransition (declared
+runtime/JSObject.h:1007-1009; macro block :2212-2228 — CITATION
+CORRECTION: reviewer wrote ":2173-2189"; substance stands), which
+reach getHostFunction only via JSFunction::create layers inside
+the engine; Math/Atomics register via bare
+putDirectNativeFunctionWithoutTransition calls
+(MathObject.cpp:93ff, AtomicsObject.cpp:94). NA-I6's hard default
+kept every un-plumbed layer safely Locked, so correctness was
+never at risk — but v1 SHIPS the seed ConcurrentOk (§2.2), so the
+missing plumbing was on the v1 critical path with no normative
+route, and PT1's "Registration =" header was wrong for most of
+its own rows (fixed in PT1 this rev). RESOLUTION (NA-I30): a
+defaulted `NativeConcurrency` parameter (default Locked, NA-I6)
+threaded through putDirectNativeFunction/
+putDirectNativeFunctionWithoutTransition (JSObject.h:1007-1009)
+and JSFunction::create into getHostFunction, plus trailing
+defaulted arguments on the JSC_NATIVE_*_FUNCTION macro family —
+the opt-in is greppable at the prototype finishCreation call
+site, preserving §2.1's "greppable, diffable, audit-citable"
+property. The NA-T7 ninth family (NativeExecutable::create
+callers) is unaffected — these sites all funnel; they previously
+could not EXPRESS the opt-in.
+
+SC2.6 Policy side-table lock row (R5.7, major; spec §1.3/§9.7
+index; finding received TRUNCATED mid-sentence at its third item
+— the legible defects are dispositioned; the truncated tail
+(allocation adjacency) is subsumed by the holding discipline
+below). The §1.3 side-table lock is a NEW process lock consulted
+at every NativeExecutable creation in EVERY configuration, yet
+rev 5 gave it (1) no §LK row, no §9 gate and no U20 coverage — a
+unilaterally asserted "leaf-rank" never entering SPEC-ungil §LK's
+canonical set (SPEC-ungil.md:867-925; §LK is "canonical for U20
+(r22 list)"), exactly the shape U20 exists to catch, while this
+spec's own §3.5 demonstrates the required diligence for NL; (2)
+no ordering against JITThunks::m_lock although both live on the
+SAME registration path — hostFunctionStub takes m_lock TWICE
+(lookup Locker jit/JITThunks.cpp:260, insert Locker :284, both
+under AssertNoGC) around the NativeExecutable::create call
+(:282), and nothing pinned whether the consult runs under m_lock,
+between the critical sections, or inside the ctor; (3) no holding
+discipline although the consult sits adjacent to GC allocation
+(NativeExecutable::create allocates). RESOLUTION: (a) PINNED
+ordering — the policy-table lock is a TRUE LEAF: the consult/
+insert runs OUTSIDE JITThunks::m_lock and OUTSIDE the ctor,
+BEFORE the create call's allocation, at each §2.1 funnel/
+exempt-cited site (the NativeConcurrency value then flows into
+create as a plain argument; NA-I3's "written in the ctor from the
+policy input" is the BYTE STORE, not the table consult); m_lock >
+policy-lock never occurs because the consult is outside both
+m_lock sections; (b) holding discipline — NOTHING is acquired and
+NOTHING allocates under the policy lock (HashMap rehash uses
+fastMalloc, which the §LK.6 inner-set precedent treats as
+lock-rank-inert; the RELEASE_ASSERT message formatting happens
+after release); never held across NativeExecutable::create, GC,
+or any park; (c) ADOPTION GATE §9.7 — SPEC-ungil owner lands the
+§LK.7 leaf-row addition ("NA policy table lock", leaf, U20-linted)
+both-sides; implementation of §1.3's enforcement structure MUST
+NOT begin before the row lands. Until then the row is
+SUPERSESSION-PENDING like LK.1c.
+
+## ANNEX EM1 — emitter shapes, FULL text (BINDING; spec §4.2/§4.3
+## index; MOVED here rev 5 under the size cap — content normative,
+## carried VERBATIM from the rev-4 body, no semantic change)
+
+EM1.1 LLInt. `nativeCallTrampoline`
+(llint/LowLevelInterpreter64.asm:3161-3219): the gilOff arm already
+exists (`branchIfGilOffGroup3ToT3` at the pre-call topCallFrame
+store, :3175-3182, lite base in t3). Extension: on the
+`.liteStoreTopCallFrame` arm, additionally `loadb
+VMLite::nativeLockEligible[t3]`; if set, `loadb
+NativeExecutable::m_concurrentOk[a2]` (a2 = executable, loaded at
+:3165-3168); if clear, cCall the acquire operation around the host
+call. Register notes are implementation detail BUT the constraint
+is normative: the pre-call slow call must preserve a0-a2 (the host
+call's argument set, see the :3171-3176 liveness comment) — spill
+per the trampoline's existing conventions. The post-call
+release+exception sequencing follows NA-I14: release happens before
+the `.checkLiteException` test (:3211).
+`internalFunctionCallTrampoline` (:3220) takes the NA-I8
+unconditional arm (lite byte test only, no executable byte).
+
+EM1.2 Baseline/JIT thunk. `nativeForGenerator`
+(jit/ThunkGenerators.cpp:455-576): the thunk is generated per-VM
+and cached, so the level-0 split is the C++ `vm.gilOff()` branch
+already used twice in this function (:481-491 topCallFrame, :551
+exception arm) — GIL-on VMs get an unchanged thunk. In the gilOff
+thunk: after the executable lands in `argumentGPR2` (:502-512
+JSFunction arm), emit `load8` of the lite byte (lite via
+`loadVMLite`, the :481-491 pattern) and of `offsetOfConcurrentOk()`;
+locked path does the acquire `callOperation` (operation calls are
+already in this thunk's vocabulary:
+`operationDebuggerWillCallNativeExecutable` :495,
+`vmEntryHostFunction` under JITCage :510/:518). Release before the
+`loadException` check (:535-536) per NA-I14, on BOTH the JSFunction
+and InternalFunction arms (:514-521, per NA-I8). The same shape
+applies to the construct-kind thunk (same generator, :460
+`executableOffsetToFunction` switch).
+
 ## ANNEX TC1 — test charters, FULL text (BINDING; spec §8 index)
 ## (MOVED here rev 4 under the size cap; content normative,
 ## carried forward from rev 3 + rev-4 amendments)
@@ -571,6 +1163,12 @@ superseded by suppression, not ripped out.
   runs on x86_64/ARM64 so `callWithArguments` ->
   `vmEntryToJavaScriptWith2Arguments` (NOT executeCachedCall) is
   the exercised path; plus a microtask-runner arm (With0..6).
+  Wasm arm (rev 6, R5.1/NA-I26): carrier JS -> Locked wasm export
+  -> JS import that blocks on a condition released only by a
+  SECOND thread completing a Locked native — passes only if NL was
+  dropped across the activation; instrumented assert that
+  m_nativeLockDepth == 0 while wasm runs and the saved depth is
+  restored at the export's return.
 - NA-T4 Conductor liveness. While one thread is parked WAITING on NL
   and another HOLDS NL inside a spinning host body, a third forces
   GC and an §A.3 stop (jettison path): both complete within the
@@ -588,13 +1186,31 @@ superseded by suppression, not ripped out.
   GC-stop-with-NL arm (rev 3, R2.6): rule-8 GC stop lands while a
   thread holds NL at a poll site — no NA-I13 assert; F8 revert,
   re-acquisition and GC complete; the native resumes with NL held.
+  Conductor-holds-NL arm (rev 5, R4.7): a Locked native on T1
+  triggers JSGlobalObject::haveABadTime AND (separate sub-arm) a
+  gc()-style synchronous collection while T2 waits on NL and T3
+  runs JS — the stop completes within the watchdog, no NA-I13
+  assert fires, and NL is still held at T1's resume; a
+  loser-variant forces T1 to lose arbitration so the
+  NL-held-across-slot-park path (BL1.6) is exercised.
+  Termination-vs-NL-waiter arm (rev 6, R5.6): VM-wide termination
+  fires while T2 waits on NL held by a long Locked body on T1 —
+  T2 COMPLETES the acquire (no NVS park-loop, NL1 rev-6
+  TERMINATION-ONLY arm), unwinds through the §4 brackets to depth
+  0, reaches its §E.2 close; join() returns the sticky-termination
+  result (SD8/TERM1.3 fresh Error); ~VM completes within the
+  harness timeout (EXIT1.9).
 - NA-T11 Nesting + G11 liveness (rev 3, R2.1/R2.5). (a) Carrier in
   a Locked VM-A native enters VM B (§F.5); B's JS Atomics.waits on
   a notify owed by a Locked VM-A native on a spawned thread: must
   complete (NA-I21); assert depth 0 across the nested window.
   (b) `t.join()` while the joined thread's exit path runs Locked
   natives: completes (NA-I22). (c) Contended `lock.hold`/
-  `cond.wait` in debug: no NA-I13 assert.
+  `cond.wait` in debug: no NA-I13 assert. (d) Wasm-import deadlock
+  witness (rev 6, R5.1): T1 carrier calls a wasm export whose JS
+  import does `lock.hold(cb)` on contended L while T2 holds L and
+  calls an Intl (Locked) native — completes (NA-I26 dropped NL);
+  control build with the drop scope disabled deadlocks-by-timeout.
 - NA-T5 Flip campaign template. Per NA1 row: amplifier-scheduled
   N-thread corpus hitting the candidate native from all tier cells
   (NA-T2 matrix), TSAN no-JIT + ASAN JIT configs, plus a thread-fuzz
@@ -613,34 +1229,65 @@ superseded by suppression, not ripped out.
   constructions + getHostFunction calls with non-null signature) —
   asserts gilOff builds NO Call-with-signature/CallDOM nodes — and
   the intrinsic-getter sets (handleIntrinsicGetter switch +
-  canEmitIntrinsicGetter), each member ruled or disabled.
-- NA-T7 Surface-closure lint (rev 4). Source scan: every site in
-  the EIGHT token families of §4.6 (HostFunctionPtrTag,
-  cloopCallNative, vmEntryToNative callers, the three accessor
-  tags, the accessor call-expression tokens, the
-  vmEntryCustomGetter/Setter symbol callers, the two WithPtr tags)
-  is bracketed/exempt-cited (NA-I17, NA-I20, NA-I23); every caller
+  canEmitIntrinsicGetter), each member ruled or disabled. rev 6
+  (R5.4/NA-I29): additionally verifies the THREE gilOff
+  m_concurrentOk admission guards EXIST and fire
+  (handleIntrinsicCall DFGByteCodeParser.cpp:2095-2098;
+  handleIntrinsicGetter :5263/:6743; canEmitIntrinsicGetter
+  InlineCacheCompiler.cpp:4473): a Locked intrinsic-bearing native
+  (ArrayUnshiftIntrinsic witness) tier-ups WITHOUT intrinsic
+  inlining in a gilOff config and serializes per NA-T1.
+- NA-T7 Surface-closure lint (rev 4; rev 5 R4.1; rev 6 R5.1/R5.2/
+  R5.3). Source scan: every site in the TWELVE token families of
+  §4.6 (HostFunctionPtrTag, cloopCallNative, vmEntryToNative
+  callers, the three accessor tags, the accessor call-expression
+  tokens, the vmEntryCustomGetter/Setter symbol callers, the two
+  WithPtr tags, `NativeExecutable::create(` callers — rev 5 — and,
+  rev 6: TENTH `native.function(` call-expression sites (SC2.3),
+  ELEVENTH `JSObject*Callback`/`JSClass*Callback`-typed invocation
+  expressions in API/** (SC2.2; finalize sites exempt-cited),
+  TWELFTH `vmEntryToWasm` callers (SC2.1; symbol of record
+  LLIntThunks.h:72)) is bracketed/exempt-cited (NA-I17, NA-I20,
+  NA-I23, NA-I26/I27/I28; §2.1 for the ninth family). Exempt set of record (moved from the rev-4 §4.6
+  parenthetical, content unchanged): `vmEntryHostFunction` is
+  INSIDE the §4.3 bracket; `callHostFunctionAsConstructor` runs
+  UNDER its caller's construct-kind bracket; the §4.4.1 bypass
+  surfaces and the §4.4.3 + compileCallDOM lowering files are
+  exempt WITH the NA-T6 cross-reference (their fast paths make no
+  tagged host call, which is why a call-token grep alone cannot see
+  them); wasm/js/WebAssemblyFunction.cpp:101 is the §2.1
+  exempt-cited direct creation site (forced Locked). Every caller
   of the `vmEntryToJavaScript*` family instantiates the NA-I11 drop
   scope. SELF-TEST (R2.2): the JS-entry symbol list is generated
   from the LLIntThunks.h:39-52 block at lint runtime; a symbol
   absent from the previous snapshot FAILS the lint without a spec
   rev (a new With7 forces a conscious update, never silent escape).
-- NA-T8 Policy-conflict assert (rev 2). Registering one function
-  pointer twice with conflicting NativeConcurrency RELEASE_ASSERTs
-  (NA-I5) via the strong side table; covers the JITThunks path, the
-  no-JIT path, AND the collected-then-re-registered sequence (force
-  GC of the first executable between registrations — the assert
-  must still fire).
-- NA-T9 Mode-cost oracle (RECHARTERED rev 4, R3.10 — rev 3's
-  whole-binary byte-compare was unsatisfiable as written: §4.2 adds
-  instructions to the statically-assembled shared trampoline, and
-  SPEC-ungil §J is a machinery-end-state discipline, not a
-  byte-compare). (a) Byte-compare the GIL-on-generated per-VM thunk
+- NA-T8 Policy-conflict assert (rev 2; rev 5 R4.6). Registering one
+  function pointer twice with conflicting NativeConcurrency
+  RELEASE_ASSERTs (NA-I5) via the strong side table; covers the
+  JITThunks path, the no-JIT path, the collected-then-re-registered
+  sequence (force GC of the first executable between registrations
+  — the assert must still fire), AND (rev 5) the alias arms: the
+  SAME (function, constructor) pair registered under a DIFFERENT
+  name, and under a different ImplementationVisibility, with
+  conflicting policy — the pair-keyed assert must fire in both.
+- NA-T9 Mode-cost oracle (RECHARTERED rev 4 R3.10, rev 5 R4.8 —
+  rev 4's (c) "non-GILOFF builds byte-identical outright" was
+  unsatisfiable on the C++ axis: gilOffProcess is an unconditional
+  JSCConfig field and the EX1/§4.5/§2.6/§1.3 surfaces compile in
+  every build). (a) Byte-compare the GIL-on-generated per-VM thunk
   against a pre-change build; (b) arm-level LLInt diff: new
   trampoline bytes reachable ONLY via branchIfGilOffGroup3* arms
   (jit R1.e executed-path discipline, UNGIL-HANDOUT:172-179);
-  (c) non-GILOFF builds byte-identical outright — NA-I1 as
-  restated.
+  (c) ASM-artifact identity ONLY: the offlineasm OUTPUT for
+  non-GILOFF_TLS configurations is identical to a pre-change build
+  (whole-binary byte identity dropped); (d) C++-side oracle: an
+  instrumented (or counter-asserting) build verifies the EX1
+  funnels execute exactly one gilOffProcess branch and ZERO
+  TLS/lite/depth loads per JS entry in flag-off/GIL-on runs, and
+  that no NL/side-table symbol is reached outside registration
+  paths (perf-neutrality bound acceptable as the release-build
+  proxy).
 - NA-T10 U-T8e non-interference (rev 2). The carrier-queued
   promiseRejectionTracker corpus (SPEC-ungil §E.1b.4) runs unchanged
   with the bit machinery active; carrier NL acquisitions occur ONLY
@@ -667,6 +1314,7 @@ be argued, not bare):
 | shared state | every VM-/global-/process-resident datum touched -> ruling id (K4.x.y / N7-xx / NA1 row / OM-heap § cite); "none" allowed only with the grep recipe used to establish it |
 | cell state | §N/OM rulings for cell-internal touches |
 | JS re-entry | every re-entry site in the body (coercions, callbacks); for ConcurrentOk these need no NL note, but the column forces the auditor to FIND them |
+| body closed over key? | MANDATORY (rev 5, NA-I25/CF1.3): yes/no + argument — does the (function, constructor) pair fully determine the audited body? "no" (dispatch trampoline: callee-cell or out-of-band state selects the body, runStdFunction shape) => disposition may ONLY be Locked-keep; the field exists to force the auditor to notice trampolines before any flip |
 | ICU | Intl gate (spec NA-I7): every ICU API touched + the per-API thread-safety argument; non-Intl rows: "none" |
 | TSAN | run id, config (TSAN no-JIT target per docs/threads/TSAN.md), corpus, amplifier schedule, result (zero races attributable) |
 | fuzzer | campaign id, profile, wall hours, coverage proof that the native executed on spawned threads, result |
@@ -1225,4 +1873,330 @@ prose -> already-recorded history rounds. Counterparty-spec
 obligations remain gates: §9.1 (rev-4-extended LK.1c scope), §9.2
 (reworded), §9.3, §9.4 (both fields), §9.6 — all
 SUPERSESSION-PENDING; no text outside
+SPEC-nativeaffinity{,-history}.md was modified.
+
+## Review round 4 (2026-06-07) -> rev 5
+
+Eight reviewer findings received; deduplicated to seven items (the
+WebAssemblyFunction direct-creation finding was filed twice — the
+second filing took R4.4 on intake, merged into R4.1, id retired;
+the R4.4 gap below is deliberate). Every file:line citation was
+re-verified against the live tree before acceptance. No finding
+refuted this round; two citation corrections recorded under their
+items. Size-cap action: the spec body was at 49,990/50,000
+pre-round; §4.2/§4.3 full emitter text moved to NEW ANNEX EM1, the
+§5.1 row-template listing reduced to its AT1 pointer, the §4.6
+exempt-set parenthetical moved into TC1 NA-T7 (content unchanged,
+location moved), and §0/§1/§2/§3/§6/§9 prose compressed against
+existing history records to absorb the rev-5 additions; post-round
+body 49,933 bytes. Dispositions:
+
+R4.1 ACCEPTED (major; filed 2x): §2.1's "exactly two constructors
+of policy" falsified by the tree — grep over Source/JavaScriptCore
+confirms exactly three NativeExecutable::create call sites
+(jit/JITThunks.cpp:282, runtime/VM.cpp:1441,
+wasm/js/WebAssemblyFunction.cpp:101), the third a deliberately
+non-interned CallIC-identity clone with no policy input, no NA-I5
+participation, and no lint coverage (the R1.3/R2.2/R3.2 bug class —
+a normative enumeration falsified by the tree — recurring in §2.1,
+the one enumeration no prior round ground-checked). FIX (reviewer's
+shape adopted whole): NativeConcurrency parameter moved onto
+NativeExecutable::create itself, hard default Locked (NA-I6 "every
+creation"); §2.1 restated funnels-plus-exempt-cited-direct-sites;
+wasm site exempt-cited forced-Locked + per-pair table consult;
+NA-T7 ninth token family. FULL text ANNEX CF1.1.
+
+R4.2 ACCEPTED (major): NA-I5's strong side table was unbounded —
+HostFunctionKey (jit/JITThunks.h:224) embeds a dynamic name String;
+JSNativeStdFunction (runtime/JSNativeStdFunction.cpp:55-58) and
+JSCustomGetterFunction (runtime/JSCustomGetterFunction.cpp:66)
+mint per-instance/per-property names over fixed pointers, so the
+append-only strong table grew per registration forever, pinning
+embedder-controlled Strings; rev 4's recorded "size bounded by
+distinct host functions" rationale was false (the R1.4
+weak-vs-strong decision itself is NOT re-litigated — its
+boundedness premise was). CITATION CORRECTION: the reviewer's
+"mints 'get <propertyName>' names" describes the DISPLAY name
+(JSCustomGetterFunction.cpp:71-72); the KEY name is
+String(propertyName.publicName()) at :66 — still per-property and
+dynamic, substance unaffected. FIX: policy table REKEYED to the
+(function, constructor) TaggedNativeFunction pair (one fix shared
+with R4.6); bounded by distinct code-address pairs; §1.3 restated.
+FULL text ANNEX CF1.2.
+
+R4.3 ACCEPTED (major): the §1.1 function-identity premise breaks
+for dispatch trampolines — runStdFunction's semantic body lives on
+the callee cell (JSNativeStdFunction.cpp:60-65), so a single
+ConcurrentOk flip would bless every lambda ever installed,
+including post-audit ones; §5 had no clause forcing the auditor to
+notice, and §2.4's per-call-site opt-in was unimplementable for
+std-function natives (conflicting policies on one key
+RELEASE_ASSERT). The spec never mentioned JSNativeStdFunction —
+missed-state, as filed. FIX: NA-I25 + new §1.5 (trampolines
+PERMANENTLY Locked; Locked-keep-only NA1 rows); AT1 mandatory "body
+closed over key?" field; §2.4 dedicated-pointer-only opt-in; NA-X6
+charts per-cell affinity. FULL text ANNEX CF1.3.
+
+R4.5 ACCEPTED (major): ANNEX EX1's ctor signature
+`NativeLockDropScope(VMLite*)` contradicted the restated NA-I1 —
+C++ evaluates ctor arguments eagerly, so every common-path JS-entry
+site had to materialize the lite (the only common-path source being
+TLS t_currentVMLite, runtime/VMLite.cpp:67; L4 accessors
+VMLite.h:333-345) BEFORE the level-0 gate: a TLS load per JS entry
+in flag-off/GIL-on processes, the R3.11 defect class one level
+down (two binding texts, conflicting instructions); and the spec
+never said how site 8 — keyed on the THREAD's gilOff-VM lite, not
+the entered VM's — obtains a non-default lite. FIX: EX1 rewritten
+with TWO forms — default no-arg ctor resolving
+VMLite::currentIfExists() INSIDE the ctor after the gilOffProcess
+gate (sites 1-7), and an explicit-lite form for site 8 only,
+passing the pre-swap lite the §F.5 funnel already holds (the
+setCurrent return value / LIFO restore tuple); §3.3 restated to
+the cost actually paid; the L4 accessor cited both places.
+
+R4.6 ACCEPTED (major): the NA-I5 conflict RELEASE_ASSERT, keyed on
+the full HostFunctionKey, let the same body carry conflicting
+policy under different names/visibilities silently — voiding the
+Locked guarantee for that body (the Locked alias's NL serializes
+nothing against the ConcurrentOk alias) and silently defeating
+§5.2 flip discipline; rev-4 NA-T8 (same key registered twice)
+never exercised the alias path. FIX: shared with R4.2 — per-pair
+PolicyKey makes the assert alias-independent and strictly
+stronger; NA-T8 alias arms (different name, different visibility);
+§5.2 every-registration-site consequence recorded. FULL text
+ANNEX CF1.2.
+
+R4.7 ACCEPTED (blocker): a Locked native firing an §A.3 conductor
+(Class-4 haveABadTime, sync GC, or losing arbitration) was
+normatively forbidden by NA-I13 and unlicensed by LK.1c — the
+NLH1.4 hole one row over. Verified: §K.5 rule 5 makes the caller
+the conductor (SPEC-ungil.md:768-780 — CITATION CORRECTION: the
+reviewer's :775-783 range; rule text actually spans :768-780,
+same clause); HBT4 binds ALL conductors to release-access ->
+arbitration -> GCL with losers parking access-released on the
+§LK.4b slot (SPEC-ungil.md:240-247, :873-886); NLH1.4
+(:883-885) licenses NLS-held-on-entry but nothing licensed NL;
+NA-I13's sole exemption did not cover conductor brackets; NL1's
+conductor analysis covered only holder-is-stopped. The R2.6 bug
+class (legal mandated path fires the assert) recurring, plus a
+lock-table scope hole. FIX (reviewer's three-part shape adopted):
+LK.1c conductor-HOLD clause + acyclicity walk + §LK.4b held-with
+amendment into the §9.1 gate scope (spec §3.5); NA-I13 exemption
+(b) for HBT4 conductor-bracket/loser-park transitions (spec §3.4);
+NL1 conductor paragraph extended (holder-as-conductor,
+holder-as-loser); NA-T4 conductor-holds-NL arm incl. loser
+variant. FULL text ANNEX BL1.6.
+
+R4.8 ACCEPTED (major): NA-I1's "non-GILOFF builds byte-identical
+outright" and NA-T9(c) were falsified by rev 4's own C++ surfaces
+— verified: GILOFF_TLS exists only in
+llint/LLIntOfflineAsmConfig.h:187-191; g_jscConfig.gilOffProcess
+is an UNCONDITIONAL field (runtime/JSCConfig.h:177; common-C++
+latch :79-96), so the EX1 drop scope, §4.5/§2.6 brackets and §1.3
+side table compile and execute in every build, and the §1.3
+registration-path consult (deliberately not mode-gated — gating it
+would void NA-I5/NA-T8 in GIL-on processes and miss
+pre-gilOff-latch registrations) contradicted "EXECUTED sequences
+unchanged" as an absolute. Rev 4 was internally inconsistent
+(claimed whole-build byte identity while carving out the EX1
+branch). The R3.10 defect recurring on the C++ axis, as filed.
+FIX: NA-I1 restated as a per-surface cost contract (LLInt asm /
+GIL-on thunks / C++ branch-per-funnel + declared cold
+registration consult); §1.3 gains the explicit MODE DISPOSITION
+sentence (table active in every configuration by design); NA-T9
+rechartered — (c) scoped to the offlineasm ASM artifact, new (d)
+C++ branch/TLS-load-count oracle at the EX1 funnels.
+
+Supersessions recorded this side: rev-4 §2.1 two-funnel enumeration
++ NA-I6 funnel scope (R4.1), rev-4 NA-I5 HostFunctionKey keying +
+"size bounded by distinct host functions" rationale + NA-T8 charter
+(R4.2/R4.6), rev-4 §1.1 unqualified function-identity rationale +
+§2.4 unconditional opt-in + AT1 field set (R4.3), rev-4 EX1
+single-signature ctor + §3.3 gating text (R4.5), rev-4 NA-I13
+single-exemption scope + §3.5 row text + NL1 conductor paragraph
+(R4.7), rev-4 NA-I1 "non-GILOFF byte-identical" + NA-T9(c) (R4.8).
+Size-cap supersessions (content unchanged, location moved): §4.2/
+§4.3 emitter text -> ANNEX EM1; §5.1 field listing -> ANNEX AT1;
+§4.6 exempt-set parenthetical -> ANNEX TC1 NA-T7; §0.1/§0.3/§1.1/
+§1.2/§2.3/§2.5/§2.6/§3.1/§3.2/§6 prose compressed against existing
+history records. Counterparty-spec obligations remain gates, not
+edits made here: §9.1 (rev-5-extended: conductor-HOLD clause +
+§LK.4b held-with amendment), §9.2-§9.4, §9.6 — all
+SUPERSESSION-PENDING; no text outside
+SPEC-nativeaffinity{,-history}.md was modified.
+
+## Review round 5 (2026-06-07) -> rev 6
+
+Seven reviewer findings received (one — R5.7 — arrived TRUNCATED
+mid-sentence inside its third numbered item; the legible defects
+were dispositioned, the truncation recorded in SC2.6). Every
+file:line citation re-verified against the live tree and the
+counterparty specs before acceptance. No finding refuted this
+round; three citation corrections recorded under their items.
+Size-cap action: spec body was at 49,968/50,000 pre-round; rev-6
+full texts land in NEW ANNEX SC2 + amendments to NL1/EX1/PT1/TC1;
+body prose compressed against existing BINDING annex/history
+records (content unchanged, location/derivation cited): §0.1-§0.4,
+§1.1-§1.3, §1.5, §2.1, §2.3-§2.4, §2.6, §3.1-§3.5, §4.1,
+§4.4.1(b,d)/NA-I23, §5.2, §6, §7 NA-I1, §9.1, §10, reading order.
+Post-round body 49,935 bytes. Dispositions:
+
+R5.1 ACCEPTED (blocker): NL held across carrier wasm execution and
+across wasm->JS import re-entry; the NA-I11 funnel family
+structurally cannot see the wasm channel. Verified: refusal helper
+throws only on spawned threads + ":70-72" warm-IC-disabled comment
+(wasm/js/WebAssemblyFunction.cpp:69-78, :70-72 — reviewer wrote
+:62-78/:71-72, same clauses, minor drift); vmEntryToWasm at :94;
+wasmToJS import call via CallLinkInfo::emitDataICFastPath
+(wasm/js/WasmToJS.cpp:350; reviewer :348-349, drift); no
+vmEntryToJavaScript* symbol on the path. ADDITIONALLY verified
+beyond the filing: a THIRD vmEntryToWasm caller exists that rev 5
+never mentioned at all — Interpreter::executeCallImpl's wasm arm,
+interpreter/Interpreter.cpp:1316 — and the microtask wasm arm
+lives at JSMicrotask.cpp:203 (spec said :204). The BL1.4-edge
+deadlock and the GIL-regrowth composition check out as filed; not
+re-litigation (CF1.1/§4.5 addressed only the ACQUIRE side; the
+exempt-cite's "not a host-native call" sentence concealed the
+dominant path). FIX (reviewer's shape adopted whole): NA-I26 —
+vmEntryToWasm callers are the SECOND callee-defined drop-scope
+family; EX1 site 9 (three callers); §4.5 exempt-cite superseded;
+NA-T7 twelfth family; NA-T3 wasm arm; NA-T11(d) witness; §3.3 now
+states the vmEntryToJavaScript* family closes only the C++->JS
+boundary. FULL text ANNEX SC2.1, which also records (not actions)
+a possible SPEC-ungil §I refusal gap at the two non-host-function
+vmEntryToWasm arms.
+
+R5.2 ACCEPTED (major): JSCallbackObject/JSClassRef embedder
+callbacks were a coverage hole. Verified: methodTable overrides at
+API/JSCallbackObject.h:211-225; raw JSClassRef callback
+invocations in JSCallbackObjectFunctions.h (getProperty :175,
+setProperty :282-306, deleteProperty :415, hasProperty :164,
+initialize :139, convertToType :250, static-table arms); NA-I24/
+SC1.3 scoped to GlobalObjectMethodTable.h:58-71 only; UNGIL-HANDOUT
+R30 covers data maps only; grep over SPEC-api.md rev 14 confirms NO
+C-API/JSClassRef clause — §2.4's "SPEC-api keeps C-API entry
+carrier-bound anyway" was uncited and false, and hook invocation
+needs no API entry anyway (shared-heap publication + spawned-thread
+property access). The function-face/object-face inconsistency
+confirmed (JSCallbackFunction is InternalFunction-backed, NA-I8).
+FIX (reviewer option (a)): NA-I27 — NL-bracket the JSClassRef
+callback invocation expressions (finalize EXEMPT-CITED: GC context,
+NA-I10); NA-T7 eleventh family; NA-I24/SC1.3 amended to name the
+family; §2.4 sentence deleted and §2.7 added. Option (b) (refusal)
+charted NA-X7. FULL text ANNEX SC2.2.
+
+R5.3 ACCEPTED (blocker): the handleHostCall C++ funnels and the
+CallData-native-without-NativeExecutable callable family were
+outside every coverage mechanism. Verified: direct
+`callData.native.function(...)` calls at llint/LLIntSlowPaths.cpp
+:2222/:2243 and bytecode/RepatchInlines.h:96/:117; tag hidden in
+TaggedNativeFunction (NativeFunction.h:40) so no NA-T7 family
+matched; family members ProxyObject.cpp:644/:703,
+JSCallbackObjectFunctions.h getCallData/getConstructData,
+JSCallbackConstructor.cpp:75; §2.4(b) wrong (JSCallbackFunction
+`final : public InternalFunction`, API/JSCallbackFunction.h:37 —
+NO NativeExecutable minted); §4.5 helper unimplementable for
+executable-less callees (Interpreter.cpp:1320 native arm; reviewer
+wrote :1319, drift). ADDITIONALLY verified: both funnels are
+reached ONLY by non-JSFunction, non-InternalFunction callables
+(LLIntSlowPaths.cpp:2263-2270, RepatchInlines.h:138-167), which
+makes the unconditional disposition exact, not conservative
+overreach. FIX (reviewer suggestion (b)-(e) adopted; (a)'s
+enumeration recorded): NA-I28 — unconditional NL bracket at both
+funnels + the specified executable-less helper arm; §2.4(b)
+corrected to NA-I8 + JSCallbackObject named; NA-T7 tenth family.
+FULL text ANNEX SC2.3.
+
+R5.4 ACCEPTED (major): the §4.4.1b/d nullptr-generator RULEs
+provably do not disable the intrinsic-call/getter bypasses, and
+SC1.2's "alongside b" inherited the hole. Verified: intrinsic
+passed to all three forCall arms regardless of generator
+(JITThunks.cpp:271-279; reviewer :270-280, drift), no-JIT arm
+VM.cpp:1441, admission chain DFGByteCodeParser.cpp:2095-2098 ->
+ExecutableBaseInlines.h:43-54 -> NativeExecutable.cpp:90-92;
+Locked intrinsics live at :2747/:2855/:3749/:3851 with
+unshift/splice/assign/replace all outside the PT1 seed;
+getter admission keys on the executable's intrinsic
+(IntrinsicGetterAccessCase.cpp:50, InlineCacheCompiler.cpp:4473).
+The spec as written affirmatively misled (a reader implementing
+b/d would believe surface (a) closed). FIX (reviewer's mechanism
+adopted): NA-I29 — gilOff m_concurrentOk admission guards at the
+three sites, NA-I23 style; SC1.2 wording superseded; NA-T6
+recharter (guards exist + witness). FULL text ANNEX SC2.4.
+
+R5.5 ACCEPTED (major): the JSC_NATIVE_*/putDirectNativeFunction
+macro layer — the PT1 seed's ACTUAL registration surface — had no
+named policy-input mechanism; PT1's "Registration =" header was
+wrong for most of its own rows. Verified: ObjectPrototype.cpp:
+65-66, ArrayPrototype.cpp:107-124, JSObject.h:1007-1009; CITATION
+CORRECTION: the macro block lives at JSObject.h:2212-2228, not
+:2173-2189 (substance stands); Math/Atomics additionally register
+via BARE putDirectNativeFunctionWithoutTransition calls
+(MathObject.cpp:93ff, AtomicsObject.cpp:94) — slightly WIDER than
+filed, folded into the same fix. Correctness was never at risk
+(NA-I6 default) but the v1-critical opt-in route was unspecified.
+FIX: NA-I30 — defaulted NativeConcurrency threaded through the
+putDirect layer + JSFunction::create + macro variants; §2.1 gains
+the third policy surface; PT1 header rewritten per-group. FULL
+text ANNEX SC2.5.
+
+R5.6 ACCEPTED (blocker): NL1 step (a) routed termination-class
+traps into an NVS park with no completion path. Verified:
+termination is VM-wide + sticky-until-own-§E.2-close with
+quantum-poll delivery and NO conductor/resume (SPEC-ungil §A.2.4/
+TERM1, SPEC-ungil.md:151-157 rule 4, :160-171 rule 6, :552-556;
+ANNEX TERM1.2/1.3); NL1 step (a)'s "stop/trap" predicate +
+step-(d) loop (history :43-52 pre-rev-6) therefore never reached
+the CAS under either park semantics — hang or quantum livelock —
+while NA-I12 (spec) and EX1's own termination paragraph mandated
+COMPLETION: two BINDING texts in contradiction, the R2.6/R4.7 bug
+class, and no charter covered terminate-vs-NL-waiter. FIX
+(reviewer's split adopted verbatim): NL1 step (a) and the
+step-(b) win-CAS re-poll split by trap class (STOP-CLASS parks,
+validated against the stop word; TERMINATION-ONLY proceeds and
+completes the acquisition, delivery at the §4 bracket's post-call
+check); EX1 termination paragraph rewritten ("polls; parks only
+if a stop is concurrently in progress"); NA-T4
+termination-vs-NL-waiter arm. Rev-5 texts of record: NL1 (a) "if
+this lite's stop/trap bit is set, park on the lite's OWN NVS
+ticket per the standard §J.3 park protocol ...; on wake, run the
+§A.3.2b post-wake poll BEFORE continuing"; EX1 "a termination
+trap observed during the dtor's reacquire parks/polls per NL1
+step (b) and then COMPLETES the reacquire".
+
+R5.7 ACCEPTED (major; truncated as received): the NA-I5 policy
+side-table lock had no §LK row, no U20 coverage, no pinned order
+against JITThunks::m_lock, no holding discipline, no §9 gate.
+Verified: §LK is the canonical U20-linted one-order table
+(SPEC-ungil.md:867-925, "§LK canonical for U20 (r22 list)");
+hostFunctionStub takes m_lock twice around NativeExecutable::
+create (Lockers at jit/JITThunks.cpp:260/:284, create :282, both
+sections under AssertNoGC; reviewer wrote ":259/:284", drift);
+the consult's position among them was genuinely unpinned (NA-I3's
+ctor-store sentence invited reading the consult INTO the ctor,
+i.e. between the locked sections, creating an unexamined
+leaf-under-leaf edge). FIX: SC2.6 pins the consult OUTSIDE
+m_lock and OUTSIDE the ctor (true leaf; no allocation, no
+acquisition, no park under it; never held across create/GC);
+§1.3 gains the lock-row sentence; NEW gate §9.7 (SPEC-ungil §LK.7
+leaf row, both-sides, SUPERSESSION-PENDING — blocks §1.3
+enforcement-structure implementation).
+
+Supersessions recorded this side: rev-5 §4.5 wasm exempt-cite +
+"carrier JS-to-Wasm is not a host-native call" sentence + §3.3
+single-family funnel claim (R5.1, NA-I26); rev-5 §2.4 "SPEC-api
+keeps C-API entry carrier-bound anyway" sentence + NA-I24/SC1.3
+silent absorption of the ClassInfo-methodTable family (R5.2,
+NA-I27); rev-5 §2.4(b) "mints Locked executables UNCONDITIONALLY"
++ §4.5 "executable from the CallData/callee" recipe + NA-I17
+"COMPLETE" surface set (R5.3, NA-I28); rev-5 §4.4.1b/d adequacy
+implication + SC1.2 "alongside the §4.4.1b suppression" wording
+(R5.4, NA-I29); rev-5 §2.1 two-mechanism policy-surface list +
+PT1 "Registration =" header (R5.5, NA-I30); rev-5 NL1 step (a)
+predicate + step (b) re-poll + EX1 termination paragraph (R5.6);
+rev-5 §1.3 bare "leaf-rank lock" parenthetical (R5.7, SC2.6).
+Counterparty-spec obligations remain gates, not edits made here:
+§9.1-§9.4, §9.6 unchanged; NEW §9.7 (policy-lock §LK.7 leaf row);
+the SC2.1 §I-refusal observation is recorded for the SPEC-ungil
+owner, not actioned. No text outside
 SPEC-nativeaffinity{,-history}.md was modified.

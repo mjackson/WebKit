@@ -622,7 +622,9 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     if (vm.trapsForCurrentThread().m_trapsDeferred)
         RELEASE_AND_RETURN(scope, false); // We'll service them on the next opportunity after deferring has stopped.
 
-    if (vmLevelTraps.isDeferringTermination())
+    // Per-thread keying (see DeferTermination.h): only THIS thread's own
+    // deferral masks termination servicing on this thread.
+    if (vm.trapsForCurrentThread().isDeferringTermination())
         mask &= ~NeedTermination;
 
     // UNGIL TERM1.2 interim (single shared trap word): a GIL-off carrier that
@@ -826,7 +828,7 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
                 fanOutTerminationToSiblingLites();
             vm.setHasTerminationRequest();
             scope.release();
-            if (!vmLevelTraps.isDeferringTermination())
+            if (!vm.trapsForCurrentThread().isDeferringTermination()) // Per-thread deferral keying (DeferTermination.h).
                 vm.throwTerminationException();
             return true;
 
