@@ -296,7 +296,7 @@ public:
                     jit.jitAssertCodeBlockOnCallFrameWithType(scratch, JITType::FTLJIT);
 
                     jit.addPtr(CCallHelpers::TrustedImm32(-maxFrameSize), GPRInfo::callFrameRegister, scratch);
-                    auto stackOverflow = jit.branchPtr(CCallHelpers::GreaterThan, CCallHelpers::AbsoluteAddress(vm->addressOfSoftStackLimit()), scratch);
+                    auto stackOverflow = jit.branchPtrAgainstSoftStackLimit(*vm, CCallHelpers::GreaterThan, scratch); // UNGIL §A.2.2 (AB-17): per-lite GIL-off.
                     stackOverflow.linkThunk(CodeLocationLabel(vm->getCTIStub(CommonJITThunkID::ThrowStackOverflowAtPrologue).retaggedCode<NoPtrTag>()), &jit);
 
                     if (ftlFrameSize)
@@ -15220,7 +15220,7 @@ IGNORE_CLANG_WARNINGS_END
 
                     // We are leaving this underflow check just because we are not 100% confident that the difference can be within 32bit range.
                     slowCase.append(jit.branchPtr(CCallHelpers::Above, scratchGPR1, GPRInfo::callFrameRegister));
-                    slowCase.append(jit.branchPtr(CCallHelpers::GreaterThan, CCallHelpers::AbsoluteAddress(vm->addressOfSoftStackLimit()), scratchGPR1));
+                    slowCase.append(jit.branchPtrAgainstSoftStackLimit(*vm, CCallHelpers::GreaterThan, scratchGPR1)); // UNGIL §A.2.2 (AB-17): per-lite GIL-off.
 
                     // Before touching stack values, we should update the stack pointer to protect them from signal stack.
                     jit.addPtr(CCallHelpers::TrustedImm32(sizeof(CallerFrameAndPC)), scratchGPR1, CCallHelpers::stackPointerRegister);

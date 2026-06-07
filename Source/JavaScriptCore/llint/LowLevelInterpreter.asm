@@ -278,17 +278,16 @@ const VMTrapsAsyncEvents = constexpr VMTraps::AsyncEvents
 const VMTrapAwareSoftStackLimitOffset = VM::m_threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_trapAwareSoftStackLimit
 const VMCLoopStackLimitOffset = VM::m_threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_cloopStackLimit
 const VMSoftStackLimitOffset = VM::m_threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_softStackLimit
-# UNGIL sec A.2.2 (AB-17 item 3) -- STAGED, NOT YET REFERENCED by any check site:
-# GIL-off, stack limits live in the CURRENT thread's VMLite (L2 append
-# threadContext); generated code will reach them via these chained offsets,
-# selected per site by the landed Group-3 discriminator. The prologue
-# stack-check reroute that consumes them must land ONLY in the same atomic
-# change as the VMTraps per-lite stop fan (VMTraps.h activation checklist
-# item 3c) and the remaining soft-limit reader legs (doVMEntry/CLoop sites,
-# Baseline/DFG/FTL/thunk/varargs/Yarr emission sites, C++ accessors) --
-# rerouting the read side first would leave VM-wide trap requests
-# (termination, GC safepoints) poking a word the rerouted site no longer
-# reads: lost/late trap delivery even single-entered GIL-off.
+# UNGIL sec A.2.2 (AB-17 item 3) -- ACTIVE: GIL-off, stack limits live in the
+# CURRENT thread's VMLite (L2 append threadContext); the shared prologue
+# stack check (trap-aware word) and the doVMEntry/arity checks (plain word)
+# reach them via these chained offsets, selected per site by the landed
+# Group-3 discriminator. Landed atomically with the VMTraps per-lite stop fan
+# (VMTraps.h activation checklist item 3c), the servicing dispatch (item 3b),
+# the Baseline/DFG/FTL/thunk/varargs/Yarr emission-site reroutes, and the C++
+# accessor reroute (softStackLimitForCurrentThread) -- the fan is what keeps
+# VM-wide trap requests (termination, GC safepoints) poking the per-lite
+# words these sites now read.
 const VMLiteTrapAwareSoftStackLimitOffset = VMLite::threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_trapAwareSoftStackLimit
 const VMLiteSoftStackLimitOffset = VMLite::threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_softStackLimit
 
@@ -1928,8 +1927,21 @@ macro prologue(osrSlowPath, traceSlowPath)
 if not ADDRESS64
     bpa t0, cfr, .needStackCheck
 end
+    # UNGIL sec A.2.2 (AB-17 item 3): GIL-off, the TRAP-AWARE soft limit this
+    # check consumes is per-thread state on the CURRENT lite (poked by the
+    # per-lite stop fan, VMTraps.h checklist item 3c). The discriminator's
+    # fall-through keeps today's VM-word form byte-for-byte (modulo the
+    # landed delta-(a) config byte test); the taken path leaves the VMLite*
+    # in t2 (dead here -- the fall-through clobbers it with CodeBlock::m_vm
+    # immediately).
+    branchIfGilOffGroup3ToT2(.stackCheckLiteStorage)
     loadp CodeBlock::m_vm[t1], t2
     bpbeq VMTrapAwareSoftStackLimitOffset[t2], t0, .stackHeightOK
+if GILOFF_TLS
+    jmp .needStackCheck
+.stackCheckLiteStorage:
+    bpbeq VMLiteTrapAwareSoftStackLimitOffset[t2], t0, .stackHeightOK
+end
 
 .needStackCheck:
     # Stack height check failed - need to call a slow_path.

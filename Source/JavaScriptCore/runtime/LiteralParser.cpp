@@ -1323,7 +1323,7 @@ JSValue LiteralParser<CharType, reviverMode>::parseRecursivelyEntry(VM& vm)
         return parse(vm, StartParseExpression, nullptr);
     TokenType type = m_lexer.currentToken()->type;
     if (type == TokLBrace || type == TokLBracket)
-        return parseRecursively<ParserMode::StrictJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimit()));
+        return parseRecursively<ParserMode::StrictJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow()));
     return parsePrimitiveValue(vm);
 }
 
@@ -1340,7 +1340,7 @@ JSValue LiteralParser<CharType, reviverMode>::evalRecursivelyEntry(VM& vm)
 
         JSValue result;
         if (type == TokLBrace || type == TokLBracket)
-            result = parseRecursively<ParserMode::SloppyJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimit()));
+            result = parseRecursively<ParserMode::SloppyJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow()));
         else
             result = parsePrimitiveValue(vm);
 
@@ -1358,7 +1358,7 @@ JSValue LiteralParser<CharType, reviverMode>::evalRecursivelyEntry(VM& vm)
     }
 
     if (type == TokLBracket)
-        return parseRecursively<ParserMode::SloppyJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimit()));
+        return parseRecursively<ParserMode::SloppyJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow()));
     return parsePrimitiveValue(vm);
 }
 
@@ -1966,7 +1966,7 @@ StreamingJSONParseResult LiteralParser<CharType, reviverMode>::tryStreamingParse
         JSValue value;
         if (type == TokLBrace || type == TokLBracket) {
             if (Options::useRecursiveJSONParse()) [[likely]]
-                value = parseRecursively<StrictJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimit()));
+                value = parseRecursively<StrictJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow()));
             else
                 value = parse(vm, StartParseExpression, nullptr);
         } else

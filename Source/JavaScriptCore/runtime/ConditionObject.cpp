@@ -32,9 +32,26 @@
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
 #include "ThreadObject.h"
+#include "ThreadManager.h"
+#include "VMLite.h"
+#include "VMTraps.h"
 #include <wtf/ParkingLot.h>
 
 namespace JSC {
+
+// UNGIL §A.2.4 rule 4 / annex W W1 (AB-17 item 4) — park-lite predicates and
+// the W1 carrier service episode. Same-library seams (consumers redeclare;
+// the predicates of record live in VMTraps.cpp, the episode helper and the
+// captured-lite accessor in JSLock.cpp). GIL-on,
+// parkLitePollTerminationRequested(vm, nullptr) is byte-equivalent to the
+// landed jsThreadParkTerminationRequested (watchdog-check folded in);
+// GIL-off it is termination-ONLY against the PARK lite's word, and the
+// watchdog-check bit is serviced by the W1 episode instead of being treated
+// as a termination verdict.
+bool parkLitePollTerminationRequested(VM&, VMLite* parkLite);
+bool parkLitePollWatchdogCheckRequested(VM&, VMLite* parkLite);
+VMLite* capturedParkLiteOfCurrentThreadIfAny(VM&);
+bool reacquireParkedCarrierAndServiceWatchdogCheck(VM&);
 
 const ClassInfo JSConditionObject::s_info = { "Condition"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSConditionObject) };
 
@@ -128,6 +145,15 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
         // DropAllLocks' strict-LIFO unwind protocol cannot tolerate.
         GILDroppedSection droppedSection(vm);
 
+        // UNGIL §A.2.4 rule 4 / annex W W1 (AB-17 item 4): park-lite D9
+        // polls + the W1 watchdog split (see the contended-hold loop in
+        // LockObject.cpp). GIL-on byte-equivalent.
+        const bool gilOff = vm.gilOff();
+        const bool isSpawnedParker = gilOff && ThreadManager::isJSThreadCurrent();
+        VMLite* parkLite = nullptr;
+        if (gilOff)
+            parkLite = isSpawnedParker ? VMLite::currentIfExists() : capturedParkLiteOfCurrentThreadIfAny(vm);
+
         // Step 4: park on &waiter->state, in 10ms quanta that poll
         // jsThreadParkTerminationRequested() between parks (landed deviation
         // D9, docs/threads/INTEGRATE-api.md): VMTraps cannot wake a
@@ -142,7 +168,25 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
         // re-loops (never surfaces as a spurious return), so quantum
         // wakeups are invisible to JS.
         while (waiter->state.load(std::memory_order_acquire) == CondWaiter::waiting
-            && !jsThreadParkTerminationRequested(vm)) {
+            && !parkLitePollTerminationRequested(vm, parkLite)) {
+            if (gilOff && !isSpawnedParker && parkLitePollWatchdogCheckRequested(vm, parkLite)) [[unlikely]] {
+                // W1 episode: no lock held at this poll point (queueLock is
+                // only taken in steps 1/5; ParkingLot is not entered).
+                bool watchdogTerminated = reacquireParkedCarrierAndServiceWatchdogCheck(vm);
+                if (watchdogTerminated) {
+                    // r15 F2 disposition (a): if a notify raced the episode
+                    // and dequeued us, the consumed notify is honored as a
+                    // successful wait — but then the W1 shield's premise
+                    // ("the park is about to fail") is falsified: revoke it
+                    // by re-raising VM-wide termination (fresh-raise rule),
+                    // so the verdict is delivered at the next trap poll
+                    // instead of being trimmed and retired.
+                    if (waiter->state.load(std::memory_order_acquire) != CondWaiter::waiting)
+                        vm.traps().fireTrapVMWide(VMTraps::NeedTermination);
+                    break;
+                }
+                continue; // Re-validate state before re-parking (disposition (b): the node stayed enqueued; no re-enqueue needed for a ParkingLot wait).
+            }
             ParkingLot::parkConditionally(
                 &waiter->state,
                 [&] { return waiter->state.load(std::memory_order_acquire) == CondWaiter::waiting; },
@@ -164,7 +208,7 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
                     return entry.ptr() == waiter.ptr();
                 });
                 RELEASE_ASSERT(removed);
-                terminated = jsThreadParkTerminationRequested(vm);
+                terminated = parkLitePollTerminationRequested(vm, parkLite); // AB-17 item 4: park-lite form, W1 split.
             }
         }
 
@@ -192,9 +236,18 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
             // "release" a lock it never owned (the sync-hold-steal /
             // double-unlock corruption seen in condition-async-wait.js).
             while (!lock.m_lock.tryLock()) {
-                if (jsThreadParkTerminationRequested(vm)) {
+                if (parkLitePollTerminationRequested(vm, parkLite)) {
                     terminated = true;
                     break;
+                }
+                if (gilOff && !isSpawnedParker && parkLitePollWatchdogCheckRequested(vm, parkLite)) [[unlikely]] {
+                    // W1 episode: no native lock held (tryLock failed; GIL
+                    // released by step 3's dropped section).
+                    if (reacquireParkedCarrierAndServiceWatchdogCheck(vm)) {
+                        terminated = true;
+                        break;
+                    }
+                    continue;
                 }
                 WTF::sleep(Seconds::fromMilliseconds(1));
             }

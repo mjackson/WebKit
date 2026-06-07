@@ -1404,7 +1404,7 @@ WASM_IPINT_EXTERN_CPP_DECL(check_stack_and_vm_traps, void* candidateNewStackPoin
     UNUSED_PARAM(callFrame);
 #endif
 
-    if (vm.traps().handleTrapsIfNeeded()) {
+    if (handleTrapsForCurrentThreadIfNeeded(vm)) { // UNGIL §A.2.2 item 3b (AB-17): GIL-off lite-then-VM dispatch; GIL-on byte-identical.
         if (vm.hasPendingTerminationException())
             IPINT_THROW(Wasm::ExceptionType::Termination);
         ASSERT(!vm.exceptionForInspection());

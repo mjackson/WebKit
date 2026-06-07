@@ -679,9 +679,16 @@ static void spawnedDropAllLocksBracketExit(VM& vm)
         // complete; on release the thread resumes here and observes the
         // deferred traps.
         token->lite->clientHeap->acquireHeapAccess();
-        if (VMTraps* liteTraps = perThreadTrapsIfExists(*token->lite))
+        // UNGIL §A.2.2 item 3b (AB-17): lite-then-VM dispatch — the lite's
+        // own word carries the rule-3 fanned bits; the VM word carries
+        // raises that target it directly (e.g. notifyNeedStopTheWorld's
+        // fireTrap). Skip the VM-level service while a termination thrown by
+        // the lite service is pending (the caller is about to unwind).
+        if (VMTraps* liteTraps = perThreadTrapsIfExists(*token->lite); liteTraps && liteTraps != &vm.traps()) {
             liteTraps->handleTrapsIfNeeded();
-        else
+            if (!vm.hasPendingTerminationException()) [[likely]]
+                vm.traps().handleTrapsIfNeeded();
+        } else
             vm.traps().handleTrapsIfNeeded();
     }
 }
@@ -887,10 +894,15 @@ static void completeDeferredForeignCarrierRestoreAfterUnlock()
     // VM cannot die under us — this thread still holds its outer entry
     // (token + m_lock/lite), so the outer ~VM's EXIT1.9 fence cannot pass.
     restored->clientHeap->acquireHeapAccess(); // gated; parks if the outer VM is mid-stop; ISB1.2 sync on the success path
-    if (VMTraps* liteTraps = perThreadTrapsIfExists(*restored))
+    // UNGIL §A.2.2 item 3b (AB-17): lite-then-VM dispatch (see the DAL2 dtor
+    // poll above for the rationale).
+    VM& restoredVM = *restored->vm;
+    if (VMTraps* liteTraps = perThreadTrapsIfExists(*restored); liteTraps && liteTraps != &restoredVM.traps()) {
         liteTraps->handleTrapsIfNeeded();
-    else
-        restored->vm->traps().handleTrapsIfNeeded();
+        if (!restoredVM.hasPendingTerminationException()) [[likely]]
+            restoredVM.traps().handleTrapsIfNeeded();
+    } else
+        restoredVM.traps().handleTrapsIfNeeded();
 }
 
 // ============================================================================

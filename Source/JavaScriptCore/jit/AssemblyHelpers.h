@@ -124,6 +124,46 @@ public:
 #endif
     }
 
+    // UNGIL §A.2.2 (AB-17): the one soft-stack-limit comparison emitter for
+    // every Baseline/DFG/FTL/thunk/varargs/Yarr stack-check site. Compares
+    // LIMIT (lhs) <cond> candidateGPR (rhs), exactly like the landed
+    // `branchPtr(cond, AbsoluteAddress(vm.addressOfSoftStackLimit()), reg)`
+    // form — which the flag-off/GIL-on arm still emits byte-for-byte.
+    // GIL-off (COMPILED-FOR-VM mode, §A.1.3: vm.gilOff() is VM-immutable, so
+    // the split is a compile-time property of the code being emitted): the
+    // limit is PER-THREAD state — load the CURRENT thread's VMLite and read
+    // the chained per-lite plain soft limit
+    // (lite->threadContext.traps().m_stack.m_softStackLimit, published by
+    // that thread's own pass through VM::updateStackLimits). Trap delivery
+    // at these sites is unchanged: they compare the PLAIN limit; the
+    // trap-aware word is the LLInt shared-prologue site's job (per-lite
+    // there too, poked by the item-3c stop fan).
+    //
+    // Scratch discipline (the prepareCallOperation idiom above): only the
+    // per-arch macro-assembler reserved temp is used — the same register the
+    // GIL-on AbsoluteAddress form already clobbers on each arch — so no call
+    // site's live-range assumptions change.
+    Jump branchPtrAgainstSoftStackLimit(VM& vm, RelationalCondition cond, GPRReg candidateGPR)
+    {
+        if (vm.gilOff()) [[unlikely]] {
+#if CPU(ARM64)
+            // Cache-invalidating accessor: see prepareCallOperation above.
+            GPRReg scratchGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+            GPRReg scratchGPR = scratchRegister(); // r11, already clobbered by the GIL-on absolute-address compare.
+#else
+            // SPEC-jit annex App. R5: no gilOff support on this platform;
+            // loadVMLite fail-stops at emission before this load is reached.
+            GPRReg scratchGPR = GPRInfo::nonArgGPR0;
+#endif
+            ASSERT(scratchGPR != candidateGPR);
+            loadVMLite(scratchGPR);
+            loadPtr(Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfThreadContext() + VMThreadContext::offsetOfTraps() + VMTraps::offsetOfSoftStackLimit())), scratchGPR);
+            return branchPtr(cond, scratchGPR, candidateGPR);
+        }
+        return branchPtr(cond, AbsoluteAddress(vm.addressOfSoftStackLimit()), candidateGPR);
+    }
+
 #if USE(JSVALUE32_64)
     template <typename Tag, typename Payload, typename Dst>
     void storeAndFence32(Tag&& tag, Payload&& payload, Dst&& dst)

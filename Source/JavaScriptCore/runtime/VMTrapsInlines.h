@@ -31,6 +31,15 @@ namespace JSC {
 
 ALWAYS_INLINE VM& VMTraps::vm() const
 {
+    // UNGIL §A.2.2 item 3b (AB-17): the `this - VM::offsetOfTraps()`
+    // arithmetic is valid ONLY for the VM-embedded instance. A per-lite
+    // instance (embedded in VMLite::threadContext) carries its owner VM in
+    // m_liteOwnerVM, stamped once at VMLiteRegistry::registerLite (the sole
+    // writer of lite.vm) before the lite is installable — consult it FIRST.
+    // GIL-on / flag-off: m_liteOwnerVM is null on the VM-embedded instance,
+    // byte-identical behavior.
+    if (m_liteOwnerVM) [[unlikely]]
+        return *m_liteOwnerVM;
     return *std::bit_cast<VM*>(std::bit_cast<uintptr_t>(this) - VM::offsetOfTraps());
 }
 

@@ -1581,7 +1581,11 @@ void VM::clearSourceProviderCaches()
 
 bool VM::hasExceptionsAfterHandlingTraps()
 {
-    if (traps().needHandling(VMTraps::NonDebuggerAsyncEvents)) [[unlikely]]
+    // UNGIL §A.2.2 item 3b (AB-17): GIL-off dispatch services the current
+    // lite's instance too. GIL-on: byte-identical to the landed form.
+    if (m_gilOff) [[unlikely]]
+        handleTrapsForCurrentThreadIfNeeded(*this, VMTraps::NonDebuggerAsyncEvents);
+    else if (traps().needHandling(VMTraps::NonDebuggerAsyncEvents)) [[unlikely]]
         traps().handleTraps(VMTraps::NonDebuggerAsyncEvents);
     return exception();
 }
@@ -1729,13 +1733,13 @@ static void preCommitStackMemory(void* stackLimit)
 
 void VM::updateStackLimits()
 {
-    // UNGIL §A.2.2 (AB-17 item 3, PARTIAL — runtime side only): GIL-off, the
-    // soft limit generated code will check is PER-THREAD — the read and the
-    // publish below ALSO target the ENTERING thread's lite StackManager (its
-    // own StackBounds; no cross-thread clobber). The entering lite must be
-    // THIS VM's (I14 mirror): an off-entry updateSoftReservedZoneSize-style
-    // call on a thread carrying another VM's lite must not write VM-B bounds
-    // into VM-A's per-thread word. GIL-on / no-lite keeps the VM-level word.
+    // UNGIL §A.2.2 (AB-17 item 3, LANDED): GIL-off, the soft limit generated
+    // code checks is PER-THREAD — the read and the publish below target the
+    // ENTERING thread's lite StackManager (its own StackBounds; no
+    // cross-thread clobber). The entering lite must be THIS VM's (I14
+    // mirror): an off-entry updateSoftReservedZoneSize-style call on a
+    // thread carrying another VM's lite must not write VM-B bounds into
+    // VM-A's per-thread word. GIL-on / no-lite keeps the VM-level word.
     VMTraps* liteTraps = nullptr;
     if (m_gilOff) [[unlikely]] {
         if (VMLite* lite = VMLite::currentIfExists(); lite && lite->gilOff && lite->vm == this)
@@ -1751,39 +1755,23 @@ void VM::updateStackLimits()
     // that the value is sane.
     RELEASE_ASSERT(reservedZoneSize >= minimumReservedZoneSize);
 
-    // UNGIL §A.1.3/§A.2 mode split — PARTIAL (AB-17 item 3): the per-lite
-    // SOFT-limit publish is landed above (liteTraps), but LLInt/Baseline/
-    // DFG/FTL generated-code stack checks (and the C++ VM::softStackLimit()
-    // readers) STILL read the single VM-level word, so we DUAL-PUBLISH it
-    // below. With N concurrently entered threads each entry would clobber
-    // the one VM-level limit with its own StackBounds, so another thread's
-    // generated-code checks would compare against a foreign stack: missed
-    // overflow checks, memory-safety grade. Until the generated-code +
-    // C++-reader reroute lands (VMTraps.h activation checklist item 3),
-    // FAIL-STOP the N-entered shape instead of corrupting silently — this
-    // tripwire enforces it even under the useThreadGILOffUnsafe development
-    // escape hatch. Carrier entries all pass through here
-    // (JSLock::didAcquireLock -> setStackPointerAtVMEntry), so the second
-    // concurrent entry trips deterministically. Delete this walk AND the
-    // VM-level dual-publish only in the same change that reroutes every
-    // soft-limit read through the per-thread lite chain AND lands the
-    // VMTraps per-lite stop fan (checklist item 3c, VMTraps.h): once any
-    // generated-code site reads the per-lite trap-aware word, VM-wide trap
-    // requests must fan to every entered lite's word (and cancel must
-    // restore the PER-LITE saved value, never the VM word), or trap
-    // delivery is lost at the rerouted site even single-entered. GIL-on:
-    // branch not taken, byte-identical behavior.
-    if (m_gilOff) [[unlikely]] {
-        VMLite* currentLite = VMLite::currentIfExists();
-        auto& registry = VMLiteRegistry::singleton();
-        Locker locker { registry.lock };
-        for (VMLite* lite : registry.lites) {
-            if (lite->vm == this && lite != currentLite) {
-                RELEASE_ASSERT_WITH_MESSAGE(!lite->entryScope.load(std::memory_order_relaxed),
-                    "GIL-off N-entered entry refused: VM-level soft stack limit is shared (AB-17 item 3 not landed)");
-            }
-        }
-    }
+    // UNGIL §A.1.3/§A.2 mode split — §A.2.2 reroute LANDED (AB-17 item 3):
+    // every generated-code soft-limit read (LLInt shared prologue +
+    // doVMEntry/arity sites, Baseline/DFG/FTL/thunk/varargs/Yarr emission
+    // sites) and every C++ VM::softStackLimit() reader now resolves through
+    // the per-thread lite chain GIL-off (softStackLimitForCurrentThread /
+    // the VMLite* chained offsets), and the VMTraps per-lite stop fan
+    // (checklist item 3c) drives every lite's own trap-aware word. The
+    // former N-entered tripwire walk is deleted with this change (the
+    // VMEntryScope::setUpSlow gate retired per its own keying). The VM-level
+    // word remains published by CARRIER entries only — carriers are
+    // serialized under JSLock::m_lock, so there is no cross-thread clobber —
+    // because it still serves (a) no-lite threads' C++ fallback reads,
+    // (b) wasm instance StackManager mirrors (wasm execution is
+    // carrier-only GIL-off, §I), and (c) the GIL-on/flag-off protocol
+    // byte-identically. SPAWNED lites publish ONLY their own per-lite word:
+    // a spawned entry must never clobber the VM word another carrier's
+    // mirrors read.
     auto& primitives = group3Primitives();
     void* newSoftStackLimit = 0;
     if (primitives.m_stackPointerAtVMEntry) {
@@ -1802,10 +1790,11 @@ void VM::updateStackLimits()
     if (liteTraps && lastSoftStackLimit != newSoftStackLimit) [[unlikely]]
         liteTraps->setStackSoftLimit(newSoftStackLimit);
 
-    // DUAL-PUBLISH (interim — see the AB-17 comment above): the VM-level word
-    // is still the one every tier's generated code reads; safe while the
-    // tripwire above refuses N-entered shapes. GIL-on: liteTraps is null and
-    // this is the landed single publish, byte-identical.
+    // Carrier-only VM-word publish (see the AB-17 comment above). GIL-on:
+    // liteTraps is null and this is the landed single publish,
+    // byte-identical.
+    if (m_gilOff && ThreadManager::isJSThreadCurrent()) [[unlikely]]
+        return; // Spawned lite: per-lite word only (published above).
     if (traps().softStackLimit() != newSoftStackLimit) {
         traps().setStackSoftLimit(newSoftStackLimit);
 #if OS(WINDOWS)
@@ -1820,6 +1809,24 @@ void VM::updateStackLimits()
         preCommitStackMemory(newSoftStackLimit);
 #endif
     }
+}
+
+// UNGIL §A.2.2 (AB-17): out-of-line form of softStackLimitForCurrentThread
+// (VMInlines.h) for readers that cannot include VMInlines.h (JSStringInlines,
+// Yarr, JSON/LiteralParser). Same contract: GIL-off with a matching current
+// lite, the PLAIN per-lite soft limit (null falls back to the VM word —
+// a never-published per-lite limit must not disable overflow detection);
+// otherwise the VM word, byte-identical to the landed reads.
+void* VM::softStackLimitForCurrentThreadSlow() const
+{
+    if (m_gilOff) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->gilOff && lite->vm == this) {
+            if (void* liteLimit = lite->threadContext.traps().softStackLimit())
+                return liteLimit;
+        }
+    }
+    return softStackLimit();
 }
 
 #if ENABLE(DFG_JIT)

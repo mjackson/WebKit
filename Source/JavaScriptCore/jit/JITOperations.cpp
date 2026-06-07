@@ -3010,8 +3010,14 @@ JSC_DEFINE_JIT_OPERATION(operationHandleTraps, UnusedPtr, (JSGlobalObject* globa
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
-    ASSERT(vm.traps().needHandling(VMTraps::AsyncEvents));
-    vm.traps().handleTraps(VMTraps::AsyncEvents);
+    // UNGIL §A.2.2 item 3b (AB-17): GIL-off dispatch services the current
+    // lite's instance too. GIL-on: the landed unconditional form.
+    if (vm.gilOff()) [[unlikely]]
+        handleTrapsForCurrentThreadIfNeeded(vm);
+    else {
+        ASSERT(vm.traps().needHandling(VMTraps::AsyncEvents));
+        vm.traps().handleTraps(VMTraps::AsyncEvents);
+    }
     OPERATION_RETURN(scope, nullptr);
 }
 

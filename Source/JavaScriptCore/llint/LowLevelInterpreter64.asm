@@ -243,7 +243,17 @@ macro doVMEntry(makeCall)
 .stackHeightOK:
         move t3, sp
     else
+        # UNGIL sec A.2.2 (AB-17 item 3): per-lite soft limit GIL-off. t5 is
+        # dead at all three doVMEntry discriminator points (see the comment at
+        # the first one above); the taken path leaves the VMLite* in t5.
+        branchIfGilOffGroup3ToT5(.liteEntryStackCheck)
         bpbeq t3, VMSoftStackLimitOffset[vm],  _llint_throw_stack_overflow_error_from_vm_entry
+        if GILOFF_TLS
+            jmp .entryStackCheckDone
+        .liteEntryStackCheck:
+            bpbeq t3, VMLiteSoftStackLimitOffset[t5], _llint_throw_stack_overflow_error_from_vm_entry
+        .entryStackCheckDone:
+        end
         move t3, sp
     end
 
@@ -802,7 +812,17 @@ macro functionArityCheck(opcodeName, doneLabel)
     if C_LOOP
         bpbeq VMCLoopStackLimitOffset[t0], t5, .stackHeightOK
     else
+        # UNGIL sec A.2.2 (AB-17 item 3): per-lite soft limit GIL-off. t3 is
+        # dead here (consumed computing t5 above); the taken path leaves the
+        # VMLite* in t3.
+        branchIfGilOffGroup3ToT3(.liteArityStackCheck)
         bpbeq VMSoftStackLimitOffset[t0], t5, .stackHeightOK
+        if GILOFF_TLS
+            jmp .arityStackCheckSlow
+        .liteArityStackCheck:
+            bpbeq VMLiteSoftStackLimitOffset[t3], t5, .stackHeightOK
+        .arityStackCheckSlow:
+        end
     end
 
     prepareStateForCCall()

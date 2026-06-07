@@ -1150,8 +1150,15 @@ public:
     inline bool ensureJSStackCapacityFor(Register* newTopOfStack);
 
     void* stackLimit() { return group3Primitives().m_stackLimit; } // UNGIL §A.1.3 mode split.
+    // UNGIL §A.2.2 (AB-17): GIL-off, the soft stack limit is PER-THREAD
+    // state on the current lite — C++ readers must use
+    // softStackLimitForCurrentThread() (inline form in VMInlines.h; the
+    // out-of-line form below for files that cannot include VMInlines.h).
+    // The VM-level word serves no-lite threads, wasm instance mirrors, and
+    // the GIL-on/flag-off protocol byte-identically.
     ALWAYS_INLINE void* softStackLimit() const { return traps().softStackLimit(); }
     ALWAYS_INLINE void** addressOfSoftStackLimit() { return traps().addressOfSoftStackLimit(); }
+    JS_EXPORT_PRIVATE void* softStackLimitForCurrentThreadSlow() const;
 
     inline bool isSafeToRecurseSoft() const;
     bool isSafeToRecurse() const

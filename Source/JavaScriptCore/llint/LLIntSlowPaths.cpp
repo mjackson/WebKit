@@ -622,7 +622,11 @@ UGPRPair SYSV_ABI llint_check_stack_and_vm_traps(CallFrame* callFrame, const JSI
 #endif
     }
 
-    if (vm.traps().handleTrapsIfNeeded()) {
+    // UNGIL §A.2.2 item 3b (AB-17): GIL-off, service the CURRENT lite's
+    // traps instance first, then the VM-level one (the per-lite words are
+    // what the rule-3 fan-out writes; leaving them unserviced strands the
+    // per-lite marker — review finding (g)). GIL-on: byte-identical.
+    if (handleTrapsForCurrentThreadIfNeeded(vm)) {
         if (vm.hasPendingTerminationException()) {
             throwScope.release();
             callFrame->convertToZombieFrame(vm, codeBlock);
@@ -646,9 +650,7 @@ UGPRPair SYSV_ABI llint_check_stack_and_vm_traps(CallFrame* callFrame, const JSI
 
     // UNGIL §A.2.2 (AB-17 item 3, C++-reader leg): re-confirm against the
     // CURRENT THREAD's soft limit (per-lite GIL-off), not the VM word — the
-    // PLAIN limit only. Trap servicing above (handleTrapsIfNeeded) still
-    // goes through the VM-level traps instance until items 3b/3c land
-    // (VMTraps.h ACTIVATION CHECKLIST).
+    // PLAIN limit only. Trap servicing above is the item-3b dispatch.
     void* softStackLimit = softStackLimitForCurrentThread(vm);
 #if CPU(ADDRESS32)
     // With 32-bit addresses, there's a chance that we can underflow, and need this check.
@@ -2481,8 +2483,14 @@ LLINT_SLOW_PATH_DECL(slow_path_throw)
 LLINT_SLOW_PATH_DECL(slow_path_handle_traps)
 {
     LLINT_BEGIN_NO_SET_PC();
-    ASSERT(vm.traps().needHandling(VMTraps::AsyncEvents));
-    vm.traps().handleTraps(VMTraps::AsyncEvents);
+    // UNGIL §A.2.2 item 3b (AB-17): GIL-off dispatch services the current
+    // lite's instance too. GIL-on: the landed unconditional form.
+    if (vm.gilOff()) [[unlikely]]
+        handleTrapsForCurrentThreadIfNeeded(vm);
+    else {
+        ASSERT(vm.traps().needHandling(VMTraps::AsyncEvents));
+        vm.traps().handleTraps(VMTraps::AsyncEvents);
+    }
     UNUSED_PARAM(pc);
     LLINT_RETURN_TWO(throwScope.exception(), globalObject);
 }

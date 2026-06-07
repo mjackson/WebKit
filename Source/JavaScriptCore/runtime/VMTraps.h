@@ -305,6 +305,19 @@ public:
     bool handleTraps(BitField mask = AsyncEvents);
     bool handleTrapsIfNeeded(BitField mask = AsyncEvents);
 
+    // UNGIL §A.2.2 item 2 / item 3c late-joiner leg (e): called by
+    // VMLiteRegistry::registerLite (the sole writer of lite.vm), UNDER the
+    // registry lock, on the registering lite's OWNER thread, for gilOff
+    // lites of a gilOff VM only. Copies the VM-level word's pending async
+    // bits into the fresh lite's own word (carrier-only bits filtered for
+    // spawned threads) and derives the lite's own stop request from them —
+    // without this, VM-wide bits raised before a late-joining lite registers
+    // would be silently lost until its first token acquisition, and the new
+    // lite's first updateStackLimits would publish a plain limit its
+    // rerouted check sites pass forever. MUST be called on the VM-level
+    // instance.
+    void backfillVMWideTrapBitsAtLiteRegistration(VMLite&, const AbstractLocker& registryLocker);
+
 #if ENABLE(SIGNAL_BASED_VM_TRAPS)
     struct SignalContext;
     void tryInstallTrapBreakpoints(struct VMTraps::SignalContext&, StackBounds);
@@ -365,6 +378,20 @@ private:
     CONCURRENT_SAFE void requestThreadStopIfNeeded(Locker<Lock>&) WTF_REQUIRES_LOCK(m_trapSignalingLock);
     JS_EXPORT_PRIVATE CONCURRENT_SAFE void updateThreadStopRequestIfNeeded();
 
+    // UNGIL §A.2.2 item 3c (AB-17) — the VM-level stop fan, single-controller
+    // form (review findings (d)-(f)): a VM-level async-bit change GIL-off
+    // drives EVERY registered lite of this VM through that lite's OWN
+    // updateThreadStopRequestIfNeeded (which recomputes the lite's marker
+    // from its own word PLUS the VM-level word), under the registry lock.
+    // Never touches a lite's m_trapAwareSoftStackLimit directly — each
+    // lite's marker has exactly ONE controlling traps instance (its own),
+    // and cancel restores the PER-LITE saved value via the lite's own
+    // StackManager. Lock order (finding (h)): VM-level m_trapSignalingLock
+    // (released before the fan) -> VMLiteRegistry::lock -> per-lite
+    // m_trapSignalingLock -> per-lite StackManager::m_mirrorLock. VM-level
+    // instance only.
+    CONCURRENT_SAFE void updatePerLiteThreadStopRequestsForVMWideChange(VM&);
+
     JS_EXPORT_PRIVATE void deferTerminationSlow(DeferAction);
     JS_EXPORT_PRIVATE void undoDeferTerminationSlow(DeferAction);
 
@@ -392,8 +419,22 @@ private:
     // VM::offsetOfTraps()` arithmetic is valid ONLY for the VM-embedded
     // instance — VMTrapsInlines.h must consult this first (out-of-scope leg).
     VM* m_liteOwnerVM { nullptr };
+    // §A.2.2 item 3c: thread kind of the owning lite's thread, stamped at
+    // registration alongside m_liteOwnerVM (registration runs on the owner
+    // thread in all three paths: VM ctor main lite, JSLock.cpp carrier lite,
+    // ThreadObject.cpp spawned lite). Used by the per-lite
+    // updateThreadStopRequestIfNeeded to exclude carrier-only VM-wide bits
+    // from a spawned lite's stop-request derivation (W0/SD13).
+    bool m_liteOwnerIsSpawnedThread { false };
 public:
-    void setLiteOwnerVM(VM* vm) { m_liteOwnerVM = vm; } // §A.2.1 registration-time, once.
+    // §A.2.1/§A.2.2 registration-time, once, under the registry lock, before
+    // the lite is installable (VMLiteRegistry::registerLite is the sole
+    // caller).
+    void setLiteOwnerVM(VM* vm, bool ownerThreadIsSpawned)
+    {
+        m_liteOwnerVM = vm;
+        m_liteOwnerIsSpawnedThread = ownerThreadIsSpawned;
+    }
     // §A.2.2 item 3c accommodation: VM resolution that is valid on BOTH the
     // VM-embedded instance and a per-lite instance. The `this -
     // VM::offsetOfTraps()` arithmetic in VMTraps::vm() is garbage on a
@@ -479,10 +520,27 @@ private:
 // token-acquisition OR are pointer-identity-keyed and de-alias automatically.
 // Returns null for an unregistered lite.
 //
-// ACTIVATION CHECKLIST — N-mutator GIL-off entry MUST NOT be enabled until
-// ALL of the following land (recorded with the orchestrator /
-// INTEGRATE-ungil.md). The VMEntryScope::setUpSlow gate
-// (perLiteSoftStackLimitRerouteLanded, still false) enforces the refusal:
+// ACTIVATION CHECKLIST — STATUS (AB-17 §A.2.2 reroute change): ALL items
+// below are LANDED in the single AB-17 §A.2.2 diff (recorded with the
+// orchestrator / INTEGRATE-ungil.md): (2) registration backfill in
+// VMLiteRegistry::registerLite (setLiteOwnerVM + OR + per-lite stop-request
+// derivation, under the registry lock); (3) every generated-code and C++
+// soft-limit read rerouted (LLInt chained offsets now referenced;
+// AssemblyHelpers::branchPtrAgainstSoftStackLimit at all JIT-tier sites;
+// softStackLimitForCurrentThread[Slow] for C++); (3c) the single-controller
+// stop fan (VM-level updateThreadStopRequestIfNeeded fans each lite's OWN
+// update; per-lite shouldStop = lite word | VM word with the carrier-only
+// trim; cancel restores the per-lite saved value), with the (h) lock
+// re-rank (registry -> per-lite signaling -> per-lite mirror) asserted via
+// assertNoPerLiteTrapSignalingLockHeldOnCurrentThread; (3b) VMTraps::vm()
+// consults m_liteOwnerVM, and every poll site dispatches through
+// handleTrapsForCurrentThreadIfNeeded (lite first, then the VM-level
+// instance); (4) the W1/D9 park-site split in LockObject/ConditionObject/
+// ThreadObject. The VMEntryScope::setUpSlow gate flipped
+// (perLiteSoftStackLimitRerouteLanded = true); VM::updateStackLimits'
+// N-entered refusal walk is deleted and the VM word is carrier-published
+// only. The original checklist text is preserved below as the contract of
+// record:
 //   (1) LANDED (AB-17): VMLite.h `VMThreadContext threadContext` L2 append +
 //       the perThreadTrapsIfExists flip (VMLite.cpp, keyed on lite.gilOff).
 //   (2) JSLock.cpp / VMLiteShared (§F.1): the GIL-off token-acquisition edges
@@ -613,5 +671,28 @@ private:
 //       but the W1 split is NOT: today a parked thread treats the watchdog
 //       CHECK bit as termination (see Watchdog.h).
 JS_EXPORT_PRIVATE VMTraps* perThreadTrapsIfExists(VMLite&);
+
+// UNGIL §A.2.2 item 3b servicing dispatch (AB-17; review finding (g)): the
+// GIL-off poll-site form. Services the CURRENT thread's per-lite traps
+// instance FIRST (the words the rule-3 fan-out and the token-acquisition /
+// registration ORs write), then the VM-level instance (the word carrier-only
+// fireTrap() raisers and the TERM1.2 interim still use). Without the
+// per-lite service, bits fanned into a lite's own word would never clear and
+// its marker would stay armed forever — failure mode (g), livelock-grade for
+// recurring async events. GIL-on / flag-off: exactly
+// vm.traps().handleTrapsIfNeeded(mask), byte-identical. If the per-lite
+// service throws (termination), the VM-level service is skipped for this
+// poll — the caller is about to unwind; remaining VM-level bits are serviced
+// at the next poll site.
+JS_EXPORT_PRIVATE bool handleTrapsForCurrentThreadIfNeeded(VM&, VMTraps::BitField mask = VMTraps::AsyncEvents);
+
+#if ASSERT_ENABLED
+// §A.2.2 item 3c finding (h): runtime lock-rank assertion for the demoted
+// registry lock — no path may acquire VMLiteRegistry::lock while holding any
+// per-lite m_trapSignalingLock.
+JS_EXPORT_PRIVATE void assertNoPerLiteTrapSignalingLockHeldOnCurrentThread();
+#else
+inline void assertNoPerLiteTrapSignalingLockHeldOnCurrentThread() { }
+#endif
 
 } // namespace JSC

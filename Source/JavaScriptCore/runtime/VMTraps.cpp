@@ -72,8 +72,9 @@ static bool anyOtherLiteOfVMEntered(const AbstractLocker&, VM& vm) WTF_IGNORES_T
 
 static bool anyOtherLiteOfVMEntered(VM& vm)
 {
+    assertNoPerLiteTrapSignalingLockHeldOnCurrentThread(); // §A.2.2 item 3c (h): registry lock is no longer leaf-ranked.
     auto& registry = VMLiteRegistry::singleton();
-    Locker locker { registry.lock }; // Leaf (§LK.6): nothing acquired under it.
+    Locker locker { registry.lock }; // Nothing acquired under it on THIS path (the 3c fan re-rank applies to the per-lite update walks).
     return anyOtherLiteOfVMEntered(locker, vm);
 }
 
@@ -476,19 +477,89 @@ CONCURRENT_SAFE void VMTraps::requestThreadStopIfNeeded(Locker<Lock>& locker)
     m_threadStopRequested = true;
 }
 
+#if ASSERT_ENABLED
+// §A.2.2 item 3c finding (h): the registry lock is demoted from leaf rank by
+// the stop fan (VMLiteRegistry::lock -> per-lite m_trapSignalingLock ->
+// per-lite StackManager::m_mirrorLock). This counter is nonzero exactly while
+// the current thread holds a PER-LITE m_trapSignalingLock; every registry-
+// lock acquisition in the trap machinery asserts it is zero. (Grep audit
+// recorded with this change: per-lite takeTopPriorityTrap never reaches the
+// anyOtherLiteOfVMEntered registry walk — that branch is keyed
+// `this == &vm.traps()` — and the per-lite request/cancel paths take only the
+// per-lite mirror lock beneath the signaling lock.)
+static thread_local unsigned t_perLiteTrapSignalingLockDepth { 0 };
+void assertNoPerLiteTrapSignalingLockHeldOnCurrentThread()
+{
+    ASSERT(!t_perLiteTrapSignalingLockDepth);
+}
+#endif
+
 CONCURRENT_SAFE void VMTraps::updateThreadStopRequestIfNeeded()
 {
-    Locker locker { *m_trapSignalingLock };
+    {
+        Locker locker { *m_trapSignalingLock };
+#if ASSERT_ENABLED
+        if (m_liteOwnerVM)
+            ++t_perLiteTrapSignalingLockDepth;
+        auto signalingDepthScope = makeScopeExit([&] {
+            if (m_liteOwnerVM)
+                --t_perLiteTrapSignalingLockDepth;
+        });
+#endif
 
-    bool shouldStop = needHandling(AsyncEvents);
+        bool shouldStop = needHandling(AsyncEvents);
 
-    if (shouldStop == m_threadStopRequested)
-        return; // State already matches, nothing to do.
+        // UNGIL §A.2.2 item 3c, SINGLE CONTROLLER (finding (d)): this
+        // per-lite instance is the only controller of its own
+        // m_trapAwareSoftStackLimit marker, and it must arm it for VM-WIDE
+        // pendingness too: VM-level bits that are not mirrored into this
+        // word — carrier-only fireTrap() raises (watchdog/debugger/shell)
+        // in particular — deliver through the rerouted per-lite check sites,
+        // so the marker is derived from BOTH words. Carrier-only bits never
+        // arm a spawned lite (W0/SD13). Cancel symmetric: the marker drops
+        // only when both words are clear, and restores the PER-LITE saved
+        // soft limit (StackManager::cancelStop on THIS instance).
+        if (m_liteOwnerVM) [[unlikely]] {
+            BitField vmWideMask = AsyncEvents;
+            if (m_liteOwnerIsSpawnedThread)
+                vmWideMask &= ~CarrierOnlyServicedEvents;
+            shouldStop |= m_liteOwnerVM->traps().needHandling(vmWideMask);
+        }
 
-    if (shouldStop)
-        requestThreadStopIfNeeded(locker);
-    else
-        cancelThreadStopIfNeeded();
+        if (shouldStop != m_threadStopRequested) {
+            if (shouldStop)
+                requestThreadStopIfNeeded(locker);
+            else
+                cancelThreadStopIfNeeded();
+        }
+    }
+
+    // UNGIL §A.2.2 item 3c — the VM-level stop fan (see the declaration
+    // comment). Runs AFTER this instance's own signaling lock is released
+    // (lock order, finding (h)); each fanned lite recomputes from the
+    // CURRENT bit state, so concurrent fans are idempotent and
+    // order-insensitive. GIL-on / flag-off: branch not taken.
+    if (!m_liteOwnerVM) {
+        VM& vm = this->vm();
+        if (vm.gilOff()) [[unlikely]]
+            updatePerLiteThreadStopRequestsForVMWideChange(vm);
+    }
+}
+
+CONCURRENT_SAFE void VMTraps::updatePerLiteThreadStopRequestsForVMWideChange(VM& vm)
+{
+    ASSERT(!m_liteOwnerVM); // VM-level instance only.
+    ASSERT(vm.gilOff());
+    assertNoPerLiteTrapSignalingLockHeldOnCurrentThread();
+    auto& registry = VMLiteRegistry::singleton();
+    Locker locker { registry.lock };
+    for (VMLite* lite : registry.lites) {
+        if (lite->vm != &vm)
+            continue;
+        VMTraps* liteTraps = perThreadTrapsIfExists(*lite);
+        if (liteTraps && liteTraps != this)
+            liteTraps->updateThreadStopRequestIfNeeded();
+    }
 }
 
 bool VMTraps::handleTraps(VMTraps::BitField mask)
@@ -511,10 +582,16 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
             RELEASE_AND_RETURN(scope, false);
     }
 
-    if (m_trapsDeferred)
+    // §A.2.2 item 3b: DeferTraps/DeferTermination scopes write the VM-LEVEL
+    // instance's flags (DeferTraps ctor takes vm.traps(); deferTermination is
+    // reached via vm.traps()), so a PER-LITE servicing instance must consult
+    // the VM-level flags — its own copies are never set. GIL-on / flag-off:
+    // vmLevelTraps == *this, byte-identical.
+    VMTraps& vmLevelTraps = vm.traps();
+    if (vmLevelTraps.m_trapsDeferred)
         RELEASE_AND_RETURN(scope, false); // We'll service them on the next opportunity after deferring has stopped.
 
-    if (isDeferringTermination())
+    if (vmLevelTraps.isDeferringTermination())
         mask &= ~NeedTermination;
 
     // UNGIL TERM1.2 interim (single shared trap word): a GIL-off carrier that
@@ -605,6 +682,16 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
                         return event; // Bit left set for the siblings.
                     }
                 }
+                // §A.2.2 item 3b: a CARRIER taking NeedTermination from its
+                // own PER-LITE word consumed a VM-wide raise whose VM-word
+                // copy (set by fireTrapVMWide for the unrerouted trap-bit
+                // polls and late joiners) is still pending — shield this
+                // carrier's host clear-and-re-enter from re-consuming it
+                // exactly as the VM-word take above does (handleTraps' trim
+                // masks it while entered siblings drain, then retires it).
+                // A spawned taker needs no shield — it closes per §E.5.
+                if (event == NeedTermination && vm.gilOff() && this != &vm.traps() && !isSpawnedGILOff) [[unlikely]]
+                    vm.traps().m_carrierTookSharedTermination.store(true);
                 clearTrapWithoutCancellingThreadStop(event);
                 return event;
             }
@@ -672,7 +759,7 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
                 fanOutTerminationToSiblingLites();
             vm.setHasTerminationRequest();
             scope.release();
-            if (!isDeferringTermination())
+            if (!vmLevelTraps.isDeferringTermination())
                 vm.throwTerminationException();
             return true;
 
@@ -723,14 +810,20 @@ CONCURRENT_SAFE void VMTraps::fireTrapVMWide(Event event)
         // OF THIS VM (per-VM filter) + the VM word. The registry lock is a
         // leaf — only lock-free atomic ORs happen under it; the stop-request
         // machinery (m_trapSignalingLock) runs after release.
+        assertNoPerLiteTrapSignalingLockHeldOnCurrentThread();
         auto& registry = VMLiteRegistry::singleton();
         Locker locker { registry.lock };
         for (VMLite* lite : registry.lites) {
             if (lite->vm != &vm)
                 continue;
             VMTraps* liteTraps = perThreadTrapsIfExists(*lite);
-            if (liteTraps && liteTraps != this)
+            if (liteTraps && liteTraps != this) {
                 liteTraps->m_trapBits.exchangeOr(event);
+                // §A.2.2 item 3c single-controller fan: the lite's OWN
+                // bookkeeping derives its marker from the bit we just set
+                // (rank: registry lock -> per-lite signaling lock).
+                liteTraps->updateThreadStopRequestIfNeeded();
+            }
         }
         m_trapBits.exchangeOr(event); // The VM word.
 
@@ -753,42 +846,56 @@ void VMTraps::fanOutTerminationToSiblingLites()
 {
     VM& vm = this->vm();
     ASSERT(vm.gilOff());
+    // §A.2.2 item 3b: this can now run on a PER-LITE servicing instance —
+    // address the VM-level word/flag explicitly, never through `this`.
+    VMTraps& vmLevelTraps = vm.traps();
     VMLite* currentLite = VMLite::currentIfExists();
+    assertNoPerLiteTrapSignalingLockHeldOnCurrentThread();
     auto& registry = VMLiteRegistry::singleton();
+    bool anyOtherEnteredSibling = false;
+    {
     Locker locker { registry.lock };
-    bool anyOtherEnteredAliasedSibling = false;
     for (VMLite* lite : registry.lites) {
         if (lite->vm != &vm || lite == currentLite)
             continue;
         VMTraps* liteTraps = perThreadTrapsIfExists(*lite);
         if (!liteTraps)
             continue;
-        if (liteTraps != this) {
-            // Post-§A.2.1-activation shape: the sibling has its own word —
-            // deliver directly (rule 3, self excluded).
-            liteTraps->m_trapBits.exchangeOr(NeedTermination);
-            continue;
-        }
-        // Interim alias: the sibling's word IS the shared VM word.
         if (lite->entryScope.load(std::memory_order_relaxed))
-            anyOtherEnteredAliasedSibling = true;
+            anyOtherEnteredSibling = true;
+        if (liteTraps != &vmLevelTraps && liteTraps != this) {
+            // §A.2.1 per-lite shape: the sibling has its own word — deliver
+            // directly (rule 3, self excluded) and drive ITS bookkeeping so
+            // its marker arms (item 3c single-controller fan; rank: registry
+            // lock -> per-lite signaling lock).
+            liteTraps->m_trapBits.exchangeOr(NeedTermination);
+            liteTraps->updateThreadStopRequestIfNeeded();
+        }
     }
-    // TERM1.2 under the interim alias: a termination decision born on this
-    // servicing thread (the direct NeedTermination service, or the
-    // watchdog->termination fall-through on an entered carrier — annex W
-    // shape (c)) MUST reach the other entered threads, and the only channel
-    // they poll is the shared word. So when any other entered sibling
-    // exists, set the bit; if this servicer is a carrier, record the
+    // TERM1.2: a termination decision born on this servicing thread (the
+    // direct NeedTermination service, or the watchdog->termination
+    // fall-through on an entered carrier — annex W shape (c)) MUST reach the
+    // other entered threads. Their per-lite words were set above, but the
+    // unrerouted generated-code trap-bit polls (Baseline/DFG/FTL CheckTraps,
+    // LLInt op_check_traps) still read the VM word — a sibling spinning in a
+    // call-free loop polls ONLY those — so when any other entered sibling
+    // exists, set the VM word too; if this servicer is a carrier, record the
     // consumption so its host's clear-and-re-enter is shielded while the
     // siblings drain (handleTraps trim; a spawned servicer closes per §E.5
     // and needs no shield). With no other entered sibling there is no one
     // owed delivery, and setting the word would only poison the host's next
     // entry.
-    if (anyOtherEnteredAliasedSibling) {
+    if (anyOtherEnteredSibling) {
         if (!ThreadManager::isJSThreadCurrent())
-            m_carrierTookSharedTermination.store(true);
-        m_trapBits.exchangeOr(NeedTermination);
+            vmLevelTraps.m_carrierTookSharedTermination.store(true);
+        vmLevelTraps.m_trapBits.exchangeOr(NeedTermination);
     }
+    }
+    // Re-derive the VM-level stop request OUTSIDE the registry lock (the
+    // VM-level update takes its own signaling lock and then re-runs the fan;
+    // rank: VM-level signaling -> registry). No-op when the word was not set.
+    if (anyOtherEnteredSibling)
+        vmLevelTraps.updateThreadStopRequestIfNeeded();
 }
 
 void VMTraps::fireTerminationVMWideAfterParkedCarrierService()
@@ -826,6 +933,7 @@ void VMTraps::orVMWideTrapBitsIntoLite(VMLite& lite)
     // §A.2.3: serialized against a concurrent rule-3 fan-out by the registry
     // lock, so the joiner observes either the pre-raise word (and then the
     // fan-out sets its lite directly) or the post-raise word (ORed here).
+    assertNoPerLiteTrapSignalingLockHeldOnCurrentThread();
     auto& registry = VMLiteRegistry::singleton();
     Locker locker { registry.lock };
 
@@ -839,8 +947,65 @@ void VMTraps::orVMWideTrapBitsIntoLite(VMLite& lite)
     if (!word)
         return;
     VMTraps* liteTraps = perThreadTrapsIfExists(lite);
-    if (liteTraps && liteTraps != this)
+    if (liteTraps && liteTraps != this) {
         liteTraps->m_trapBits.exchangeOr(word);
+        // §A.2.2 item 3c single-controller fan: derive the joiner's own stop
+        // request from the bits just ORed in (late-joiner leg (e); rank:
+        // registry lock -> per-lite signaling lock).
+        liteTraps->updateThreadStopRequestIfNeeded();
+    }
+}
+
+void VMTraps::backfillVMWideTrapBitsAtLiteRegistration(VMLite& lite, const AbstractLocker&)
+{
+    // §A.2.2 item 2 (§F.1 lite-registration backfill; late-joiner leg (e)):
+    // caller is VMLiteRegistry::registerLite, registry lock held, on the
+    // lite's owner thread, AFTER setLiteOwnerVM stamped the per-lite
+    // instance. VM-level instance only (header contract).
+    ASSERT(!m_liteOwnerVM);
+    ASSERT(lite.vm == &vm());
+    ASSERT(lite.gilOff);
+
+    VMTraps& liteTraps = lite.threadContext.traps();
+    ASSERT(&liteTraps != this);
+
+    BitField word = m_trapBits.loadRelaxed() & AsyncEvents;
+    // W0/SD13: carrier-only bits never reach a spawned thread's lite.
+    // Registration runs on the owner thread (all three registration paths),
+    // so the thread-kind probe identifies the lite's kind (TERM1.4).
+    if (ThreadManager::isJSThreadCurrent())
+        word &= ~CarrierOnlyServicedEvents;
+    if (word)
+        liteTraps.m_trapBits.exchangeOr(word);
+    // Derive the fresh lite's own stop request — unconditionally, so the
+    // marker also arms from VM-wide bits that are NOT mirrored per-lite
+    // (carrier-only raises on a carrier lite). Rank: registry lock ->
+    // per-lite signaling lock.
+    liteTraps.updateThreadStopRequestIfNeeded();
+}
+
+// §A.2.2 item 3b servicing dispatch — see the declaration comment (VMTraps.h).
+bool handleTrapsForCurrentThreadIfNeeded(VM& vm, VMTraps::BitField mask)
+{
+    bool handled = false;
+    if (vm.gilOff()) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->gilOff && lite->vm == &vm) {
+            VMTraps* liteTraps = perThreadTrapsIfExists(*lite);
+            if (liteTraps && liteTraps != &vm.traps()) {
+                handled = liteTraps->handleTrapsIfNeeded(mask);
+                // A throwing service (termination) is unwinding: skip the
+                // VM-level service for this poll (remaining bits are
+                // serviced at the next poll site). Non-mutating per-lite
+                // read (see the GILDroppedSection dtor rationale,
+                // LockObject.cpp).
+                if (vm.hasPendingTerminationException()) [[unlikely]]
+                    return handled;
+            }
+        }
+    }
+    bool vmLevelHandled = vm.traps().handleTrapsIfNeeded(mask);
+    return handled || vmLevelHandled;
 }
 
 void VMTraps::deferTerminationSlow(DeferAction)

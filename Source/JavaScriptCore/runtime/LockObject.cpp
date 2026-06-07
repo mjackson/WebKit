@@ -34,11 +34,27 @@
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
 #include "ThreadObject.h"
+#include "ThreadManager.h"
+#include "VMLite.h"
 #include "TopExceptionScope.h"
 #include <wtf/MonotonicTime.h>
 #include <wtf/RunLoop.h>
 
 namespace JSC {
+
+// UNGIL §A.2.4 rule 4 / annex W W1 (AB-17 item 4) — park-lite predicates and
+// the W1 carrier service episode. Same-library seams (consumers redeclare;
+// the predicates of record live in VMTraps.cpp, the episode helper and the
+// captured-lite accessor in JSLock.cpp). GIL-on,
+// parkLitePollTerminationRequested(vm, nullptr) is byte-equivalent to the
+// landed jsThreadParkTerminationRequested (watchdog-check folded in);
+// GIL-off it is termination-ONLY against the PARK lite's word, and the
+// watchdog-check bit is serviced by the W1 episode instead of being treated
+// as a termination verdict.
+bool parkLitePollTerminationRequested(VM&, VMLite* parkLite);
+bool parkLitePollWatchdogCheckRequested(VM&, VMLite* parkLite);
+VMLite* capturedParkLiteOfCurrentThreadIfAny(VM&);
+bool reacquireParkedCarrierAndServiceWatchdogCheck(VM&);
 
 const ClassInfo JSLockObject::s_info = { "Lock"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSLockObject) };
 
@@ -296,7 +312,14 @@ void jsThreadYieldForPendingParkResumptions(VM& vm)
     unsigned lastPending = s_pendingParkResumptions.load(std::memory_order_acquire);
     MonotonicTime deadline = MonotonicTime::now() + maxStall;
     while (lastPending) {
-        if (jsThreadParkTerminationRequested(vm))
+        // AB-17 item 4: park-lite form, termination only — this caller is
+        // ENTERED (it holds its token between handoff yields), so the
+        // watchdog check bit is serviced at its regular trap polls, never
+        // treated as termination. GIL-on byte-equivalent (folded form).
+        VMLite* yieldParkLite = nullptr;
+        if (vm.gilOff())
+            yieldParkLite = ThreadManager::isJSThreadCurrent() ? VMLite::currentIfExists() : capturedParkLiteOfCurrentThreadIfAny(vm);
+        if (parkLitePollTerminationRequested(vm, yieldParkLite))
             return;
         if (MonotonicTime::now() > deadline)
             return;
@@ -537,6 +560,19 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         jsThreadNoteParkResumptionPending();
         {
             GILDroppedSection droppedSection(vm);
+            // UNGIL §A.2.4 rule 4 / annex W W1 (AB-17 item 4): GIL-off the
+            // D9 poll re-points at the polling thread's PARK lite (spawned =
+            // CURRENT lite; carriers = the §J.3-captured lite), and the
+            // watchdog-check bit is split out of "termination": a parked
+            // CARRIER observing it runs the full W1 reacquire-service-
+            // re-release episode (terminating only on a terminate verdict)
+            // instead of failing the park. GIL-on: byte-equivalent to the
+            // landed jsThreadParkTerminationRequested loop.
+            const bool gilOff = vm.gilOff();
+            const bool isSpawnedParker = gilOff && ThreadManager::isJSThreadCurrent();
+            VMLite* parkLite = nullptr;
+            if (gilOff)
+                parkLite = isSpawnedParker ? VMLite::currentIfExists() : capturedParkLiteOfCurrentThreadIfAny(vm);
             // NOT WTF::Lock::tryLockWithTimeout: that helper is a
             // signal-handler-safe PROBE (for MachineStackMarker) — it sleeps
             // in whole-second quanta and returns isHeld(), i.e. "held by
@@ -548,8 +584,18 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
             // and every corruption downstream of two believed holders. Park
             // in honest tryLock + bounded-sleep quanta instead.
             while (!(acquired = state.m_lock.tryLock())) {
-                if (jsThreadParkTerminationRequested(vm))
+                if (parkLitePollTerminationRequested(vm, parkLite))
                     break;
+                if (gilOff && !isSpawnedParker && parkLitePollWatchdogCheckRequested(vm, parkLite)) [[unlikely]] {
+                    // W1 episode: no native lock held here (tryLock failed,
+                    // GIL fully released by the dropped section). A
+                    // terminate verdict raised VM-wide termination — the
+                    // poll above observes it on the next iteration's check;
+                    // break directly to the terminated epilogue.
+                    if (reacquireParkedCarrierAndServiceWatchdogCheck(vm))
+                        break;
+                    continue;
+                }
                 WTF::sleep(Seconds::fromMilliseconds(1));
             }
         }

@@ -54,6 +54,20 @@
 
 namespace JSC {
 
+// UNGIL §A.2.4 rule 4 / annex W W1 (AB-17 item 4) — park-lite predicates and
+// the W1 carrier service episode. Same-library seams (consumers redeclare;
+// the predicates of record live in VMTraps.cpp, the episode helper and the
+// captured-lite accessor in JSLock.cpp). GIL-on,
+// parkLitePollTerminationRequested(vm, nullptr) is byte-equivalent to the
+// landed jsThreadParkTerminationRequested (watchdog-check folded in);
+// GIL-off it is termination-ONLY against the PARK lite's word, and the
+// watchdog-check bit is serviced by the W1 episode instead of being treated
+// as a termination verdict.
+bool parkLitePollTerminationRequested(VM&, VMLite* parkLite);
+bool parkLitePollWatchdogCheckRequested(VM&, VMLite* parkLite);
+VMLite* capturedParkLiteOfCurrentThreadIfAny(VM&);
+bool reacquireParkedCarrierAndServiceWatchdogCheck(VM&);
+
 const ClassInfo JSThread::s_info = { "Thread"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSThread) };
 
 static JSC_DECLARE_HOST_FUNCTION(callThread);
@@ -409,6 +423,16 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
             // which DropAllLocks' strict-LIFO unwind protocol livelocks on
             // (observed in the join chains of lifecycle/join-semantics.js).
             GILDroppedSection droppedSection(vm);
+
+            // UNGIL §A.2.4 rule 4 / annex W W1 (AB-17 item 4): park-lite D9
+            // polls + the W1 watchdog split (see the contended-hold loop in
+            // LockObject.cpp). GIL-on byte-equivalent.
+            const bool gilOff = vm.gilOff();
+            const bool isSpawnedParker = gilOff && ThreadManager::isJSThreadCurrent();
+            VMLite* parkLite = nullptr;
+            if (gilOff)
+                parkLite = isSpawnedParker ? VMLite::currentIfExists() : capturedParkLiteOfCurrentThreadIfAny(vm);
+
             Locker joinLocker { state.joinLock };
             // F5 wait, in 10ms waitUntil quanta polling
             // jsThreadParkTerminationRequested() (landed deviation D9,
@@ -423,9 +447,25 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
             // between sleeps (5.9(a3)); a completion observed under the
             // lock takes priority over a concurrent termination request.
             while (state.phase.load(std::memory_order_acquire) == ThreadState::Phase::Running) {
-                if (jsThreadParkTerminationRequested(vm)) {
+                if (parkLitePollTerminationRequested(vm, parkLite)) {
                     terminated = true;
                     break;
+                }
+                if (gilOff && !isSpawnedParker && parkLitePollWatchdogCheckRequested(vm, parkLite)) [[unlikely]] {
+                    // W1 episode: drop joinLock for the reacquisition (no
+                    // native lock may be held across it); the loop re-checks
+                    // phase under the re-taken lock, so a completion that
+                    // raced the episode wins as before.
+                    bool watchdogTerminated;
+                    {
+                        DropLockForScope episodeUnlocker { joinLocker };
+                        watchdogTerminated = reacquireParkedCarrierAndServiceWatchdogCheck(vm);
+                    }
+                    if (watchdogTerminated) {
+                        terminated = true;
+                        break;
+                    }
+                    continue;
                 }
                 state.joinCondition.waitUntil(state.joinLock, MonotonicTime::now() + Seconds::fromMilliseconds(10));
             }

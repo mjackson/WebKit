@@ -29,6 +29,7 @@
 #include "GCDeferralContextInlines.h"
 #include "Heap.h"
 #include "Options.h"
+#include "ThreadManager.h"
 #include "VM.h"
 // Intra-WS dependency (SPEC-vmstate §11): VMLite.h lands with task 6 (W3
 // struct). VMLiteRegistry::registerLite below is the sole writer of
@@ -129,13 +130,30 @@ VMLiteRegistry& VMLiteRegistry::singleton()
 
 void VMLiteRegistry::registerLite(VMLite& lite, VM& vm)
 {
-    // Leaf lock (§7): nothing is acquired while holding it; Vector only
-    // fastMallocs.
+    // Lock rank (§A.2.2 item 3c (h)): the registry lock is no longer a leaf —
+    // the gilOff registration backfill below drives the fresh lite's own
+    // trap bookkeeping (per-lite m_trapSignalingLock -> per-lite
+    // StackManager::m_mirrorLock) under it.
+    assertNoPerLiteTrapSignalingLockHeldOnCurrentThread();
     Locker locker { lock };
     ASSERT(!lites.contains(&lite));
     ASSERT(!lite.vm); // Sole writer (§6.5.1); was null, immutable after.
     lite.vm = &vm;
     lites.append(&lite);
+
+    // UNGIL §A.2.2 items 2 + 3b (AB-17): stamp the per-lite traps instance's
+    // owner VM (VMTraps::vm() consults it before the VM-embedded offset
+    // arithmetic) and thread kind, then backfill pending VM-wide async bits
+    // into the fresh per-lite word and derive its stop request — under THIS
+    // registry-lock hold, so a concurrent rule-3 fan-out either sees the
+    // appended lite (and fans into it) or precedes the backfill (which then
+    // copies the raised bits). Registration runs on the lite's owner thread
+    // in all three paths (VM ctor / JSLock.cpp carrier / ThreadObject.cpp
+    // spawn), so the thread-kind probe identifies the lite's kind (TERM1.4).
+    if (vm.gilOff() && lite.gilOff) [[unlikely]] {
+        lite.threadContext.traps().setLiteOwnerVM(&vm, ThreadManager::isJSThreadCurrent());
+        vm.traps().backfillVMWideTrapBitsAtLiteRegistration(lite, locker);
+    }
 }
 
 void VMLiteRegistry::unregisterLite(VMLite& lite)

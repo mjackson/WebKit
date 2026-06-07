@@ -61,7 +61,7 @@ inline MatchingContextHolder::MatchingContextHolder(VM& vm, RegExp* regExp, Matc
     , m_matchFrom(matchFrom)
 {
     if (matchFrom == MatchFrom::VMThread) {
-        m_stackLimit = vm.softStackLimit();
+        m_stackLimit = vm.softStackLimitForCurrentThreadSlow(); // UNGIL §A.2.2 (AB-17): per-thread limit GIL-off.
         vm.m_executingRegExp = regExp;
     } else {
         StackBounds stack = Thread::currentSingleton().stack();

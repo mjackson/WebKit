@@ -903,7 +903,7 @@ inline FastStringifier<CharType, bufferMode>::FastStringifier(JSGlobalObject& gl
     else {
         m_dynamicBuffer.grow(dynamicBufferInlineCapacity);
         m_capacity = dynamicBufferInlineCapacity;
-        m_stackLimit = std::bit_cast<uint8_t*>(m_vm.softStackLimit());
+        m_stackLimit = std::bit_cast<uint8_t*>(m_vm.softStackLimitForCurrentThreadSlow());
     }
 }
 
@@ -1553,7 +1553,7 @@ inline String FastStringifier<CharType, bufferMode>::stringify(JSGlobalObject& g
 static NEVER_INLINE String stringify(JSGlobalObject& globalObject, JSValue value, JSValue replacer, JSValue space)
 {
     VM& vm = globalObject.vm();
-    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
+    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow());
     if (std::bit_cast<uint8_t*>(currentStackPointer()) >= stackLimit) [[likely]] {
         std::optional<FailureReason> failureReason;
         failureReason = std::nullopt;

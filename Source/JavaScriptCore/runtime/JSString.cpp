@@ -166,7 +166,7 @@ GCOwnedDataScope<AtomStringImpl*> JSRopeString::resolveRopeToAtomString(JSGlobal
     }
 
     AtomString atomString;
-    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
+    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow());
     if (!isSubstring()) {
         if (is8Bit()) {
             std::array<Latin1Character, maxLengthForOnStackResolve> buffer;
@@ -207,7 +207,7 @@ GCOwnedDataScope<AtomStringImpl*> JSRopeString::resolveRopeToExistingAtomString(
 
     RefPtr<AtomStringImpl> existingAtomString;
     if (!isSubstring()) {
-        uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
+        uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow());
         if (is8Bit()) {
             std::array<Latin1Character, maxLengthForOnStackResolve> buffer;
             resolveRopeInternalNoSubstring(std::span { buffer }.first(length()), stackLimit);
@@ -250,7 +250,7 @@ const String& JSRopeString::resolveRopeWithFunction(JSGlobalObject* nullOrGlobal
         }
 
         size_t sizeToReport = newImpl->cost();
-        uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
+        uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow());
         resolveRopeInternalNoSubstring(buffer, stackLimit);
         convertToNonRope(function(newImpl.releaseNonNull()));
         if constexpr (reportAllocation)
@@ -266,7 +266,7 @@ const String& JSRopeString::resolveRopeWithFunction(JSGlobalObject* nullOrGlobal
     }
 
     size_t sizeToReport = newImpl->cost();
-    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
+    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow());
     resolveRopeInternalNoSubstring(buffer, stackLimit);
     convertToNonRope(function(newImpl.releaseNonNull()));
     if constexpr (reportAllocation)

@@ -244,7 +244,19 @@ macro doVMEntry(makeCall)
         move t5, vm
         jmp _llint_throw_stack_overflow_error_from_vm_entry
     else
+        # UNGIL sec A.2.2 (AB-17 item 3): structural reroute only -- no
+        # 32-bit platform has LLInt-visible TLS (GILOFF_TLS), so the
+        # discriminator assembles to nothing here (GIL-off is unsupported on
+        # 32-bit, jit App. R5; a set gilOffProcess byte fail-stops via the
+        # AB-1 tripwire on JSVALUE64 builds).
+        branchIfGilOffGroup3ToT5(.liteEntryStackCheck)
         bpbeq t3, VMSoftStackLimitOffset[vm], _llint_throw_stack_overflow_error_from_vm_entry
+        if GILOFF_TLS
+            jmp .entryStackCheckDone
+        .liteEntryStackCheck:
+            bpbeq t3, VMLiteSoftStackLimitOffset[t5], _llint_throw_stack_overflow_error_from_vm_entry
+        .entryStackCheckDone:
+        end
     end
 
 .stackHeightOK:
@@ -716,7 +728,16 @@ macro functionArityCheck(opcodeName, doneLabel)
     if C_LOOP
         bpbeq VMCLoopStackLimitOffset[t0], t5, .stackHeightOK
     else
+        # UNGIL sec A.2.2 (AB-17 item 3): structural reroute only (see the
+        # doVMEntry note above -- assembles to nothing on 32-bit).
+        branchIfGilOffGroup3ToT3(.liteArityStackCheck)
         bpbeq VMSoftStackLimitOffset[t0], t5, .stackHeightOK
+        if GILOFF_TLS
+            jmp .arityStackCheckSlow
+        .liteArityStackCheck:
+            bpbeq VMLiteSoftStackLimitOffset[t3], t5, .stackHeightOK
+        .arityStackCheckSlow:
+        end
     end
 
     prepareStateForCCall()

@@ -120,34 +120,31 @@ void VMEntryScope::setUpSlow()
         // both legs are false. INTEGRATE-ungil.md AB-17 records this
         // ordering dependency.
         //
-        // AB-17 STATUS (this change): §A.2.1 is LANDED — the alias probe
-        // below now evaluates false for gilOff lites — and the §A.2.2
-        // RUNTIME side is landed (updateStackLimits dual-publishes the
-        // entering lite's own word alongside the VM word), and the LLInt
-        // per-lite chained offsets + T2 loader are STAGED but unreferenced
-        // (LowLevelInterpreter.asm). The constant stays FALSE because the
-        // §A.2.2 reroute is NOT complete: the generated-code soft-limit
-        // reads (LLInt shared prologue + 64/32_64 doVMEntry/CLoop sites,
-        // Baseline/DFG/FTL/thunk/varargs/Yarr emission sites), the C++
-        // VM::softStackLimit() readers (VMInlines.h, LLIntSlowPaths
-        // stack_check re-confirm, JSString ropes, JSONObject,
-        // LiteralParser, Yarr), the VMTraps per-lite stop fan
-        // (requestThreadStopIfNeeded/cancelThreadStopIfNeeded must fan the
-        // trap-aware word to every entered lite, with cancel restoring the
-        // PER-LITE saved value — checklist item 3c, VMTraps.h), the §F.1
-        // lite-registration backfill, the VMTrapsInlines.h vm() reroute,
-        // and the W1/D9 park-site split still read/serve the VM-level
-        // word. Flip the constant ONLY in the change that completes those
-        // legs — the alias probe alone no longer holds the gate (review
-        // round 6: the probe tracks §A.2.1 only; the "mechanically keyed"
-        // claim does not cover the §A.2.2 legs, so a premature flip would
-        // go live with generated code comparing against a stale/foreign
-        // limit). Review round 7 (AB-17 reroute proposal, 0/3): the
-        // else-branch RELEASE_ASSERT below does NOT detect a non-rerouted
-        // reader (the per-lite publish already lands the word), so the
-        // refusal walk — not that assert — is the only deterministic trip
-        // point until every leg is in one diff.
-        constexpr bool perLiteSoftStackLimitRerouteLanded = false; // Flip ONLY with the COMPLETE §A.2.2 reroute (AB-17; see above).
+        // AB-17 STATUS (this change): the COMPLETE §A.2.2 reroute is LANDED
+        // in this one diff — generated-code soft-limit reads (LLInt shared
+        // prologue trap-aware site + 64/32_64 doVMEntry/arity sites via the
+        // formerly-staged chained offsets and Group-3 discriminators;
+        // Baseline/DFG/FTL/thunk/varargs/Yarr emission sites via
+        // AssemblyHelpers::branchPtrAgainstSoftStackLimit), the C++
+        // VM::softStackLimit() readers (VMInlines.h helper + the
+        // out-of-line VM::softStackLimitForCurrentThreadSlow for JSString
+        // ropes/JSONObject/LiteralParser/Yarr), the VMTraps per-lite stop
+        // fan in its single-controller form (checklist item 3c: VM-level
+        // updateThreadStopRequestIfNeeded fans each registered lite's OWN
+        // update, whose shouldStop derives from the lite word PLUS the VM
+        // word; cancel restores the PER-LITE saved value via the lite's own
+        // StackManager), the item-3b servicing dispatch
+        // (handleTrapsForCurrentThreadIfNeeded at every poll site +
+        // VMTraps::vm() consulting m_liteOwnerVM), the §F.1
+        // lite-registration backfill (VMLiteRegistry::registerLite stamps
+        // setLiteOwnerVM and ORs+derives pending VM-wide bits), and the
+        // W1/D9 park-site split (LockObject/ConditionObject/ThreadObject
+        // re-pointed at the park-lite predicates with the W1 episode).
+        // VM::updateStackLimits' N-entered refusal walk is deleted; the
+        // VM-level word is now published by CARRIER entries only
+        // (serialized under m_lock — no cross-thread clobber; spawned lites
+        // publish only their own word).
+        constexpr bool perLiteSoftStackLimitRerouteLanded = true; // COMPLETE §A.2.2 reroute landed (AB-17; this change).
         bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {
             for (VMLite* other : registry.lites) {
