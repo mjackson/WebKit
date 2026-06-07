@@ -35,6 +35,7 @@
 #include "GCThreadLocalCache.h"
 #include "HandleSet.h"
 #include "HeapClientSet.h"
+#include "JSCConfig.h"
 #include "HeapFinalizerCallback.h"
 #include "HeapObserver.h"
 #include "IsoCellSet.h"
@@ -1824,18 +1825,44 @@ ALWAYS_INLINE MutatorState& Heap::mutatorStateSlot()
 
 // SPEC-ungil §B / I4 (apply-scope items (1)+(2); see the declaration comment
 // above): per-thread allocation-client dispatch. Mirrors deferralDepthSlot().
-// AB17f (bench I3 consistency, extends the AB17d item-9 ruling): gated on
-// vm.gilOffWithProcessGate(), not the raw m_gilOff member load — this
-// predicate runs on EVERY C++ allocation, so flag-off it must read the frozen
-// read-only Config page rather than a VM line that can carry
-// concurrently-mutated state. Derivation-equivalent to gilOff() (m_gilOff is
-// true only in a useJSThreads process; the gate's false arm coincides).
+// FIX-V5B-F1 (supersedes the AB17f gilOffWithProcessGate() gate HERE ONLY):
+// this predicate runs on EVERY C++ allocation (transition-heavy-constructor
+// reaches it once per constructed object via
+// operationReallocateButterflyToHavePropertyStorage*), so flag-off it pays
+// exactly ONE predicted-false byte test on the Config page
+// (g_jscConfig.options.useJSThreads) and never loads a VM/Heap line — the
+// per-VM m_gilOff load short-circuits behind it. The gate byte is
+// options.useJSThreads, NOT the gilOffProcess latch: gilOffProcess is
+// latched mid-first-VM-ctor (Config::finalize(), VM.cpp:711) AFTER the
+// m_gilOff designation (VM.cpp:409), so a gilOffProcess-only gate diverges
+// from gilOffWithProcessGate() throughout the ctor-body window (VM.cpp
+// 473-690): for a first VM constructed OFF the process main thread, the ctor
+// JSLockHolder (VM.cpp:473) stamps a fresh OWNED carrier client
+// (JSLock.cpp perThreadClientForCarrierEntry gives non-main threads their
+// own GCClient::Heap), and routing those allocations to vmOriginalClient —
+// whose access no thread holds — is a release-semantics I2 violation, not a
+// debug-only skip. The useJSThreads byte has no such window: it is finalized
+// in InitializeThreading strictly before any VM ctor (asserted by the
+// JSCConfig latch) and lives on the same Config page. By the VM.h
+// equivalence invariant (m_gilOff==1 requires Options::useJSThreads()==1 via
+// VM::isGILOffProcess(), VM.cpp; both-bytes-0 forces m_gilOff==0), this gate
+// returns exactly m_gilOff in EVERY reachable state — value-identical to
+// gilOffWithProcessGate() including the pre-latch window, with one byte test
+// instead of two flag-off. Designation-loser VMs (m_gilOff==0) keep identity
+// through the short-circuit; GIL-on useJSThreads processes read m_gilOff==0
+// exactly as the AB17f gate's fallback term did. NOTE: the staged
+// out-of-line free-function resolver in Heap.cpp (raw vm.gilOff() gate) is
+// intentionally NOT converted — it is not on the flag-off path. If a later
+// round latches gilOffProcess BEFORE the m_gilOff designation (the root-cause
+// reorder recorded in INTEGRATE-ungil.md), this gate may switch to the
+// gilOffProcess byte so flag-on GIL'd processes also skip the m_gilOff load;
+// do not switch before that reorder lands.
 template<typename VMType>
 ALWAYS_INLINE GCClient::Heap& Heap::allocationClientForCurrentThread(VMType& vm, GCClient::Heap& vmOriginalClient)
 {
     static_assert(std::is_same_v<VMType, VM>, "templated solely to defer instantiation until VM is complete");
     ASSERT(&vmOriginalClient.server() == &vm.heap);
-    if (vm.gilOffWithProcessGate()) [[unlikely]] {
+    if (g_jscConfig.options.useJSThreads && vm.gilOff()) [[unlikely]] {
         GCClient::Heap* client = GCClient::Heap::currentThreadClient();
         if (client && &client->server() == &vm.heap) {
             // I2: an allocating thread must hold ITS client's access; a
