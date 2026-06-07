@@ -990,16 +990,62 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
     full unlink + fresh republish.
     Weak-memory reader-side ordering remains the recorded IT-8 KNOWN
     RESIDUAL (x86-64 TSO sound).
-    **AB17c F4 residual (NEW distinct signature, out of family):**
-    ~1/35 int-gate-stop-budget full-JIT: libpas "Alloc bit not set"
-    double-free in ParserArena::deallocateObjects under the
-    GILOffCompilationLocker (parse-result teardown in
-    generateUnlinkedFunctionCodeBlock). Allocator-level double free of
-    parser-arena memory — candidate classes: shared-AtomStringTable
-    StringImpl refcount discipline (family 2 adjacency) or a stale
-    UnlinkedCodeBlock teardown; NOT the call-link/code-lifecycle class
-    (all 7 named F4 tests pass the tier matrix otherwise). Owner:
-    next round; core signature recorded here.
+    **AB17c F4 sixth root cause (incoming-calls sentinel list torn by
+    unlocked PolymorphicCallNode removals):** residual stop-budget
+    segfault in CallLinkInfo::reset()'s remove() (locked linker path)
+    on a half-unlinked node: PolymorphicCallNode::unlinkOrUpgradeImpl
+    removed itself from the drain list WITHOUT
+    s_callLinkSerializationLock, and ~CallLinkInfo (lazy-sweep context,
+    unlocked) reached PolymorphicCallNode removals via clearStub ->
+    unlinkForcefully. Fixed: the poly node's drain-side remove() now
+    takes the link lock under gilOff (scoped before the nested locked
+    unlinkOrUpgrade), and ~CallLinkInfo takes the lock around
+    clearStub when a stub exists (other clearStub callers are locked
+    linker paths; contract recorded at
+    PolymorphicCallNode::unlinkForcefully).
+    **AB17c F4 CBI consumer sweep (transient-null + matched-pair):**
+    the retract-first installCode order makes m_jitCodeFor* transiently
+    null; consumers that unconditionally deref'd it or paired it with a
+    separately-loaded CodeBlock were converted to through-CB derivation
+    under gilOff: Repatch.cpp linkPolymorphicCallImpl (observed crash:
+    Ref(null) in generatedJITCodeForCall), Interpreter.cpp all six
+    execute* arms (program/call/construct/eval/module; ASSERTs gated),
+    JSMicrotask.cpp fast + slow entry. DirectCallLinkInfo::
+    repatchSpeculatively is RELEASE_ASSERT-unreachable flag-on.
+    **AB17c F4 seventh fix (sentinel-list lock coverage completed):**
+    further torn-list crashes showed the lock audit was incomplete:
+    (a) PolymorphicCallNode::unlinkOrUpgradeImpl's remove() was
+    unlocked (and after locking, needed the isOnList() RE-CHECK under
+    the lock — the drain hands nodes from an unlocked begin() read);
+    (b) ~CallLinkInfoBase (lazy-sweep mutator) removed unlocked —
+    now routed through the out-of-line removeOnDestruction()
+    (CallLinkInfoBase.cpp), which re-checks under the lock;
+    (c) CachedCall/MicrotaskCall unlinkOrUpgradeImpl + relink removed/
+    pushed unlocked — removes via removeOnDestruction(), pushes via
+    CodeBlock::linkIncomingCall which now locks its push gilOff;
+    (d) CallLinkInfo::setVirtualCall is called UNLOCKED from
+    RepatchInlines.h linkFor's mode switch — now self-locks.
+    s_callLinkSerializationLock became a RECURSIVE lock: lazy sweep
+    (destruction-context removers) can run from allocation inside a
+    locked linker (linkPolymorphicCallImpl allocates its stub under
+    the lock), so recursion is the only deadlock-free admission.
+    Flag-off: all arms gated (gilOff/isGILOffProcess), lock untouched.
+    **AB17c F4 residuals (rare, distinct signatures, recorded for the
+    next round; the 7 named tests pass the 28-cell tier matrix in most
+    runs, per-test residual rate ~1-4%):**
+    1. libpas "Alloc bit not set" double-free, seen from two unrelated
+    free sites (ParserArena::deallocateObjects under the
+    GILOffCompilationLocker; a plain TLC deallocation-log flush) —
+    an allocator-level double free of SOME object, i.e. a cross-cutting
+    lifetime bug, candidate classes: shared-AtomStringTable StringImpl
+    refcount discipline (family 2 adjacency) or a doubly-torn-down
+    JIT-side structure. Cores: /tmp/cores/core.591777, core.643552.
+    2. --useDFGJIT=0 (baseline-top-tier) jump/return into a
+    mid-instruction PC immediately after an unconditional jmp in
+    baseline code (int-gate-jettison-vs-execute, ~1/25): a stale
+    return/jump target into since-rewritten baseline code — true
+    code-lifecycle tail (IC repatch/reset vs execution). Core:
+    core.640254-class.
   - R4-9 (per-lite drains skip the per-tick hook; MAJOR, CONFIRMED) —
     fixed: VMLite::drainDefaultMicrotaskQueue now drains with
     performMicrotaskCheckpoint<true>, matching the §E.1b.4 disposition

@@ -1208,14 +1208,20 @@ failedJSONP:
 
         {
             AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
-            jitCode = program->generatedJITCode();
+            // ANNEX CBI item 3 (AB17c F4): gilOff, derive through the
+            // CodeBlock snapshot (matched pair; mirror may be transiently
+            // null during a live installCode).
+            if (vm.gilOff()) [[unlikely]]
+                jitCode = *codeBlock->jitCode();
+            else
+                jitCode = program->generatedJITCode();
             protoCallFrame.init(codeBlock, globalObject, globalCallee, thisObj, nullptr, 1);
         }
     }
 
     // Execute the code:
     throwScope.release();
-    ASSERT(jitCode == program->generatedJITCode().ptr());
+    ASSERT(vm.gilOff() || jitCode == program->generatedJITCode().ptr());
     return JSValue::decode(vmEntryToJavaScript(jitCode->addressForCall(), &vm, &protoCallFrame));
 }
 
@@ -1298,8 +1304,13 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
 
         {
             AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
-            if (isJSCall)
-                jitCode = functionExecutable->generatedJITCodeForCall();
+            if (isJSCall) {
+                // ANNEX CBI item 3 (AB17c F4): see the program-code arm.
+                if (vm.gilOff()) [[unlikely]]
+                    jitCode = *newCodeBlock->jitCode();
+                else
+                    jitCode = functionExecutable->generatedJITCodeForCall();
+            }
             protoCallFrame.init(newCodeBlock, globalObject, function, thisValue, context, argsCount, args.data());
         }
     }
@@ -1307,7 +1318,7 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
     // Execute the code:
     scope.release();
     if (isJSCall) {
-        ASSERT(jitCode == functionExecutable->generatedJITCodeForCall().ptr());
+        ASSERT(vm.gilOff() || jitCode == functionExecutable->generatedJITCodeForCall().ptr());
         return JSValue::decode(vmEntryToJavaScript(jitCode->addressForCall(), &vm, &protoCallFrame));
     }
 
@@ -1394,8 +1405,13 @@ JSObject* Interpreter::executeConstruct(JSObject* constructor, const CallData& c
 
         {
             AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
-            if (isJSConstruct)
-                jitCode = constructData.js.functionExecutable->generatedJITCodeForConstruct();
+            if (isJSConstruct) {
+                // ANNEX CBI item 3 (AB17c F4): see the program-code arm.
+                if (vm.gilOff()) [[unlikely]]
+                    jitCode = *newCodeBlock->jitCode();
+                else
+                    jitCode = constructData.js.functionExecutable->generatedJITCodeForConstruct();
+            }
             protoCallFrame.init(newCodeBlock, globalObject, constructor, newTarget, nullptr, argsCount, args.data());
         }
     }
@@ -1403,7 +1419,7 @@ JSObject* Interpreter::executeConstruct(JSObject* constructor, const CallData& c
     EncodedJSValue result;
     // Execute the code.
     if (isJSConstruct) {
-        ASSERT(jitCode == constructData.js.functionExecutable->generatedJITCodeForConstruct().ptr());
+        ASSERT(vm.gilOff() || jitCode == constructData.js.functionExecutable->generatedJITCodeForConstruct().ptr());
         result = vmEntryToJavaScript(jitCode->addressForCall(), &vm, &protoCallFrame);
     } else
         result = vmEntryToNative(constructData.native.function.taggedPtr(), &vm, &protoCallFrame);
@@ -1640,14 +1656,18 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
 
         {
             AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
-            jitCode = eval->generatedJITCode();
+            // ANNEX CBI item 3 (AB17c F4): see the program-code arm.
+            if (vm.gilOff()) [[unlikely]]
+                jitCode = *codeBlock->jitCode();
+            else
+                jitCode = eval->generatedJITCode();
             protoCallFrame.init(codeBlock, globalObject, callee, thisValue, nullptr, 1);
         }
     }
 
     // Execute the code:
     throwScope.release();
-    ASSERT(jitCode == eval->generatedJITCode().ptr());
+    ASSERT(vm.gilOff() || jitCode == eval->generatedJITCode().ptr());
     // eval code only uses scope at the beginning (op_enter).
     // We can replace the current scope for the subsequent run.
     callee->setScope(vm, scope);
@@ -1711,7 +1731,11 @@ JSValue Interpreter::executeModuleProgram(JSModuleRecord* record, ModuleProgramE
 
         {
             AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
-            jitCode = executable->generatedJITCode();
+            // ANNEX CBI item 3 (AB17c F4): see the program-code arm.
+            if (vm.gilOff()) [[unlikely]]
+                jitCode = *codeBlock->jitCode();
+            else
+                jitCode = executable->generatedJITCode();
 
             // The |this| of the module is always `undefined`.
             // http://www.ecma-international.org/ecma-262/6.0/#sec-module-environment-records-hasthisbinding
@@ -1724,7 +1748,7 @@ JSValue Interpreter::executeModuleProgram(JSModuleRecord* record, ModuleProgramE
 
     // Execute the code:
     throwScope.release();
-    ASSERT(jitCode == executable->generatedJITCode().ptr());
+    ASSERT(vm.gilOff() || jitCode == executable->generatedJITCode().ptr());
     return JSValue::decode(vmEntryToJavaScript(jitCode->addressForCall(), &vm, &protoCallFrame));
 }
 

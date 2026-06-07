@@ -817,18 +817,20 @@ void CodeBlock::setupWithUnlinkedBaselineCode(Ref<BaselineJITCode> jitCode)
     // UNGIL §5.7.2 (AB18-B): m_jitCode is the publication point GIL-off — the moment it is
     // stored, jitType() reads BaselineJIT and racing mutators may OSR into the entrypoint
     // (jitCompileAndSetHeuristics "already compiled" branch) before m_jitData exists, making
-    // the prologue's tier-up counter write land at null+0x10..0x18. Initialize exception
-    // handlers and BaselineJITData first; setJITCode last (its lock + storeStoreFence is the
-    // release pairing with the consumer-side loadLoadFence in LLIntSlowPaths).
-    {
-        const auto& jitCodeMap = jitCode->m_jitCodeMap;
-        for (size_t i = 0; i < numberOfExceptionHandlers(); ++i) {
-            HandlerInfo& handler = exceptionHandler(i);
-            // FIXME: <rdar://problem/39433318>.
-            handler.nativeCode = jitCodeMap.find(BytecodeIndex(handler.target)).retagged<ExceptionHandlerPtrTag>();
-        }
-    }
-
+    // the prologue's tier-up counter write land at null+0x10..0x18. Initialize BaselineJITData
+    // first, THEN retarget exception handlers, THEN setJITCode last (its lock +
+    // storeStoreFence is the release pairing with the consumer-side loadLoadFence in
+    // LLIntSlowPaths).
+    //
+    // UNGIL §5.7.2 (AB18-B sibling): handler.nativeCode is itself a publication point GIL-off.
+    // The moment a HandlerInfo is retargeted from the LLInt catch entry to the baseline catch
+    // entry, a racing mutator unwinding an LLInt frame of this CodeBlock (genericUnwind reads
+    // handler.m_nativeCode with no lock) lands in baseline op_catch, whose register-replenish
+    // loads CodeBlock::offsetOfJITData() — so m_jitData must be visible BEFORE any retargeted
+    // handler.nativeCode is. The storeStoreFence below is the release pairing with the
+    // consumer-side loadFence emitted at the head of the gilOff baseline op_catch leg
+    // (JIT::emit_op_catch). GIL-on / flag-off this reorder is behavior-neutral: install is
+    // serialized against all mutators, and storeStoreFence is a compiler-only fence on x86.
     {
         ASSERT(!m_jitData);
         auto baselineJITData = BaselineJITData::create(jitCode->m_unlinkedPropertyInlineCaches.size(), jitCode->m_constantPool.size(), this);
@@ -860,6 +862,16 @@ void CodeBlock::setupWithUnlinkedBaselineCode(Ref<BaselineJITCode> jitCode)
         // rely on the instruction count (and are in theory permitted to also inspect the instruction stream to more accurate assess the cost of tier-up).
         // And the data is stored in JITData.
         optimizeAfterWarmUp();
+    }
+
+    WTF::storeStoreFence(); // Publish m_jitData before any retargeted handler.nativeCode (see AB18-B sibling comment above).
+    {
+        const auto& jitCodeMap = jitCode->m_jitCodeMap;
+        for (size_t i = 0; i < numberOfExceptionHandlers(); ++i) {
+            HandlerInfo& handler = exceptionHandler(i);
+            // FIXME: <rdar://problem/39433318>.
+            handler.nativeCode = jitCodeMap.find(BytecodeIndex(handler.target)).retagged<ExceptionHandlerPtrTag>();
+        }
     }
 
     setJITCode(jitCode.copyRef());
@@ -2327,6 +2339,16 @@ void CodeBlock::linkIncomingCall(JSCell* caller, CallLinkInfoBase* incoming)
 {
     if (caller)
         noticeIncomingCall(caller);
+    // AB17c F4 (precondition 11): not every pusher is a locked Repatch
+    // linker — CachedCall / MicrotaskCall relinks and the Interpreter's
+    // cached-call setup push from a live mutator with no lock held. gilOff,
+    // serialize the push here (recursive lock: the locked linkers also call
+    // through this function).
+    if (vm().gilOff()) [[unlikely]] {
+        Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        m_incomingCalls.push(incoming);
+        return;
+    }
     m_incomingCalls.push(incoming);
 }
 

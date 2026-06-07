@@ -110,8 +110,16 @@ public:
     ~CallLinkInfoBase()
     {
         if (isOnList())
-            remove();
+            removeOnDestruction();
     }
+
+    // AB17c F4 (precondition 11): destruction-context removal runs on a
+    // lazy-sweep mutator with no caller-held link lock, but mutates the same
+    // incoming-calls sentinel lists the locked linkers mutate. Out-of-line
+    // (CallLinkInfo.cpp) so this header needs no lock/VM includes; gilOff it
+    // takes CallLinkInfo::s_callLinkSerializationLock (recursive — sweep can
+    // run from allocation inside a locked linker).
+    JS_EXPORT_PRIVATE void removeOnDestruction();
 
     CallSiteType callSiteType() const { return m_callSiteType; }
 

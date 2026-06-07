@@ -35,6 +35,20 @@
 
 namespace JSC {
 
+void CallLinkInfoBase::removeOnDestruction()
+{
+    // AB17c F4 (precondition 11): see the declaration comment. The recursive
+    // lock admits the sweep-from-inside-a-locked-linker path.
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        if (isOnList())
+            remove();
+        return;
+    }
+    if (isOnList())
+        remove();
+}
+
 void CallLinkInfoBase::unlinkOrUpgrade(VM& vm, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock)
 {
     switch (callSiteType()) {

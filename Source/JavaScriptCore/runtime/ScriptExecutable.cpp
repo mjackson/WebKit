@@ -73,6 +73,12 @@ RecursiveLock& gilOffCompilationLock()
     return lock;
 }
 
+// UNGIL §A.3 thread-granular conductor predicates (VMManager.cpp; same-library
+// seam redeclarations per the U-T5 record — see JSThreadsSafepoint.cpp).
+// Consumed by installCode's shouldLock predicate below.
+bool jsThreadsThreadGranularWorldIsStopped();
+bool jsThreadsCurrentThreadIsStopConductor();
+
 namespace {
 
 // Stop-protocol-safe acquisition (W1/D9 convention, AB-17 status block in
@@ -221,7 +227,23 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
     // Plan::finalize is a cheap re-acquire.
     bool isGCDrivenInstall = reason == Profiler::JettisonReason::JettisonDueToWeakReference
         || reason == Profiler::JettisonReason::JettisonDueToOldAge;
-    GILOffCompilationLocker compilationLocker(vm, vm.gilOffWithProcessGate() && !isGCDrivenInstall && !vm.heap.worldIsStopped());
+    //  - the CONDUCTOR of an open §A.3 thread-granular window (Class-A fire
+    //    queue drain -> jettison -> nested stopTheWorldAndRun runs `work`
+    //    inline -> installCode): every other mutator of this VM is parked for
+    //    the window, so the install cannot interleave with a sibling's — and
+    //    acquiring here can deadlock: a mutator parked INSIDE the locked
+    //    region (prepareForExecutionImpl's holder parks at the FIX-2 site in
+    //    putDirectInternal from CodeBlock::finishCreation) can never release
+    //    the lock until the window closes, while the conductor's spin keeps
+    //    the window open — the 30s watchdog fail-stop (stack-limits-per-thread
+    //    flake, vmstate identity round). Conductor-only: a non-conductor
+    //    thread observing the window (pre-park race) must still queue on the
+    //    lock — same licensing rule as stopTheWorldAndRun's R1.h
+    //    foreign-thread guard.
+    // (Short-circuit keeps the §A.3 predicate calls off the flag-off/GIL-on path.)
+    GILOffCompilationLocker compilationLocker(vm,
+        vm.gilOffWithProcessGate() && !isGCDrivenInstall && !vm.heap.worldIsStopped()
+        && !(jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
 
     if (genericCodeBlock) {
         CODEBLOCK_LOG_EVENT(genericCodeBlock, "installCode", ());

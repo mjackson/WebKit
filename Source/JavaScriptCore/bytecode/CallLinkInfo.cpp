@@ -89,7 +89,7 @@ void retireCallLinkRecord(VM& vm, CallLinkRecord* record)
 
 // AB18-D: see the declaration in CallLinkInfo.h. Defined here so the
 // transition writers in this file and in bytecode/Repatch.cpp share one lock.
-Lock CallLinkInfo::s_callLinkSerializationLock;
+RecursiveLock CallLinkInfo::s_callLinkSerializationLock;
 
 // SPEC-jit section 5.8 (F6): publish = fully initialize the new immutable
 // record, storeStoreFence, then ONE pointer store. Readers are JIT'd fast
@@ -231,7 +231,7 @@ void CallLinkInfo::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, CodeBloc
     // already holds it (the locked linkers never unlink), and GC/STW callers
     // (visitWeak, jettison) take it uncontended because lock holders never
     // park at a safepoint.
-    std::optional<Locker<Lock>> gilOffLocker;
+    std::optional<Locker<RecursiveLock>> gilOffLocker;
     if (vm.gilOff()) [[unlikely]]
         gilOffLocker.emplace(s_callLinkSerializationLock);
 
@@ -479,6 +479,15 @@ void CallLinkInfo::revertCall(VM& vm)
 
 void CallLinkInfo::setVirtualCall(VM& vm)
 {
+    // AB17c F4 (precondition 11): not every caller is a locked linker —
+    // RepatchInlines.h linkFor's mode switch calls this directly with no
+    // lock held, and reset() below remove()s this node from an
+    // incoming-calls sentinel list the locked linkers also mutate.
+    // Self-lock (recursive — the locked linkers and unlinkOrUpgradeImpl
+    // also reach here).
+    std::optional<Locker<RecursiveLock>> gilOffLocker;
+    if (vm.gilOff()) [[unlikely]]
+        gilOffLocker.emplace(s_callLinkSerializationLock);
     reset(vm);
     if (Options::useJSThreads()) [[unlikely]] {
         // AB18-D publication order (cf. setMonomorphicCallee): the always-call
@@ -790,7 +799,7 @@ void DirectCallLinkInfo::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, Co
     // AB18-D: same serialization as CallLinkInfo::unlinkOrUpgradeImpl — this
     // runs on a live mutator via the tier-up install drain, and the remove()/
     // relink push below must not race the Repatch.cpp linkers.
-    std::optional<Locker<Lock>> gilOffLocker;
+    std::optional<Locker<RecursiveLock>> gilOffLocker;
     if (vm.gilOff()) [[unlikely]]
         gilOffLocker.emplace(CallLinkInfo::s_callLinkSerializationLock);
 

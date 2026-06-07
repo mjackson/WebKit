@@ -256,7 +256,20 @@ static void linkPolymorphicCallImpl(VM& vm, JSCell* owner, CallFrame* callFrame,
                         arityCheck = ArityCheckMode::MustCheckArity;
 
                 }
-                codePtr = variant.executable()->generatedJITCodeForCall()->addressForCall(arityCheck);
+                if (vm.gilOff() && codeBlock) [[unlikely]] {
+                    // ANNEX CBI item 3 (AB17c F4): derive the entrypoint
+                    // THROUGH the per-variant CodeBlock snapshot taken
+                    // above. The executable's m_jitCodeForCall mirror is
+                    // (a) transiently NULL during a live installCode (the
+                    // retract-first store order) — generatedJITCodeForCall
+                    // unconditionally derefs it — and (b) independently
+                    // republished, so reading it here could pair a target
+                    // from one tier with slot.m_codeBlock from another.
+                    // Host functions (codeBlock == nullptr) keep the mirror
+                    // read: their jitCode is set once at creation.
+                    codePtr = codeBlock->jitCode()->addressForCall(arityCheck);
+                } else
+                    codePtr = variant.executable()->generatedJITCodeForCall()->addressForCall(arityCheck);
                 slot.m_arityCheckMode = arityCheck;
             }
         } else {

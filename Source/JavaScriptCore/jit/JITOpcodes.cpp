@@ -1214,6 +1214,16 @@ void JIT::emit_op_catch(const JSInstruction* currentInstruction)
         // skip list restores every VM callee save; no scratch-restore dance
         // needed. Rematerialize the lite (§A.1.2) after the restore clobbers
         // regT3's use as the buffer base.
+        //
+        // UNGIL §5.7.2 (AB18-B sibling): a racing mutator can land here from an
+        // LLInt frame the instant setupWithUnlinkedBaselineCode retargets
+        // handler.nativeCode (genericUnwind reads it with no lock). The jitData
+        // replenish below loads CodeBlock::offsetOfJITData(), so this entry must
+        // observe the m_jitData store that the installer publishes BEFORE the
+        // handler retarget (storeStoreFence in setupWithUnlinkedBaselineCode).
+        // loadFence is the acquire pairing; GIL-off leg only, so flag-off/GIL-on
+        // codegen is byte-identical to pre-split.
+        loadFence();
         loadVMLite(regT3);
         loadPtr(Address(regT3, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topEntryFrame())), regT3);
         restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferImpl(regT3, RegisterSet::stackRegisters());

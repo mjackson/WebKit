@@ -45,8 +45,9 @@ void MicrotaskCall::relink(VM& vm, JSFunction* function)
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     // Unlink from any prior CodeBlock before we reset state.
+    // AB17c F4 (precondition 11): locked remove gilOff (shared sentinel list).
     if (isOnList())
-        remove();
+        removeOnDestruction();
 
     auto* newCodeBlock = vm.interpreter.prepareForMicrotaskCall(*this, function);
     RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(scope, void());
@@ -56,8 +57,9 @@ void MicrotaskCall::relink(VM& vm, JSFunction* function)
 
 void MicrotaskCall::unlinkOrUpgradeImpl(VM&, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock)
 {
+    // AB17c F4 (precondition 11): locked remove gilOff (shared sentinel list).
     if (isOnList())
-        remove();
+        removeOnDestruction();
 
     if (newCodeBlock && m_codeBlock == oldCodeBlock) {
         newCodeBlock->m_shouldAlwaysBeInlined = false;

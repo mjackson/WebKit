@@ -74,8 +74,13 @@ public:
 
     void unlinkOrUpgradeImpl(VM&, CodeBlock* oldCodeBlock, CodeBlock* newCodeBlock)
     {
+        // AB17c F4 (precondition 11): this node shares the incoming-calls
+        // sentinel lists with the locked linkers; gilOff the removal must
+        // serialize on the link lock (removeOnDestruction is the gated
+        // locked-remove helper; the relink push below goes through
+        // CodeBlock::linkIncomingCall, which locks its push gilOff).
         if (isOnList())
-            remove();
+            removeOnDestruction();
 
         if (newCodeBlock && m_protoCallFrame.codeBlock() == oldCodeBlock) {
             newCodeBlock->m_shouldAlwaysBeInlined = false;

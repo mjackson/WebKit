@@ -43,24 +43,25 @@ void PolymorphicCallNode::unlinkOrUpgradeImpl(VM& vm, CodeBlock* oldCodeBlock, C
     // We first remove itself from the linked-list before unlinking callLinkInfo.
     // The reason is that callLinkInfo can potentially link PolymorphicCallNode's stub itself, and it may destroy |this| (the other CallLinkInfo
     // does not do it since it is not chained in PolymorphicCallStubRoutine).
-    if (isOnList()) {
-        if (vm.gilOff()) [[unlikely]] {
-            // AB17c F4 (precondition 11): this remove() runs on a live
-            // mutator (tier-up install drain) and mutates the same sentinel
-            // list (a drain-local toBeRemoved, or a CodeBlock's
-            // m_incomingCalls) that the Repatch.cpp linkers' locked
-            // reset()/push() paths mutate — an unlocked removal here tears
-            // the neighbors of a concurrently-removed node (observed:
-            // CallLinkInfo::reset() remove() crashing on a half-unlinked
-            // node under int-gate-stop-budget). Same lock, same rule as
-            // CallLinkInfo::unlinkOrUpgradeImpl; taken BEFORE the
-            // m_callLinkInfo->unlinkOrUpgrade call below re-acquires it
-            // (non-recursive), so scope the locker to the remove only.
-            Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+    if (vm.gilOff()) [[unlikely]] {
+        // AB17c F4 (precondition 11): this remove() runs on a live mutator
+        // (tier-up install drain) and mutates the same sentinel list (a
+        // drain-local toBeRemoved, or a CodeBlock's m_incomingCalls) that
+        // the Repatch.cpp linkers' locked reset()/push() paths mutate — an
+        // unlocked removal here tears the neighbors of a
+        // concurrently-removed node (observed: CallLinkInfo::reset()
+        // remove() crashing on a half-unlinked node under
+        // int-gate-stop-budget). Same lock, same rule as
+        // CallLinkInfo::unlinkOrUpgradeImpl. isOnList() MUST be
+        // (re-)checked UNDER the lock: the drain hands us this node from an
+        // unlocked begin() read, and a locked linker can have removed it in
+        // the window before we acquire. The lock is recursive, so the
+        // nested m_callLinkInfo->unlinkOrUpgrade below re-acquires cheaply.
+        Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        if (isOnList())
             remove();
-        } else
-            remove();
-    }
+    } else if (isOnList())
+        remove();
 
     if (!m_cleared) {
         if (!newCodeBlock || !owner()->upgradeIfPossible(vm, oldCodeBlock, newCodeBlock, m_index)) {

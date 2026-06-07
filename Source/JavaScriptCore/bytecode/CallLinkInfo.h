@@ -37,6 +37,7 @@
 #include "PolymorphicCallStubRoutine.h"
 #include "WriteBarrier.h"
 #include <wtf/Lock.h>
+#include <wtf/RecursiveLockAdapter.h>
 #include <wtf/ScopedLambda.h>
 
 namespace JSC {
@@ -138,12 +139,16 @@ public:
     // relink push and the per-node work of the non-STW
     // ScriptExecutable::installCode drain). ONE lock, not per-CodeBlock pairs:
     // call linking is a rare slow path, and a single lock is deadlock-free by
-    // construction (no nesting, and holders never reach a safepoint poll).
-    // KNOWN RESIDUAL (outside this item's file set): the m_incomingCalls list
-    // HEAD rewrite in CodeBlock::unlinkOrUpgradeIncomingCalls' takeFrom
-    // (CodeBlock.cpp) is not yet under this lock and can still race a locked
-    // push on the same list. Static member: no layout change.
-    static Lock s_callLinkSerializationLock;
+    // construction (holders never reach a safepoint poll). AB17c F4: now a
+    // RECURSIVE lock — destruction-context removers (~CallLinkInfoBase on a
+    // lazy-sweep mutator, reachable from allocation inside a LOCKED linker,
+    // e.g. linkPolymorphicCallImpl's stub allocation sweeping a dying
+    // CodeBlock) must also serialize on it, and the recursive acquire is the
+    // only deadlock-free way to admit them. The takeFrom HEAD-rewrite
+    // residual was closed by the AB18-C locker in
+    // CodeBlock::unlinkOrUpgradeIncomingCalls. Static member: no layout
+    // change.
+    static RecursiveLock s_callLinkSerializationLock;
 
 
     static CallType NODELETE callTypeFor(OpcodeID opcodeID);
