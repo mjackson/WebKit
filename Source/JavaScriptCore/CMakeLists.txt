@@ -1810,6 +1810,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/VM.h
     runtime/VMEntryScope.h
     runtime/VMEntryScopeInlines.h
+    runtime/VMExceptionScopeVerificationState.h
     runtime/VMInlines.h
     runtime/VMLite.h
     runtime/VMLiteInlines.h

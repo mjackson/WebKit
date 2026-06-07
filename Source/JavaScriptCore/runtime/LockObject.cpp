@@ -88,12 +88,16 @@ GILParkSavedExecutionState::GILParkSavedExecutionState(VM& vm)
 {
     if (m_gilOff) {
         // UNGIL §J.2 (U-T11): dead GIL-off. Group-3 execution state is
-        // per-lite (§A.1.3) — no other mutator can clobber this thread's
-        // topCallFrame/topEntryFrame/exception-scope words while it parks,
-        // so there is nothing to save (see the keying rationale on the
-        // member declaration, LockObject.h). A save/restore through the raw
-        // VM-block members would be a data race shared by every concurrently
-        // parking spawned thread. Park-site asserts move to the token
+        // per-lite (§A.1.3), and — since obligation 10 landed the
+        // exceptionScopeVerificationState() mode split — so is the
+        // EXCEPTION_SCOPE_VERIFICATION scope chain, making the "per-lite
+        // words" premise of this early return TRUE for every word this
+        // class would otherwise save: no other mutator can clobber this
+        // thread's topCallFrame/topEntryFrame/exception-scope words while
+        // it parks, so there is nothing to save (see the keying rationale
+        // on the member declaration, LockObject.h). A save/restore through
+        // the raw VM-block members would be a data race shared by every
+        // concurrently parking spawned thread. Park-site asserts move to the token
         // meaning (JSLock.cpp IU row 28): a spawned thread holds an entry
         // token; a main/embedder carrier still holds m_lock here, which
         // satisfies the token predicate too.
@@ -114,8 +118,11 @@ GILParkSavedExecutionState::GILParkSavedExecutionState(VM& vm)
     m_topCallFrame = vm.topCallFrame;
     m_topEntryFrame = vm.topEntryFrame;
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    m_topExceptionScope = vm.m_topExceptionScope;
-    m_needExceptionCheck = vm.m_needExceptionCheck;
+    // Obligation 10: GIL-on arm only (GIL-off took the §J.2 early return
+    // above). The accessor resolves the VM copy here — bit-identical to the
+    // former raw members.
+    m_topExceptionScope = vm.exceptionScopeVerificationState().m_topExceptionScope;
+    m_needExceptionCheck = vm.exceptionScopeVerificationState().m_needExceptionCheck;
 #endif
 }
 
@@ -137,8 +144,9 @@ GILParkSavedExecutionState::~GILParkSavedExecutionState()
     m_vm.topCallFrame = m_topCallFrame;
     m_vm.topEntryFrame = m_topEntryFrame;
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    m_vm.m_topExceptionScope = m_topExceptionScope;
-    m_vm.m_needExceptionCheck = m_needExceptionCheck;
+    // Obligation 10: GIL-on arm only (see ctor).
+    m_vm.exceptionScopeVerificationState().m_topExceptionScope = m_topExceptionScope;
+    m_vm.exceptionScopeVerificationState().m_needExceptionCheck = m_needExceptionCheck;
 #endif
 }
 
@@ -157,8 +165,11 @@ void GILParkSavedExecutionState::resetForFreshThread(VM& vm)
     vm.topCallFrame = nullptr;
     vm.topEntryFrame = nullptr;
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    vm.m_topExceptionScope = nullptr;
-    vm.m_needExceptionCheck = false;
+    // Obligation 10: GIL-on arm only (GIL-off early-returned above — a
+    // fresh GIL-off thread's verification state is its own lite's,
+    // zero-initialized at lite creation).
+    vm.exceptionScopeVerificationState().m_topExceptionScope = nullptr;
+    vm.exceptionScopeVerificationState().m_needExceptionCheck = false;
 #endif
 }
 
@@ -232,7 +243,8 @@ GILDroppedSection::~GILDroppedSection()
         // poll surfaces it — never lost, single canonical throw, no
         // double-throw.
         // (hasPendingTerminationException is the non-mutating per-lite read;
-        // vm.exception() would flip the raw m_needExceptionCheck word.)
+        // vm.exception() would flip this thread's m_needExceptionCheck
+        // verification bit.)
         if (m_vm.hasPendingTerminationException()) [[unlikely]] {
             auto topScope = DECLARE_TOP_EXCEPTION_SCOPE(m_vm);
             topScope.clearException();

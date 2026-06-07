@@ -37,19 +37,26 @@ class PropertyInlineCache;
 
 class SuspendExceptionScope {
 public:
+    // UNGIL §A.1.3 mode split (obligation-10 audit): suspend/restore the
+    // CURRENT thread's exception words — GIL-off the raw VM-block members
+    // are inert spare storage and the live words are the lite's
+    // (group3Primitives()); GIL-on this aliases the VM block, bit-identical.
+    // The SetForScope write-back requires ctor and dtor to resolve the same
+    // storage: this scope stays on one thread inside a stable (thread, lite)
+    // window, like every other exception scope.
     SuspendExceptionScope(VM& vm)
         : m_vm(vm)
-        , m_exceptionWasSet(vm.m_exception)
-        , m_savedException(vm.m_exception, nullptr)
-        , m_savedLastException(vm.m_lastException, nullptr)
+        , m_exceptionWasSet(vm.group3Primitives().m_exception)
+        , m_savedException(vm.group3Primitives().m_exception, nullptr)
+        , m_savedLastException(vm.group3Primitives().m_lastException, nullptr)
     {
         if (m_exceptionWasSet)
-            m_vm.traps().clearTrap(VMTraps::NeedExceptionHandling);
+            m_vm.trapsForCurrentThread().clearTrap(VMTraps::NeedExceptionHandling); // Same storage domain as the words above.
     }
     ~SuspendExceptionScope()
     {
         if (m_exceptionWasSet)
-            m_vm.traps().fireTrap(VMTraps::NeedExceptionHandling);
+            m_vm.trapsForCurrentThread().fireTrap(VMTraps::NeedExceptionHandling);
     }
 private:
     VM& m_vm;

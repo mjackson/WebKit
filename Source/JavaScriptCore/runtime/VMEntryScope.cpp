@@ -157,9 +157,13 @@ void VMEntryScope::setUpSlow()
         //   (i) Debug/ASAN, deterministic: stack-use-after-return in
         //       ThrowScope::~ThrowScope -> ExceptionScope::stackPosition()
         //       on a spawned thread — the VM-level exception-scope
-        //       verification chain (m_topExceptionScope) is still shared
-        //       across lites and points into the carrier's stack (per-lite
-        //       exception-state split leg, §A.1 VM-lite split).
+        //       verification chain (m_topExceptionScope) was shared across
+        //       lites and pointed into the carrier's stack. FIXED:
+        //       INTEGRATE-ungil.md obligation 10 landed — the verification
+        //       bookkeeping is per-lite GIL-off via the
+        //       VM::exceptionScopeVerificationState() mode-split accessor
+        //       (VMLite debug-only L2 tail append; VM copy GIL-on,
+        //       bit-identical).
         //   (ii) Release, intermittent: SIGSEGV inside Baseline-JIT'd code
         //       on a spawned thread, and a tier-up RELEASE_ASSERT
         //       ("... result = CompilationInvalidated but our replacement

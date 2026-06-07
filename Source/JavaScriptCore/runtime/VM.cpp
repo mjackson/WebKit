@@ -1647,7 +1647,10 @@ void VM::setException(Exception* exception)
     WTF::atomicStore(&primitives.m_exception, exception, std::memory_order_relaxed);
     primitives.m_lastException = exception;
     if (exception)
-        traps().fireTrap(VMTraps::NeedExceptionHandling);
+        // Same storage domain as the per-lite m_exception store above
+        // (trapsForCurrentThread(), VM.h): the throwing thread's own poll
+        // sites see the bit; no cross-thread observe/clear GIL-off.
+        trapsForCurrentThread().fireTrap(VMTraps::NeedExceptionHandling);
 }
 
 void VM::throwTerminationException()
@@ -1694,8 +1697,11 @@ Exception* VM::throwException(JSGlobalObject* globalObject, Exception* exception
     setException(exceptionToThrow);
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    m_nativeStackTraceOfLastThrow = StackTrace::captureStackTrace(Options::unexpectedExceptionStackTraceLimit());
-    m_throwingThread = &Thread::currentSingleton();
+    // Obligation 10 mode split: capture into the THROWING thread's own
+    // bookkeeping (per-lite GIL-off; VM copy GIL-on — bit-identical).
+    auto& verificationState = exceptionScopeVerificationState();
+    verificationState.m_nativeStackTraceOfLastThrow = StackTrace::captureStackTrace(Options::unexpectedExceptionStackTraceLimit());
+    verificationState.m_throwingThread = &Thread::currentSingleton();
 #endif
     return exceptionToThrow;
 }
@@ -2555,9 +2561,12 @@ void VM::verifyExceptionCheckNeedIsSatisfied(unsigned recursionDepth, ExceptionE
     if (!Options::validateExceptionChecks())
         return;
 
-    if (m_needExceptionCheck) [[unlikely]] {
-        auto throwDepth = m_simulatedThrowPointRecursionDepth;
-        auto& throwLocation = m_simulatedThrowPointLocation;
+    // Obligation 10 mode split: verification runs on the scope's own thread,
+    // so this resolves the same storage the scope's simulateThrow wrote.
+    auto& verificationState = exceptionScopeVerificationState();
+    if (verificationState.m_needExceptionCheck) [[unlikely]] {
+        auto throwDepth = verificationState.m_simulatedThrowPointRecursionDepth;
+        auto& throwLocation = verificationState.m_simulatedThrowPointLocation;
 
         dataLog(
             "ERROR: Unchecked JS exception:\n"
@@ -2572,7 +2581,7 @@ void VM::verifyExceptionCheckNeedIsSatisfied(unsigned recursionDepth, ExceptionE
 
         if (Options::dumpSimulatedThrows()) {
             out.println("The simulated exception was thrown at:");
-            out.println(StackTracePrinter { *m_nativeStackTraceOfLastSimulatedThrow, "    " });
+            out.println(StackTracePrinter { *verificationState.m_nativeStackTraceOfLastSimulatedThrow, "    " });
         }
         out.println("Unchecked exception detected at:");
         out.println(StackTracePrinter { *currentTrace, "    " });
@@ -2584,7 +2593,19 @@ void VM::verifyExceptionCheckNeedIsSatisfied(unsigned recursionDepth, ExceptionE
 
 void VM::clearNativeStackTraceOfLastThrow()
 {
-    m_nativeStackTraceOfLastThrow = nullptr;
+    exceptionScopeVerificationState().m_nativeStackTraceOfLastThrow = nullptr; // Obligation 10 mode split.
+}
+
+NEVER_INLINE void VM::assertExceptionScopeVerificationFallbackArmIsSafe()
+{
+    // Obligation 10 landing requirement: the GIL-off fallback arm of
+    // exceptionScopeVerificationState() (no current lite, or lite->vm !=
+    // this) is reachable only from the carrier / m_lock-holding windows
+    // (ctor tail before first entry, ~VM tail after uninstall). A
+    // non-mutator scope user (GC/compiler thread) landing here would
+    // silently reopen the shared-word race this split closed — fail loudly
+    // instead.
+    ASSERT(apiLock().currentThreadIsHoldingLock());
 }
 #endif
 

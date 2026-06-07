@@ -43,6 +43,7 @@
 
 #include "Interpreter.h" // JSOrWasmInstruction (interpreter/Interpreter.h:61); brings JSCJSValue.h (EncodedJSValue).
 #include "JSExportMacros.h"
+#include "VMExceptionScopeVerificationState.h" // Obligation 10: per-lite EXCEPTION_SCOPE_VERIFICATION state (debug-only L2 tail append below).
 #include "VMThreadContext.h" // §A.2.1 per-lite traps/stack limits (brings VMTraps.h; VMLite is only forward-declared there — no cycle).
 #include <atomic>
 #include <memory>
@@ -306,6 +307,22 @@ public:
     // Live only for gilOff lites (perThreadTrapsIfExists, VMLite.cpp);
     // GIL-on lites keep VM-word semantics (U0b second-VM intact).
     VMThreadContext threadContext;
+
+#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+    // ---- UNGIL obligation 10 (INTEGRATE-ungil.md; U-T8b; L2 tail append
+    // AFTER threadContext — nothing above moves). Debug-only per-lite
+    // EXCEPTION_SCOPE_VERIFICATION bookkeeping: the ExceptionScope chain
+    // anchor + simulated-throw state. NOT part of the frozen
+    // VMLitePrimitives ABI; no generated-code offset reaches it. Selected
+    // ONLY through VM::exceptionScopeVerificationState() (the
+    // group3Primitives()-style mode split): GIL-off lites use this copy, so
+    // a spawned thread's scope chain can never link into the carrier's
+    // stack (the deterministic GIL-off ExceptionScope::stackPosition()
+    // stack-use-after-return; VMEntryScope.cpp status item (i)). GIL-on /
+    // flag-off / second-VM U0b: this copy stays untouched (VM member is
+    // authoritative).
+    VMExceptionScopeVerificationState exceptionScopeVerificationState;
+#endif
 
     static constexpr ptrdiff_t offsetOfPrimitives() { return OBJECT_OFFSETOF(VMLite, primitives); }
     static constexpr ptrdiff_t offsetOfTID() { return OBJECT_OFFSETOF(VMLite, tid); }

@@ -606,6 +606,43 @@ public:
         return const_cast<VM*>(this)->group3Primitives();
     }
 
+#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+    // UNGIL obligation 10 (INTEGRATE-ungil.md; the C++ sibling of the
+    // LLInt/JIT group-3 exception split): mode-split selector for the
+    // EXCEPTION_SCOPE_VERIFICATION bookkeeping. GIL-on (m_gilOff == 0,
+    // incl. flag-off and a second GIL-on VM, U0b): the VM member —
+    // bit-identical to the single-mutator behavior. GIL-off: the CURRENT
+    // lite's copy (VMLite debug-only L2 tail append), so a spawned thread's
+    // ExceptionScope chain anchors in ITS OWN storage and never links
+    // through the carrier's stack frames.
+    //
+    // Fallback arm (gilOff, but no installed same-VM lite): legitimate only
+    // in the same windows group3Primitives() documents (ctor tail before
+    // first entry, ~VM tail after uninstall) — all of which hold m_lock.
+    // The assert below keeps a future non-mutator scope user (GC/compiler
+    // thread constructing a Throw/CatchScope against this VM) from silently
+    // reopening the shared-word race.
+    //
+    // NOTE: the ExceptionScope chain write-back is NOT idempotent (unlike
+    // the group3Primitives precedent) — scopes must live strictly inside a
+    // stable (thread, lite) window (see VMExceptionScopeVerificationState.h).
+    ALWAYS_INLINE VMExceptionScopeVerificationState& exceptionScopeVerificationState()
+    {
+        if (gilOffWithProcessGate()) [[unlikely]] {
+            VMLite* lite = VMLite::currentIfExists();
+            if (lite && lite->vm == this) [[likely]]
+                return lite->exceptionScopeVerificationState;
+            assertExceptionScopeVerificationFallbackArmIsSafe();
+        }
+        return m_exceptionScopeVerificationState;
+    }
+    ALWAYS_INLINE const VMExceptionScopeVerificationState& exceptionScopeVerificationState() const
+    {
+        return const_cast<VM*>(this)->exceptionScopeVerificationState();
+    }
+    JS_EXPORT_PRIVATE void assertExceptionScopeVerificationFallbackArmIsSafe();
+#endif
+
     // SPEC-vmstate §6.4.4: the main thread's carrier (tid 0); non-null exactly
     // when the VM was constructed with useVMLite on. Consumed by JSLock (M4)
     // and ~VM.
@@ -1410,6 +1447,47 @@ public:
     ALWAYS_INLINE VMTraps& traps() { return m_threadContext.traps(); }
     ALWAYS_INLINE const VMTraps& traps() const { return m_threadContext.traps(); }
 
+    // UNGIL obligation-10 audit follow-up (the trap-word sibling of the
+    // group3Primitives() exception split): the NeedExceptionHandling bit
+    // must live in the SAME storage domain as the m_exception word it
+    // mirrors. GIL-off the exception word is per-lite, so the bit is fired/
+    // cleared/read on the CURRENT lite's trap word (§A.2.1) — a VM-wide
+    // fire would make thread B's RETURN_IF_EXCEPTION poll observe (and a
+    // clearException clear) thread A's bit, desynchronizing the
+    // EXCEPTION_ASSERT bit<->word invariant and losing pending exceptions.
+    // GIL-on / flag-off: vm.traps(), byte-identical (the config-page gate
+    // is the same two not-taken byte tests group3Primitives() pays). The
+    // fallback arm (no installed same-VM gilOff lite) deliberately matches
+    // group3Primitives()' VM-block fallback so the bit always tracks the
+    // storage the exception word itself resolved to.
+    ALWAYS_INLINE VMTraps& trapsForCurrentThread()
+    {
+        if (gilOffWithProcessGate()) [[unlikely]] {
+            VMLite* lite = VMLite::currentIfExists();
+            if (lite && lite->gilOff && lite->vm == this) [[likely]]
+                return lite->threadContext.traps();
+        }
+        return traps();
+    }
+    ALWAYS_INLINE const VMTraps& trapsForCurrentThread() const
+    {
+        return const_cast<VM*>(this)->trapsForCurrentThread();
+    }
+
+    // RETURN_IF_EXCEPTION's poll gate: GIL-off the current lite's word OR
+    // the VM-level word (mirrors handleTrapsForCurrentThreadIfNeeded's
+    // lite-then-VM servicing dispatch, which hasExceptionsAfterHandlingTraps
+    // runs); flag-off/GIL-on the single VM-word test, unchanged.
+    ALWAYS_INLINE bool trapsMaybeNeedHandlingForCurrentThread() const
+    {
+        if (gilOffWithProcessGate()) [[unlikely]] {
+            VMLite* lite = VMLite::currentIfExists();
+            if (lite && lite->gilOff && lite->vm == this) [[likely]]
+                return lite->threadContext.traps().maybeNeedHandling() || traps().maybeNeedHandling();
+        }
+        return traps().maybeNeedHandling();
+    }
+
     JS_EXPORT_PRIVATE bool hasExceptionsAfterHandlingTraps();
 
     CONCURRENT_SAFE void notifyNeedDebuggerBreak() { traps().fireTrap(VMTraps::NeedDebuggerBreak); }
@@ -1431,9 +1509,11 @@ public:
     void promiseRejected(JSPromise*);
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    StackTrace* nativeStackTraceOfLastThrow() const LIFETIME_BOUND { return m_nativeStackTraceOfLastThrow.get(); }
-    Thread* throwingThread() const { return m_throwingThread.get(); }
-    bool needExceptionCheck() const { return m_needExceptionCheck; }
+    // Obligation 10: routed through the mode-split accessor (per-lite
+    // GIL-off; VM copy GIL-on — bit-identical single-mutator).
+    StackTrace* nativeStackTraceOfLastThrow() const LIFETIME_BOUND { return exceptionScopeVerificationState().m_nativeStackTraceOfLastThrow.get(); }
+    Thread* throwingThread() const { return exceptionScopeVerificationState().m_throwingThread.get(); }
+    bool needExceptionCheck() const { return exceptionScopeVerificationState().m_needExceptionCheck; }
 #endif
 
     WTF::RunLoop& runLoop() const { return m_runLoop; }
@@ -1524,7 +1604,7 @@ private:
     Exception* exception() const
     {
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-        m_needExceptionCheck = false;
+        exceptionScopeVerificationState().m_needExceptionCheck = false; // Obligation 10 mode split (mutable member).
 #endif
         // UNGIL §A.1.3 mode split: per-lite when gilOff (a GC visit thread
         // must NOT come through here — the root walk reads each registered
@@ -1541,9 +1621,11 @@ private:
             ASSERT(currentThreadIsHoldingAPILock());
 #endif
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-        m_needExceptionCheck = false;
+        // Obligation 10 mode split: the CLEARING thread's own bookkeeping.
+        auto& verificationState = exceptionScopeVerificationState();
+        verificationState.m_needExceptionCheck = false;
         clearNativeStackTraceOfLastThrow();
-        m_throwingThread = nullptr;
+        verificationState.m_throwingThread = nullptr;
 #endif
         // UNGIL §A.1.3 mode split. Relaxed atomic store for the same reason
         // as VM::setException (tsan-vm-setexception-cross-thread-r3): the
@@ -1551,7 +1633,9 @@ private:
         // hasPendingTerminationException(); a plain nullptr store here would
         // be the same TSAN race from the clearing side.
         WTF::atomicStore(&group3Primitives().m_exception, static_cast<Exception*>(nullptr), std::memory_order_relaxed);
-        traps().clearTrap(VMTraps::NeedExceptionHandling);
+        // Same storage domain as the word above: per-lite GIL-off (see
+        // trapsForCurrentThread()), VM word GIL-on — byte-identical.
+        trapsForCurrentThread().clearTrap(VMTraps::NeedExceptionHandling);
     }
 
     JS_EXPORT_PRIVATE void setException(Exception*);
@@ -1590,19 +1674,19 @@ private:
     size_t m_currentSoftReservedZoneSize;
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
-    // UNGIL audit K4 table I: m_needExceptionCheck / m_throwingThread (and
-    // this verification block generally) are classed PER-LITE (vmstate I15 —
-    // throw state is thread-local). DELIBERATELY not rerouted at U-T1: the
-    // raw writers live outside U-T1's file set (ThrowScope.cpp,
-    // LockObject.cpp, Interpreter.cpp friends), so the move is tracked as
-    // INTEGRATE-ungil.md obligation 10 (owner U-T8b; debug-only members are
-    // an L2 VMLite tail append, NOT part of the frozen VMLitePrimitives
-    // ABI). Until it lands, EXCEPTION_SCOPE_VERIFICATION builds are not
-    // N-mutator-safe GIL-off — dark today.
+    // UNGIL audit K4 table I: the verification bookkeeping (chain anchor +
+    // simulated-throw state) is classed PER-LITE (vmstate I15 — throw state
+    // is thread-local). INTEGRATE-ungil.md obligation 10 (owner U-T8b):
+    // LANDED — this block is now ONE struct member selected through the
+    // exceptionScopeVerificationState() mode-split accessor (declared next
+    // to group3Primitives() above); GIL-off lites carry their own copy as a
+    // debug-only L2 VMLite tail append, NOT part of the frozen
+    // VMLitePrimitives ABI.
     //
-    // IT-1 review round (obligation 10 apply attempt): REJECTED 1/3 — do
-    // NOT flip this block's status without the conditions below. The race
-    // itself is confirmed real: ExceptionScope's ctor/dtor push/pop one
+    // History (IT-1 review round; the first apply attempt was REJECTED 1/3
+    // as a truncated diff — the landed change satisfies the conditions
+    // below). The race was confirmed real: ExceptionScope's ctor/dtor used
+    // to push/pop one
     // VM-shared m_topExceptionScope word, so a spawned lite's scope links
     // m_previousScope into the carrier's stack; the carrier's pop unlinks
     // the spawned scope (chain unwinds to null -> the
@@ -1614,7 +1698,7 @@ private:
     // VM.h/VMLite.h; landing it would have broken EVERY Debug/ASAN build
     // (ENABLE(EXCEPTION_SCOPE_VERIFICATION) = ASSERT || ASAN).
     //
-    // Resubmission must be ONE complete change: group3Primitives()-style
+    // Landed as ONE complete change: group3Primitives()-style
     // mode-split accessor (GIL-on / second-VM U0b alias to this block;
     // gilOff lites use an L2 tail append on VMLite AFTER threadContext —
     // debug-only, NOT part of the frozen VMLitePrimitives ABI, no
@@ -1645,13 +1729,16 @@ private:
     // against this item — VMEntryScope.cpp status items (ii)/(iii) are
     // separate legs. (Also: the proposal's file list named CatchScope.cpp,
     // which does not exist in this tree — correct the list on resubmit.)
-    ExceptionScope* m_topExceptionScope { nullptr };
-    ExceptionEventLocation m_simulatedThrowPointLocation;
-    unsigned m_simulatedThrowPointRecursionDepth { 0 };
-    mutable bool m_needExceptionCheck { false };
-    std::unique_ptr<StackTrace> m_nativeStackTraceOfLastThrow;
-    std::unique_ptr<StackTrace> m_nativeStackTraceOfLastSimulatedThrow;
-    RefPtr<Thread> m_throwingThread;
+    // The former loose members (m_topExceptionScope,
+    // m_simulatedThrowPointLocation/RecursionDepth, m_needExceptionCheck,
+    // m_nativeStackTraceOfLastThrow/SimulatedThrow, m_throwingThread) now
+    // live in this one struct, with names/types unchanged inside it — the
+    // relocation is the rename that turned every raw site into a compile
+    // error. ALL access goes through exceptionScopeVerificationState()
+    // (mode-split accessor above); this VM copy is the GIL-on / flag-off /
+    // fallback-window storage and is bit-identical in behavior to the old
+    // members for a single mutator.
+    VMExceptionScopeVerificationState m_exceptionScopeVerificationState;
 #endif
 
 public:

@@ -1214,9 +1214,38 @@ public:
         // the helper functions are not setting topCallFrame when they should
         // be doing so. Note: the previous value in topcallFrame was not valid
         // anyway since it was not being updated by JIT'ed code by design.
-
-        for (unsigned i = 0; i < sizeof(void*) / 4; i++)
-            store32(TrustedImm32(0xbadbeef), reinterpret_cast<char*>(&vm().topCallFrame) + i * 4);
+        //
+        // UNGIL §A.1.3 (emission side, obligation-10 audit follow-up): the
+        // word to trash is the one the operation prologue republishes —
+        // GIL-off that is the CURRENT thread's per-lite word (the
+        // prepareCallOperation/FrameTracers.h storage), NOT the baked raw
+        // VM-block address: scribbling the shared VM word from N DFG threads
+        // is a cross-thread store into inert spare storage that trips the
+        // §J.2 GILParkSavedExecutionState "raw words unchanged across the
+        // park" premise asserts (LockObject.cpp). Same scratch discipline as
+        // prepareCallOperation below (per-arch reserved temp only). GIL-on /
+        // flag-off: the landed absolute-address loop, byte-identical.
+        if (vm().gilOff()) [[unlikely]] {
+#if CPU(ARM64)
+            // Cache-invalidating accessor: see prepareCallOperation.
+            GPRReg liteGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+            GPRReg liteGPR = scratchRegister();
+#else
+            // SPEC-jit annex App. R5: no gilOff support on this platform;
+            // loadVMLite fail-stops at emission before this store is reached.
+            GPRReg liteGPR = GPRInfo::nonArgGPR0;
+#endif
+            loadVMLite(liteGPR);
+            // Two 32-bit immediate stores, mirroring the GIL-on loop's value
+            // pattern (no 64-bit immediate materialization — on X86_64 that
+            // would clobber the very scratch holding the lite base).
+            for (unsigned i = 0; i < sizeof(void*) / 4; i++)
+                store32(TrustedImm32(0xbadbeef), Address(liteGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topCallFrame() + i * 4)));
+        } else {
+            for (unsigned i = 0; i < sizeof(void*) / 4; i++)
+                store32(TrustedImm32(0xbadbeef), reinterpret_cast<char*>(&vm().topCallFrame) + i * 4);
+        }
 #endif
         prepareCallOperation(vm());
     }

@@ -36,19 +36,28 @@ namespace JSC {
     
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
     
+// UNGIL obligation 10 mode split: the chain anchor is per-lite GIL-off
+// (VM::exceptionScopeVerificationState()), so a spawned thread's scope chain
+// links only through its OWN frames — never into the carrier's stack (the
+// deterministic GIL-off ExceptionScope::stackPosition()
+// stack-use-after-return). GIL-on/flag-off: the VM copy, bit-identical.
+// The linked-list write-back is NOT idempotent: ctor and dtor MUST resolve
+// the same storage, so scopes live strictly inside a stable (thread, lite)
+// window (see VMExceptionScopeVerificationState.h).
 ExceptionScope::ExceptionScope(VM& vm, ExceptionEventLocation location)
     : m_vm(vm)
-    , m_previousScope(vm.m_topExceptionScope)
+    , m_previousScope(vm.exceptionScopeVerificationState().m_topExceptionScope)
     , m_location(location)
     , m_recursionDepth(m_previousScope ? m_previousScope->m_recursionDepth + 1 : 0)
 {
-    m_vm.m_topExceptionScope = this;
+    m_vm.exceptionScopeVerificationState().m_topExceptionScope = this;
 }
 
 ExceptionScope::~ExceptionScope()
 {
-    RELEASE_ASSERT(m_vm.m_topExceptionScope);
-    m_vm.m_topExceptionScope = m_previousScope;
+    auto& verificationState = m_vm.exceptionScopeVerificationState();
+    RELEASE_ASSERT(verificationState.m_topExceptionScope);
+    verificationState.m_topExceptionScope = m_previousScope;
 }
 
 CString ExceptionScope::unexpectedExceptionMessage()

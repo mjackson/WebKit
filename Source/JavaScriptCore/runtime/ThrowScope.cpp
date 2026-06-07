@@ -43,7 +43,11 @@ ThrowScope::ThrowScope(VM& vm, ExceptionEventLocation location)
 
 ThrowScope::~ThrowScope()
 {
-    RELEASE_ASSERT(m_vm.m_topExceptionScope);
+    // UNGIL obligation 10 mode split: this destructor runs on the throwing
+    // thread, so exceptionScopeVerificationState() resolves the same per-lite
+    // storage the ctor linked into (VM copy GIL-on — bit-identical).
+    auto& verificationState = m_vm.exceptionScopeVerificationState();
+    RELEASE_ASSERT(verificationState.m_topExceptionScope);
 
     if (!m_isReleased)
         m_vm.verifyExceptionCheckNeedIsSatisfied(m_recursionDepth, m_location);
@@ -53,7 +57,7 @@ ThrowScope::~ThrowScope()
         // function (which always checks for exceptions but won't clear the
         // m_needExceptionCheck bit), we should clear m_needExceptionCheck here
         // and let code below decide if we need to simulate a re-throw.
-        m_vm.m_needExceptionCheck = false;
+        verificationState.m_needExceptionCheck = false;
     }
 
     bool willBeHandleByLLIntOrJIT = false;
@@ -92,12 +96,15 @@ Exception* ThrowScope::throwException(JSGlobalObject* globalObject, JSValue erro
 
 void ThrowScope::simulateThrow()
 {
-    RELEASE_ASSERT(m_vm.m_topExceptionScope);
-    m_vm.m_simulatedThrowPointLocation = m_location;
-    m_vm.m_simulatedThrowPointRecursionDepth = m_recursionDepth;
-    m_vm.m_needExceptionCheck = true;
+    // UNGIL obligation 10 mode split: simulate-throw state is the throwing
+    // thread's own bookkeeping (per-lite GIL-off; VM copy GIL-on).
+    auto& verificationState = m_vm.exceptionScopeVerificationState();
+    RELEASE_ASSERT(verificationState.m_topExceptionScope);
+    verificationState.m_simulatedThrowPointLocation = m_location;
+    verificationState.m_simulatedThrowPointRecursionDepth = m_recursionDepth;
+    verificationState.m_needExceptionCheck = true;
     if (Options::dumpSimulatedThrows()) [[unlikely]]
-        m_vm.m_nativeStackTraceOfLastSimulatedThrow = StackTrace::captureStackTrace(Options::unexpectedExceptionStackTraceLimit());
+        verificationState.m_nativeStackTraceOfLastSimulatedThrow = StackTrace::captureStackTrace(Options::unexpectedExceptionStackTraceLimit());
 }
 
 #endif // ENABLE(EXCEPTION_SCOPE_VERIFICATION)
