@@ -18,6 +18,7 @@ needed).
 | Target jsc | `WebKitBuild/Fuzz/bin/jsc` (REPRL + ASAN; own build dir, never Debug/Release/TSan) |
 | Build script | `Tools/threads/fuzz/build-jsc-fuzz.sh` |
 | Run script | `Tools/threads/fuzz/run-fuzzilli.sh` |
+| In-repo profile copy | `Tools/threads/fuzz/JSCThreadsProfile.swift` + `fuzzilli-profile-registration.patch` (restore into a fresh fuzzilli clone if /root/fuzzilli is lost) |
 | Corpus/crashes | `WebKitBuild/Fuzz/fuzzilli-storage/{corpus,crashes,...}` |
 
 ## Building
@@ -150,6 +151,31 @@ often flaky — keep flaky crashes; rerun under
 `WebKitBuild/TSan/bin/jsc` (the bring-up tree's TSAN no-JIT build) for a
 race report when a crash does not reproduce under ASAN.
 
-## Smoke results (this setup run)
+## Smoke results (this setup run, 2026-06-07)
 
-See bottom of file — filled in after the 10-minute smoke run.
+10-minute single-worker smoke (`run-fuzzilli.sh --smoke`) against the GIL'd
+phase-1 tree:
+
+- Coverage feedback WORKS: 1,200,345 edges instrumented; 5.58% edge coverage
+  reached during initial corpus generation.
+- Corpus GROWS: 918 total samples, 459 interesting, corpus size 453 at stop;
+  82% correctness rate, <1% timeout rate, ~64 execs/s (single worker, shared
+  box, nice -n 10).
+- Startup tests pass: REPRL handshake, FUZZILLI_CRASH 0/1 detection, Thread
+  API exposure, spawn/join round-trip. (FUZZILLI_CRASH 2 = ASSERT(0) is a
+  no-op in RelWithDebInfo and is intentionally not tested.)
+- 17 crashes (15 unique deterministic files) found already, in
+  `WebKitBuild/Fuzz/fuzzilli-storage/crashes/`. NOT triaged here (that is
+  thread-fuzz's job). Two example signatures:
+  - `Atomics.store([-15132,-1024]);` — abort (SIGABRT) in the
+    Atomics-on-properties dispatch when arg0 is a plain JS array and the
+    property-key/value args are absent. Reproduces standalone:
+    `WebKitBuild/Fuzz/bin/jsc --useJSThreads=1 crash.js` (exit 134).
+  - `class C2 extends f0 { static 3188015491 = 4294967296; static #f; }; gc()`
+    — SIGABRT (likely pre-existing, not threads-specific; appears with
+    --useJSThreads=1 default-on in every execution of this profile).
+
+Caveat: the corpus in `fuzzilli-storage/corpus` was left in place; campaigns
+run with `--resume` and will continue from it. A later jsc rebuild changes
+edge numbering — Fuzzilli re-evaluates imported programs on resume, so this
+is safe, just slower on the first sync.

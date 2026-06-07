@@ -606,13 +606,20 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
             RELEASE_AND_RETURN(scope, false);
     }
 
-    // §A.2.2 item 3b: DeferTraps/DeferTermination scopes write the VM-LEVEL
-    // instance's flags (DeferTraps ctor takes vm.traps(); deferTermination is
-    // reached via vm.traps()), so a PER-LITE servicing instance must consult
-    // the VM-level flags — its own copies are never set. GIL-on / flag-off:
-    // vmLevelTraps == *this, byte-identical.
+    // §A.2.2 item 3b: DeferTermination scopes write the VM-LEVEL instance's
+    // flags (deferTermination is reached via vm.traps()), so a PER-LITE
+    // servicing instance must consult the VM-level flags — its own copies
+    // are never set. GIL-on / flag-off: vmLevelTraps == *this,
+    // byte-identical.
+    //
+    // FIX (stw-watchdog-timeout, root cause B): the DeferTraps flag moved to
+    // the CURRENT THREAD's instance (trapsForCurrentThread(); see the ctor
+    // comment in VMTrapsInlines.h) — a sibling's deferral must not blind
+    // this thread's servicing, and this thread's own deferral must suppress
+    // exactly the jettison-bearing services on this thread. GIL-on /
+    // flag-off: trapsForCurrentThread() == vm.traps(), byte-identical.
     VMTraps& vmLevelTraps = vm.traps();
-    if (vmLevelTraps.m_trapsDeferred)
+    if (vm.trapsForCurrentThread().m_trapsDeferred)
         RELEASE_AND_RETURN(scope, false); // We'll service them on the next opportunity after deferring has stopped.
 
     if (vmLevelTraps.isDeferringTermination())

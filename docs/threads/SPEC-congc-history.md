@@ -1,6 +1,6 @@
 # SPEC-congc-history.md
 
-Companion to `SPEC-congc.md` (draft rev 2). Per the frozen-spec
+Companion to `SPEC-congc.md` (draft rev 4). Per the frozen-spec
 convention: this file is NON-NORMATIVE EXCEPT the sections marked
 ANNEX ... (BINDING), which are part of the binding spec text and
 exist here only for the body size cap (50000 bytes).
@@ -113,13 +113,234 @@ exist here only for the body size cap (50000 bytes).
   Size cap: body compressed to 49995 bytes (<= 50000); full
   rejection rationales live in this entry per the overflow rule.
 
+- rev 3 (2026-06-07): adversarial round 2 — 10 reviewer findings
+  received (the 10th truncated in transmission; its surviving text
+  identified the same defect as F10's flag-off half and is folded
+  there), 7 distinct defects after merging duplicates
+  (findings 1+5+10 = F10; findings 2+6+8 = F13; the rest 1:1).
+  ALL ACCEPTED as real after verification against the tree; none
+  refuted. Dispositions (F-numbers cited by the rev 3 body):
+  - F10 (blocker; 3 findings merged): the §3.4 second-cycle claim
+    guarded only `tryConductSharedCollectionForPoll` and cited
+    `:4550-4554` — VERIFIED to be the tryLock-FAILURE follower
+    arm; the election WINNER arm (`Heap.cpp:4523-4532`) checks
+    only `m_lastServedTicket >= ticket` under `*m_threadLock`,
+    sets GCA, and conducts unconditionally. Under the window model
+    "GCL free && GCA set && unserved tickets" is a steady state
+    (today only the wind-down instants `:4534-4537`, where phase
+    is already NotRunning), so a between-windows sync requester
+    wins tryLock and nests a second `conductSharedCollection`
+    (interleaving: ANNEX CGD1.1). Also accepted (the truncated
+    finding's half): an UNCONDITIONAL "GCA set => back off" guard
+    would change flag-off behavior, because GCA-true-with-GCL-free
+    IS reachable flag-off in wind-down — rev 2's "impossible ...
+    backs off" sentence was doubly wrong. FIX: §3.4 rewritten as a
+    GCL-tryLock SITE ENUMERATION (`:4523`, `:4585`, `:5036`) with
+    the PHASE-GATED predicate `GCA && m_currentPhase != NotRunning`
+    (unreachable flag-off => CG-I0 holds byte-for-byte); CG-I21;
+    CG-T8 requester-storm arm.
+  - F11 (blocker): `pollIssRevertIfNeeded` (`Heap.cpp:5010-5105`)
+    tryLocks GCL (`:5036`) then loops
+    `while (m_gcConductorActive) waitFor(1_ms)` (`:5040-5043`)
+    HOLDING GCL and heap access — sound today (GCA-true/GCL-free
+    lasts instants), a process-wide deadlock against the
+    between-windows steady state (ANNEX CGD1.2). The rev 2 §9.2(3)
+    text addressed the revert OUTCOME (phase must be NotRunning)
+    but not this landed pre-check's structure. FIX: §3.4 `:5036`
+    row + §9.2(3) cross-ref — never wait for GCA under GCL when
+    phase != NotRunning; return with the hint armed; bounded
+    wind-down wait only when NotRunning. CG-T9 arm (revert-pending
+    poll storm mid-cycle).
+  - F13 (blocker; 3 findings merged): rev 2 §3.7/§7.1/CG-I19
+    pinned the conductor's between-window wait to
+    `drainInParallelPassively`'s "MainDrain wait"
+    (`SlotVisitor.cpp:623-636`) and §9.1(2) exempted it from pause
+    checks. VERIFIED wrong on every arm: (a) the
+    `drainInParallelPassively` guard (`:718-731`) falls back to
+    ACTIVE `drainInParallel()` (donateAndDrain + counted
+    drainFromShared(MainDrain)) on `numberOfGCMarkers()==1`,
+    `mutatorWaitingBit` (dead under ISS), `!hasHeapAccess()` —
+    which under ISS forwards to mainClientHasHeapAccess()
+    (`Heap.h:405-412`), i.e. an UNRELATED thread's state when the
+    conductor is access-released or not the main client — or
+    `worldIsStopped()`; (b) even the MainDrain wait actively
+    steals and drains on hasWork (`:680-688`, `:705`) and is
+    counted in active/waiting; (c) the combination with the
+    §9.1(2) exemption yields, per branch, either a pause-predicate
+    that can never close (watchdog stall at
+    `JSThreadsSafepoint.cpp:401`) or a conductor draining cells
+    concurrently with a §A.3 window's jettison (ANNEX CGD1.3);
+    (d) numberOfGCMarkers()==1 was unruled. FIX: §3.7/§7.1
+    rewritten — ISS conductor wait = `donateAll()` +
+    `waitForTermination` (`SlotVisitor.cpp:753-758`, `:737-751`),
+    no counters, never visitChildren, never
+    drainInParallelPassively/drainFromShared; ==1 markers =>
+    Concurrent never scheduled (one-window degenerate); CG-I19
+    amended; CG-T8 arm kept.
+  - F14 (major): §9.1(2) never defined WHICH thread classes the
+    pause denominator counts; `performIncrementOfDraining`
+    (`SlotVisitor.cpp:527-585`) maintains NO counters, so giving
+    the C4 assist path the `:578` checkpoint (as rev 2 did) makes
+    a pausing assist mutator overshoot the ack predicate AND park
+    holding access where the §A.3 fan-out cannot reach it (it
+    passes no stop poll while waiting on
+    m_markingConditionVariable) — watchdog stall; omitting it
+    races the §A.3 window for up to one increment, which is the
+    bounded, fan-out-compatible choice. FIX: participant set
+    pinned to drainFromShared(HelperDrain) helpers only (§9.1(2));
+    new §9.1(6): assist takes NO checkpoint, bound = one
+    increment, parked by the mutator fan-out at its next poll;
+    §7.4 cross-ref; CG-T10 arm.
+  - F15 (major): §3.1's (a)access-released -> (b)GCL -> (c)GSP
+    order, read literally at the FIRST window, double-acquires the
+    non-recursive GCL (election tryLocked it while access-held,
+    `:4523`) and inverts the landed GSP-before-release order
+    (`:4768-4771`) — contradicting CG-I0 (flag-off = one window =
+    the first one, byte-for-byte). FIX: first-window carve-out in
+    §3.1 (the first WND-open IS the landed entry; tryLock while
+    access-held is §A.3-safe because non-blocking); (a)-(c) and
+    the blocking acquire pinned to RE-ENTRY; §9.1(3) and CG-I19
+    re-phrased to match; the F9 rejection re-grounded as
+    re-entry-only.
+  - F16 (major): §9.1(2)'s rev 2 ack predicate
+    ("paused == active + waiting") composed with
+    `didReachTermination` (`SlotVisitor.cpp:594-598`) was
+    underdetermined: decrementing active on pause allows
+    termination to fire with undonated work parked in paused
+    helpers' local stacks (lost marks); not decrementing makes the
+    equality unsatisfiable (pauser deadlock). FIX: normative
+    counter protocol — pause checkpoint does donateAll (paused
+    helpers hold NO local work) + leaves its counter
+    (waiting--/active-- as appropriate) + paused++; ShouldPause
+    gates counter re-entry; pauser predicate = active==0 &&
+    waiting==0 under m_markingMutex (exited helpers count in
+    neither — SUPERSEDED rev 4, F17: this was asserted as a landed
+    property but is FALSE against the tree; it is now a normative
+    EDIT, the §9.1(2)(c) exit delta); didReachTermination
+    additionally gated on paused==0 (CG-I22); CG-T8 mid-batch
+    sub-arm.
+  - F12 (labeling): rev 2's grounding sentence for §3.4 cited the
+    follower arm as if it guarded winners — corrected as part of
+    the F10 rewrite (kept as a separate number because two
+    findings called out the citation error independently of the
+    missing guard).
+  Body size: compressed to 49989 bytes (<= 50000); the full
+  interleavings/derivations moved to ANNEX CGD1 per the overflow
+  rule; §2.1's consumer list deduplicated against ANNEX CGA1
+  (the annex table is the audit of record).
+
+- rev 4 (2026-06-07): adversarial round 3 — 6 reviewer findings
+  received, 3 distinct defects after merging duplicates
+  (findings 1+3+5 = F17, two blockers + one blocker restatement;
+  findings 2+4+6 = F18, three majors stating the same
+  charter/miscite defect; the §5.3 finding = F19, 1:1). ALL
+  ACCEPTED as real after verification against the tree; none
+  refuted. Dispositions (F-numbers cited by the rev 4 body):
+  - F17 (blocker; 3 findings merged): the rev 3 §9.1(2)/F16 pauser
+    predicate `active==0 && waiting==0` was grounded on the
+    sentence "helpers that exit (TimedOut/Done) leave both
+    counters" — VERIFIED FALSE: `drainFromShared` increments
+    `m_numberOfWaitingParallelMarkers` unconditionally at the top
+    of every loop iteration (SlotVisitor.cpp:621) and decrements
+    only on the resume-to-active path (:688); ALL FOUR return
+    paths exit with the increment leaked — MainDrain TimedOut
+    (:626), MainDrain Done (:629-630), HelperDrain TimedOut
+    (:641-642), HelperDrain Done on m_parallelMarkersShouldExit
+    (:673-674). Grep-complete: the only writers in the tree are
+    :621/:688 plus the zero-init (Heap.h:1261); the only readers
+    are the steal denominator (:682) and a diagnostic log
+    (Heap.cpp:1867); termination uses ACTIVE only
+    (didReachTermination, SlotVisitor.cpp:594-598) — which is why
+    the leak is benign tip-of-tree and why the spec's predicate
+    turned it into a guaranteed liveness failure: every cycle's
+    runEndPhase sets m_parallelMarkersShouldExit
+    (Heap.cpp:2026-2031), each helper Done-returns leaking +1, so
+    from the second cycle onward every §A.3 pause wait wedges
+    forever. Worse: in the GIL-off conductor the stop scope is
+    constructed (VMManager.cpp:561) BEFORE `requestStart` is
+    sampled (:579), so the wedge is not even watchdog-covered —
+    silent process hang with GCL held. FIX (body §9.1(2)(c) EXIT
+    DELTA): normative waiting-- on all four return paths (they
+    hold m_markingMutex); the flag-off delta (steal-denominator
+    heuristic only) is benign-ruled under CG-I0 with the full
+    derivation in ANNEX CGD2.1; debug assert
+    active==waiting==paused==0 after `m_helperClient.finish()`;
+    the gate clause extended to a fresh helper's FIRST :621
+    increment (transient — checkpoint (a) moves it to paused under
+    the same mutex, so the pauser predicate re-closes); CG-I22
+    re-worded ("a property CREATED by the F17 exit delta, not
+    landed"); CG-T8 gains the second-cycle sub-arm (one completed
+    cycle BEFORE the injected stop — the only way the leak is
+    test-reachable).
+  - F18 (major; 3 findings merged): §13.3(b) chartered the
+    marker-pause call site OUT to "`JSThreadsSafepoint.cpp` ...
+    the scope ctor lives there (`:334-337`)" — VERIFIED WRONG both
+    halves: the ctor/dtor live at Heap.cpp:5456-5482 (heap-owned
+    per §13.1); bytecode/JSThreadsSafepoint.cpp:334-338 is merely
+    one USE site (the `std::optional` declaration + `.emplace`).
+    The other construction sites — runtime/VMManager.cpp:561 (the
+    GIL-off §A.3 thread-granular conductor, the path every GIL-off
+    jettison/haveABadTime takes once JSThreadsSafepoint.cpp:239-241
+    reroutes gilOff requests) and SharedHeapTestHarness.cpp:1039/
+    :1073/:1107 — were never mentioned. Read literally, the
+    §13.3(b) row places the pause call at the stub use site and
+    leaves the VMManager conductor pausing NOTHING: a §A.3 window
+    jettisoning while HelperDrain markers are mid-visitChildren,
+    the exact CGD1.3 UAF class rev 3 closed. The §14 freeze gate
+    ("INTEGRATE-congc.md matches §13 exactly") would have forced a
+    fabricated integration row for a call site that must not
+    exist. FIX: §9.1(2) now pins CALL SITES = the ctor/dtor ONLY
+    (covering every construction by construction; dtor order made
+    normative: resume markers BEFORE releasing GCL so a WND-open
+    cannot interleave with paused markers); §13.3(b) DELETED with
+    the miscite recorded; §13.3(c) states VMManager.cpp:561 is
+    covered with ZERO VMManager edits; the §9.1 intro cite gains
+    the `bytecode/` path; §14 CG-3 re-worded (no foreign
+    integration row); CG-T8 gains the GIL-off VMManager-conductor
+    jettison sub-arm.
+  - F19 (blocker): §5.3(3)'s GIL-off fail-safe pinned the CLIENT
+    copies always-fenced — but NO emitted code reads the copies:
+    Baseline bakes the SERVER `addressOf*` as AbsoluteAddress
+    (AssemblyHelpers.h:2045, :2052, :2116; Heap.h:723/:726 return
+    &m_mutatorShouldBeFenced/&m_barrierThreshold, the server
+    members; branchIfBarriered reads
+    VM::offsetOfHeapBarrierThreshold — also server), and DFG/FTL
+    load VM_heap_barrierThreshold / VM_heap_mutatorShouldBeFenced
+    off the VM (FTLLowerDFGToB3.cpp:27281, :27323, :27355). With
+    §5.3(1) dropping the setMutatorShouldBeFenced ISS forcing
+    (Heap.cpp:3928-3940 — its own banner says the fence "must hold
+    at all times" with N mutators) and the §13.3(a) reroute
+    unlanded, GIL-off C1 mutators would run JIT code with
+    mutatorShouldBeFenced=false and blackThreshold between cycles
+    after the first endMarking lower — eliding mandatory
+    store-store fences and skipping barrier slow paths (lost
+    remembered-set appends / unfenced butterfly publication). The
+    fail-safe failed exactly in the case it existed for. NOT the
+    recorded open item 2 (which weighs the COST of a pin vs
+    blocking C1 GIL-off): the defect is that the pin attached to
+    storage the baked addresses do not read. FIX: §5.3(1)'s
+    forcing-drop is additionally gated on NOT GIL-off — GIL-off
+    keeps the landed forcing, so the SERVER MASTER (what emitted
+    code reads) stays tautological and the copies snapshot
+    tautological from it; FEP stays at the raise (CG-I3
+    unaffected); §13.3(a) row re-worded; CG-T3 gains the GIL-off
+    two-cycle fence-storm sub-arm asserting the server pair;
+    derivation: ANNEX CGD2.2. Open item 2 (pin cost) remains open
+    and now reads against the server pin.
+  Body size: compressed to 49959 bytes (<= 50000); compressions
+  moved rationale prose to existing annex pointers (CGD1.1-1.3,
+  this entry, ANNEX CGD2); no normative clause was weakened —
+  every trimmed sentence survives here or in an annex.
+
 Open items for the review loop (tracked, not yet ruled):
 1. RESOLVED rev 2 (F7): collector-thread conductor needs no
    VMTraps poll — ANNEX CGA2 row R6.
 2. §5.3(3) fail-safe pin (GIL-off always-fenced until the JIT
    reroute lands) costs every GIL-off barrier a fence; reviewers
    should weigh pinning per-stage vs blocking C1 GIL-off on the
-   jit row. STILL OPEN.
+   jit row. STILL OPEN — rev 4 F19 re-pointed the pin to the
+   SERVER master (the storage emitted code actually reads); the
+   cost question is unchanged by that fix.
 3. RESOLVED rev 2 (F6): §9.1(2) now pins a fresh pause pair; the
    lost-wakeup argument is in the body.
 4. CG-I12's "bounded by one window + one marker-pause": needs a
@@ -285,3 +506,173 @@ No SPEC-ungil clause is superseded: §A.3/EXIT1/HBT4/ISB1 are
 composed with unchanged (SPEC-congc §9); the ISB1.1 bump cadence
 change (§3.2) is an extension in the direction ISB1 already
 licenses (every window that may jettison bumps).
+
+## ANNEX CGD1 (BINDING) — rev 3 interleavings and the ISS conductor-wait derivation
+
+Referenced by SPEC-congc §3.4, §3.7, §9.2(3). The interleavings
+are the normative reachability proofs for the rev 3 rules; the
+test charters arm them.
+
+### CGD1.1 — second conductor via the election winner arm (F10)
+
+1. Conductor mid-cycle, BETWEEN windows: GCL free (§3.4), GCA
+   true, `m_currentPhase == Concurrent`.
+2. A mutator hits an allocation trigger and calls
+   `requestCollectionShared` (legal between windows — it holds
+   access, `Heap.cpp:4486-4491`): `m_lastGrantedTicket++ >
+   m_lastServedTicket` (granted tickets are served only at the
+   cycle-end ticket drain, `:4852-4863`).
+3. It calls `runSharedGCElection(ticket)`: served < ticket; the
+   `:4523` tryLock SUCCEEDS (GCL free); `:4526-4530` sees
+   served < ticket, re-sets GCA, calls `conductSharedCollection`.
+4. Two threads now run the phase machinery: the second conduct's
+   entry asserts pass (GSP false, WSAC false between windows), it
+   issues a nested `requestStopAll(GC)`, runs
+   `collectInMutatorThread` against phase state owned by the
+   parked first conductor; on exit it clears GCA (`:4536`) under
+   the live conductor. Double endMarking/finalize on unwind.
+   The rev 3 guard (GCA && phase != NotRunning => follower) makes
+   step 3 fall to the `:4550-4554` wait instead.
+
+Flag-off half (the truncated 10th finding): GCA-true-with-GCL-free
+IS reachable today — election wind-down unlocks GCL (`:4534`)
+before clearing GCA (`:4536`); same shape in the poll path
+(`:4600-4604`). An unconditional GCA back-off would alter flag-off
+behavior at that race (today a tryLock winner with unserved
+tickets conducts). Phase-gating excludes it: in flag-off shared
+mode, any point where GCL is free has `m_currentPhase ==
+NotRunning` (the one window spans the whole cycle), so the guard
+never fires flag-off.
+
+### CGD1.2 — revert-poll deadlock (F11)
+
+Config: GIL-on shared, C1 (§13.2 allows: stage flags gate only on
+`useSharedGCHeap`).
+1. Concurrent cycle live; conductor between windows (GCL free,
+   GCA true).
+2. A spawned thread EXIT1s mid-cycle (legal, §9.2); HCS shrinks
+   to 1; `m_issRevertPending` armed.
+3. Main client's next SINFAC poll (`Heap.cpp:5143-5151` region)
+   enters `pollIssRevertIfNeeded`; the `:5036` tryLock SUCCEEDS;
+   it enters `while (m_gcConductorActive)
+   m_gcElectionCondition.waitFor(*m_threadLock, 1_ms)`
+   (`:5040-5043`) — holding GCL AND heap access.
+4. GCA cannot clear until the cycle ends; the cycle cannot end:
+   the next WND-open blocks on GCL (held by the poller), and even
+   the §10.4 barrier could never complete (the poller holds
+   access). Every §A.3 stop also wedges on GCL. Permanent.
+   Today this loop is sound only because GCA-true/GCL-free lasts
+   the few wind-down instructions.
+
+### CGD1.3 — why the ISS conductor must not enter the legacy drain arms (F13)
+
+`drainInParallelPassively` (`SlotVisitor.cpp:718-735`) branches to
+ACTIVE `drainInParallel()` when `numberOfGCMarkers()==1 ||
+(m_worldState & mutatorWaitingBit) || !m_heap.hasHeapAccess() ||
+worldIsStopped()`. Under ISS: `mutatorWaitingBit` is never set
+(CG-I7, legacy bits dead); `Heap::hasHeapAccess()` forwards to
+`mainClientHasHeapAccess()` (`Heap.h:405-412`) — when the
+conductor IS the main client's thread (common C0/C1 case) it is
+access-released all tenure, so the guard fires and the conductor
+takes `drainInParallel()`: `donateAndDrain()` visits cells with NO
+counter updates, then `drainFromShared(MainDrain)` enters the
+counters and steals/drains on hasWork (`:683-690`, `:705`). When
+the conductor is a spawned thread, the branch keys on the MAIN
+client's unrelated access state — nondeterministic. Failure
+modes vs §9.1(2):
+- UAF: a foreign §A.3 stop's pause predicate closes while the
+  conductor is mid-visitChildren inside donateAndDrain (in neither
+  counter, exempted from checkpoints by rev 2) — the §A.3 window
+  jettisons/patches under a live visitor.
+- Deadlock: a MainDrain-parked conductor IS counted (waiting++ on
+  entry, `:616-620`), but rev 2 gave it no checkpoint and
+  exempted it — the ack equality is unsatisfiable; the §A.3
+  conductor stalls to the 30s watchdog
+  (`JSThreadsSafepoint.cpp:401`).
+- hasWork-wakeup race: during a pause, shared stacks are non-empty
+  exactly because paused helpers donated — a MainDrain conductor
+  wakes on hasWork and drains concurrently with the §A.3 window.
+`waitForTermination` (`:737-751`) has none of these: pure condvar
+loop, no counters, no stealing; with `didReachTermination` gated
+on `m_pausedParallelMarkers == 0` (CG-I22) it also cannot exit
+mid-pause. Zero-helper case: a passive conductor with
+`numberOfGCMarkers()==1` would wait forever (nobody drains), hence
+the §3.7 rule that Concurrent is never scheduled there.
+
+## ANNEX CGD2 (BINDING) — rev 4 counter-leak derivation and the F19 reader table
+
+Referenced by SPEC-congc §9.1(2)(c), §5.3(3), CG-I22, CG-T3, CG-T8.
+
+### CGD2.1 — F17: the waiting-counter leak and the CG-I0 benign ruling
+
+Landed shape (`SlotVisitor::drainFromShared`,
+`Source/JavaScriptCore/heap/SlotVisitor.cpp:607-710`): every loop
+iteration takes `m_markingMutex` and does
+`m_numberOfWaitingParallelMarkers++` (:621); the paired decrement
+(:688) runs only when the thread re-enters ACTIVE (steal + drain).
+The four return paths all exit COUNTED in waiting:
+- MainDrain TimedOut (:626) — every in-window
+  `drainInParallel(MainDrain)` slice that times out;
+- MainDrain Done (:629-630) — every fixpoint-window drain that
+  reaches termination;
+- HelperDrain TimedOut (:641-642);
+- HelperDrain Done on `m_parallelMarkersShouldExit` (:673-674) —
+  taken by EVERY helper at EVERY cycle end (`runEndPhase` sets the
+  flag and notifies, Heap.cpp:2026-2031; the helper task wrapper,
+  Heap.cpp:1828-1847, just returns the visitor).
+Writer/reader census (grep-complete over Source/JavaScriptCore):
+writers = :621, :688, zero-init Heap.h:1261; readers = the
+stealSomeCellsFrom denominator (:682), a diagnostic dataLog
+(Heap.cpp:1867). `didReachTermination` (:594-598) reads ONLY
+`m_numberOfActiveParallelMarkers` — hence the leak has no
+observable effect tip-of-tree beyond steal granularity, and hence
+no landed code ever needed the counter balanced.
+
+Wedge interleaving (why rev 3 was a guaranteed deadlock, not a
+race): (1) cycle 1, any fixpoint window — the conductor's
+in-window MainDrain returns Done, waiting leaks +1; (2) cycle 1
+end — every helper Done-returns, leaking +numberOfGCMarkers()-1;
+(3) cycle 2 goes Concurrent; a sibling fires haveABadTime/jettison
+-> `JSThreadsStopScope` ctor sees phase != NotRunning, calls the
+§9.1(2) pause, waits for active==0 && waiting==0 — waiting > 0
+forever with no live thread behind it. In the GIL-off conductor
+the scope is constructed at VMManager.cpp:561 BEFORE
+`requestStart` is sampled at :579, so the wait precedes watchdog
+coverage (`watchdogAssertStopProgress`) — silent wedge with GCL
+held, blocking every future WND-open and every other §A.3 stop.
+
+CG-I0 disposition of the exit delta: adding waiting-- on the four
+return paths changes, flag-off, ONLY the :682 steal denominator
+(a work-partitioning hint) and the :1867 diagnostic value; it is
+not observable in collection behavior, the bench gates, or any
+assert. Ruled BENIGN-DELTA under CG-I0's inspection gate; the
+implementing change cites this annex in INTEGRATE-congc.md. (The
+alternative — gating the decrement on ISS — was rejected:
+divergent counter semantics per mode is exactly the class of
+latent trap F17 itself instantiates.)
+
+### CGD2.2 — F19: emitted-code readers of the fence/threshold pair
+
+The complete reader set of the barrier fence/threshold consulted
+by EMITTED code (verified rev 4):
+- Baseline/common JIT: `AssemblyHelpers.h:2045`, `:2052` bake
+  `AbsoluteAddress(vm.heap.addressOfBarrierThreshold())`;
+  `:2116` bakes `addressOfMutatorShouldBeFenced()`. `Heap.h:723`
+  and `:726` return the addresses of the SERVER members
+  `m_mutatorShouldBeFenced` (Heap.h:1204) / `m_barrierThreshold`
+  (Heap.h:1209).
+- `branchIfBarriered` (AssemblyHelpers.h:2056-2059) loads
+  `VM::offsetOfHeapBarrierThreshold()` off a VM register — the
+  same server member through the VM.
+- FTL: `FTLLowerDFGToB3.cpp:27281` (VM_heap_barrierThreshold),
+  `:27323`/`:27355` (VM_heap_mutatorShouldBeFenced) — server
+  members via AbstractHeap offsets.
+NONE of these read the §5.3(2) GCH client copies; the copies are
+consulted only by the re-pointed C++ runtime readers (§5.3(3)).
+Therefore a GIL-off fail-safe must pin the SERVER pair: keeping
+the landed `setMutatorShouldBeFenced` forcing (Heap.cpp:3928-3940)
+when GIL-off makes master AND copies tautological, so every
+reader — baked server address, VM-offset load, or client copy —
+remains fenced until the §13.3(a) per-client reroute lands. The
+rev 3 copies-only pin left every JIT store under-fenced from the
+first GIL-off endMarking lower onward.

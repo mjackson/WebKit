@@ -65,7 +65,21 @@ inline void VMTraps::undoDeferTermination(DeferAction deferAction)
 }
 
 ALWAYS_INLINE DeferTraps::DeferTraps(VM& vm)
-    : m_traps(vm.traps())
+    // FIX (stw-watchdog-timeout, root cause B): deferral is a property of the
+    // DEFERRING THREAD's stack ("we can't jettison the code THIS thread is
+    // about to run"), so GIL-off it lives in the current thread's per-lite
+    // VMTraps instance (the trapsForCurrentThread() mode-split, same storage
+    // domain as the per-lite trap word). Keying it on the shared VM-level
+    // instance was wrong twice over with N mutators: (a) one thread's narrow
+    // deferral blinded EVERY sibling's handleTraps poll — in particular a
+    // sibling spinning at a poll site could not service NeedStopTheWorld and
+    // park, wedging a §A.3 conductor into the 30s watchdog fail-stop; and
+    // (b) the save/restore pair below raced across threads on the one flag
+    // (A-ctor, B-ctor saves true, A-dtor clears, B-dtor restores true),
+    // leaving the flag stuck true with no scope open — permanently
+    // trap-blinding the whole VM. GIL-on / flag-off: trapsForCurrentThread()
+    // == vm.traps(), byte-identical.
+    : m_traps(vm.trapsForCurrentThread())
     , m_previousTrapsDeferred(m_traps.m_trapsDeferred)
 {
     m_traps.m_trapsDeferred = true;

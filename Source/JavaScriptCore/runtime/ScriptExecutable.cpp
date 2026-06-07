@@ -37,6 +37,7 @@
 #include "JSGlobalObjectInlines.h"
 #include "JSObjectInlines.h"
 #include "JSTemplateObjectDescriptor.h"
+#include "JSThreadsSafepoint.h"
 #include "LLIntEntrypoint.h"
 #include "ModuleProgramCodeBlock.h"
 #include "ParserError.h"
@@ -83,6 +84,23 @@ namespace {
 // us for the stop cycle (keeping the stop fan live) and can neither throw nor
 // run JS, so it is safe at every call site including jettison-driven
 // installCode, where throwing is not allowed.
+//
+// FIX (stw-watchdog-timeout, root cause B): the trap-service poll alone is
+// NOT park-capable on every reachable path — several callers spin here
+// inside their own DeferTraps scope (linkFor / virtualForWithFunction /
+// Interpreter::executeCall hold one across prepareForExecution), and
+// handleTraps correctly no-ops under the deferring thread's own flag. A §A.3
+// thread-granular window requested while the lock holder is itself the
+// conductor (it can reach a Class-A/relabel stop from CodeBlock
+// finishCreation under this lock) then wedged: the spinner held heap access
+// for the whole spin and the conductor's access-based predicate could never
+// converge — the 30s watchdog fail-stop. The FIX-2 park poll
+// (JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld) parks on the §A.3
+// stop word DIRECTLY — access release + NVS ticket + gated re-acquire, no
+// trap machinery, no jettison, cannot throw — so it is deferral-immune and
+// legal in exactly the places this spin is. On a true return the parked
+// episode ended (the window closed); retrying tryLock IS the required
+// re-validation.
 class GILOffCompilationLocker {
     WTF_MAKE_NONCOPYABLE(GILOffCompilationLocker);
 public:
@@ -95,6 +113,8 @@ public:
         if (lock.tryLock()) [[likely]]
             return;
         while (!lock.tryLock()) {
+            if (JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm))
+                continue; // Parked across a §A.3 window: re-validate (retry tryLock) before sleeping again.
             handleTrapsForCurrentThreadIfNeeded(vm, VMTraps::NeedStopTheWorld);
             Thread::yield();
         }

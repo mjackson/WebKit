@@ -44,6 +44,7 @@
 #include "JSCInlines.h"
 #include "JSCellButterfly.h"
 #include "JSTemplateObjectDescriptor.h"
+#include "JSThreadsSafepoint.h"
 #include "Options.h"
 #include "PrivateFieldPutKind.h"
 #include "StrongInlines.h"
@@ -83,6 +84,10 @@ namespace {
 // runtime/ScriptExecutable.cpp (see the rationale there): contended
 // acquisition spins on tryLock() servicing only NeedStopTheWorld, so a
 // waiting lite stays visible to the GIL-off stop fan and never throws.
+// FIX (stw-watchdog-timeout, root cause B): the FIX-2 park poll first —
+// deferral-immune §A.3 parking (callers may spin here inside their own
+// DeferTraps scope, under which handleTraps correctly no-ops); see the
+// ScriptExecutable.cpp locker comment.
 class GILOffCompilationLocker {
     WTF_MAKE_NONCOPYABLE(GILOffCompilationLocker);
 public:
@@ -95,6 +100,8 @@ public:
         if (lock.tryLock()) [[likely]]
             return;
         while (!lock.tryLock()) {
+            if (JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm))
+                continue; // Parked across a §A.3 window: re-validate (retry tryLock).
             handleTrapsForCurrentThreadIfNeeded(vm, VMTraps::NeedStopTheWorld);
             Thread::yield();
         }
