@@ -2415,6 +2415,22 @@ honest, testable (U17), cheap to lift later under a dedicated
 charter. The gate being active GIL-on too (SD7) buys mode-equal
 corpus behavior.)
 
+**SUPERSESSION (r33, this section's carrier-wasm arm only):** GIL-off
+(vm.gilOff()), wasm is refused on ALL threads of the VM — including
+the main/embedder carrier — at the same ctor/compile surface
+(JSWebAssemblyHelpers.h throwIfWebAssemblyRefusedOnSpawnedThread,
+second arm). Reason: a gilOff carrier lite publishes exceptions
+per-lite (VM::setException -> group3Primitives()), but every
+wasm-tier emitted exception check still consumes the inert VM-block
+word (WasmToJS.cpp/JSToWasm.cpp/WebAssemblyBuiltinTrampoline.cpp
+`Address(gpr, VM::exceptionOffset())`; InPlaceInterpreter.asm reads
+AND a raw `storep ... VM::m_exception[t1]`), so carrier wasm GIL-off
+silently loses exceptions. The U17 NEGATIVE arm ("carrier non-GC wasm
+never throws") is narrowed to GIL-on / flag-off until the wasm
+emission sites get the per-lite mode split (incl. the IPInt asm
+arms), at which point this supersession lifts. GIL-on and flag-off
+behavior are unchanged.
+
 ---
 
 ## J. GIL-machinery end state (GIL-on unchanged — oracle)

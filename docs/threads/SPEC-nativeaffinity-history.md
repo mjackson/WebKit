@@ -542,7 +542,14 @@ NL) + BL1.4's negative edge (no NLS::m_lock block under NL); each
 violation has a constructible deadlock above.
 
 BL1.6 Conductor-hold clause (NEW rev 5, R4.7 — blocker; the NLH1.4
-hole one row over). SPEC-ungil makes the CALLER of a Class-4
+hole one row over). [SCOPE NARROWED rev 8, R7.1 — the
+SYNC-COLLECTION leg of this walk ("or a synchronous collection")
+was derived against the landed single-window heap §10 conduct and
+is SUPERSEDED by ANNEX BL1.8, recorded both sides with SPEC-congc
+(CG-I19/CGD6.1/§13.5(4)): a sync-collection requester DROPS NL
+(BL1.8), it does not hold it through the bracket. The
+haveABadTime/§A.3 walk below STANDS, bounded per the congc CGS2.3
+budget ledger.] SPEC-ungil makes the CALLER of a Class-4
 invalidation the §A.3 conductor: §K.5 rule 5
 (SPEC-ungil.md:768-780) — JSGlobalObject::haveABadTime,
 JS-reachable, "whole body under ONE §A.3 stop; conductor = caller"
@@ -585,6 +592,107 @@ NA-T4 gains the conductor-holds-NL arm: a Locked native triggers
 haveABadTime (and a gc()-style sync collection) on T1 while T2
 waits on NL and T3 runs JS — stop completes within the watchdog, no
 NA-I13 assert, NL still held at T1's resume.
+
+BL1.7 LK.1c row, FULL text (MOVED here rev 7 under the size cap —
+content normative, carried VERBATIM from the rev-6 body §3.5, no
+semantic change; spec §3.5 is the index).
+
+Proposed insertion in the SPEC-ungil §LK merged process lock table
+(SPEC-ungil.md:867-925), as row **LK.1c "NativeSerialLock"**:
+
+- Position: inner to heap rank 1 (entry token/heap access — NL
+  acquired only while entered, NA-I9, kept across §A.3 parks);
+  OUTER to api ranks 1-3, heap ranks 2-10b, and all leaves (the
+  Locked BODY is arbitrary host code).
+- LONG-HOLD in the `NLS::m_lock` sense (SPEC-ungil.md:902-907):
+  acyclicity by negative edge — NO conductor, heap 2-10b holder
+  (range VERBATIM, rev 4 R3.7), or api 1-3 holder ever ACQUIRES NL
+  (NA-I10). §E.2 exemption (rev 4, R3.8): NLS-style rank-4
+  carve-out LIMITED to §J.3 park-site MANDATORY F8 reverts/
+  re-acquisitions; VOLUNTARY transitions forbidden (NA-I13); NL
+  NEVER held across parks that run user JS (NA-I11); U20 gains the
+  matching exemption. Conductor-HOLD clause (rev 5, R4.7; FULL
+  walk = ANNEX BL1.6, BINDING): an §A.3/GC conductor MAY hold NL
+  on ENTRY, never ACQUIRES it; NL > §LK.4b-slot > GCL edges
+  acyclic; loser case live (NL waiters deadline to NVS parks
+  within one quantum, NL1). The §LK.4b held-with amendment
+  ("long-hold NL excluded", NLS-style) joins the §9.1 scope.
+  Rev 8 (R7.1): the clause covers §A.3 (single-window,
+  haveABadTime-class) conductors/losers ONLY — a GC
+  sync-collection conduct (SPEC-congc §3 multi-window tenure)
+  is NOT licensed to hold NL: BL1.8 drop scope, congc CG-I19
+  both sides; the row's wait-bound term cites congc CGS2.3.
+- LONG-HOLD vs LONG-HOLD (rev 3, R2.4; cycle walk = BL1.4).
+  Pinned: **NLS::m_lock OUTER to NL**. Negative edge: **no NL
+  holder ever blocks on NLS::m_lock or any G11 blocking
+  primitive** — discharged by NA-I22/PT1.G; a future Locked native
+  touching NLS state must use the internal drop scope. Companion
+  SPEC-api §5.9 row joins the §9.1 scope.
+- BOTH-SIDES RULE: any edge move is a supersession recorded in
+  BOTH this spec and SPEC-ungil §LK. Until the SPEC-ungil owner
+  lands the cross-cite, this row is SUPERSESSION-PENDING and
+  implementation of §3 MUST NOT begin (§9).
+- U20 extends to NL edges.
+
+BL1.8 NL drop around GC sync-collection conduct (NEW rev 8,
+R7.1 — cross-document finding vs SPEC-congc; the congc-side full
+walk and option analysis is SPEC-congc ANNEX CGD6.1, BINDING
+there; this annex is the NL-side mechanism. Supersession recorded
+BOTH sides: BL1.6's sync-collection leg + NA-T4's rev-5
+sync-collection sub-arm superseded here; congc CG-I19/§3.7/
+§13.5(4) is the other side).
+
+Problem: BL1.6 licensed "a Locked native can reach ... a sync
+collection mid-body WITH NL held" against the landed
+SINGLE-window heap §10 conduct (one access release, one GCL
+bracket, one re-acquire). SPEC-congc §3 makes a shared collection
+a tenure of N stop windows: per-window blocking GCL re-acquires,
+per-window GBL barriers, between-window donateAll/
+waitForTermination condvar waits, the F28 GCL inter-cycle
+handoff, the tail access re-acquire (`Heap.cpp:4955`). An
+NL-holding mutator-conductor would hold NL across the ENTIRE
+cycle — serializing every Locked native, custom accessor (§2.6),
+JSClassRef callback (§2.7) and handleHostCall funnel (NA-I28)
+process-wide for the cycle's duration. Not a deadlock (NL waiters
+are §A.3-compliant park sites that F8-revert at each WND-open,
+NL1/BL1.1; marking termination needs nothing from NL waiters) —
+a liveness/grounding gap: NA-I13's exemption walked transition
+shapes that no longer exist.
+
+MECHANISM (normative):
+1. The sync-collection REQUEST funnel — the path from a Locked
+   native body into `requestCollectionShared` + election/
+   follower-wait/poll-conduct (heap §10.2) — instantiates, on an
+   NL-eligible lite with `m_nativeLockDepth != 0`, an
+   NL drop bracket of the NA-I11 `NativeLockDropScope` shape:
+   depth SAVED, NL FULLY released, BEFORE the first
+   arbitration/park/GCL step of the funnel.
+2. Reacquire: via the park-capable §3.2/NL1 loop, AFTER the
+   conduct's access-reacquire tail (`Heap.cpp:4955`, conductor
+   case) or the follower's ticket-served resume (follower case),
+   before control returns to the native frame. Exception path
+   per NA-I12 (destructor reacquires on exception-pending too);
+   a TERMINATION-ONLY trap completes the reacquire (NL1
+   trap-class split).
+3. Coverage: conduct, follower ticket park, and the F28
+   successor arm — the WHOLE funnel is inside the bracket, so NL
+   is never held across any ticket park either.
+4. The matching conducting-entry assert lives in SPEC-congc
+   CG-I19 (`m_nativeLockDepth == 0`; debug, at election win /
+   poll grant / `conductSharedCollection` entry) — that spec's
+   side of the supersession.
+5. Mode gating: same level-0 discipline as EX1/ACQ1 —
+   `g_jscConfig.gilOffProcess` first; flag-off/GIL-on dead
+   (NA-I1 unchanged; congc CG-I0 unaffected).
+6. Liveness consequence: the process-wide Locked-native stall
+   during a GC cycle is bounded by the stop WINDOWS (F8) the
+   requester's threads see, NOT the cycle length; the BL1.6
+   conductor-HOLD license survives only where its bracket is
+   bounded (§A.3 single-window conducts), with the total
+   conductor wait budget stated ONCE in congc ANNEX CGS2.3
+   (cited, not restated, here).
+Arms: NA-T4 rev-8 multi-window arm (TC1) + congc CGT1.1 F40
+sub-arm — composed run required before either spec's flag ships.
 
 ## ANNEX SC1 — rev-4 surface closures (BINDING; spec §2.6/§4.4/§6 index)
 ## (NEW rev 4 — round-3 findings R3.1/R3.3/R3.4/R3.6)
@@ -786,7 +894,14 @@ wanted, must be argued in a spec rev with an honest growth bound
 same-function-different-name and different-visibility
 conflicting-registration arms; §5.2 consequence recorded: a flip
 must update every registration site of the symbol — the pair-keyed
-assert now enforces it.
+assert now enforces it. [rev-7 note, R6.1: the "consulted by EVERY
+creation" pinning this clause inherited is SUPERSEDED by ANNEX
+SC3.1 — consult is per REGISTRATION CALL at funnel entry. The
+"pair-keyed assert now enforces it" sentence holds ONLY under the
+SC3.1 re-pin: a warm JITThunks cache hit early-returns before
+create (JITThunks.cpp:262-267), so the creation-pinned consult
+missed a conflicting same-key re-registration whenever the first
+executable was still alive — exactly the §5.2 missed-site shape.]
 
 CF1.3 Dispatch trampolines (R4.3). Spec §1.1 grounds the bit on
 "function identity"; for JSNativeStdFunction the premise fails:
@@ -1021,7 +1136,35 @@ NativeExecutable's m_concurrentOk byte is set (constant-foldable,
 NA-I3; lint-pinned by NA-T6, which now checks the GUARDS exist
 rather than set-emptiness alone). The b/d nullptr suppressions
 REMAIN (they close the thunk/CallDOM arms); NA-I29 closes the
-parser/IC admission the generator never controlled.
+parser/IC admission the generator never controlled. [rev-7 note,
+R6.2 (filed twice in round 6): the rev-6 predicate "BAIL unless
+the callee NativeExecutable's m_concurrentOk byte is set" is
+RE-TYPED. This clause's own dispatch trace cited only the
+NativeExecutable arm; ExecutableBase::intrinsic() has TWO —
+`isHostFunction() ? uncheckedDowncast<NativeExecutable> :
+uncheckedDowncast<ScriptExecutable>`
+(runtime/ExecutableBaseInlines.h:43-48) — and handleIntrinsicCall
+is reached with ScriptExecutable callees BY DESIGN: the tree
+comments the case at the guard site itself ("We might still try
+to inline the Intrinsic because it might be a builtin JS
+function", dfg/DFGByteCodeParser.cpp:2103-2104). A literal
+implementation either (a) downcasts a ScriptExecutable to read a
+garbage byte at the m_concurrentOk offset — type confusion, and a
+nonzero garbage byte PASSES, so no test fails — or (b) bails ALL
+builtin-JS intrinsics in gilOff configs, a parser-wide deopt of
+bodies that are not native at all. CORRECTED predicate: bail IFF
+the callee executable isHostFunction() AND its NativeExecutable's
+m_concurrentOk is clear. ScriptExecutable-carried intrinsics are
+OUT OF SCOPE — their inlined semantics are JS bytecode, governed
+by core SPEC-ungil/SPEC-jit machinery, not this spec's §0.1
+native-body audit — and remain admitted. The getter arms
+(handleIntrinsicGetter/canEmitIntrinsicGetter) key on host-
+function getters today (IntrinsicGetterAccessCase.cpp:50;
+canEmitIntrinsicGetter takes the getter JSFunction), but the
+guard is WRITTEN against the same isHostFunction() discriminator
+at all three sites. NA-T6 gains the complementary
+builtin-still-inlines control arm (TC1); gate §9.2(e) wording
+updated.]
 
 SC2.5 Macro-layer policy plumbing (R5.5, major; spec §2.1 third
 mechanism; NA-I30). Rev 5 named two landing sites for the
@@ -1087,7 +1230,193 @@ or any park; (c) ADOPTION GATE §9.7 — SPEC-ungil owner lands the
 §LK.7 leaf-row addition ("NA policy table lock", leaf, U20-linted)
 both-sides; implementation of §1.3's enforcement structure MUST
 NOT begin before the row lands. Until then the row is
-SUPERSESSION-PENDING like LK.1c.
+SUPERSESSION-PENDING like LK.1c. [rev-7 note, R6.1: item (a)'s
+"BEFORE the create call's allocation" pinning is SUPERSEDED by
+ANNEX SC3.1 — the consult moves to funnel ENTRY, before the
+JITThunks.cpp:260 lookup Locker, hit or miss. Items (b)/(c) — the
+leaf rank, holding discipline and §9.7 gate — are unchanged and
+apply verbatim to the entry-pinned consult: it still runs outside
+both m_lock sections and outside the ctor, and the m_lock >
+policy-lock ordering question still cannot arise.]
+
+## ANNEX SC3 — rev-7 closures (BINDING; spec §1.3/§4.4 index;
+## NEW rev 7 — round-6 findings R6.1/R6.4/R6.6)
+
+SC3.1 Registration-call consult (R6.1, major; spec §1.3/NA-I5
+index; SUPERSEDES rev 6's creation-pinned consult — CF1.2 and
+SC2.6(a) carry the matching both-sides notes). DEFECT: §1.3 rev 6
+tied the policy-table consult to CREATION ("consulted by EVERY
+creation"; SC2.6(a) pinned it "BEFORE the create call's
+allocation"), but the JIT funnel does not reach create on a cache
+hit — JITThunks::hostFunctionStub (jit/JITThunks.cpp:253) looks up
+the full HostFunctionKey under m_lock and EARLY-RETURNS the live
+cached executable (:262-267); NativeExecutable::create (:282) is
+never reached. Constructible escape: site A registers (fn, ctor)
+with Locked; site B later registers the SAME pair with
+ConcurrentOk. First executable alive (the warm-process common
+case) => B hits the weak map, the conflicting NativeConcurrency
+input is silently dropped, the NA-I5 RELEASE_ASSERT never fires.
+First executable collected => the same call misses, consults, and
+ABORTS. Enforcement was therefore GC-timing- and cache-state-
+dependent — the exact non-determinism NA-I5's rev-2 rationale
+disqualified the weak map over — and mode-dependent (the no-JIT
+arm, VM.cpp:1440-1442, has no cache: consults per call, always
+asserts). It also falsified CF1.2's recorded §5.2 consequence
+("the pair-keyed assert now enforces" flip completeness): a
+Locked->ConcurrentOk flip missing one registration site of the
+same symbol is exactly a conflicting re-registration against a
+warm cache — silent. NA-T8 could not see it: all four chartered
+arms (JITThunks, no-JIT, collected-then-re-registered, rev-5
+alias arms) go through a cache MISS and hence through create.
+NOTE: the executables themselves cannot diverge on the hit path
+(the hit returns the first-policy executable), so §0.3
+serialization was NOT breached — the failures are the assert
+mechanism, NA-I5's determinism clause, and §5.2 flip-completeness
+detection. RESOLUTION: (a) the consult+conflict-assert runs per
+REGISTRATION CALL, at funnel ENTRY of VM::getHostFunction
+(VM.cpp:1429 — covers the no-JIT arm once, replacing its
+per-creation consult) / JITThunks::hostFunctionStub
+(JITThunks.cpp:253, BEFORE the :260 lookup Locker — hit or miss)
+and at each exempt-cited direct site (WebAssemblyFunction.cpp:101
+consults at its own entry as before); the returned/validated
+NativeConcurrency flows into create as a plain argument on the
+miss path only. (b) NA-I5's determinism sentence gains the two
+axes: registration-order-, alias-, GC-timing- AND
+cache-state-independent. (c) NA-I1's cost row restates the
+consult as one leaf-lock acquisition per registration CALL —
+still cold-path (registration sites only; a hit pays one more
+leaf-lock acquisition than rev 6, on a path that already takes
+m_lock). (d) SC2.6's leaf-rank and holding discipline carry over
+verbatim: the entry consult is outside both m_lock sections,
+outside the ctor, acquires/allocates/parks nothing. (e) NA-T8
+gains the WARM-HIT arm: register Locked, hold the executable
+STRONGLY, re-register the same full HostFunctionKey with
+ConcurrentOk — the RELEASE_ASSERT MUST fire with no intervening
+GC.
+
+SC3.2 isDirect constant-path emitter (R6.6, major; spec §4.4
+intro + §4.4.2 index). DEFECT: §4.4's opening sentence ("calls
+land on the §4.3 thunk — covered EXCEPT the NA-I16 union") was
+FALSE for the isDirect path: for a known host-function callee
+with intrinsic() == NoIntrinsic, DFG emits a DIRECT call of the
+TaggedNativeFunction with no thunk —
+dfg/DFGSpeculativeJIT64.cpp:999-1062 (JITCage arm
+`callOperation<OperationPtrTag>(vmEntryHostFunction)` :1031;
+non-cage arm `callOperation<HostFunctionPtrTag>(nativeFunction)`
+:1033) — and FTL mirrors it at ftl/FTLLowerDFGToB3.cpp:
+14749-14796 (:14787/:14789). The path is in NO NA-I16 union
+member (requires NoIntrinsic, no DOMJIT signature, not
+InternalFunction lowering). NA-I17 listed "DFG/FTL constant-path"
+among the four emitters, but the only bracket language was
+§4.4.2's permissive "the compiler MAY fold ... and either omit
+the bracket (bit=1) or emit unconditional acquire/release calls
+(bit=0)" — constant-folding phrasing with no file:line, in a
+family whose convention is normative clauses with file:line.
+Worse, TC1's NA-T7 exempt-of-record "`vmEntryHostFunction` is
+INSIDE the §4.3 bracket" is true ONLY for the
+ThunkGenerators.cpp:510/:518 callers; it is FALSE for
+DFGSpeculativeJIT64.cpp:1031 / FTLLowerDFGToB3.cpp:14787, which
+sit inside the constant-path emitter outside any thunk — so an
+unbracketed JITCage isDirect arm PASSED NA-T7 via the wrong
+blanket exemption (the R3.3 "no new emitter" bug shape recurring
+on the remaining direct-call arm). RESOLUTION: (a) §4.4 intro
+rewritten — covered EXCEPT the NA-I16 union AND the isDirect
+constant-path emitter (both arms cited). (b) §4.4.2 made
+NORMATIVE: the constant-path emitter MUST emit the §4.1 bracket —
+callee known, bit immutable (NA-I3): bit=1 => omit; bit=0 =>
+unconditional acquire/release around the direct call, release
+BEFORE the loadException check (DFGSpeculativeJIT64.cpp:1041-1043
+/ FTLLowerDFGToB3.cpp:14794-14796) per NA-I14. (c) TC1's
+vmEntryHostFunction exempt is SPLIT PER CALLER and the symbol
+joins the NA-T7 generated check — a future caller is a lint
+failure, never silently exempt. (d) Gate §9.2(a)'s by-name list
+gains the two isDirect lowering sites.
+
+## ANNEX ACQ1 — acquire-side C++ bracket helper (BINDING;
+## spec §4.1 NA-I31 / §2.6 / §2.7 / §4.5 index; NEW rev 7, R6.3 —
+## the R4.5/EX1 lesson applied to the ACQUIRE side)
+
+DEFECT CLOSED (R6.3): four normative surfaces instantiate "§4.1
+as an inline C++ helper" — §2.6/NA-I20 (PropertySlot.cpp:36-48 +
+JSObject.cpp:1449-1493 put-side), §2.7/NA-I27 (JSCallbackObject
+invocation expressions), §4.5 (vmEntryToNative arms), NA-I28
+(both handleHostCall funnels) — but only the DROP side had a
+pinned form (EX1, rewritten rev 5 after R4.5 established that an
+unpinned ctor form produced an eager TLS load per JS entry in
+flag-off/GIL-on builds). §4.1's pseudocode BEGINS with the lite
+byte — correct for EMITTERS (asm already on the gilOff
+mode-split path), but a C++ funnel transcribing it must resolve
+the lite first, and the only current-lite source is the TLS slot
+t_currentVMLite (runtime/VMLite.cpp:67; accessor VMLite.h:
+333-345): a TLS load per custom-getter / callback-object access /
+handleHostCall in EVERY build — the R4.5 defect class on hotter
+paths, violating NA-I1 with no oracle watching (NA-T9(d) was
+scoped to the EX1 funnels; closed by R6.4). Nothing pinned where
+the release lands relative to the funnel's exception handling
+(NA-I14 is stated for asm emitters whose exception branch is
+explicit). No round decided to leave the acquire form open —
+R4.5's accepted fix covered only NativeLockDropScope. PINNED
+FORM:
+
+    class NativeLockBracket {
+    public:
+        // DEFAULT form — funnels with no executable in hand
+        // (§2.6 custom accessors, §2.7 JSClassRef callbacks,
+        // NA-I28 handleHostCall, §4.5 executable-less arms):
+        // unconditional Locked treatment on eligible lites.
+        ALWAYS_INLINE NativeLockBracket() : m_lite(nullptr)
+        {
+            // Level-0 gate FIRST (EX1/R4.5 discipline verbatim):
+            // flag-off/GIL-on processes pay exactly one
+            // predictable global-byte branch; the TLS, lite and
+            // executable-byte loads below never execute (NA-I1).
+            if (!g_jscConfig.gilOffProcess) [[likely]] return;
+            initSlow(VMLite::currentIfExists(), nullptr);
+        }
+        // BYTE-KEYED form — §4.5 helper-policy arm where the
+        // callee IS a JSFunction host function: skips
+        // acquisition when m_concurrentOk is set.
+        ALWAYS_INLINE explicit NativeLockBracket(
+                NativeExecutable* executable) : m_lite(nullptr)
+        {
+            if (!g_jscConfig.gilOffProcess) [[likely]] return;
+            initSlow(VMLite::currentIfExists(), executable);
+        }
+    private:
+        ALWAYS_INLINE void initSlow(VMLite* lite,
+                                    NativeExecutable* executable)
+        {
+            if (!lite || !lite->nativeLockEligible) [[likely]]
+                return;            // GIL-on VM's lite in a gilOff
+                                   // process: byte test only
+            if (executable && executable->concurrentOk()) return;
+            m_lite = lite;
+            nativeSerialLock(*lite).acquire(*lite); // NL1 loop
+        }
+    public:
+        ~NativeLockBracket()
+        {
+            if (!m_lite) [[likely]] return;
+            nativeSerialLock(*m_lite).release(*m_lite);
+        }
+    private:
+        VMLite* m_lite;
+    };
+
+NA-I14 AT C++ FUNNELS, BY CONSTRUCTION: the bracket wraps the
+INVOCATION EXPRESSION in its own scope (plus result marshal where
+inseparable) and NOTHING else; RAII destruction at that scope's
+closing brace is the release point, which therefore precedes the
+funnel's pending-exception check / return-to-caller branch. Host
+exceptions propagate by return value + per-lite state, never C++
+unwinding through host frames (NA-I12), so the destructor runs on
+the throw path too and MUST NOT inspect or clear the pending
+exception (EX1 discipline verbatim). The acquire is the NL1
+park-capable loop — a compliant park site; the rev-6
+TERMINATION-ONLY arm applies (acquisition COMPLETES, delivery at
+the funnel's post-call check). Cited from spec §2.6, §2.7, §4.5,
+NA-I28 and NA-I31; §4.1's lite-byte-first ordering is hereby
+scoped to EMITTERS only.
 
 ## ANNEX EM1 — emitter shapes, FULL text (BINDING; spec §4.2/§4.3
 ## index; MOVED here rev 5 under the size cap — content normative,
@@ -1186,13 +1515,26 @@ applies to the construct-kind thunk (same generator, :460
   GC-stop-with-NL arm (rev 3, R2.6): rule-8 GC stop lands while a
   thread holds NL at a poll site — no NA-I13 assert; F8 revert,
   re-acquisition and GC complete; the native resumes with NL held.
-  Conductor-holds-NL arm (rev 5, R4.7): a Locked native on T1
-  triggers JSGlobalObject::haveABadTime AND (separate sub-arm) a
-  gc()-style synchronous collection while T2 waits on NL and T3
-  runs JS — the stop completes within the watchdog, no NA-I13
-  assert fires, and NL is still held at T1's resume; a
+  Conductor-holds-NL arm (rev 5, R4.7; RE-ARMED rev 8, R7.1): a
+  Locked native on T1 triggers JSGlobalObject::haveABadTime while
+  T2 waits on NL and T3 runs JS — the stop completes within the
+  watchdog (rev 8: measured against the congc CGS2.3 budget), no
+  NA-I13 assert fires, and NL is still held at T1's resume; a
   loser-variant forces T1 to lose arbitration so the
-  NL-held-across-slot-park path (BL1.6) is exercised.
+  NL-held-across-slot-park path (BL1.6) is exercised. The rev-5
+  gc()-style sync-collection sub-arm is SUPERSEDED (BL1.8, both
+  sides): it now expects the DROP, not the hold — see the rev-8
+  multi-window arm. Rev-8 multi-window arm (composes SPEC-congc
+  CGT1.1 F40): a Locked native on T1 calls a gc()-style sync
+  collection that conducts a forced multi-window concurrent
+  cycle — the BL1.8 bracket releases NL before the request
+  funnel (congc CG-I19 depth==0 assert silent), T2's Locked
+  native PROGRESSES between windows of the cycle (witnessed),
+  T1 reacquires depth-restored after the conduct tail before its
+  native body resumes; follower variant: T1 loses the election
+  and parks on its ticket inside the bracket; control build with
+  the bracket disabled shows the cycle-length stall (latency
+  witness, no deadlock).
   Termination-vs-NL-waiter arm (rev 6, R5.6): VM-wide termination
   fires while T2 waits on NL held by a long Locked body on T1 —
   T2 COMPLETES the acquire (no NVS park-loop, NL1 rev-6
@@ -1236,7 +1578,13 @@ applies to the construct-kind thunk (same generator, :460
   handleIntrinsicGetter :5263/:6743; canEmitIntrinsicGetter
   InlineCacheCompiler.cpp:4473): a Locked intrinsic-bearing native
   (ArrayUnshiftIntrinsic witness) tier-ups WITHOUT intrinsic
-  inlining in a gilOff config and serializes per NA-T1.
+  inlining in a gilOff config and serializes per NA-T1. rev 7
+  (R6.2): complementary CONTROL arm — a ScriptExecutable-carried
+  (builtin-JS) intrinsic callee STILL INLINES in a gilOff config:
+  the corrected NA-I29 predicate keys on isHostFunction()
+  (ExecutableBaseInlines.h:43-48) and must not over-bail; an
+  uncheckedDowncast-style mis-implementation is caught by the
+  same arm under ASAN/UBSAN (the garbage-byte read).
 - NA-T7 Surface-closure lint (rev 4; rev 5 R4.1; rev 6 R5.1/R5.2/
   R5.3). Source scan: every site in the TWELVE token families of
   §4.6 (HostFunctionPtrTag, cloopCallNative, vmEntryToNative
@@ -1249,8 +1597,16 @@ applies to the construct-kind thunk (same generator, :460
   TWELFTH `vmEntryToWasm` callers (SC2.1; symbol of record
   LLIntThunks.h:72)) is bracketed/exempt-cited (NA-I17, NA-I20,
   NA-I23, NA-I26/I27/I28; §2.1 for the ninth family). Exempt set of record (moved from the rev-4 §4.6
-  parenthetical, content unchanged): `vmEntryHostFunction` is
-  INSIDE the §4.3 bracket; `callHostFunctionAsConstructor` runs
+  parenthetical; vmEntryHostFunction entry SPLIT PER CALLER rev 7,
+  R6.6/SC3.2 — the rev-4 blanket sentence was false for two of the
+  four callers): `vmEntryHostFunction` callers at
+  jit/ThunkGenerators.cpp:510/:518 are INSIDE the §4.3 bracket;
+  the callers at dfg/DFGSpeculativeJIT64.cpp:1031 and
+  ftl/FTLLowerDFGToB3.cpp:14787 are INSIDE the §4.4.2
+  constant-path bracket (NOT the thunk's); `vmEntryHostFunction`
+  joins the generated symbol check — a future caller FAILS the
+  lint rather than inheriting a blanket exemption;
+  `callHostFunctionAsConstructor` runs
   UNDER its caller's construct-kind bracket; the §4.4.1 bypass
   surfaces and the §4.4.3 + compileCallDOM lowering files are
   exempt WITH the NA-T6 cross-reference (their fast paths make no
@@ -1271,6 +1627,12 @@ applies to the construct-kind thunk (same generator, :460
   SAME (function, constructor) pair registered under a DIFFERENT
   name, and under a different ImplementationVisibility, with
   conflicting policy — the pair-keyed assert must fire in both.
+  rev 7 (R6.1/SC3.1) WARM-HIT arm: register Locked, hold the
+  minted executable STRONGLY, re-register the SAME full
+  HostFunctionKey with ConcurrentOk — the RELEASE_ASSERT must
+  fire with NO intervening GC (all prior arms went through a
+  cache miss; this one exercises the funnel-entry consult on the
+  JITThunks.cpp:262-267 early-return path).
 - NA-T9 Mode-cost oracle (RECHARTERED rev 4 R3.10, rev 5 R4.8 —
   rev 4's (c) "non-GILOFF builds byte-identical outright" was
   unsatisfiable on the C++ axis: gilOffProcess is an unconditional
@@ -1281,12 +1643,17 @@ applies to the construct-kind thunk (same generator, :460
   (jit R1.e executed-path discipline, UNGIL-HANDOUT:172-179);
   (c) ASM-artifact identity ONLY: the offlineasm OUTPUT for
   non-GILOFF_TLS configurations is identical to a pre-change build
-  (whole-binary byte identity dropped); (d) C++-side oracle: an
-  instrumented (or counter-asserting) build verifies the EX1
-  funnels execute exactly one gilOffProcess branch and ZERO
-  TLS/lite/depth loads per JS entry in flag-off/GIL-on runs, and
-  that no NL/side-table symbol is reached outside registration
-  paths (perf-neutrality bound acceptable as the release-build
+  (whole-binary byte identity dropped); (d) C++-side oracle (EXTENDED rev 7, R6.4 — rev 6 added two
+  always-compiled acquire-side bracket surfaces, §2.7/NA-I27 and
+  NA-I28, without restating this oracle, so an eager TLS load at
+  them was an NA-I1 violation no test observed): an instrumented
+  (or counter-asserting) build verifies the FULL acquire- and
+  drop-side C++ funnel set — the EX1 funnels AND the ACQ1
+  brackets (§2.6, §2.7, §4.5 incl. NA-I28) — executes exactly one
+  gilOffProcess branch and ZERO TLS/lite/depth/executable-byte
+  loads per entry in flag-off/GIL-on runs, and that no
+  NL/side-table symbol is reached outside registration paths
+  (perf-neutrality bound acceptable as the release-build
   proxy).
 - NA-T10 U-T8e non-interference (rev 2). The carrier-queued
   promiseRejectionTracker corpus (SPEC-ungil §E.1b.4) runs unchanged
@@ -2200,3 +2567,219 @@ Counterparty-spec obligations remain gates, not edits made here:
 the SC2.1 §I-refusal observation is recorded for the SPEC-ungil
 owner, not actioned. No text outside
 SPEC-nativeaffinity{,-history}.md was modified.
+
+## Review round 6 (2026-06-07) -> rev 7
+
+Seven findings received; two (the NA-I29 mis-typing) are duplicate
+filings of one defect. Net: five distinct defects, ALL ACCEPTED
+after verification against the tree; no refutations this round.
+Full texts land in NEW ANNEX SC3 + NEW ANNEX ACQ1 + amendments to
+CF1.2/SC2.4/SC2.6/TC1. Body re-measured under the 50000-byte cap
+after edits.
+
+R6.1 ACCEPTED (major): the NA-I5 conflict RELEASE_ASSERT silently
+escaped on warm JITThunks cache hits. Verified:
+JITThunks::hostFunctionStub (jit/JITThunks.cpp:253) early-returns
+the live cached executable under m_lock (:262-267) without
+reaching NativeExecutable::create (:282), so rev 6's
+creation-pinned consult ("consulted by EVERY creation"; SC2.6(a)
+"BEFORE the create call's allocation") never ran on the hit path;
+same-pair conflicting re-registration asserted only after a GC —
+GC-timing-, cache-state- and mode-dependent enforcement (no-JIT
+arm VM.cpp:1440-1442 consults per call), the exact
+non-determinism NA-I5's own rev-2 rationale excludes; CF1.2's
+§5.2 flip-completeness consequence falsified; NA-T8's four arms
+all went through create. Reviewer's no-§0.3-breach note confirmed
+(the hit returns the first-policy executable). FIX (reviewer's
+re-pin adopted verbatim): consult per REGISTRATION CALL at funnel
+entry, hit or miss; determinism sentence gains GC-timing- and
+cache-state-independence; NA-I1 cost row restated per
+registration CALL; NA-T8 warm-hit arm. FULL text ANNEX SC3.1;
+supersession notes in CF1.2 and SC2.6 (both sides within this
+spec's own annexes). Rev-6 texts of record: §1.3 "written on
+first registration, consulted by EVERY creation — all §2.1
+funnels AND exempt-cited direct sites"; SC2.6(a) "the consult/
+insert runs OUTSIDE JITThunks::m_lock and OUTSIDE the ctor,
+BEFORE the create call's allocation".
+
+R6.2 ACCEPTED (major; filed 2x): NA-I29's admission-guard
+predicate was defined over a field that does not exist for the
+ScriptExecutable half of handleIntrinsicCall's callee population.
+Verified: ExecutableBase::intrinsic() dispatches
+`isHostFunction() ? uncheckedDowncast<NativeExecutable> :
+uncheckedDowncast<ScriptExecutable>`
+(runtime/ExecutableBaseInlines.h:43-48); the builtin-JS
+fall-through is commented at the guard site itself
+(dfg/DFGByteCodeParser.cpp:2103-2104); SC2.4's dispatch trace
+cited only the NativeExecutable arm. Both natural literal
+implementations defective (garbage-byte downcast = UB that PASSES;
+defensive bail = parser-wide builtin-intrinsic deopt in exactly
+the gilOff milestone config), and no charter saw either (NA-T6
+checked only the does-bail direction). Builtin intrinsics need no
+NA bit — their inlined semantics are JS, governed by core
+SPEC-ungil/SPEC-jit; §0.1 scopes this spec to native BODIES. NOT
+re-litigation of R5.4: the admission-side mechanism stands; its
+predicate was under-typed. FIX: NA-I29 predicate re-typed — bail
+IFF isHostFunction() AND byte clear; ScriptExecutable-carried
+intrinsics explicitly OUT OF SCOPE and admitted; getter arms keep
+their wording with the host-only-population note, guard written
+against the same discriminator; NA-T6 builtin-still-inlines
+control arm; gate §9.2(e) wording updated. FULL text = SC2.4
+rev-7 note. Rev-6 text of record: "BAIL unless the callee
+NativeExecutable's m_concurrentOk byte is set".
+
+R6.3 ACCEPTED (major): the acquire side of NL had no pinned C++
+helper form — the R4.5 eager-TLS-load defect class recurred
+across four surfaces (§2.6, §2.7, §4.5, NA-I28), since §4.1's
+pseudocode begins with the lite byte and the only current-lite
+source at a C++ funnel is the TLS slot t_currentVMLite
+(runtime/VMLite.cpp:67; accessor VMLite.h:333-345). NA-I1 stated
+the cost constraint with no annex saying HOW, and nothing pinned
+the release point relative to C++ exception handling. Verified
+not re-litigation: no round decided to leave the acquire form
+open; R4.5's fix covered only NativeLockDropScope. FIX: NEW
+BINDING ANNEX ACQ1 — RAII NativeLockBracket (default +
+byte-keyed ctor forms; level-0 gilOffProcess gate FIRST; lite
+resolve only on the gated path; dtor releases at the invocation
+expression's scope close, BEFORE the funnel's exception branch —
+NA-I14 by construction); NEW spec clause NA-I31 cites it from
+§2.6/§2.7/§4.5/NA-I28; §4.1's lite-first ordering scoped to
+EMITTERS only.
+
+R6.4 ACCEPTED (major): NA-I1's funnel enumeration and NA-T9(d)'s
+oracle were not restated when rev 6 added the §2.7/NA-I27 and
+NA-I28 always-compiled bracket surfaces — a cost regression at
+those funnels violated NA-I1 with no observing test, and the
+normative index did not say whether the NA-I27 brackets were
+bound by NA-I1 at all. FIX: NA-I1 restated "per
+EX1/§2.6/§2.7/§4.5(incl. NA-I28) funnel" (one predictable
+gilOffProcess branch, zero TLS/lite/depth loads flag-off/GIL-on);
+NA-T9(d) extended to the full acquire-side funnel set (TC1
+amendment carries the rationale). Supersession recorded both
+sides (spec NA-I1 row + TC1 NA-T9(d)). Rev-5 text of record:
+"one predictable gilOffProcess branch per EX1/§4.5/§2.6 funnel";
+"a C++ branch-count/TLS-load oracle at the EX1 funnels".
+
+R6.5 DUPLICATE of R6.2 (the same NA-I29 mis-typing filed a second
+time, with the ExecutableBaseInlines.h:43-48 and
+DFGByteCodeParser.cpp:2103-2104 cites; consolidated into the R6.2
+disposition — its getter-arm same-discriminator suggestion is
+adopted there).
+
+R6.6 ACCEPTED (major): §4.4's coverage premise was false for the
+DFG/FTL isDirect direct-native-call emitter; §4.4.2's bracket
+language was permissive ("MAY"), ungrounded; and TC1's
+vmEntryHostFunction exempt-of-record was false for two of its
+four callers. Verified in-tree: DFGSpeculativeJIT64.cpp:999-1062
+emits `callOperation<HostFunctionPtrTag>(nativeFunction)` (:1033)
+/ `callOperation<OperationPtrTag>(vmEntryHostFunction)` (:1031,
+JITCage) for known host callees with NoIntrinsic, no thunk, with
+loadException at :1041-1043; FTL mirror
+FTLLowerDFGToB3.cpp:14749-14796 (:14787/:14789, check
+:14794-14796); the path is in no NA-I16 union member. The R3.3
+bug shape recurring on the remaining direct-call arm. FIX: §4.4
+intro rewritten (covered EXCEPT NA-I16 union AND the isDirect
+emitter, both arms cited); §4.4.2 made NORMATIVE MUST with NA-I14
+placement; TC1 exempt split per caller + vmEntryHostFunction
+joins the generated symbol check; gate §9.2(a) gains the two
+sites. FULL walk ANNEX SC3.2. Rev-6 texts of record: §4.4 intro
+"DFG/FTL calls to host functions land on the NativeExecutable's
+call thunk (§4.3) — covered EXCEPT the NA-I16 union below";
+§4.4.2 "the compiler MAY fold the §4.1 byte tests and either omit
+the bracket (bit=1) or emit unconditional acquire/release calls
+around the direct native call (bit=0)"; TC1 "`vmEntryHostFunction`
+is INSIDE the §4.3 bracket".
+
+R6.7 ACCEPTED (major): gate §9.3(a) still asked the SPEC-api
+owner to land "C API mints Locked executables (§2.4)" — the exact
+claim rev 6's own §2.4/SC2.3 correction superseded as false
+(JSObjectMakeFunctionWithCallback -> JSCallbackFunction, `final :
+public InternalFunction`, API/JSCallbackFunction.h:37 — no
+NativeExecutable minted). Executing §9.3 as written would have
+recorded a superseded-false statement both-sides in the
+counterparty spec, and left the rev-5->rev-6 §2.4 supersession
+with no corrected landing target on the SPEC-api side. FIX:
+§9.3(a) rewritten to the rev-6 §2.4 content (no NativeExecutable
+minted; NA-I8/NA-I27/NA-I28 serialization; finalize exempt-cited;
+no C-API opt-in, NA-X3 post-v1). §9.3(b) unchanged. Rev-6 text of
+record: "SPEC-api notes: (a) C API mints Locked executables
+(§2.4)".
+
+Supersessions recorded this side: rev-6 §1.3 creation-pinned
+consult + SC2.6(a) before-create pinning + CF1.2 flip-completeness
+sentence (R6.1, SC3.1); rev-6 NA-I29 predicate (R6.2, SC2.4
+rev-7 note); §4.1's implied universal lite-first ordering (R6.3,
+ACQ1/NA-I31); rev-5 NA-I1 funnel enumeration + NA-T9(d) EX1-only
+scope (R6.4); rev-6 §4.4 intro coverage sentence + §4.4.2 "MAY"
++ TC1 vmEntryHostFunction blanket exempt (R6.6, SC3.2); rev-6
+gate §9.3(a) text (R6.7). Counterparty-spec obligations remain
+gates: §9.1-§9.4, §9.6, §9.7 unchanged in kind; §9.2(a)/(e) and
+§9.3(a) wording updated to the corrected clauses. No text outside
+SPEC-nativeaffinity{,-history}.md was modified.
+
+Size-cap actions this round (content normative, no semantic
+change): §3.5's full LK.1c row text MOVED to ANNEX BL1.7 (body
+keeps the index); several body rationale parentheticals compressed
+to annex pointers (their full texts already lived in
+CF1.2/SC1.4/SC2.1/SC2.2/SC2.3/NL1/EX1/PT1/TC1). Body measured at
+49994/50000 bytes post-edit.
+
+## Review round 7 (2026-06-07) -> rev 8 — SPEC-congc cross-document pass
+
+Source: the cross-document review of the two thread-specs2 drafts
+(this spec + SPEC-congc) against each other and the frozen family.
+One finding lands here (R7.1); the other two findings of that pass
+(the §LK lock-table fork and the frozen-§A.3 recording defect) are
+SPEC-congc-side defects, fixed in congc rev 8 (its F41/F42) and
+cross-cited from §3.5/§9.1 here.
+
+R7.1 (major — falsified grounding, ACCEPTED): NA-I13's exemption
+(b) / ANNEX BL1.6 let a Locked native reach a SYNC COLLECTION
+mid-body WITH NL held, on a walk derived against the landed
+single-window heap §10 conduct. SPEC-congc §3 replaces that
+conduct with an N-window tenure (per-window blocking GCL
+re-acquires, GBL barriers, between-window condvar waits, the F28
+handoff, the `:4955` tail) — shapes BL1.6 never walked. An
+NL-holding mutator-conductor would serialize every Locked native,
+custom accessor, JSClassRef callback and handleHostCall funnel
+process-wide for a whole concurrent cycle. Verified (reviewer +
+re-walk): NOT a deadlock — NL waiters are §A.3-compliant park
+sites, F8-reverting at each WND-open (NL1/BL1.1); marking
+termination needs nothing from NL waiters — so a liveness/
+grounding gap. Also: ZERO cross-references existed between the
+two new specs; congc CG-I19 was silent on NL.
+
+DISPOSITION (option (a) of the finding's two — forbid; option
+(b), re-deriving BL1.6 for the windowed protocol, REJECTED in
+congc CGD6.1: cycle-length stall stands even if sound, walk
+re-derives on every window-model change, CG-I19's closed loop
+already excludes every other foreign obligation): NA-I13
+exemption (b) NARROWED to §A.3 (single-window) conductors/losers;
+NEW ANNEX BL1.8 — NL drop bracket around the sync-collection
+request funnel (NA-I11-style depth save/full release, park-capable
+reacquire after conduct tail/follower resume, NA-I12 exception
+discipline, level-0 mode gate); BL1.6 head note + LK.1c (BL1.7)
+conductor-HOLD bullet narrowed; NA-T4 rev-5 sync-collection
+sub-arm superseded, rev-8 multi-window arm added (composes congc
+CGT1.1 F40); §9.1 gate text updated (NARROWED clause; watchdog
+budget stated once, congc CGS2.3).
+
+Supersessions recorded this side: BL1.6 sync-collection leg ->
+BL1.8 (both sides: congc CG-I19/§3.7/CGD6.1/§13.5(4)); NA-T4
+rev-5 sync-collection sub-arm -> the rev-8 arm (TC1). Recorded
+counterparty-side (congc rev 8): the §LK LK.9c/9d rows + U20
+extension (their F41 — closes the lock-table fork this spec's
+§3.5/§9.7 convention exposed; LK.1c's "OUTER to ... all leaves"
+re-grounded against the new congc leaves, congc CGS2.2); the
+frozen-§A.3/HBT4/U32 pending rows (their F42, congc CGS2.3-4).
+Counterparty obligations remain gates: §9.1-§9.7 unchanged in
+kind; §9.1 gains the rev-8 NARROWED clause + coordination note.
+No text outside the four SPEC-{congc,nativeaffinity}{,-history}
+files was modified.
+
+Size-cap actions this round (content normative, no semantic
+change): §3.2(2), NA-I22, §1.3 SC3.1/CF1.2 parentheticals, §2.6
+intro, NA-I29 parenthetical, NA-T6/NA-T9 index entries and the
+§3.3 funnel parentheticals compressed to annex pointers (full
+texts already in NL1/BL1.3/SC3.1/CF1.2/SC1.4/SC2.4/TC1/EX1).
+Body measured at 49997/50000 bytes post-edit.

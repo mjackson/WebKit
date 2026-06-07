@@ -124,7 +124,14 @@ void JITCompiler::linkOSRExits()
         // FIXME: The following code can be a DFG Thunk.
         if (!dispatchCasesWithoutLinkedFailures.empty()) {
             dispatchCasesWithoutLinkedFailures.link(this);
-            loadPtr(vm().addressOfCallFrameForCatch(), GPRInfo::notCellMaskRegister);
+            // UNGIL §A.1.3: mode-keyed — latent under the pinned flags
+            // (unlinked DFG requires Options::forceUnlinkedDFG()), but a
+            // gilOff compilation must never consume the baked
+            // addressOfCallFrameForCatch helper (VM.h rule): genericUnwind
+            // publishes the catch frame per-lite GIL-off, so the absolute
+            // load would read the inert VM-block word and treat a pending
+            // catch frame as "no exception". GIL-on/flag-off: byte-identical.
+            loadCallFrameForCatch(vm(), GPRInfo::notCellMaskRegister);
             MacroAssembler::Jump didNotHaveException = branchTestPtr(MacroAssembler::Zero, GPRInfo::notCellMaskRegister);
             move(GPRInfo::notCellMaskRegister, GPRInfo::jitDataRegister);
             emitGetFromCallFrameHeaderPtr(CallFrameSlot::codeBlock, GPRInfo::jitDataRegister, GPRInfo::jitDataRegister);

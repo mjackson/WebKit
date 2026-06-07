@@ -39,6 +39,11 @@
 
 namespace JSC {
 
+// UNGIL §A.3.2 client-scoped park pairing (Heap.cpp; same forward-declaration
+// shape as Lookup.cpp / VMManager.cpp).
+void gcClientWillParkForThreadGranularStop();
+void gcClientDidResumeFromThreadGranularStop();
+
 WTF_MAKE_TZONE_ALLOCATED_IMPL(JITWorklist);
 
 JITWorklist::JITWorklist()
@@ -287,36 +292,65 @@ void JITWorklist::waitUntilAllPlansForVMAreReady(VM& vm)
     // There can be the case where we already released heap access, for example when the VM is being
     // destroyed as a result of JSLock::unlock unlocking the last reference to the VM.
     // So we use a Release access scope that checks if we currently have access before releasing and later restoring.
-    ReleaseHeapAccessIfNeededScope releaseHeapAccessScope(vm.heap);
+    //
+    // UNGIL (R4-1 sweep; stw-watchdog-timeout root cause B): GIL-off the
+    // release must be CLIENT-scoped, not vm.heap — under useSharedGCHeap a
+    // client VM's vm.heap is the shared SERVER, whose hasAccess() is
+    // owner-sensitive (mainClientHasHeapAccess), so on a spawned thread the
+    // ReleaseHeapAccessIfNeededScope computes hadHeapAccess == false and
+    // releases NOTHING while this thread's own per-thread GCClient::Heap
+    // stays access-held for the entire unbounded wait below. The §A.3.2
+    // conductor predicate samples exactly that per-lite client access and
+    // can never converge — the 30s watchdog / nil-Class-A-context /
+    // jettison-requester signature (reachable via completeAllPlansForVM /
+    // cancelAllPlansForVM from prepareToDiscardCode, deleteAllCode, and
+    // Heap::completeAllJITPlans). Same fix shape as
+    // lockStaticPropertyReificationLockContended (Lookup.cpp): release the
+    // CALLER's own client, wait, re-acquire through the gated AHA
+    // (F8/§A.3.2b) AFTER dropping m_lock — a conductor's work closure may
+    // itself take m_lock (cancelAllPlansForVM jettisons), so re-acquiring
+    // access while holding it could deadlock against an open window.
+    // GIL-on / flag-off: the landed scope, byte-identical.
+    bool gilOff = vm.gilOff();
+    std::optional<ReleaseHeapAccessIfNeededScope> releaseHeapAccessScope;
+    if (gilOff) [[unlikely]]
+        gcClientWillParkForThreadGranularStop();
+    else
+        releaseHeapAccessScope.emplace(vm.heap);
 
-    // Wait for all of the plans for the given VM to complete. The idea here
-    // is that we want all of the caller VM's plans to be done. We don't care
-    // about any other VM's plans, and we won't attempt to wait on those.
-    // After we release this lock, we know that although other VMs may still
-    // be adding plans, our VM will not be.
-    Locker locker { *m_lock };
+    {
+        // Wait for all of the plans for the given VM to complete. The idea here
+        // is that we want all of the caller VM's plans to be done. We don't care
+        // about any other VM's plans, and we won't attempt to wait on those.
+        // After we release this lock, we know that although other VMs may still
+        // be adding plans, our VM will not be.
+        Locker locker { *m_lock };
 
-    if (Options::verboseCompilationQueue()) {
-        dump(locker, WTF::dataFile());
-        dataLog(": Waiting for all in VM to complete.\n");
-    }
-
-    for (;;) {
-        bool allAreCompiled = true;
-        for (const auto& entry : m_plans) {
-            if (entry.value->vm() != &vm)
-                continue;
-            if (entry.value->stage() != JITPlanStage::Ready) {
-                allAreCompiled = false;
-                break;
-            }
+        if (Options::verboseCompilationQueue()) {
+            dump(locker, WTF::dataFile());
+            dataLog(": Waiting for all in VM to complete.\n");
         }
 
-        if (allAreCompiled)
-            break;
+        for (;;) {
+            bool allAreCompiled = true;
+            for (const auto& entry : m_plans) {
+                if (entry.value->vm() != &vm)
+                    continue;
+                if (entry.value->stage() != JITPlanStage::Ready) {
+                    allAreCompiled = false;
+                    break;
+                }
+            }
 
-        m_planCompiledOrCancelled.wait(*m_lock);
+            if (allAreCompiled)
+                break;
+
+            m_planCompiledOrCancelled.wait(*m_lock);
+        }
     }
+
+    if (gilOff) [[unlikely]]
+        gcClientDidResumeFromThreadGranularStop();
 }
 
 void JITWorklist::completeAllPlansForVM(VM& vm)

@@ -27,6 +27,7 @@
 #include "WaiterListManager.h"
 
 #include "DeferredWorkTimerInlines.h"
+#include "Heap.h" // UNGIL r33: GCClient::Heap::currentThreadClient for the access-released entry assert.
 #include "HeapCellInlines.h"
 #include "JSGlobalObject.h"
 #include "JSLock.h"
@@ -212,6 +213,21 @@ static WaiterListManager::WaitSyncResult waitSyncWithPerWaitNode(VM& vm, Ref<Wai
     VMLite* parkLite = nullptr;
     if (gilOff)
         parkLite = isSpawned ? VMLite::currentIfExists() : capturedParkLiteOfCurrentThreadIfAny(vm);
+
+    // SELF-ENFORCED CALLER CONTRACT (review r33; was comment-only above):
+    // GIL-off this site parks in D9 quanta polling termination and carrier
+    // watchdog-check only — it never polls the §A.3 stop word — so its
+    // stop-convergence argument is entirely that the caller arrives
+    // access-released (carrier: the GILDroppedSection bracket in
+    // AtomicsObject.cpp; spawned: the §J.3 spawned arm once the 4.5-1a lift
+    // lands). A caller parking here with its per-thread client access held
+    // would wedge every jettison/Class-A stop into the 30s watchdog
+    // fail-stop for up to the full user-specified timeout (potentially
+    // Infinity). Fail-stop at entry instead of 30s later with no site named.
+    if (gilOff) [[unlikely]] {
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        RELEASE_ASSERT(!client || !client->hasHeapAccess());
+    }
 
     Ref<Waiter> waiter = adoptRef(*new Waiter(&vm));
 

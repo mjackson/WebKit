@@ -1,6 +1,6 @@
 # SPEC-congc-history.md
 
-Companion to `SPEC-congc.md` (draft rev 6). Per the frozen-spec
+Companion to `SPEC-congc.md` (draft rev 8). Per the frozen-spec
 convention: this file is NON-NORMATIVE EXCEPT the sections marked
 ANNEX ... (BINDING), which are part of the binding spec text and
 exist here only for the body size cap (50000 bytes).
@@ -674,6 +674,188 @@ exist here only for the body size cap (50000 bytes).
     heap §10A pointer; no normative clause was weakened — F28-F34
     full texts are ANNEX CGD4 + the CGP1 rewrite.
 
+- rev 7 (2026-06-07): adversarial round 6 — 6 reviewer findings
+  received, 5 distinct after merging duplicates (the two TID-rebias
+  findings — "no window disposition, restamps after the final
+  WND-close" and "D1/D1R in-stop ordering unsatisfiable under
+  C1/F28" — are one defect, merged as F35). ALL ACCEPTED as real
+  after verification against the tree; none refuted. F-number
+  mapping extends the rev 6 note: F35-F39 = rev 7.
+  Dispositions:
+  - F35 (blocker; 2 findings merged): the landed conduct-tail
+    UNGIL §D.1 TID-rebias block (`Heap.cpp:4877-4915`:
+    `rebiasSnapshotForConductor` -> `conductTIDRebiasUnderSharedStop`
+    -> `noteRebiasRestampComplete`, gated on
+    `sawFullCollectionThisStop`, which AGGREGATES across the
+    step-7 `m_requests` drain loop, `:4856-4868`) had NO window
+    disposition anywhere in the spec — grep-verified: "rebias"
+    appeared nowhere in the body; the sole history mention was
+    ANNEX CGA2 R3's mislabel ("TID-rebias teardown"), a C2-only
+    row nothing at C1 consults. The window split re-homed every
+    OTHER tail step (reclaim -> final window §8.1; ISB bump ->
+    every close CG-F4; resume/WSAC/GSP -> per close §3.2; the
+    m_requests exit postdates the final close per F23/F28), so a
+    faithful CG-1/CG-3 implementation leaves the block at its
+    landed position — which under `useConcurrentSharedGCMarking`
+    is AFTER the final close's resume steps: WSAC false, GSP
+    cleared, mutators running JS while the conductor restamps
+    live Structures and runs D1R fires (`fireTransitionThreadLocal`
+    takes ConcurrentJSLockers/rank-6b locks; the run-inline
+    branch's WSAC premise is false), with no covering ISB edge
+    for the jettisons, and with the post-resume `m_freeTIDs`
+    release licensed by a Sealed->Restamped flip that no longer
+    happens-before resume — dead-TID reissue against still-live
+    baked `tid<<48` tags, the D1R type-confusion class. Reachable
+    in chartered configs (CG-T3's F19 GIL-off sub-arm; CG-T8's
+    F18 sub-arm; snapshots arise from ordinary thread exits).
+    Constraints also mutually inconsistent under F28: the landed
+    once-per-conduct position can be in no window; the
+    aggregation has no per-cycle meaning (Full cycle 1 + Eden
+    cycle 2 left "which final window restamps" unruled); and
+    "strictly BEFORE the ISB1.1 bump" was ambiguous once CG-F4
+    bumps at EVERY close. The spec's own gates could not catch
+    it: CGA1's grep set had no rebias pattern; CGS1 asserts no
+    SPEC-ungil supersession; no CG-T arm exercised rebias vs
+    windows. FIX (body §8.3 TID-REBIAS PIN; full text ANNEX
+    CGD5.1, GOVERNS): per-CYCLE rule — the rebias executes inside
+    the FINAL window of a conducted FULL cycle, after that
+    cycle's reclaim, strictly before that window's CG-F4 ISB
+    bump and WSAC/GSP clears, under WSAC, never after any
+    WND-close; the predicate re-derives per-cycle (first Full
+    cycle with a Sealed snapshot runs it; Eden predecessors/
+    successors neither run nor suppress); Sealed-stays-Sealed
+    between windows/cycles is safe (gate-lift licensed only by
+    the flip); the placement satisfies ANNEX D1/D1R VERBATIM
+    (CGS1 note added — no supersession); CGA1 grep set extended
+    (four rebias symbols); CGA2 R3 corrected; CG-I23; CG-T8 F35
+    sub-arm.
+  - F36 (major): §9.2(1)'s "publishes its fence/didRun state as
+    dead" sat OUTSIDE the GBL/!WSAC section (the parenthetical
+    attaches to epoch=MAX + HCS remove only) and under no stated
+    lock — the dying thread has dropped access (so it no longer
+    gates the §10.4 barrier) but is still an HCS member, so a
+    window CAN open concurrently and the conductor's in-window
+    fold/republish loops (§5.3(2) republish + `m_fenceEpochSeen
+    = FEP` for EVERY client; §4.1 didRun clear) write the SAME
+    plain GCH fields (CG-F1 "clients read own copy plain"):
+    an unsuppressed TSAN report (the F22/F34 acceptance bar) not
+    in any RACY-TOLERATED row, and a dead sentinel stored
+    mid-window spuriously fails the CG-I3 WND-close assert (held
+    unexempted per §9.3(1)). The clause also named no consumer —
+    nothing specified reads dead state (the fold/republish/CG-I3
+    domains are bounded by HCS membership; the GBL-ordered
+    remove ends them); the attach side (§9.3(1)) was deliberately
+    placed INSIDE the publishing GBL section for exactly this
+    reason, and the exit side lacked the symmetry. Rev 2's F2
+    ruled only the flush ORDER, never the dead-publication's
+    synchronization. FIX: option (a) — the clause is DELETED
+    (body §9.2(1)); HCS membership defines the domain; conductor
+    stamps on a not-yet-removed exiting client are sound (its
+    GCH outlives HCS membership; the remove is GBL-ordered and
+    barred in-window per heap I13). ANNEX CGD4.4's "exit
+    CMS-flush and dead-publication steps" sentence amended to
+    match (this entry is the amendment record). CG-T9 F36 arm:
+    amplifier-descheduled EXIT1 parked between the CMS flush and
+    the GBL acquire across a fence-raising window, CG-I3 assert
+    + TSAN enabled.
+  - F37 (major): ANNEX CGA1 row A4 relocated the landed
+    `ASSERT(m_mutatorMarkStack->isEmpty())` to "'all CMS empty'
+    at endMarking (in-window walk)" — irreconcilable with rev 6's
+    F31/CGD4.5(b): the tree runs the landed assert at the TOP of
+    `runEndPhase` (after `m_helperClient.finish()`, `Heap.cpp`
+    `:2032`-region), THEN `iterateExecutingAndCompilingCodeBlocks
+    -> writeBarrier(codeBlock)` (`:2036-2039`), THEN
+    `updateObjectCounts(); endMarking()` — and F31 routes a C0/C1
+    client-conductor's in-window barriers into its OWN CMS
+    (NEXT-CYCLE grey). So at every C1 cycle with executing
+    CodeBlocks the conductor's CMS is non-empty when endMarking
+    runs, and an implementer consuming A4 verbatim (§4.3) ships
+    a deterministic debug-assert failure. A4 dates from rev 2;
+    F31 never reconciled it. FIX: A4 amended in place (marked
+    rev 7) — the relocated all-CMS-empty walk lives at the
+    LANDED `:2032` site, strictly BEFORE the first
+    conductor-context writeBarrier batch, where it is sound (the
+    final window's §3.1(e) WND-open drain emptied every CMS;
+    WSAC bars client appends since); the server-stack and
+    race-stack asserts stay at the same site (conductor-context
+    server appends also postdate it). §5.2 CONDUCTOR-CONTEXT
+    cross-cites; CG-T11 gains the C1 executing-CodeBlocks arm.
+  - F38 (major): `m_collectorThreadIsRunning` was unruled at C2:
+    CGA1 A17 dispatches it to "§7.2 conductor", but neither §7.2
+    nor ANNEX CGA2 mentioned the flag, and CGA2's escape clause
+    (conductorClient/vm()/TLS-routed patterns) does not force a
+    row for it. Four live consumers verified: (1) the
+    `ASSERT(!m_collectorThreadIsRunning)` in
+    `requestCollectionShared` (`Heap.cpp:4503`) — if the rewired
+    R7 loop keeps the landed flag discipline (`:337/:340/:357`),
+    the assert fires on the FIRST mid-cycle ticket against a
+    conducting collector thread, and mid-cycle tickets are
+    COMMON (§9.1(4), F28); the §7 master rule forbade retiring
+    it (named nowhere); (2) the `:5051` conjunct in
+    `pollIssRevertIfNeeded`'s quiescence predicate — dropping
+    the flag instead silently degenerates it to always-true, an
+    unruled weakening of the §10D revert; (3)/(4) `:2828`
+    (`requestCollection`, `ASSERT(!isSharedServer())` — !ISS
+    only) and `:4334` (§10B.4 pre-ISS migration quiescence) are
+    unaffected, but nothing said so. Both halves of the
+    implementer's forced guess looked spec-conformant. FIX:
+    ANNEX CGA2 row R10 added (flag discipline KEPT by the R7
+    loop under `*m_threadLock` around each conducted ticket
+    batch; the `:4503` assert RETIRED at C2 behind
+    `useSharedGCCollectorThread` and NAMED in §7.2's retire list
+    so the master rule permits it; the `:5051` conjunct KEPT —
+    it is what makes a GIL-on revert refuse while the collector
+    conducts between tickets; `:2828`/`:4334` recorded
+    out-of-scope); body §7.2 retire list amended; CG-T6 R10 arm
+    (mid-cycle sync requester + RCAC storm vs a conducting
+    collector thread, debug build).
+  - F39 (major): EXIT1.9/server teardown vs a live C2
+    collector-conducted cycle was unruled. §9.2(3)'s covering
+    argument (§10D requires phase NotRunning) covers the GIL-on
+    revert OUTCOME only: under gilOffProcess
+    `pollIssRevertIfNeeded` returns immediately
+    (`Heap.cpp:5023-5031` — ISS sticky for process lifetime),
+    and §10D never gates ~VM itself. C2 removes what made this
+    moot: with activity gating (`:790-792`) and the reroute
+    (`:1595-1600`) retired, RCAC tickets fire from timers and
+    the collector-thread conductor runs multi-window cycles with
+    NO mutator participation; the EXIT1.9 completion fence
+    bounds ~VM only on registered lites (UNGIL-HANDOUT EXIT1.9:
+    "no registered lite other than m_mainVMLite") — the
+    collector thread has no lite, and §9.2(4) covers client
+    conductors only. Verified shapes: (a) join-vs-barrier cycle
+    (~VM's access-holding lastChanceToFinalize sections vs a
+    WND-open barrier waiting on the main client while teardown
+    joins the collector); (b) a bare teardown GCL acquire
+    succeeding between windows with phase != NotRunning
+    (teardown is not a §3.4 site — no back-off applied),
+    destroying conduct state mid-cycle (UAF). CG-I14/CGD4.3
+    already PRESUPPOSED "server teardown" as a quiesced
+    application point stated nowhere; CGA2 R7 rewired the run
+    loop with no shutdown/join contract. Squarely charter item 6
+    at C2. FIX (body §9.2(5); full text ANNEX CGD5.2, GOVERNS):
+    ordered teardown-of-conducting — after the EXIT1.9 wait and
+    BEFORE any access-holding teardown section: disable
+    elections/collector wakes; acquire GCL with the §3.4
+    back-off until {GCL held, phase NotRunning under
+    `*m_threadLock`, granted tickets quiesced
+    (served-or-refused)}; join the collector thread at that
+    boundary; only then run the access-holding tail; teardown is
+    then the sanctioned CG-I14 quiesced application point
+    (presupposition closed). CG-I24; CG-T6 teardown arm (~VM
+    injected while an RCAC C2 cycle is between windows, GIL-on
+    and GIL-off — cycle completes or is refused, no watchdog, no
+    conduct-state UAF).
+  - Size cap: body compressed to 49991 bytes (<= 50000). Per the
+    overflow rule the trimmed prose survives here or in annexes:
+    §8.3 and §9.2(5) keep normative summaries and ANNEX CGD5
+    GOVERNS their full texts; the §9.1(2) CALL-SITES sentence,
+    the §9.1(7) narrative, the §9.2(1) C4-DELTA attribution
+    string, and the §5.3(3)/§3.2/§3.4 grounding parentheticals
+    were tightened with their full texts already resident in
+    this log (rev 4 F18, rev 6 F29/F30, rev 6 F34, rev 4 F19,
+    rev 5 F22, rev 5 F20) — no normative clause weakened.
+
 Open items for the review loop (tracked, not yet ruled):
 1. RESOLVED rev 2 (F7): collector-thread conductor needs no
    VMTraps poll — ANNEX CGA2 row R6.
@@ -693,6 +875,73 @@ Open items for the review loop (tracked, not yet ruled):
    the measured quantity by the inter-cycle re-stop + the
    successor's first window when a drain successor starts.
 
+- rev 8 (2026-06-07): CROSS-DOCUMENT pass (SPEC-congc vs
+  SPEC-nativeaffinity vs the frozen family) — 3 findings
+  received, ALL ACCEPTED after verification; none refuted.
+  Dispositions:
+  - F41 (major, lock-table fork): rev 7 §10 added process locks/
+    edges (the CMS terminal leaf legal under 7-9b — the same edge
+    shape that previously required the explicit both-sides §LK.8
+    destructor-leaf supersession vs heap §6's "leaf ... never
+    7-9b" row — and the marking-internal group newly
+    mutator-reachable out-of-window) with NO SPEC-ungil §LK row,
+    while declaring a private "U20-class" lint (CG-T2);
+    SPEC-ungil §LK is the ONE merged order, canonical for U20
+    (SPEC-ungil.md:867-925), and SPEC-nativeaffinity gates every
+    addition through §LK (its §3.5/§9.1/§9.7). §LK silently
+    stopped being the one merged order, and nativeaffinity
+    LK.1c's "OUTER to ... all leaves" claim was written blind to
+    these leaves — the NL>GCL>m_markingMutex>CMS chain
+    (§9.1(2) + BL1.6) held only ACCIDENTALLY. FIX: §10 rewritten
+    as PROPOSED §LK rows LK.9c/LK.9d, SUPERSESSION-PENDING +
+    adoption gate §13.5(1); CG-T2 folded into U20 PROPER; chain
+    chartered + linted (ANNEX CGS2.1-2); CGS1 trailer corrected;
+    CGS2 folds into SPEC-ungil-history at freeze.
+  - F40 (major, falsified cross-spec grounding): nativeaffinity
+    NA-I13's conductor exemption (ANNEX BL1.6 there) lets a
+    Locked native reach a sync collection mid-body WITH NL held —
+    derived against the landed SINGLE-window heap §10 conduct.
+    SPEC-congc §3 replaces that with an N-window tenure
+    (per-window blocking GCL re-acquires, GBL barriers,
+    donateAll/waitForTermination waits, the F28 handoff, the
+    `:4955` tail), so an NL-holding mutator-conductor would hold
+    NL across the ENTIRE cycle — serializing every Locked
+    native/custom accessor/JSClassRef callback/handleHostCall
+    funnel process-wide for the cycle. Verified NO deadlock (NL
+    waiters are §A.3-compliant park sites, F8-reverting at each
+    WND-open per NL1/BL1.1; marking termination needs nothing
+    from NL waiters) — a liveness/grounding gap, not
+    unsoundness; also ZERO cross-references existed between the
+    two specs. RULING (option (a), forbid — full walk ANNEX
+    CGD6.1; option (b), re-deriving BL1.6 for the windowed
+    protocol, REJECTED there): CG-I19 gains
+    `m_nativeLockDepth == 0` at conducting entry; the
+    sync-collection request path takes the nativeaffinity BL1.8
+    NL drop scope (NA-I11-style, depth saved/restored). Recorded
+    BOTH SIDES: SPEC-congc §3.7/CG-I19/CGD6.1 + the §13.5(4)
+    gate; SPEC-nativeaffinity rev 8 §3.4/NA-I13
+    NARROWED/BL1.6 note/BL1.8/NA-T4 multi-window arm. CG-T8 F40
+    sub-arm + NA-T4 rev-8 arm compose.
+  - F42 (major, recording defect): rev 7 amended the frozen §A.3
+    stop bracket — the JSThreadsStopScope ctor (a frozen-cited
+    element of §A.3 rule 5/HBT4.5, "allocation-free closure",
+    SPEC-ungil.md:256-268) gains a GCL-held BLOCKING marker
+    pause; HBT4's release-before-GCL order extends to window
+    re-entry; the §A.3 conductor's GCL wait meaning changes vs
+    the 30s watchdog (U32/HBT4.5) — while §13.4 claimed "nothing
+    frozen is superseded" and CGS1 folded only into
+    SPEC-heap-history; the two new specs applied OPPOSITE
+    readings of the both-sides convention to the same frozen
+    surface. FIX: §13.4 rewritten; §13.5 adoption gates added
+    (nativeaffinity §9 convention); ANNEX CGS2.3-4 carry the
+    pending rows; the conductor watchdog BUDGET (marker pause +
+    nativeaffinity NL terms) is stated ONCE (CGS2.3, cited from
+    nativeaffinity BL1.6/BL1.8).
+  - Size cap: §3.4 site dispositions -> CGD6.2; CG-T6/T7/T8/T9
+    full charters -> ANNEX CGT1 (verbatim); §8.3/F20/F36/F39/
+    CGA2/CGP1 body indexes compressed (annexes already GOVERN);
+    body 49,992 bytes.
+
 ---
 
 ## ANNEX CGA1 (BINDING) — "the mutator"-singular audit table
@@ -705,7 +954,10 @@ Audit patterns (CG-T1 grep set, `heap/**` only):
 `m_mutatorState`, `sanitizeStackForVM`, `shadowChicken`,
 `m_mutatorExecutionVersion`, `m_barriersExecuted`,
 `m_incrementBalance`, `mutatorIsStopped`, `rightToRun`,
-`m_currentThreadState`, `m_machineThreads`. Every match must map to
+`m_currentThreadState`, `m_machineThreads`; added rev 7 (F35):
+`conductTIDRebiasUnderSharedStop`, `rebiasSnapshotForConductor`,
+`noteRebiasRestampComplete`, `sawFullCollectionThisStop`
+(dispositioned by body §8.3 / ANNEX CGD5.1). Every match must map to
 a row below (or a row added by the implementing change with the
 same discipline). Dispositions per SPEC-congc §4.3.
 
@@ -714,7 +966,7 @@ same discipline). Dispositions per SPEC-congc §4.3.
 | A1 | `m_worldState` bit machine: `Heap.cpp:2348` (stopTheMutator), `:2390` (resumeTheMutator), `:2421-2459` (stopIfNecessarySlow), `:2497-2533` (waitForCollector), `:2534-2600` (acquireAccessSlow), `:2601-2670` (releaseAccessSlow), `:2652-2686` (conn relinquish + unpark), `:2688-2714` (handleNeedFinalize), `:2747` (notifyThreadStopping), asserts `:2354-2384` | LANDED-N-ARY (superseded when ISS) | Unreachable/no-op once ISS (RELEASE_ASSERTs `:2352`, `:2393`; reroute `:2421-2427`, `:2545-2616`); CG-I7 keeps them dead in ALL stages. `!ISS`: untouched (CG-I0). |
 | A2 | `m_mutatorDidRun` writes `Heap.cpp:2433, 2519, 2594` (legacy paths); consumer `:2234-2237` (`m_mutatorExecutionVersion`) | FOLDED | §4.1: per-client `m_didRunSinceLastWindow` set in AHA success tail + SINFAC hot-poll exit; conductor ORs into the `:2234` consumer at WND-open, clears in-window. Legacy writes stay `!ISS`-only. CG-I9. |
 | A3 | `m_mutatorSlotVisitor` (`Heap.h:1182`; ctor `Heap.cpp:378`; `forEachSlotVisitor` `HeapInlines.h:279`; assist use `Heap.cpp:3974`) | STAGE-GATED (C4) | §7.4: per-client assist visitors registered at ACT; the server's `m_mutatorSlotVisitor` remains for `!ISS` and as the conductor's own assist slot. CG-I14. |
-| A4 | `m_mutatorMarkStack` (`Heap.h:1183`; lock-free append `Heap.cpp:1479`; clear `:527`, `:1809`; size log `:1929`; empty assert `:2032`) | FOLDED | §5.2 CMS: per-client stack + leaf lock when ISS; window/threshold drains under `m_markingMutex`. `:2032` assert becomes "all CMS empty" at endMarking (in-window walk). CG-I2/I10. |
+| A4 | `m_mutatorMarkStack` (`Heap.h:1183`; lock-free append `Heap.cpp:1479`; clear `:527`, `:1809`; size log `:1929`; empty assert `:2032`) | FOLDED | §5.2 CMS: per-client stack + leaf lock when C1R; window/threshold drains under `m_markingMutex`. AMENDED rev 7 (F37 — the rev 2 "at endMarking" placement deterministically fired on F31's conductor-context appends, which PRECEDE endMarking at `:2036-2039`): the relocated "all CMS empty" walk stays at the LANDED `:2032` site (top of runEndPhase, after `m_helperClient.finish()`, strictly BEFORE the first conductor-context writeBarrier batch), where it is sound — the final window's §3.1(e) WND-open drain emptied every CMS and WSAC bars client appends since; the server/race-stack asserts stay there too (conductor-context server appends also postdate the site). CG-T11 C1 executing-CodeBlocks arm. CG-I2/I10. |
 | A5 | `m_mutatorShouldBeFenced`/`m_barrierThreshold` (`Heap.h:722-726, 1209`; writes `Heap.cpp:473-474`, `:3928-3940`, raises/lowers `:1111`, `:1247`, init `:4456`; readers `:714`, `:746`, `:1433`, `:3324`; JIT bakes `addressOf*` `Heap.h:723,726`) | FOLDED | §5.3: server master mutated in-window only + FEP; per-client copies republished in the mutating window; consumers read current client's copy when ISS. JIT address: §13.3(a) charter; GIL-off pinned always-fenced until it lands. CG-I3. |
 | A6 | `m_barriersExecuted++` (`Heap.cpp:1432`; reset `:2301`) | RACY-TOLERATED | Diagnostic counter; relaxed increments documented benign (TSAN suppression row). |
 | A7 | `sanitizeStackForVM(vm())` (`Heap.cpp:1704`, `:2206`, `:2675`) | VM-SINGULAR-DEFERRED | Per-VM, not per-mutator; self-guards on entered state. Post-GIL per-thread stacks are vmstate/ungil territory (lite-owned stacks); conductor calls it only in-window. |
@@ -809,13 +1061,14 @@ row; the C2 change adds rows for any site this table misses
 |---|---|---|
 | R1 | `conductSharedCollection(GCClient::Heap&)` signature (`Heap.cpp:4757`) | Parameter becomes nullable (`GCClient::Heap*`); null = standalone conductor (C2). |
 | R2 | Step-3 own-access release (`Heap.cpp:4769-4770`) and tail `conductorClient.acquireHeapAccess()` (`:4955`) | SKIP when null — the collector thread has no access to release/re-acquire; the §10.4 barrier then waits on ALL clients (no "every client except the conductor's own" carve-out). |
-| R3 | Main-VM in-window work: `sanitizeStackForVM(vm())` (`Heap.cpp:1704, :2206`), shadow chicken (`:2253-2254`), AtomStringTable scope + TID-rebias teardown (`:4880-4915` area) | KEEP, executed by the conductor thread IN-WINDOW — licensed by heap §10B rule 2 (phase-loop vm() asserts gain `|| WSAC`); the heap T9 audit classified sites for a client conductor, and every such site is in-window, where client-ness is irrelevant. |
+| R3 | Main-VM in-window work: `sanitizeStackForVM(vm())` (`Heap.cpp:1704, :2206`), shadow chicken (`:2253-2254`), AtomStringTable scope | KEEP, executed by the conductor thread IN-WINDOW — licensed by heap §10B rule 2 (phase-loop vm() asserts gain `|| WSAC`); the heap T9 audit classified sites for a client conductor, and every such site is in-window, where client-ness is irrelevant. AMENDED rev 7 (F35): the rev 2 entry "TID-rebias teardown (`:4880-4915` area)" was a MISLABEL — that block is the §D.1 rebias EXECUTION, not teardown, and its window placement is a stage-C1 body rule (§8.3 / ANNEX CGD5.1, GOVERNS); this row merely INHERITS it for the C2 conductor (the rebias is conductor-executed, in the Full cycle's final window, client-ness irrelevant). |
 | R4 | Step-8 resume pass / per-client TLC loops (`Heap.cpp:4923-4925`) | UNCHANGED — already loop over HCS; the conductor's own (nonexistent) client simply contributes no entry. |
 | R5 | §10D revert poll context (`pollIssRevertIfNeeded`) | NOT run by the collector conductor (main client's thread only, heap §10D); no change. |
 | R6 | VMTraps poll in `runSharedGCElection` (`Heap.cpp:4562-4572`) | SKIPPED for the collector thread: it never enters a VM, so no JSThreads/debugger conductor ever needs IT parked via traps — its §A.3 compatibility is being access-free + condvar-parked (rev 1 open item 1 RESOLVED). |
 | R7 | Collector run loop (`Heap.cpp:333-357`; `shouldCollectInCollectorThread` `:1631-1648`) | REWIRED: wait on the `m_threadCondition`-class signal for granted-unserved tickets (RCAC/activity wakes, SPEC-congc §7.2), then run the election-equivalent (tryLock GCL; AMENDED rev 5, F24 — after tryLock success, under `*m_threadLock`, the §3.4 guard applies: `m_gcConductorActive && m_currentPhase != NotRunning` => unlock GCL and re-wait on the ticket signal (a mid-cycle RCAC ticket against a between-windows C1 cycle otherwise nests a conductor, CGD1.1-at-C2); else set GCA + `m_gcConductorThread`, conduct, drop both per the continuity bound CG-I12; the final-close GCL release is THIS loop's per F23). CG-T6 R7-guard arm. |
 | R8 | `m_currentThreadState`/conservative-scan registration | N/A — the collector thread is never a mutator root; it contributes no stack to heap §10.6 gathering (it is not in HCS). |
 | R9 | (rev 6, F31) TLS-routed in-window barrier executions: runEndPhase `iterateExecutingAndCompilingCodeBlocks -> writeBarrier(codeBlock)` (`Heap.cpp:2036-2039`) and `m_codeBlocks->iterateCurrentlyExecuting -> writeBarrier` (`:2085-2088`), reaching `addToRememberedSet` (`:1427`, fence read `:1434`) | `currentThreadClient()` is NULL for the C2 conductor: null-client executions append to the SERVER `m_mutatorMarkStack` (`:1479`) and read the SERVER fence master — sound in-window only (WSAC, single writer; consumed next cycle per CGA1 A21); debug assert in `addToRememberedSet`: null client => WSAC. Client-conductor (C0/C1): own-CMS appends, NEXT-CYCLE grey (SPEC-congc §5.2; ANNEX CGD4.5). |
+| R10 | (rev 7, F38) `m_collectorThreadIsRunning` (`Heap.h:1325`; run-loop writes `Heap.cpp:337/:340/:357`; consumers `:2828`, `:4334`, `:4503`, `:5051`) | RULED: the R7 rewired loop KEEPS the landed discipline — flag set under `*m_threadLock` around each conducted ticket batch, cleared on return to the ticket wait. The `requestCollectionShared` `ASSERT(!m_collectorThreadIsRunning)` (`:4503`) is RETIRED at C2 behind `useSharedGCCollectorThread` (NAMED in body §7.2's retire list per the §7 master rule — a mid-cycle ticket against a conducting collector is licensed and COMMON, §9.1(4)/F28). The `pollIssRevertIfNeeded` conjunct (`:5051`) is KEPT: it is what makes a GIL-on §10D revert refuse while the collector conducts between granted tickets. `:2828` (`requestCollection`, `ASSERT(!isSharedServer())`) and `:4334` (§10B.4 pre-ISS migration quiescence) are !ISS/pre-ISS — out of scope, unchanged. CG-T6 R10 arm. |
 
 ## ANNEX CGS1 (BINDING) — supersessions to record at freeze
 
@@ -879,10 +1132,121 @@ flag-off keeps the frozen text operative (CG-I0).
    exemption itself stands once the gate is in place. Flag-gated
    on `useSharedGCIncrementalSweep`.
 
-No SPEC-ungil clause is superseded: §A.3/EXIT1/HBT4/ISB1 are
-composed with unchanged (SPEC-congc §9); the ISB1.1 bump cadence
-change (§3.2) is an extension in the direction ISB1 already
-licenses (every window that may jettison bumps).
+SPEC-UNGIL SIDE (REWRITTEN rev 8, F42 — the rev-7 sentence "No
+SPEC-ungil clause is superseded: §A.3/EXIT1/HBT4/ISB1 are
+composed with unchanged" was FALSE for §A.3/HBT4/U32 and for the
+§LK lock order): the SPEC-ungil-side PENDING supersessions live
+in ANNEX CGS2 (§LK rows LK.9c/9d + U20 extension, F41; the
+§9.1(2) JSThreadsStopScope ctor pause obligation + dtor order vs
+§A.3 rule 5/HBT4.5; the conductor in-bracket wait bound vs
+U32/HBT4.5 and the 30s watchdog; the HBT4 release-before-GCL
+order extension to window re-entry), each SUPERSESSION-PENDING
+behind a SPEC-congc §13.5 adoption gate, and CGS1+CGS2 fold into
+SPEC-heap-history AND SPEC-ungil-history at freeze, both sides.
+Still NOT superseded: EXIT1 (composed unchanged, §9.2); ISB1 —
+the ISB1.1 bump cadence change (§3.2) is an extension in the
+direction ISB1 already licenses (every window that may jettison
+bumps). Rev 7 (F35)
+note: the §8.3 per-full-cycle rebias placement also supersedes
+NOTHING in ANNEX D1/D1R — it satisfies them VERBATIM: the Full
+cycle's final window IS world-stopped inside that full shared
+collection (heap §10, WSAC set); D1R item-1 fires complete
+before THAT stop window resumes; the per-window order rebias ->
+ISB1.1 bump -> GSP clear preserves D1R item 2's resume-side sync
+(derivation ANNEX CGD5.1).
+
+## ANNEX CGS2 (BINDING) — SPEC-ungil-side PENDING supersessions (rev 8, F41/F42)
+
+Every row here is SUPERSESSION-PENDING and an ADOPTION GATE
+(SPEC-congc §13.5): NOT in force until the SPEC-ungil owner lands
+the cross-cite, recorded both sides; the gated stage MUST NOT
+ship before that. At freeze this annex folds into
+SPEC-ungil-history (CGS1 folds into SPEC-heap-history). All rows
+flag-gated (`useConcurrentSharedGCMarking` unless noted);
+flag-off keeps the frozen text operative (CG-I0).
+
+CGS2.1 — §LK rows LK.9c/LK.9d (F41; gate §13.5(1)). Proposed
+insertions in the SPEC-ungil §LK merged process lock table
+(SPEC-ungil.md:867-925), heap-rank-internal additions, no
+re-ranks:
+- **LK.9c `GCH::m_mutatorMarkStackLock` (CMS lock)** — TERMINAL
+  leaf: nothing of any rank acquired while holding it; ordered
+  INSIDE `m_markingMutex` (drain/donation sites only); MAY be
+  taken with heap ranks 7-9b held (the §5.2
+  `addToRememberedSet` append path). This is the §LK.8
+  destructor-leaf-class shape and, like §LK.8, supersedes heap
+  §6's leaf-row "never 7-9b" for this lock — BOTH SIDES (heap §6
+  + SPEC-ungil §LK.8 class list). Soundness: the holder appends
+  to a segmented array (may fastMalloc a segment), acquires
+  nothing, never waits.
+- **LK.9d marking-internal group** (`m_markingMutex`,
+  `m_parallelSlotVisitorLock`, `m_raceMarkStackLock`, visitor
+  `m_rightToRun`) — ordered INSIDE GCL/GBL; mutually ordered as
+  landed (markingMutex > CMS at drains; the others mutually
+  unnested vs CMS); DISJOINT from MSPL-9b except landed in-window
+  uses. NEW under SPEC-congc: mutator threads reach the group
+  OUT-OF-WINDOW at exactly three sites — the §5.2(ii) SINFAC-tail
+  CMS donation (`m_markingMutex`; access held, no 7-9b — SINFAC
+  I6 `Heap.cpp:5125-5127`), the §9.2(1) DCT final flush
+  (`m_markingMutex`; post permanent access drop), and the
+  §9.2(1)/§9.3(3) ACT/DCT pending-list enqueue
+  (`m_parallelSlotVisitorLock` only). U20 PROPER extends to BOTH
+  rows: SPEC-congc CG-T2 IS the U20 extension — the rev-7
+  "U20-class" private lint is retired (no second lock-order
+  authority exists).
+
+CGS2.2 — composed-chain walk: NL > GCL > `m_markingMutex` > CMS
+(chartered; U20-linted via CGS2.1). Edges: NL > GCL — a
+nativeaffinity BL1.6 §A.3 conductor (haveABadTime-class) MAY hold
+NL on entry through its HBT4 bracket's GCL acquire; GCL >
+`m_markingMutex` — the §9.1(2) stop-scope ctor calls
+`pauseConcurrentMarkingForForeignStop` while holding GCL;
+`m_markingMutex` > CMS — WND-open drain + SINFAC-tail donation
+(§5.2). Acyclicity: CMS is TERMINAL (CG-I10(2)); GCL /
+`m_markingMutex` holders never ACQUIRE NL (nativeaffinity NA-I10
+negative edge); the barrier-append path takes CMS under 7-9b
+WITHOUT `m_markingMutex` (CG-I10(1)); no reverse edge exists.
+Note: under the rev-8 F40 ruling the GC-CONDUCT NL>GCL edge is
+REMOVED (BL1.8 drop) — the chain survives only through the
+BOUNDED §A.3 conduct. nativeaffinity LK.1c's "OUTER to ... all
+leaves" was written before these leaves existed; it HOLDS (an NL
+holder doing a barrier append takes only the CMS terminal leaf;
+no reverse edge), and this row makes that consistency CHARTERED
+and lint-enforced rather than accidental.
+
+CGS2.3 — conductor in-bracket wait BUDGET vs the 30s watchdog
+(`JSThreadsSafepoint.cpp:401`/`:412`); amends the frozen
+U32/HBT4.5 stop-progress reading (gate §13.5(2)). Stated ONCE
+here; SPEC-nativeaffinity BL1.6/BL1.8 cite this ledger rather
+than restating it. A §A.3 conductor's GCL wait is bounded by the
+sum of: (1) one GC window (CG-I12); (2) one marker-pause batch
+(§9.1(2)/ANNEX CGP1 — donateAll + counter-leave, F16); (3) when
+an F28 successor exists: the inter-cycle re-stop + the
+successor's FIRST window (GCL next free at its first non-final
+close); (4) C3: <= one sweeper quantum (§9.1(7)); (5)
+nativeaffinity NL terms: ZERO — conductors never ACQUIRE NL
+(NA-I10), the GC-conduct NL hold is removed (F40/BL1.8), and the
+BL1.6 conductor-HOLD case adds nothing to a FOREIGN conductor's
+wait. The frozen reading under which a conductor's GCL wait could
+span one whole synchronous conduct is superseded by this windowed
+bound; CG-T8 measures the sum against the watchdog.
+
+CGS2.4 — §A.3 rule-5/HBT4 amendments (gates §13.5(2)-(3)).
+(a) `Heap::JSThreadsStopScope` ctor obligation (§9.1(2), F18):
+after acquiring GCL, when `m_currentPhase != NotRunning`, the
+ctor BLOCKS in `pauseConcurrentMarkingForForeignStop` (markers
+only — the C3 sweeper gate is phase-independent, F29); the dtor
+resumes BEFORE releasing GCL. This amends the frozen §A.3 rule
+5/HBT4.5 characterization of the conductor bracket
+(SPEC-ungil.md:256-268): the closure stays ALLOCATION-FREE, but
+the ctor is no longer non-blocking past the GCL acquire; the
+added wait is bounded per CGS2.3 and acquires no api-rank or
+heap >= 7 lock (CG-I16). (b) The HBT4 release-before-GCL order
+(ungil §A.3.3) EXTENDS to window RE-ENTRY: the conductor's
+per-window blocking GCL acquire is legal exactly because it is
+access-released all tenure (§3.1(a)-(b)); first-window carve-out
+F15 (tryLock access-held) unchanged. Election/poll stay
+tryLock-only.
 
 ## ANNEX CGD1 (BINDING) — rev 3 interleavings and the ISS conductor-wait derivation
 
@@ -1422,7 +1786,9 @@ C0 change may LAND the GCH fields and helper code, but
 consumers keep the server pair, and didRun keeps the landed
 shared-mode behavior — byte-for-byte. The C1R-conditional
 clauses get explicit flag-off arms: the §9.2(1) exit CMS-flush
-and dead-publication steps and the §9.3(1) attach
+step (AMENDED rev 7, F36: the dead-publication step this
+sentence also named is DELETED — see the rev 7 log) and the
+§9.3(1) attach
 fence-snapshot/FEP-stamp are NO-OPS when !C1R (the copies are
 unrouted, unread state; CG-I0). The §5.2 WND-open drain and
 §5.3(2) republish loops iterate empty/unrouted state flag-off
@@ -1466,3 +1832,275 @@ GC correctness never depended on same-cycle consumption of
 end-phase barrier appends. (c) CG-I2 carries the matching
 exemption (in-window conductor-context appends are not
 owner-access-thread appends; WSAC single-writer covers them).
+
+## ANNEX CGD5 (BINDING) — rev 7 full texts
+
+Referenced by SPEC-congc §8.3 (F35) and §9.2(5) (F39); both
+GOVERN over their body summaries. CG-T6/T8 arm them.
+
+### CGD5.1 — F35: TID-rebias window placement (full text)
+
+Defect/reachability: the landed conduct-tail rebias block
+(`Heap.cpp:4877-4915`; conductor function banner `:4615-4690`;
+`sawFullCollectionThisStop` aggregation `:4856-4868`) is the
+ONLY tail step the window split gave no disposition (rev 7 log).
+Left at its landed position it runs, under
+`useConcurrentSharedGCMarking`, AFTER the final WND-close's
+resume steps — restamping live Structures and firing D1R
+watchpoints with mutators running, no covering ISB edge, and a
+gate-lift flip that no longer happens-before resume (dead-TID
+reissue vs live baked `tid<<48` tags).
+
+NORMATIVE (per-CYCLE rule; option (i) of the review's two —
+option (ii), once-per-conduct in the LAST cycle's final window
+with the OR'd predicate, REJECTED: it makes a trailing Eden
+cycle's final window run Full-collection-scoped work, has no
+landed analog for "which window", and delays the restamp across
+mutator-visible gaps for no benefit):
+1. When gilOffProcess (the block is gilOff-only; flag-off/GIL-on
+   it is dead — landed `[[unlikely]]` guard), the §D.1/D1R
+   rebias executes inside the FINAL window of a conducted FULL
+   cycle: after that cycle's `runSafepointHooksAndReclaim`
+   (§8.1/CG-I11 pin it to the same window), strictly BEFORE that
+   window's CG-F4 ISB bump, WSAC clear and GSP clear — i.e.
+   under WSAC, the landed per-window order preserved. The rebias
+   NEVER executes after any WND-close.
+2. Per-cycle predicate: `sawFullCollectionThisStop`'s
+   per-conduct aggregation is replaced when C1R by a per-cycle
+   derivation — THIS cycle's `m_lastCollectionScope ==
+   CollectionScope::Full`. Within an F28 multi-cycle conduct the
+   rebias runs in the FIRST Full cycle whose snapshot is Sealed;
+   `noteRebiasRestampComplete` consumes the snapshot, so later
+   cycles of the same conduct find none (single-shot per
+   snapshot). An Eden cycle — predecessor or F28 successor —
+   neither runs nor suppresses it. Flag-off keeps the landed
+   aggregate + post-loop position (one window per conduct makes
+   them identical positions — CG-I0 byte-for-byte).
+3. Sealed-stays-Sealed safety (the mid-stop seal carve-out,
+   `Heap.cpp:4908-4913`, generalized to between-windows AND
+   between-cycles carrier exits — the NORMAL case under the
+   window model): a snapshot sealed after the running Full
+   cycle's rebias point stays Sealed; mutators between
+   windows/cycles observe Sealed, and the post-resume
+   `m_freeTIDs` release (ThreadManager phase 3, the SD9
+   gate-lift) is licensed ONLY by the Sealed->Restamped flip —
+   so no dead TID is reissuable until a later Full cycle's
+   final-window rebias runs and that window's F8 resume edge
+   publishes the flip. The landed `shouldDoFullCollection` probe
+   (`Heap.cpp:3219-3232`) arms the next conducted cycle as Full
+   unchanged.
+4. D1/D1R conformance: no supersession (ANNEX CGS1 closing
+   note). D1's "world-stopped INSIDE the next FULL shared
+   collection (heap §10)" — the Full cycle's final window is
+   exactly that; D1R item 1 ("fire ... BEFORE the stop
+   resumes") — fires complete before THAT window's resume, which
+   strictly precedes any mutator's post-resume reissue path;
+   D1R item 2's resume-side sync (ISB1.1 bump after the rebias,
+   before the GSP clear) is the rule-1 per-window order.
+5. Audit closures: CGA1 grep set extended (the four rebias
+   symbols; matches disposition to §8.3); CGA2 R3 amended (the
+   "TID-rebias teardown" mislabel removed; R3 inherits this rule
+   for the C2 conductor); CG-I23; CG-T8 F35 sub-arm (GIL-off C1:
+   thread-exit-armed rebias snapshot + forced multi-window Full
+   cycle + F28 Eden successor — assert the flip and all fires
+   happen with WSAC set, before the final window's resume, and
+   that no TID reissue precedes the flip's publication).
+
+### CGD5.2 — F39: server/Heap teardown vs a live conducted cycle (full text)
+
+Defect: see the rev 7 log entry (the §9.2(3) §10D argument is
+disarmed under gilOffProcess, `Heap.cpp:5023-5031`; the C2
+collector conductor has no lite, so the EXIT1.9 fence does not
+order ~VM after its cycles; CG-I14/CGD4.3 presupposed a "server
+teardown" quiesce point no clause stated; teardown was not a
+§3.4 tryLock site, so a bare GCL grab could land mid-cycle).
+
+NORMATIVE (§9.2(5) — ordered teardown-of-conducting):
+1. After the EXIT1.9 completion fence and BEFORE any
+   access-holding teardown section (`lastChanceToFinalize`'s
+   MSPL sections), ~VM/Heap teardown DISABLES conducting: no new
+   elections; collector-thread wakes stopped
+   (`m_threadShouldStop`-class signal); activity callbacks
+   disarmed.
+2. It then acquires GCL with the §3.4 back-off discipline
+   (tryLock; on `GCA && m_currentPhase != NotRunning` unlock +
+   bounded re-wait — teardown is hereby ADDED to the §3.4 site
+   enumeration) until: GCL held AND phase == NotRunning under
+   `*m_threadLock` AND granted tickets are quiesced —
+   served by the last conduct, or explicitly COMPLETED-AS-REFUSED
+   under `*m_threadLock` (no follower is left parked on a ticket
+   nobody will serve; the notify uses the election condvar).
+3. It joins the C2 collector thread AT that boundary (the R7
+   loop holds neither GCL nor a ticket there and observes the
+   stop signal at its next wait). The join therefore cannot
+   deadlock against a WND-open barrier: no window can open (GCL
+   held by teardown), and teardown holds no access yet.
+4. Only then does the access-holding teardown tail run; no
+   WND-open can interleave with it (GCL still held).
+5. At that point teardown IS the CG-I14 quiesced application
+   point (GCL held + NotRunning under `*m_threadLock` — the
+   CGD4.3(b) presupposition closed); it applies the pending
+   visitor list before destroying any visitor storage.
+6. Configs: !C2 has no collector conductor — steps 1-3 reduce
+   to the §3.4-disciplined GCL acquire (still required at C1:
+   it is what orders teardown after a live client-conducted
+   cycle); flag-off the acquire always succeeds with phase
+   NotRunning at the landed teardown point — byte-for-byte
+   (CG-I0). CG-I24; CG-T6 teardown arm (GIL-on and GIL-off).
+
+## ANNEX CGT1 (BINDING) — test charters, FULL text (MOVED here rev 8 under the size cap)
+
+Content normative; CGT1.1-1.4 carried VERBATIM from the rev-7
+body §12 entries CG-T8/T9/T6/T7 (no semantic change except the
+NEW F40 sub-arm in CGT1.1, marked); the body entries are the
+indexes.
+
+### CGT1.1 — CG-T8 (all stages): JSThreads-stop interleaving
+
+JSThreads-stop interleaving — haveABadTime/jettison
+mid-concurrent-cycle from a sibling, incl. at the WND-open GCL
+acquire (§3.1), vs a between-windows parked conductor (§3.7),
+and with helpers mid-batch (CG-I22); F17 sub-arm: stop injected
+into a SECOND cycle; F18 sub-arm: >=1 jettison arm drives the
+GIL-off `VMManager.cpp:561` conductor; F20 sub-arm: conduct
+return descheduled between GCL unlock and GCA clear +
+second-cycle between-windows requester storm; F22 sub-arm:
+stop-scope ctor just after a non-final WND-close; F28 sub-arm:
+§A.3 stop vs a forced back-to-back drain cycle — no deadlock at
+the successor's WND-open, CG-I12 wait measured; GC-requester
+storm (sync election + poll) vs a between-windows cycle — one
+`m_gcConductorThread` per cycle (CG-I21); GCL wait vs the 30s
+watchdog measured (rev 8: against the CGS2.3 budget ledger);
+F35 sub-arm: GIL-off C1, thread-exit-armed rebias snapshot +
+forced multi-window Full cycle + F28 Eden successor — flip/fires
+under WSAC before the final window's resume, no TID reissue
+before publication; NEW rev 8 — F40 sub-arm (composes with
+nativeaffinity NA-T4's rev-8 multi-window arm): a Locked native
+holding NL on an NL-eligible lite calls a gc()-style sync
+collection that conducts a forced multi-window C1 cycle — the
+BL1.8 drop scope releases NL BEFORE conducting entry (CG-I19
+depth==0 debug assert does not fire), sibling threads' Locked
+natives PROGRESS between windows of the cycle (witnessed), NL is
+reacquired depth-restored after the `:4955` tail before the
+native body resumes; follower variant: the requester loses the
+election and parks on its ticket — same drop/reacquire bracket;
+control build with the drop scope disabled shows the
+cycle-length stall (latency witness, no deadlock);
+`jsThreadsStopVsGCRequester` (heap §12.1) re-run per stage.
+
+### CGT1.2 — CG-T9 (all stages): ATTACH/EXIT1 churn
+
+ATTACH/EXIT1 churn during forced concurrent cycles
+(CG-I17/I20); attach storm with the §6.2(5) liveness assert
+(§9.3(5)); exit with finalizer-side stores during full marking
+(§9.2(1)); F36 arm: amplifier-descheduled EXIT1 parked between
+the CMS flush and the GBL acquire across a fence-raising
+window (CG-I3 assert + TSAN on); conductor-thread exit attempt
+(release-assert, §9.2(4)); spawn+exit arming
+`m_issRevertPending` mid-cycle + main-client SINFAC poll storm —
+assert cycle completion (F11); attach-then-exit inside one
+between-windows gap (F25); ACT/DCT amplifier-descheduled across
+the NotRunning -> first-WND-open edge (F34); `clientChurnVsGC` +
+`issRevertChurn` re-run.
+
+### CGT1.3 — CG-T6 (C2): collector-continuity churn
+
+Collector-continuity churn — RCAC storms, zero mutator polls;
+activity-callback collections fire; SINFAC fallback conducts
+when the collector thread is disabled; R7 guard arm (F24):
+collector wake on an RCAC ticket between windows of a forced C1
+cycle; assert one conductor; R10 arm (F38): mid-cycle sync
+requester + RCAC storm vs a conducting collector thread (debug);
+F39 arm: ~VM vs an RCAC C2 cycle between windows (GIL-on/off) —
+completion or refusal, no watchdog, no conduct-state UAF.
+
+### CGT1.4 — CG-T7 (C3): sweep vs windows
+
+T8-extension audit (ANNEX CGB1) executed; sweep quantum vs
+window race arm; sweeper-thread attach/detach churn; F26/F29/F30
+arms (C3 on): §A.3 jettison/haveABadTime (a) mid-quantum, phase
+PINNED NotRunning (between cycles, dominant; ack <= one
+quantum); (b) sweeper fully IDLE — no watchdog stall; (c)
+sweeper timer amplifier-delayed into the open §A.3 window —
+quantum entry refused.
+
+## ANNEX CGD6 (BINDING) — rev 8 rulings and moved full texts
+
+### CGD6.1 — F40: NL across a GC conduct tenure (full walk)
+
+Defect (cross-document round, rev 8 log): SPEC-nativeaffinity
+permits a Locked native to reach a sync collection mid-body WITH
+NL held — its NA-I13 voluntary-transition assert is exempted for
+the conductor bracket via ANNEX BL1.6 (there), and NA-T4 carried
+a conductor-holds-NL sync-collection sub-arm. That walk was
+derived against the LANDED single-window heap §10 conduct: one
+access release, one GCL bracket, one re-acquire. SPEC-congc §3
+replaces that with a tenure of N windows — per-window blocking
+GCL re-acquires, per-window GBL barriers, between-window
+donateAll/waitForTermination condvar waits, the F28 GCL
+inter-cycle handoff, the tail access re-acquire at
+`Heap.cpp:4955`. An NL-holding mutator-conductor
+(GCConductor::Mutator, stages C0-C1) would therefore hold NL
+across an ENTIRE concurrent cycle, serializing every Locked
+native, custom accessor, JSClassRef callback and handleHostCall
+funnel process-wide for the cycle's duration, through transition
+shapes BL1.6 never walked. Verified NOT a deadlock: NL waiters
+are §A.3-compliant park sites that F8-revert at each WND-open
+(nativeaffinity NL1/BL1.1), and marking termination needs
+nothing from NL waiters — a liveness/grounding gap. Neither spec
+cited the other; CG-I19 was silent on NL; §9 composed GC-vs-§A.3
+but never GC-vs-NL.
+
+Option space: (a) FORBID — NL dropped around the sync-collection
+conduct path; (b) RE-DERIVE BL1.6 for the windowed protocol
+(walk per-window release/re-acquire edges, the F28 handoff, the
+tail re-acquire; add composed test arms). (b) REJECTED: even
+re-derived sound, every Locked native still stalls for a full
+cycle (latency regression with no consumer); the walk would need
+re-derivation on every future window-model change; and CG-I19's
+closed loop already excludes every other foreign obligation (JS,
+heap access, RHA/AHA, EXIT1) — NL is the same class.
+
+RULING (NORMATIVE, recorded BOTH SIDES — here + SPEC-congc
+§3.7/CG-I19/§13.5(4); SPEC-nativeaffinity rev 8 §3.4 NA-I13
+NARROWED + ANNEX BL1.8 + the BL1.6 head note + the NA-T4 rev-8
+arm):
+1. `m_nativeLockDepth == 0` at conducting entry (CG-I19; debug
+   assert at the §10.2 election win, the poll-conduct grant, and
+   `conductSharedCollection` entry).
+2. A sync-collection requester on an NL-eligible lite with
+   depth != 0 instantiates the nativeaffinity BL1.8 NL DROP
+   SCOPE (NA-I11-style: depth saved, FULL release) BEFORE the
+   request path's election/follower-park/conduct, reacquiring
+   via the park-capable NL1 loop AFTER the conduct's `:4955`
+   access-reacquire tail (conductor case) or the follower's
+   ticket-served resume (follower case), before the native frame
+   resumes. The scope brackets the WHOLE request funnel — the
+   loser/follower park is covered, so no NL is held across a
+   ticket park either.
+3. Effect on the process-wide Locked-native stall: bounded by
+   the stop WINDOWS the requester's threads see (F8), not the
+   cycle; the BL1.6 conductor-HOLD license remains ONLY for §A.3
+   (single-window, haveABadTime-class) conductors and
+   arbitration losers, whose bracket is bounded per CGS2.3.
+4. GIL-on/flag-off: the drop scope's level-0 gate makes this
+   dead code (nativeaffinity NA-I1); CG-I0 unaffected.
+Arms: CGT1.1 F40 sub-arm; nativeaffinity NA-T4 rev-8
+multi-window arm (drop witnessed, waiters progress, depth
+restored).
+
+### CGD6.2 — §3.4 per-site back-off dispositions (MOVED rev 8 under the size cap; VERBATIM rev-7 body text)
+
+Guard, under `*m_threadLock` after tryLock success:
+`m_gcConductorActive && m_currentPhase != NotRunning` => unlock
+GCL and back off:
+- `:4523` election winner: fall through to the follower wait
+  (`:4550-4554`; else CGD1.1 nesting).
+- `:4585` poll: return false; retry next poll.
+- `:5036` §10D revert poll: return, hint stays armed (F11;
+  CGD1.2 — the landed `:5040-5043` wait deadlocks); bounded
+  wait only when NotRunning.
+- CGA2 R7 (C2): unlock GCL, re-wait on the ticket signal (F24;
+  CG-T6 arm).
+(Rev 8 addition per CGD5.2: the §9.2(5) teardown acquire is a
+fifth §3.4 site — unlock + bounded re-wait.)

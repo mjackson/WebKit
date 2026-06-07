@@ -609,6 +609,49 @@ public:
             loadPtr(&vm.topEntryFrame, destGPR);
     }
 
+    // UNGIL §A.1.3 (U-T4): mode-keyed load of the CURRENT thread's
+    // callFrameForCatch. GIL-on it is the VM-block word; GIL-off genericUnwind
+    // publishes through the unwinding thread's lite (JITExceptions.cpp), so
+    // the VM-block word is inert spare storage and always reads null. ARM64:
+    // destGPR must not be the data temp (same contract as loadVMLite).
+    void loadCallFrameForCatch(VM& vm, GPRReg destGPR)
+    {
+        if (vm.gilOff()) [[unlikely]] {
+            loadVMLite(destGPR);
+            loadPtr(Address(destGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_callFrameForCatch())), destGPR);
+        } else
+            loadPtr(vm.addressOfCallFrameForCatch(), destGPR);
+    }
+
+    // UNGIL §A.1.3 (emission side; sibling of emitPublishTopCallFrameForHostCall
+    // above): publish callFrameRegister as the CURRENT thread's
+    // callFrameForCatch at manual exception-check sites that model
+    // genericUnwind (IC explicit exception handlers). GIL-off every downstream
+    // catch consumer (genericUnwind, baseline op_catch, the DFG/FTL OSR-exit
+    // ramps) reads the per-lite word; a baked addressOfCallFrameForCatch()
+    // store would publish to the inert VM-block word and the handler would
+    // read null/stale. GIL-on / flag-off: the legacy absolute store,
+    // byte-identical. Scratch discipline: per-arch reserved temp only — the
+    // same register the absolute storePtr already clobbers.
+    void emitPublishCallFrameForCatch(VM& vm)
+    {
+        if (vm.gilOff()) [[unlikely]] {
+#if CPU(ARM64)
+            // Cache-invalidating accessor: see prepareCallOperation above.
+            GPRReg scratchGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+            GPRReg scratchGPR = scratchRegister(); // r11, already clobbered by the GIL-on absolute store.
+#else
+            // SPEC-jit annex App. R5: no gilOff support on this platform;
+            // loadVMLite fail-stops at emission before this store is reached.
+            GPRReg scratchGPR = GPRInfo::nonArgGPR0;
+#endif
+            loadVMLite(scratchGPR);
+            storePtr(GPRInfo::callFrameRegister, Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_callFrameForCatch())));
+        } else
+            storePtr(GPRInfo::callFrameRegister, vm.addressOfCallFrameForCatch());
+    }
+
     // UNGIL §A.1.3 (U-T4, emission side): mode-keyed exception-word access.
     // FLAG-OFF IDENTITY: every vm.gilOff() split in this file and
     // CCallHelpers.h is an emission-time C++ branch; with threads options off

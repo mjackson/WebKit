@@ -1307,7 +1307,11 @@ void InlineCacheCompiler::emitExplicitExceptionHandler()
 {
     restoreScratch();
     m_jit->pushToSave(GPRInfo::regT0);
-    m_jit->loadPtr(&m_vm.topEntryFrame, GPRInfo::regT0);
+    // UNGIL §A.1.3 (U-T4): mode-keyed — GIL-off the stub is shared by all
+    // threads and topEntryFrame is per-lite Group-3 state (the VM-block word
+    // is inert spare storage; doVMEntry publishes per-lite). GIL-on/flag-off:
+    // loadPtr(&vm.topEntryFrame), byte-identical to the prior emission.
+    m_jit->loadTopEntryFrame(m_vm, GPRInfo::regT0);
     m_jit->copyCalleeSavesToEntryFrameCalleeSavesBuffer(GPRInfo::regT0);
     m_jit->popToRestore(GPRInfo::regT0);
 
@@ -1317,7 +1321,11 @@ void InlineCacheCompiler::emitExplicitExceptionHandler()
         // at from genericUnwind. Therefore we must model what genericUnwind
         // does here. I.e, set callFrameForCatch and copy callee saves.
 
-        m_jit->storePtr(GPRInfo::callFrameRegister, m_vm.addressOfCallFrameForCatch());
+        // UNGIL §A.1.3: mode-keyed — GIL-off every downstream catch consumer
+        // (genericUnwind, baseline op_catch, the OSR-exit ramps) reads the
+        // per-lite callFrameForCatch; publish through the CURRENT lite.
+        // GIL-on/flag-off: the legacy absolute store, byte-identical.
+        m_jit->emitPublishCallFrameForCatch(m_vm);
         // We don't need to insert a new exception handler in the table
         // because we're doing a manual exception check here. i.e, we'll
         // never arrive here from genericUnwind().
@@ -5361,7 +5369,12 @@ AccessGenerationResult InlineCacheCompiler::compile(const GCSafeConcurrentJSLock
 
         InlineCacheCompiler::SpillState spillState = this->spillStateForJSCall();
         ASSERT(!spillState.isEmpty());
-        jit.loadPtr(vm().addressOfCallFrameForCatch(), GPRInfo::callFrameRegister);
+        // UNGIL §A.1.3: this label is a real exception-handler table entry
+        // reached FROM genericUnwind, which GIL-off publishes
+        // callFrameForCatch through the unwinding thread's lite
+        // (JITExceptions.cpp). Mode-keyed load; GIL-on/flag-off the legacy
+        // absolute load, byte-identical.
+        jit.loadCallFrameForCatch(vm(), GPRInfo::callFrameRegister);
         if (m_propertyCache.isHandlerIC()) {
             ASSERT(!JITCode::isBaselineCode(m_jitType));
             jit.loadPtr(CCallHelpers::Address(GPRInfo::jitDataRegister, BaselineJITData::offsetOfStackOffset()), m_scratchGPR);

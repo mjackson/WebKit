@@ -41,28 +41,40 @@ public:
     // CURRENT thread's exception words — GIL-off the raw VM-block members
     // are inert spare storage and the live words are the lite's
     // (group3Primitives()); GIL-on this aliases the VM block, bit-identical.
-    // The SetForScope write-back requires ctor and dtor to resolve the same
+    // The dtor write-back requires ctor and dtor to resolve the same
     // storage: this scope stays on one thread inside a stable (thread, lite)
     // window, like every other exception scope.
+    // tsan-vm-setexception-cross-thread-r3: the m_exception word has a
+    // sanctioned lock-free racing reader (hasPendingTerminationException —
+    // jsc's runJSC result check runs after its JSLockHolder closes while
+    // spawned threads still execute under GIL'd useJSThreads), so BOTH the
+    // suspend (nullptr) and restore stores must be relaxed atomic stores like
+    // VM::setException/clearException — a plain SetForScope store here would
+    // be the same TSAN race from the suspending side. m_lastException has no
+    // lock-free reader and stays a plain store, matching setException.
     SuspendExceptionScope(VM& vm)
         : m_vm(vm)
-        , m_exceptionWasSet(vm.group3Primitives().m_exception)
-        , m_savedException(vm.group3Primitives().m_exception, nullptr)
-        , m_savedLastException(vm.group3Primitives().m_lastException, nullptr)
     {
-        if (m_exceptionWasSet)
+        auto& primitives = vm.group3Primitives();
+        m_savedException = primitives.m_exception;
+        m_savedLastException = primitives.m_lastException;
+        WTF::atomicStore(&primitives.m_exception, static_cast<Exception*>(nullptr), std::memory_order_relaxed);
+        primitives.m_lastException = nullptr;
+        if (m_savedException)
             m_vm.trapsForCurrentThread().clearTrap(VMTraps::NeedExceptionHandling); // Same storage domain as the words above.
     }
     ~SuspendExceptionScope()
     {
-        if (m_exceptionWasSet)
+        auto& primitives = m_vm.group3Primitives();
+        WTF::atomicStore(&primitives.m_exception, m_savedException, std::memory_order_relaxed);
+        primitives.m_lastException = m_savedLastException;
+        if (m_savedException)
             m_vm.trapsForCurrentThread().fireTrap(VMTraps::NeedExceptionHandling);
     }
 private:
     VM& m_vm;
-    bool m_exceptionWasSet;
-    SetForScope<Exception*> m_savedException;
-    SetForScope<Exception*> m_savedLastException;
+    Exception* m_savedException { nullptr };
+    Exception* m_savedLastException { nullptr };
 };
 
 class TopCallFrameSetter {

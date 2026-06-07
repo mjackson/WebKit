@@ -28,6 +28,12 @@
 
 namespace JSC {
 
+// FIX-2 same-library seams (owners: heap/Heap.cpp — the U-T5 per-thread park
+// access pairing; see JSThreadsSafepoint.cpp): client-scoped heap-access
+// release + gated re-acquire for the contended block below.
+void gcClientWillParkForThreadGranularStop();
+void gcClientDidResumeFromThreadGranularStop();
+
 RecursiveLock& staticPropertyReificationLock()
 {
     static NeverDestroyed<RecursiveLock> lock;
@@ -44,6 +50,25 @@ void lockStaticPropertyReificationLockContended(VM& vm)
     // lock is obtained; every caller re-probes its precondition (getDirectOffset /
     // staticPropertiesReified) after this returns, so waking into a world the winner
     // already reified is benign.
+    //
+    // FIX (stw-watchdog-timeout, root cause B residual): GIL-off the release
+    // must be CLIENT-scoped, not vm.heap — under useSharedGCHeap a client
+    // VM's vm.heap is the shared SERVER, whose releaseAccess forwards to the
+    // MAIN client (the R4-1 lesson recorded in JSThreadsSafepoint.cpp), so
+    // THIS thread's own client stayed counted as a heap-accessing mutator
+    // while blocked raw here. A §A.3 thread-granular conductor that HOLDS
+    // this lock (reifyStaticProperty -> putDirect -> shared-transition
+    // Class-A stop: the structure-churn-dictionary shape) then never saw
+    // this waiter quiesce — the 30s watchdog fail-stop. The park pairing
+    // helpers release the CALLER's own client and re-acquire through the
+    // gated AHA (F8/Â§A.3.2b), absorbing any window that opens while we
+    // block. GIL-on / flag-off: the landed scope, byte-identical.
+    if (vm.gilOff()) [[unlikely]] {
+        gcClientWillParkForThreadGranularStop();
+        staticPropertyReificationLock().lock();
+        gcClientDidResumeFromThreadGranularStop();
+        return;
+    }
     ReleaseHeapAccessIfNeededScope releaseAccess(vm.heap);
     staticPropertyReificationLock().lock();
 }

@@ -2604,8 +2604,13 @@ NEVER_INLINE void VM::assertExceptionScopeVerificationFallbackArmIsSafe()
     // (ctor tail before first entry, ~VM tail after uninstall). A
     // non-mutator scope user (GC/compiler thread) landing here would
     // silently reopen the shared-word race this split closed — fail loudly
-    // instead.
-    ASSERT(apiLock().currentThreadIsHoldingLock());
+    // instead. RELEASE_ASSERT, not ASSERT: ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+    // is ASSERT || ASAN, so in a release+ASAN build — the configuration where
+    // the original deterministic stack-use-after-return was caught — a plain
+    // ASSERT compiles to nothing and two no-lite/foreign-lite threads could
+    // silently interleave the non-idempotent scope-chain write-backs on the
+    // shared VM copy. NEVER_INLINE cold fallback arm: the hard assert is free.
+    RELEASE_ASSERT(apiLock().currentThreadIsHoldingLock());
 }
 #endif
 

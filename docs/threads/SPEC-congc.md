@@ -1,6 +1,6 @@
-# SPEC-congc.md - N-MUTATOR CONCURRENT GC (draft rev 6)
+# SPEC-congc.md - N-MUTATOR CONCURRENT GC (draft rev 8)
 
-Status: DRAFT rev 6 — freezes after the adversarial pass (history =
+Status: DRAFT rev 8 — freezes after the adversarial pass (history =
 `SPEC-congc-history.md`; BINDING annexes live there per the
 frozen-spec convention). Authorities: THREAD.md;
 SPEC-{heap,vmstate,objectmodel,jit,api,ungil}.md (+annexes);
@@ -42,7 +42,7 @@ composed in §9), TLC layout/JIT addressing (heap §5.3 / ungil
 `Heap::m_worldState` (`heap/Heap.h`; scribbled at
 `Heap.cpp:521`) packs FOUR bits for exactly ONE mutator:
 `hasAccessBit`, `stoppedBit`, `mutatorHasConnBit`,
-`mutatorWaitingBit` (state-machine asserts `Heap.cpp:2354-2384`);
+`mutatorWaitingBit` (asserts `:2354-2384`);
 its consumers (`Heap.cpp:2348-2747`) and the single-mutator
 periphery carry per-line N-ary dispositions in ANNEX CGA1
 (BINDING; indexed §4.3) — the audit of record.
@@ -58,10 +58,9 @@ GBL barrier (`:4780-4793`), ticket drain (`:4852-4863`),
 `runSafepointHooksAndReclaim()` (`:4870`, `:4961-5008`), step-8
 resume pass (`:4923-4925`), WSAC/GSP clear + GBC (`:4945-4950`),
 VMM resume (`:4955`). Per-client (heap
-§10A): AHA/RHA/SINFAC/park hooks/`JSThreadsStopScope`
-(`Heap.cpp:5107-5482`, `:5656-5838`),
-HCS (`HeapClientSet.h:48-100`), TLC (`GCThreadLocalCache.h:84-91`),
-epoch (`GCSafepointEpoch.h:61-125`). Deviation-4 kill switches:
+§10A, cites there): AHA/RHA/SINFAC/park hooks/
+`JSThreadsStopScope` (`Heap.cpp:5107-5482`, `:5656-5838`), HCS,
+TLC, epoch. Deviation-4 kill switches:
 no Concurrent phase when ISS (`Heap.cpp:1957-1958`, assert
 `:1979`), collector thread quiesced (`:1636-1648`, `:1686`,
 `:2350-2352`, `:2392-2393`), assist off (`:3950-3951`), activity
@@ -104,92 +103,76 @@ of stop windows (WNDs), not one monolithic stop.
    HBT4 release-before-GCL order (ungil §A.3.3) EXTENDS to window
    re-entry; (c) seq_cst `GSP=true`;
    (d) `VMManager::requestStopAll(GC)`; (e) GBL barrier until
-   every client NoAccess (F8 unchanged — `Heap.cpp:4768-4793`);
+   every client NoAccess (F8 — `Heap.cpp:4768-4793`);
    set WSAC; per-client flush (§5.2 drain, §6.2 allocator stop,
    today's `stopThePeriphery()` route). Rev 1's GCL-before-release
-   order — REJECTED (F9: §A.3 deadlock); CG-T8 arms it. FIRST-WINDOW
-   CARVE-OUT (F15): the first WND-open IS the landed
-   entry — GCL tryLock while access-HELD (`Heap.cpp:4523`,
-   `:4585`; non-blocking => §A.3-safe), then GSP (`:4768`), THEN
-   the step-3 release (`:4769-4771`) — flag-off identical (CG-I0).
-   (a)->(b)->(c) and the blocking acquire govern RE-ENTRY only
-   (F9 likewise). TICKET-DRAIN SUCCESSOR (F28; full text
-   ANNEX CGD4.1): a successor cycle of the conduct loop
-   (`:4852-4863`) RETAINS GCL from the predecessor's F23 final
-   close; its first WND-open = steps (c)-(e) ONLY (no GCL
-   acquire — ownership transfers; access stays released;
-   GCA/owner stay stamped). Flags-on only
-   (`useConcurrentSharedGCMarking`); flag-off the drain runs
-   INSIDE the one window (CG-I0).
+   order — REJECTED (F9: §A.3 deadlock); CG-T8 arms it.
+   FIRST-WINDOW CARVE-OUT (F15): the first WND-open IS the landed
+   entry — tryLock access-HELD (`Heap.cpp:4523`, `:4585`;
+   non-blocking => §A.3-safe), GSP (`:4768`), THEN the step-3
+   release (`:4769-4771`) — flag-off identical (CG-I0); (a)-(c)
+   + the blocking acquire govern RE-ENTRY only. TICKET-DRAIN
+   SUCCESSOR (F28; ANNEX CGD4.1): a successor cycle of the drain
+   loop (`:4852-4863`) RETAINS GCL from the F23 final close; its
+   first WND-open = steps (c)-(e) ONLY (ownership transfers;
+   access released; GCA/owner stamped). Flags-on only; flag-off
+   the drain runs INSIDE the one window (CG-I0).
 2. WND-close = §10 steps 8-9: client cache resume pass; ISB
-   generation bump when gilOffProcess (REQUIRED at EVERY window
-   close — each window may jettison/patch; extends ISB1.1,
-   `Heap.cpp:4927-4943`); clear WSAC; seq_cst `GSP=false`;
+   generation bump when gilOffProcess (EVERY close — each may
+   jettison/patch; ISB1.1, `Heap.cpp:4927-4943`); clear WSAC;
+   seq_cst `GSP=false`;
    GBC broadcast; `requestResumeAll(GC)`; phase-field publication;
    THEN release GCL (CG-I12) — NON-FINAL closes only. FINAL-CLOSE
-   CARVE-OUT (F23; symmetric to F15): the FINAL close
+   CARVE-OUT (F23): the FINAL close
    (->NotRunning; the conduct loop's m_requests exit
    `Heap.cpp:4852-4863` postdates it) leaves GCL HELD — released
    by the landed CALLER (`:4533` election, `:4600` poll; C2: CGA2
    R7) or TRANSFERRED to an F28 successor's first WND-open —
-   flag-off = today's caller-bracketed hold (CG-I0;
-   per-close release would double-unlock). PHASE-STORE ORDER
-   (F22, NORMATIVE under any §13.2 flag):
-   finishChangingPhase's phase-field updates (`m_currentPhase`/
-   `m_lastPhase`/`m_nextPhase`/`m_phaseVersion`; the landed
-   `:2213` store postdates `:2187` resumeThePeriphery) complete
-   BEFORE the close's GCL release, so every reader (§3.4 guards,
-   §9.1(2) ctor — the F34 rewrite leaves NO other phase reader)
-   is GCL-ordered; flag-off unaffected (callers hold
-   GCL across the store today). Cited by CG-I4.
+   flag-off = today's caller-bracketed hold (CG-I0). PHASE-STORE
+   ORDER (F22, NORMATIVE under any §13.2 flag):
+   finishChangingPhase's phase-field stores (landed `:2213`)
+   complete BEFORE the close's GCL release — every reader (§3.4
+   guards, §9.1(2) ctor; F34 leaves no other) is GCL-ordered;
+   flag-off unaffected (callers hold GCL across it). CG-I4.
    The conductor re-acquires its own access only at the
    landed tail (`Heap.cpp:4955`) after the FINAL WND-close.
    Heap-resume-before-VMM-resume stays normative (heap §10 tail).
 3. Between windows: mutators run; marking helpers may run (§7 C1);
    `m_currentPhase` persists, the legacy multi-window shape
    (§2.3(c)). WSAC false between windows; WSAC-gated asserts
-   (heap I5) stay correct (guarded work stays in-window, §8.1).
+   (heap I5) stay correct (§8.1).
 4. Tenure: the conductor keeps GCA=true and remains the elected
    §10.2 winner across all windows of the cycle. GCL itself is
    RELEASED between windows and re-acquired at each WND-open
    (CG-I12) — this is what lets a JSThreads stop interleave (§9.1).
    "GCL free && GCA set && phase != NotRunning" thereby becomes a
    STEADY STATE (today only the wind-down instants,
-   `Heap.cpp:4534-4537`, phase already NotRunning). EVERY GCL
+   `Heap.cpp:4534-4537`). EVERY GCL
    tryLock site — landed AND stage-added (CGA2 R7, F24) —
    gets a between-windows disposition (F10/F12). Guard, under `*m_threadLock` after
    tryLock success: `m_gcConductorActive && m_currentPhase !=
-   NotRunning` => unlock GCL and back off:
-   - `:4523` election winner: fall through to the follower wait
-     (`:4550-4554`) (else CGD1.1 nesting).
-   - `:4585` poll: return false; retry next poll.
-   - `:5036` §10D revert poll: return, hint stays armed (F11,
-     §9.2(3); the landed `:5040-5043` pre-check deadlocks, ANNEX
-     CGD1.2); bounded wind-down wait legal only when NotRunning.
-   - CGA2 R7 (C2): unlock GCL, re-wait on the ticket signal (F24;
-     CG-T6 arm).
+   NotRunning` => unlock GCL and back off. Per-site dispositions
+   (`:4523` election winner, `:4585` poll, `:5036` §10D revert
+   poll/F11/CGD1.2, CGA2 R7/F24): ANNEX CGD6.2 (BINDING; MOVED
+   rev 8 under the size cap, content verbatim).
    F28 inter-cycle state {GCL HELD, GCA set, NotRunning, world
    running}: NO guard needed — foreign tryLocks FAIL (election
    falls to `:4550-4554`; poll returns false); bounded by the
    loop's m_requests check.
-   WIND-DOWN CLEAR (F20; interleaving + benign ruling:
-   ANNEX CGD3.1): the landed deferred GCA clears postdate the GCL
-   unlock (`Heap.cpp:4533`/`:4536`; `:4600`/`:4603`) and can land
-   mid-successor-cycle. NORMATIVE: under `*m_threadLock`, clear
-   GCA + `m_gcConductorThread` ONLY if owner == current thread;
-   `notifyAll` unconditional; restamp over a non-null owner legal
-   only when phase == NotRunning (debug assert). Flag-off: the
-   guard is unreachable (tryLock success implies NotRunning), the
-   clear delta benign (CGD3.1) — byte-for-byte (CG-I0). CG-I21;
-   CG-T8/T9.
+   WIND-DOWN CLEAR (F20; ruling ANNEX CGD3.1): deferred GCA
+   clears postdate the GCL unlock (`:4533/:4536`, `:4600/:4603`).
+   NORMATIVE: under `*m_threadLock`, clear GCA +
+   `m_gcConductorThread` ONLY if owner == current thread;
+   `notifyAll` unconditional; restamp over a non-null owner only
+   when NotRunning (debug assert). Flag-off byte-for-byte
+   (CGD3.1; CG-I0). CG-I21; CG-T8/T9.
 5. Conductor identity: stays `GCConductor::Mutator` running the
    `collectInMutatorThread()` phase loop (heap §10B.2) in stages
    C0-C1; C2 adds a collector-thread conductor (§7.2). GCA gains
    an owner: `m_gcConductorThread` (Thread*, under `*m_threadLock`
    next to GCA, `Heap.h:1290`), stamped/cleared
-   with GCA (clear ownership-checked, §3.4 F20). Consumers: the §3.4 guards (FOREIGN only;
-   the conductor never polls mid-cycle, rule 7), the §9.2 EXIT1
-   assert, CG-I21.
+   with GCA (clear ownership-checked, §3.4 F20). Consumers: the
+   §3.4 guards (FOREIGN only), the §9.2 EXIT1 assert, CG-I21.
 6. Flag-off degenerate case: all §13.2 flags false => exactly ONE
    window per conduct (`Heap.cpp:1957-1958` fixpoint stays
    stopped) — today's `conductSharedCollection`. CG-I0 by
@@ -199,20 +182,22 @@ of stop windows (WNDs), not one monolithic stop.
    executes ONLY the phase loop; no heap access all tenure
    (released at WND-open step (a), re-acquired at `Heap.cpp:4955`);
    no JS, no RHA/AHA, no EXIT1 (ungil §B.2 teardown on
-   `m_gcConductorThread` mid-cycle release-asserts).
+   `m_gcConductorThread` mid-cycle release-asserts); NL PIN (F40;
+   ANNEX CGD6.1): `m_nativeLockDepth == 0` at conducting entry —
+   a Locked-native sync requester reaches the conduct OR follower
+   path only through the SPEC-nativeaffinity BL1.8 NL drop scope
+   (NA-I13 NARROWED rev 8; both sides).
    BETWEEN windows the conductor's wait is `donateAll()` +
    `waitForTermination(m_scheduler->timeToStop())`
    (`SlotVisitor.cpp:753-758`, `:737-751`) — condvar-only under
    `m_markingMutex` (no lock across the wait body,
-   access-released, §A.3-compatible), in NEITHER counter, never
-   visitChildren,
+   §A.3-compatible), in NEITHER counter, never visitChildren,
    never `drainInParallelPassively`/`drainFromShared` (F13;
    ANNEX CGD1.3). `numberOfGCMarkers()==1`: Concurrent
    NEVER scheduled (one-window degenerate); the legacy Mutator-arm
    (`Heap.cpp:1984-1996`) is NOT used when ISS. Wake-ups: helper
-   termination notifyAll (`SlotVisitor.cpp:645, :745`) + scheduler
-   timeout. Cost (accepted): the conducting thread is lost to JS
-   until C2 moves conducting off mutators.
+   notifyAll (`:645, :745`) + scheduler timeout. Cost accepted
+   (C2 moves conducting off mutators).
 
 ## 4. Handshake generalization (charter item 1)
 
@@ -224,22 +209,20 @@ of stop windows (WNDs), not one monolithic stop.
   bit: the F8 Dekker pair gives each client a sound park/revert
   path (AHA steps 0-3, `Heap.cpp:5707-5758`); the GC-park hooks
   pair release/re-acquire per thread (`:5390-5452`, ungil §A.3.8).
-- `mutatorWaitingBit` (mutator waits for the collector to finish a
-  window) -> the existing F8 blocking in AHA step 3 / SINFAC. No
-  ParkingLot on `m_worldState`; clients block on GBC.
+- `mutatorWaitingBit` -> the existing F8 blocking in AHA step 3 /
+  SINFAC. No ParkingLot on `m_worldState`; clients block on GBC.
 - `mutatorHasConnBit` -> GCA + the §10.2 election (landed). Stage
   C2 re-splits it (§7.2): "conn = collector thread" becomes GCA
   held by the collector conductor; the bit itself stays
   set-idempotent (`Heap.cpp:4499`) and the `checkConn` assert
   (`:1683`) keeps its `|| WSAC` form.
 - `m_mutatorDidRun` -> per-client `GCH::m_didRunSinceLastWindow`
-  (plain byte, written only by the owning access-holding thread —
-  heap I17 discipline). Set in AHA's success tail and SINFAC's
-  hot-poll exit; conductor ORs over `clientSet().forEach` at each
-  WND-open into the legacy consumer (`Heap.cpp:2234-2237` version
-  bump), clears each byte in-window. Scheduling-only: relaxed;
-  the window barrier orders it (CG-I9). C1R-gated (F33): flag-off
-  keeps the landed shared-mode behavior.
+  (plain byte, owner-thread-only — heap I17). Set in AHA's
+  success tail and SINFAC's hot-poll exit; conductor ORs over
+  `clientSet().forEach` at each WND-open into the legacy consumer
+  (`Heap.cpp:2234-2237` version bump), clears each byte
+  in-window. Scheduling-only: relaxed; the window barrier orders
+  it (CG-I9). C1R-gated (F33).
 
 ### 4.2 Per-client states folded into existing machinery
 
@@ -274,9 +257,8 @@ appends (§5.2) and (b) where the threshold lives (§5.3).
 
 `addToRememberedSet` (`Heap.cpp:1427`) appends to the single
 `m_mutatorMarkStack` lock-free (`:1479`) — sound only with one
-mutator. Rule: when C1R (:= ISS && `useConcurrentSharedGCMarking`;
-F33 — ISS-keyed routing broke the flag-off BYTE-FOR-BYTE bar;
-ruling ANNEX CGD4.4), GCH gains `m_mutatorMarkStack`
+mutator. Rule: when C1R (:= ISS &&
+`useConcurrentSharedGCMarking`; F33/CGD4.4), GCH gains `m_mutatorMarkStack`
 (MarkStackArray) + leaf `Lock m_mutatorMarkStackLock`;
 `addToRememberedSet` routes via `currentThreadClient()` (heap
 §10A.1, `Heap.h:1061, 1095`), appending under the client's lock. Drains: (i) at every WND-open the conductor transfers
@@ -284,26 +266,25 @@ every CMS into `m_sharedMutatorMarkStack` under `m_markingMutex`
 (`SlotVisitor::donateAll` shape, `SlotVisitor.cpp:753-765`);
 (ii) out-of-window (stage C1+), a client whose CMS exceeds NEW
 `Options::sharedGCMutatorMarkStackDonationThreshold` cells (§13.2;
-default = one segment, `GCSegmentedArray::s_segmentCapacity`,
-`GCSegmentedArray.h:116`) donates under
+default one segment, `GCSegmentedArray.h:116`) donates under
 `m_markingMutex` from its own thread. Trigger SITE normative: ONLY
 the SINFAC hot poll tail (`Heap.cpp:5107-5149`, after the GSP leg,
-access held) — never inside `addToRememberedSet` (callers may hold
-rank 7-9b allocation locks, barred under `m_markingMutex`; the CMS
-lock is a TERMINAL leaf, legal under 7-9b — CG-I10/F21; SINFAC's
-I6 precondition `Heap.cpp:5125-5127` legalizes the poll site).
+access held) — never inside `addToRememberedSet` (7-9b under
+`m_markingMutex` barred; CMS lock TERMINAL leaf, legal under
+7-9b — CG-I10/F21; SINFAC I6 `:5125-5127` legalizes the site).
 Donation is latency-only (WND-open drains give correctness).
 `!C1R`: server stack, today's code byte-for-byte (CG-I0).
 `m_barriersExecuted++` (`Heap.cpp:1432`) stays a racy diagnostic
-counter (documented benign; relaxed). The cellState CAS protocol
+counter (benign; relaxed). The cellState CAS protocol
 (`:1444-1467`) is already N-safe (single-word CAS;
 mutator-count-independent) — CG-T3. CONDUCTOR-CONTEXT barriers
-(F31; FULL text ANNEX CGD4.5, GOVERNS): runEndPhase's in-window
+(F31; ANNEX CGD4.5 GOVERNS): runEndPhase's in-window
 writeBarrier sites (`Heap.cpp:2036-2039`, `:2085-2088`) with
-`currentThreadClient()` NULL (C2) use the SERVER stack (`:1479`)
-+ SERVER fence master, in-window only (debug assert: null =>
-WSAC; CGA2 R9); a client-conductor's in-window CMS appends are
-NEXT-CYCLE grey. `MarkStackMergingConstraint`
+`currentThreadClient()` NULL (C2) use the SERVER stack + fence
+master, in-window only (null => WSAC debug assert; CGA2 R9);
+client-conductor in-window CMS appends are NEXT-CYCLE grey; the
+relocated `:2032` all-CMS-empty walk stays at the LANDED site,
+BEFORE these batches (F37; CGA1 A4). `MarkStackMergingConstraint`
 (`MarkStackMergingConstraint.cpp:47, :72`; F32; CGA1 A21)
 when C1R covers the SERVER + race stacks only (CMS work
 terminates via the WND-open drain, `SlotVisitor.cpp:600-605`);
@@ -335,9 +316,9 @@ rule:
    726`) become per-client addresses (A16-class lite-indexed
    reroute — CHARTERED to jit/ungil owners, §13.3);
    until it lands, GIL-off C1+ keeps the SERVER MASTER
-   always-fenced — the §5.3(1) forcing stays when GIL-off (rev 4,
-   F19: emitted code reads ONLY the SERVER pair —
-   reader table: ANNEX CGD2.2). Master pinned => copies snapshot tautological; FEP
+   always-fenced — the §5.3(1) forcing stays when GIL-off (F19;
+   emitted code reads ONLY the SERVER pair, ANNEX CGD2.2).
+   Master pinned => copies snapshot tautological; FEP
    stays at the raise (CG-I3); CG-T3 arm.
 4. Soundness (CG-I3): a RAISE completes for all clients before
    its window closes; a LOWER only in the cycle's final window
@@ -354,8 +335,7 @@ rule:
 ### 6.1 The mechanism is already allocator-local
 
 Allocate-black in Riptide = versioned newlyAllocated, not a
-per-cell mark — the §2.3(a) mechanisms (sweep-time stamping,
-stopAllocating conversion, marking-aware `isLive`), all keyed on
+per-cell mark — the §2.3(a) mechanisms, all keyed on
 `MarkedSpace::isMarking()` (`MarkedSpace.h:187`).
 
 ### 6.2 N-client rules
@@ -374,10 +354,10 @@ stopAllocating conversion, marking-aware `isLive`), all keyed on
 3. Per-client flush at EVERY WND-open: the conductor's
    `m_objectSpace.stopAllocating()` route reaches every client's
    LAs via the shared directories' `m_localAllocators` lists
-   (`Heap.cpp:2217-2256` + banner `:4817-4834`) — N-ary today;
-   per-window cadence is the only delta; non-idempotence (banner
-   `:4822`) preserved by exactly-once-per-window pairing with the
-   WND-close resume pass (`:4923-4925`) (CG-I6).
+   (`Heap.cpp:2217-2256`, banner `:4817-4834`) — N-ary today;
+   per-window cadence is the only delta; non-idempotence (`:4822`)
+   preserved by exactly-once-per-window pairing with the close's
+   resume pass (CG-I6).
 4. Steal protocol per client: a stolen block re-sweeps under MSPL
    before reuse (heap I8); rule 2 makes its newlyAllocated
    provenance correct under marking. CG-T4 storms steal-vs-marking.
@@ -413,22 +393,21 @@ protocol. Conductor remains the §10.2 requester.
 
 Retires: `shouldCollectInCollectorThread` stays-false
 (`Heap.cpp:1636-1648`), the `:1686` assert, activity gating
-(`:790-792`), the async reroute (`:1595-1600`).
+(`:790-792`), the async reroute (`:1595-1600`), the `:4503`
+collector-quiesced assert (F38; `m_collectorThreadIsRunning`
+fully ruled by CGA2 R10 — `:5051` conjunct KEPT).
 Design: the collector thread becomes a STANDALONE-CLASS conductor —
 `runSharedGCElection`-equivalent tenure (GCL + GCA) but NEVER
 holding heap access (not a client; samples the §10.4 barrier,
 licensed by §10B.2).
 `stopTheMutator`/`resumeTheMutator` (`:2348`, `:2390`) stay DEAD
-(CG-I7); their unreachable RELEASE_ASSERTs remain. The
-conduct-body refactor surface is ANNEX CGA2 (BINDING):
-`conductSharedCollection(GCClient::Heap&)` (`Heap.cpp:4757`) gains
-a nullable conductor-client; every conductorClient/vm()/
-TLS-client use carries a CGA2 row disposition (F31); the collector run loop
-(`Heap.cpp:333-357`) rewires from `shouldCollectInCollectorThread`
-to ticket waits on `m_threadCondition` (R7's tryLock carries the
-§3.4 guard — rev 5, F24); the `runSharedGCElection`
-VMTraps poll (`Heap.cpp:4562-4572`) is SKIPPED for the collector
-thread (CGA2 R6). Activity callbacks fire
+(CG-I7); their unreachable RELEASE_ASSERTs remain. The conduct-body refactor surface is ANNEX CGA2 (BINDING):
+nullable conductor-client on `conductSharedCollection`
+(`Heap.cpp:4757`; per-use rows, F31); the collector run loop
+(`Heap.cpp:333-357`) rewired to ticket waits on
+`m_threadCondition` (R7 carries the §3.4 guard, F24); the
+election VMTraps poll (`:4562-4572`) SKIPPED for the collector
+thread (R6). Activity callbacks fire
 RCAC tickets and notify via the `m_threadCondition`-class signal;
 SINFAC conducting stays as fallback (I15 unchanged). Continuity =
 GCA MAY be retained across back-to-back granted tickets
@@ -438,15 +417,14 @@ granted (CG-I12 liveness, §9.1).
 ### 7.3 C3 — incremental + mutator-concurrent sweeping
 
 Retires: IncrementalSweeper disablement (banner `:4832-4834`).
-Pre-req: the T8 BlockDirectoryBits audit EXTENSION (the stop-mode
-audit exists — `BlockDirectory.cpp:495-519` skip,
-`assertIsMutatorOrMutatorIsStopped` sites, e.g. `:511`, `:556`):
+Pre-req: the T8 BlockDirectoryBits audit EXTENSION (stop-mode
+audit exists: `BlockDirectory.cpp:495-519` skip, `:511`, `:556`):
 re-audit every BlockDirectoryBits reader/writer for OUT-OF-WINDOW
 access. Two structural rules replace per-site reasoning:
 1. Bit-vector RESIZE publication: `m_bits` reallocation (heap I5b:
    `addBlock` under BVL+MSPL) additionally RELEASE-publishes the
-   new storage; lock-free readers (ANNEX CGB1 rows, BINDING; e.g.
-   `parallelNotEmptyBlockSource`, `BlockDirectory.cpp:539-559`)
+   new storage; lock-free readers (ANNEX CGB1 rows, BINDING;
+   `BlockDirectory.cpp:539-559`)
    acquire-load the descriptor, tolerating a stale (smaller)
    bound — mid-phase blocks are clean by construction
    (newlyAllocated, §6.2(2)). CG-I8.
@@ -500,10 +478,8 @@ obligation, not new rules: CG-A2 (executed at C1 entry, recorded
 as ANNEX CGN1 rows) walks every
 `methodTable()->visitChildren`-reachable reader of mutator-mutable
 multi-word state and assigns {IN-WINDOW-ONLY, OM-PROTOCOL (cite),
-N-PROTOCOL (cite), CELL-LOCKED (10a; tryLock + defer to race
-stack / re-visit, NEVER block — deadlock derivation ANNEX CGN1
-N3; CG-I15), RACY-TOLERATED
-(justify)}. CELL-LOCK NO-PARK
+N-PROTOCOL (cite), CELL-LOCKED (10a; tryLock + defer/re-visit,
+NEVER block — CGN1 N3; CG-I15), RACY-TOLERATED (justify)}. CELL-LOCK NO-PARK
 (CG-I18, NORMATIVE): a thread holding any JSCellLock (10a) must
 not release heap access, pass a stop poll (SINFAC/AHA/trap
 landing), or enter a conducting path. Grounding + the CG-I15
@@ -514,6 +490,20 @@ entry and the AHA park leg (CG-T5 arm). SlotVisitor draining
 infrastructure is reused except the §9.1(2) checkpoint/exit
 deltas. Visitor-side allocation stays forbidden (markers are not
 clients; heap I4(c)).
+
+### 8.3 TID-rebias pin (F35)
+
+ANNEX CGD5.1 (BINDING) GOVERNS. When gilOffProcess, the ungil
+§D.1/D1R rebias block (`Heap.cpp:4877-4915`) runs inside the
+FINAL window of a conducted FULL cycle — post-reclaim, strictly
+before that window's CG-F4 ISB bump and WSAC/GSP clears, under
+WSAC; NEVER after a WND-close. Per-cycle predicate when C1R
+(replaces the `:4856-4868` aggregate): the FIRST Full cycle with
+a Sealed snapshot runs it, single-shot; Eden cycles neither run
+nor suppress (Sealed-stays-Sealed safety = CGD5.1(3)). Satisfies
+D1/D1R verbatim (CGS1 note); CGA1 grep + CGA2 R3 amended;
+CG-I23; CG-T8 F35 sub-arm; flag-off/GIL-on dead/identical
+(CG-I0).
 
 ## 9. Composition with the JSThreads stop protocol (charter item 6)
 
@@ -534,76 +524,54 @@ into the 30s watchdog (`JSThreadsSafepoint.cpp:401`). PIN
    `Heap::pauseConcurrentMarkingForForeignStop()` (MARKER pause
    only — the rule-7 sweeper gate is NOT phase-gated, F29); the dtor
    resumes BEFORE releasing GCL (dtor order NORMATIVE: no
-   WND-open may interleave with paused markers). CALL SITES (rev 4,
-   F18): the ctor/dtor (`Heap.cpp:5456-5482`, heap-OWNED per
-   §13.1) are the ONLY pause/resume sites, covering every
-   construction (`bytecode/JSThreadsSafepoint.cpp:334-338`;
-   `runtime/VMManager.cpp:561` — every GIL-off jettison;
-   `SharedHeapTestHarness.cpp:1039+`). No foreign call-site row
-   exists (§13.3(b)). MECHANISM + COUNTER PROTOCOL: ANNEX CGP1
-   (BINDING; relocated VERBATIM rev 5) GOVERNS — pause pair
-   `m_parallelMarkersShouldPause` + `m_pausedParallelMarkers`
-   under `m_markingMutex` (F6); participants = EXACTLY the
-   `drainFromShared(HelperDrain)` helpers (F14; conductor §3.7
-   and C4 assist rule 6 take NO checkpoint); a pausing helper
-   donateAll()s, leaves its counter, paused++ (F16; one batch =
-   the CG-I12 bound); EXIT DELTA (F17): every drainFromShared
-   return does waiting-- (flag-off delta benign, CGD2.1); pauser
-   predicate = active==0 && waiting==0; didReachTermination
-   requires paused==0 (CG-I22); pause terminates (CG-I16).
-   The §A.3 window may
-   then jettison/patch: mutators are parked by ITS fan-out;
-   markers by THIS hook; the C3 sweeper per rule 7. The window's
-   ISB bump (ungil ISB1.1) plus rule 4 covers marker-visible
-   code/object frees.
+   WND-open may interleave with paused markers). CALL SITES
+   (F18): the ctor/dtor (`Heap.cpp:5456-5482`, heap-OWNED) are
+   the ONLY pause/resume sites — they cover every construction
+   (`bytecode/JSThreadsSafepoint.cpp:334-338`;
+   `runtime/VMManager.cpp:561`; `SharedHeapTestHarness.cpp:1039+`);
+   no foreign row (§13.3(b)). MECHANISM + COUNTER PROTOCOL:
+   ANNEX CGP1 (BINDING) GOVERNS (F6/F14/F16/F17 — one batch =
+   the CG-I12 bound; flag-off benign CGD2.1; CG-I16/I22). The
+   §A.3 window may then jettison/patch (mutators via ITS
+   fan-out; markers via THIS hook; C3 sweeper per rule 7); its
+   ISB bump (ungil ISB1.1) + rule 4 cover marker-visible frees.
 3. Order pin per cycle edge: WND-open (re-entry) is
    access-released -> GCL -> GSP (§3.1(a)-(c) + the first-window
    carve-out); WND-close clears GSP/WSAC BEFORE releasing GCL.
    Hence at most one of {GC window, §A.3 window} open at any
    instant — single-owner GCL is the proof. The HBT4 order EXTENDS to
    window re-entry (the only blocking GCL acquire; election/poll
-   stay tryLock-only); the §10.2 GCL-busy rule (timed 1ms follower
-   wait, `Heap.cpp:4542-4554`) is unchanged. A GC requester midway through someone else's cycle
+   stay tryLock-only); the §10.2 GCL-busy rule (`:4542-4554`) is
+   unchanged. A GC requester midway through someone else's cycle
    parks as a follower on GCA (set whole-cycle, §3.4), not on GCL.
 4. No reclamation outside the cycle's final window: heap I11 +
    jit R4/CS4 refusal stand VERBATIM — a mid-cycle §A.3 stop only
    ENQUEUES an RCAC ticket (heap §13.10a; served by the same
    CONDUCT call's ticket drain, `Heap.cpp:4852-4863` — possibly
-   an F28 successor cycle). Memory the paused
-   markers can see is freed only at epoch reclaim (final window)
-   or via jettison paths already routed through epoch/quarantine
-   (om §6 bar; §9 contract hooks fire once-per-CYCLE, final
-   window).
+   an F28 successor cycle). Memory paused markers can see is
+   freed only at epoch reclaim (final window) or via
+   epoch/quarantine-routed jettison paths (om §6 bar; contract
+   hooks once-per-CYCLE).
 5. GC keep-parked vs §A.3 parking stays disjoint per ungil §A.3.8:
    GC stops set client-visible state (GSP/F8); §A.3 stops set none.
    AHA's three gates (GSP `Heap.cpp:5723`, §A.3 word `:5752`,
    mode machine `:5773`) compose unchanged — each re-loops, so a
    client wakes only when NO window of any kind pends.
 6. C4 assist visitors vs §A.3 (F14):
-   `performIncrementOfDraining` (`SlotVisitor.cpp:527-585`)
-   maintains no marker counters; its `:578` safepoint takes NO
-   shouldPause checkpoint. An assist
-   mutator is
-   bounded by ONE increment (`bytesRequested`), then parked by the
-   §A.3 MUTATOR fan-out at its next stop poll. CG-T10 arm.
-7. C3 sweeper vs §A.3 (F26; REWRITTEN F29/F30 — the rev 5 ack
-   was phase-gated yet sweeping runs BETWEEN cycles
-   (`Heap.cpp:2083`; `IncrementalSweeper.cpp:152`, `:41`), and an
-   idle sweeper never reaches a quantum boundary to ack;
-   CGD3.2/CGD4.2; ANNEX CGP1 GOVERNS): the sweeper is invisible
-   to the §A.3 fan-out and the
-   rule-2 pause (F14) — unruled, a §A.3 window's heap writes
-   (heap §10A jit-R1.i exemption) race live sweep quanta.
-   NORMATIVE: when `useSharedGCIncrementalSweep` AND a sweeper
-   client is registered, the scope ctor sets the sweeper-pause
-   flag under `m_markingMutex` with NO phase gate; sweeper
-   quantum ENTRY is REFUSED while the flag is set
-   (`m_sweeperInQuantum` set/cleared under the same mutex at
-   entry/exit; access/MSPL acquired only after a gated entry);
-   ctor wait predicate = `!m_sweeperInQuantum || acked` (idle sweeper
-   passes); dtor clears flag + ack before the
-   GCL release. Bound: one quantum when in-quantum, else zero.
-   CGS1 row 11; CG-I13 extended; CG-T7 arms.
+   `performIncrementOfDraining` maintains no marker counters; its
+   `:578` safepoint takes NO shouldPause checkpoint. An assist
+   mutator is bounded by ONE increment (`bytesRequested`), then
+   parked by the §A.3 MUTATOR fan-out at its next stop poll.
+   CG-T10 arm.
+7. C3 sweeper vs §A.3 (F26/F29/F30; derivations CGD3.2/CGD4.2):
+   ANNEX CGP1 SWEEPER EXTENSION GOVERNS — flag-keyed
+   (`useSharedGCIncrementalSweep` && sweeper registered), NO
+   phase gate (sweeping runs BETWEEN cycles); quantum ENTRY
+   refused while the pause flag is set (`m_sweeperInQuantum`
+   under `m_markingMutex`; access/MSPL only after a gated
+   entry); ctor predicate `!m_sweeperInQuantum || acked` (idle
+   passes); dtor clears both pre-GCL-release; bound <= one
+   quantum. CGS1 row 11; CG-I13; CG-T7 arms.
 
 ### 9.2 EXIT1 teardown mid-cycle
 
@@ -615,25 +583,21 @@ CMS/fence steps no-op when !C1R — F33, CG-I0):
    `stopAllocatingForGood`), then PERMANENTLY drops access, THEN
    (strictly after its last possible barrier)
    flushes the client's CMS into the shared
-   mutator stack (under `m_markingMutex`) and publishes its
-   fence/didRun state as dead, then epoch=MAX and HCS remove
-   (inside the same GBL/!WSAC section heap I13 requires). C4 DELTA
-   (F25, ANNEX CGD3.3; rev 6, F34, CGD4.3 — the "between
-   cycles ... directly" arm keyed on a phase read outside F22's
-   GCL-ordered reader set; stale-NotRunning recreated CGD3.3(a)):
-   the assist visitor is HEAP-ALLOCATED; ACT/DCT NEVER read phase
-   and NEVER mutate the visitor set directly — teardown ALWAYS
-   enqueues a DEFERRED UNREGISTRATION (ownership to the pending
-   list) and CANCELS any pending §9.3(3) registration, under
-   `m_parallelSlotVisitorLock`; the pending list is applied ONLY
-   at WND-open BEFORE any `forEachSlotVisitor` walk, or quiesced
-   (GCL held + phase NotRunning under `*m_threadLock`: §10D
-   revert, server teardown) (CG-I14). Rev 1's flush-first order
-   REJECTED (F2); early flush optional, the pre-remove flush
-   normative; it completes while still registered — a concurrent
-   WND-open sees the client (drains it) or doesn't (already
-   drained); never a registered client with unreachable CMS
-   (CG-I17). CG-T9 arm.
+   mutator stack (under `m_markingMutex`), then epoch=MAX and
+   HCS remove (inside the same GBL/!WSAC section heap I13
+   requires). NO dead-state publication (rev 2's clause DELETED —
+   F36; rationale = rev 7 log). C4 DELTA
+   (F25/F34; CGD3.3/CGD4.3):
+   the assist visitor is HEAP-ALLOCATED; ACT/DCT NEVER read
+   phase and NEVER mutate the visitor set — they ALWAYS enqueue
+   (deferred unregistration with ownership transfer; exit
+   CANCELS a pending §9.3(3) registration) under
+   `m_parallelSlotVisitorLock`; the pending list is applied only
+   at WND-open before any walk, or quiesced per CG-I14 (§10D
+   revert, §9.2(5) teardown). Rev 1's flush-first order REJECTED
+   (F2); early flush optional; the normative pre-remove flush
+   completes while still registered — never a registered client
+   with unreachable CMS (CG-I17). CG-T9 arm.
 2. HCS `remove` blocking inside windows (heap I13) extends:
    removal between windows is LEGAL once rule 1 ran — the next
    fixpoint window re-converges with one fewer conservative root
@@ -643,12 +607,21 @@ CMS/fence steps no-op when !C1R — F33, CG-I0):
    spawned exits; §10D ISS reversion already requires
    `m_currentPhase == NotRunning` (heap §10D step 1), so a cycle
    never straddles a protocol switch. That covers the revert
-   OUTCOME only — the landed PRE-CHECK (`pollIssRevertIfNeeded`,
-   `Heap.cpp:5036-5043`) is restructured per the §3.4 `:5036` row
-   (F11; CGD1.2).
+   OUTCOME only — the landed PRE-CHECK (`:5036-5043`) is
+   restructured per the §3.4 `:5036` row (F11; CGD1.2).
 4. The detaching thread is never the live conductor: §3.7 forbids
    EXIT1 on `m_gcConductorThread` mid-cycle (release assert; the
    closed loop runs no JS); CG-T9 attempts it.
+5. SERVER TEARDOWN (F39): ANNEX CGD5.2 (BINDING) GOVERNS. Rule 3
+   covers the GIL-on revert OUTCOME only (gilOff: `:5023-5031`
+   early return). ~VM after the EXIT1.9 fence, BEFORE any
+   access-holding teardown section: disable elections/collector
+   wakes; acquire GCL with the §3.4 back-off (teardown ADDED to
+   the §3.4 sites) until {GCL held, NotRunning under
+   `*m_threadLock`, tickets served-or-refused}; join the
+   collector thread; only then the access-holding tail. Teardown
+   = the CG-I14 quiesced point (CGD4.3(b) closed). Flag-off
+   byte-for-byte. CG-I24; CG-T6 arm.
 
 ### 9.3 Mid-cycle client ATTACH
 
@@ -662,18 +635,17 @@ live cycle (§10B.4-quiescence alternative REJECTED — F1). Rules
    section that publishes the client in HCS, BEFORE the insert,
    the attaching thread copies the server master
    `m_mutatorShouldBeFenced`/`m_barrierThreshold` into its client
-   copies and stamps `m_fenceEpochSeen = FEP`. Happens-before: the
+   copies and stamps `m_fenceEpochSeen = FEP`. Happens-before:
    master mutates only in-window (WSAC under GBL); the add runs
-   under GBL with !WSAC — snapshot untorn, never stale. An
-   attachee during live marking starts RAISED; CG-I3's WND-close
-   assert holds unexempted. The §5.3(3) pin subsumes the values;
-   the FEP stamp stays required.
+   under GBL/!WSAC — snapshot untorn, never stale; a live-marking
+   attachee starts RAISED; CG-I3's close assert holds unexempted;
+   the §5.3(3) pin subsumes the values, the FEP stamp stays.
 2. `m_isMarking` visibility: the client's first AHA performs the
    seq_cst GSP load (`Heap.cpp:5723`) and the GBL section above
    pairs with the in-window flip (§6.2(1)); allocation before ACT
    completes is impossible (ungil §B.1).
 3. C4 assist visitor: ACT ALWAYS ENQUEUES registration to the
-   pending list (NO phase read — rev 6, F34), applied per §9.2(1)
+   pending list (NO phase read — F34), applied per §9.2(1)
    under `m_parallelSlotVisitorLock`. An EXIT1 in the same gap
    CANCELS it (F25). Until applied, the client cannot assist
    (`performIncrement` checks registration); its barriers/CMS are
@@ -683,14 +655,27 @@ live cycle (§10B.4-quiescence alternative REJECTED — F1). Rules
 
 ## 10. Lock & fence deltas
 
-Lock table (heap §6 master) deltas — additions only, no re-ranks:
-- `GCH::m_mutatorMarkStackLock` — TERMINAL leaf, INSIDE
+Lock table (heap §6 master) deltas — additions only, no re-ranks.
+BOTH rows are PROPOSED SPEC-ungil §LK amendments (the ONE merged
+order, canonical for U20; SPEC-ungil.md:867-925), recorded
+SUPERSESSION-PENDING + adoption gate §13.5(1) per the
+nativeaffinity §3.5/§9 convention (F41; FULL rows + acyclicity
+walks = ANNEX CGS2.1-2, BINDING):
+- LK.9c `GCH::m_mutatorMarkStackLock` — TERMINAL leaf, INSIDE
   `m_markingMutex`; MAY be taken with ranks 7-9b held (the §5.2
-  append path; CG-I10/F21).
-- `m_markingMutex`, `m_parallelSlotVisitorLock`,
-  `m_raceMarkStackLock`, visitor `m_rightToRun`: existing
-  unranked marking-internal locks; CG-T2 lint groups them inside
-  GCL/GBL, disjoint from MSPL-9b except existing in-window uses.
+  append path; CG-I10/F21) — the §LK.8 destructor-leaf-class
+  shape, superseding heap §6's leaf-row "never 7-9b" for this
+  lock, BOTH sides.
+- LK.9d marking-internal group (`m_markingMutex`,
+  `m_parallelSlotVisitorLock`, `m_raceMarkStackLock`, visitor
+  `m_rightToRun`): ordered INSIDE GCL/GBL; newly MUTATOR-reachable
+  out-of-window (§5.2 SINFAC-tail donation; §9.2(1)/§9.3(3)
+  pending-list enqueue); disjoint from MSPL-9b except existing
+  in-window uses. U20 PROPER extends to both rows — CG-T2 IS that
+  U20 extension, not a private lint. The composed
+  NL > GCL > `m_markingMutex` > CMS chain (§9.1(2) +
+  nativeaffinity BL1.6/LK.1c) is CHARTERED and U20-linted, no
+  longer accidental — walk = CGS2.2.
 Fences (heap §7 deltas):
 - F4/F7/F8 unchanged; F8's Dekker proof is per-WINDOW — cadence
   only.
@@ -715,8 +700,8 @@ Fences (heap §7 deltas):
 - CG-I2: every CMS append happens on its owning client's
   access-holding thread under its CMS lock (exempt: in-window
   conductor-context appends — F31, WSAC single-writer); every
-  drain happens under `m_markingMutex` (in-window by the
-  conductor, or out-of-window by the owning thread).
+  drain happens under `m_markingMutex` (conductor in-window or
+  owner out-of-window).
 - CG-I3: fence RAISES are window-complete (all client copies
   republished before WND-close); LOWERS occur only in the final
   window after termination; `m_fenceEpochSeen == FEP` for every
@@ -734,11 +719,11 @@ Fences (heap §7 deltas):
   windows, never the legacy bits).
 - CG-I8: every BlockDirectoryBits access is (a) in-window, (b)
   under BVL, (c) under MSPL, (d) an acquire-read of release-
-  published storage tolerating a stale bound (marker/sweeper
-  readers, ANNEX CGB1 rows), or (e) `!ISS`.
+  published storage tolerating a stale bound (CGB1 rows), or
+  (e) `!ISS`.
 - CG-I9: `m_didRunSinceLastWindow` is written only by its owning
   access-holding thread; folded+cleared only in-window.
-- CG-I10 (restated rev 5, F21): (1) `m_markingMutex` is never acquired
+- CG-I10 (F21): (1) `m_markingMutex` is never acquired
   with any rank 7-9b lock held; (2) the CMS lock is a TERMINAL
   leaf (no lock of any rank acquired while holding it) and MAY be
   taken with 7-9b held (the append path — no cycle); (3) order
@@ -752,7 +737,9 @@ Fences (heap §7 deltas):
   dropped (C2 bound) — a §A.3 conductor's GCL wait <= one window
   + one marker-pause (one batch, §9.1(2)) + (F28 successor) the
   re-stop + its FIRST window (GCL next free at its first
-  non-final close); CG-T8 measures both.
+  non-final close); CG-T8 measures both. In-bracket wait BUDGET
+  vs the watchdog (incl. the nativeaffinity BL1.6/BL1.8 terms)
+  stated ONCE: ANNEX CGS2.3 (F42).
 - CG-I13: every sweeping thread is a registered client holding
   access for each quantum, MSPL across each quantum's directory/bit
   mutations; quantum entry is flag-gated and §A.3 stops are acked
@@ -768,11 +755,11 @@ Fences (heap §7 deltas):
 - CG-I16: `pauseConcurrentMarkingForForeignStop()` terminates
   without acquiring any api-rank or heap rank ≥7 lock; paired
   resume in the same `JSThreadsStopScope`.
-- CG-I17: a detaching client's CMS is empty (flushed) by the time
-  it leaves HCS, and the final flush postdates the client's last
-  possible barrier (§9.2(1) order); its assist visitor is out of
-  the visitor set — or owned by the §9.2(1) pending list — before
-  its storage is destroyed (F25).
+- CG-I17: a detaching client's CMS is empty by the time it
+  leaves HCS; the final flush postdates its last possible
+  barrier (§9.2(1)); its assist visitor is out of the visitor
+  set — or owned by the pending list — before its storage is
+  destroyed (F25).
 - CG-I18: no thread releases heap access, passes a stop poll, or
   enters a conducting path while holding a JSCellLock (§8.2);
   debug assert: cell-lock depth == 0 at SINFAC entry / AHA park.
@@ -780,13 +767,14 @@ Fences (heap §7 deltas):
   RHA/AHA, no EXIT1, access-released throughout; between-window
   waits = donateAll+waitForTermination (condvar, no counter,
   never visitChildren, §A.3-compatible); blocking GCL acquires
-  only access-released (§3.1).
+  only access-released (§3.1); `m_nativeLockDepth == 0` at
+  conducting entry (F40, §3.7 — nativeaffinity BL1.8, both
+  sides; debug assert).
 - CG-I20: a client attached mid-cycle has its fence/threshold
   copies + `m_fenceEpochSeen` stamped from the master inside the
   publishing GBL section, before its first allocation (§9.3(1)).
 - CG-I21: at most one conductor per cycle: every GCL tryLock
-  site, INCLUDING stage-added ones (§3.4: `:4523`, `:4585`,
-  `:5036`; CGA2 R7), backs off when
+  site, landed AND stage-added (§3.4), backs off when
   `GCA && m_currentPhase != NotRunning`; `m_gcConductorThread` is
   stamped once per cycle (restamp legal only in NotRunning
   wind-down takeover) and cleared ONLY by its owner (§3.4 F20;
@@ -795,6 +783,14 @@ Fences (heap §7 deltas):
   delta); a paused helper holds no local work (donateAll);
   `didReachTermination` is false while
   `m_pausedParallelMarkers != 0` (§9.1(2)).
+- CG-I23: the Sealed->Restamped flip + D1R fires run only inside
+  a FULL cycle's FINAL window (post-reclaim,
+  pre-ISB-bump/GSP-clear, WSAC), never after a WND-close; one
+  rebias per Sealed snapshot (§8.3).
+- CG-I24: server teardown destroys no conduct state and runs no
+  access-holding section until {wakes disabled, GCL held,
+  NotRunning, tickets quiesced, collector joined} (§9.2(5)); the
+  EXIT1.9 wait precedes it.
 
 ## 12. Verification ladder + TSAN charter (charter item 7)
 
@@ -804,11 +800,12 @@ all earlier stages' rungs re-run green.
 - CG-T1 (C0): ANNEX CGA1 audit executed; audit-pattern grep-lint
   clean; CG-I0 gate — flags-off corpus + `$vm.sharedHeapTest`
   scenarios (heap §12.1) byte-identical; BENCH.md flags-off
-  delta = 0 (heap I10 bar). F33: routing is C1R-gated — flag-off
-  keeps `Heap.cpp:1479` + the server fence reads.
-- CG-T2 (C0): lock-lint (U20-class) + §10 rows encoding the three
-  F21 clauses (barrier-append-under-7-9b lint-clean by rule, not
-  suppression); CMS/markingMutex order litmus.
+  delta = 0 (heap I10 bar). F33: routing C1R-gated — flag-off
+  keeps `:1479` + server fence reads.
+- CG-T2 (C0): U20 lint EXTENDED to the §10 LK.9c/9d rows (F41;
+  gate §13.5(1)) encoding the three F21 clauses
+  (barrier-append-under-7-9b lint-clean by rule);
+  CMS/markingMutex order litmus + the CGS2.2 chain litmus.
 - CG-T3 (C1): barrier storm — N threads store-heavy during forced
   concurrent marking; TSAN no-JIT (TSAN.md target) over the
   corpus; amplifier arms (AMPLIFIER.md hooks) at: WND-open barrier
@@ -822,52 +819,40 @@ all earlier stages' rungs re-run green.
   complete); per-row arm for every CELL-LOCKED and N-PROTOCOL row;
   CG-I18 storm (map/set mutation vs forced fixpoint windows) with
   the cell-lock-depth debug asserts enabled.
-- CG-T6 (C2): collector-continuity churn — RCAC storms, zero
-  mutator polls; activity-callback collections fire; SINFAC
-  fallback conducts when the collector thread is disabled; R7
-  guard arm (F24): collector wake on an RCAC ticket between
-  windows of a forced C1 cycle; assert one conductor.
-- CG-T7 (C3): T8-extension audit (ANNEX CGB1) executed; sweep
-  quantum vs window race arm; sweeper-thread attach/detach churn;
-  F26/F29/F30 arms (C3 on): §A.3 jettison/haveABadTime (a)
-  mid-quantum, phase PINNED NotRunning (between cycles, dominant;
-  ack <= one quantum); (b) sweeper fully IDLE — no watchdog
-  stall; (c) sweeper timer amplifier-delayed into the open §A.3
-  window — quantum entry refused.
-- CG-T8 (all): JSThreads-stop interleaving — haveABadTime/jettison
-  mid-concurrent-cycle from a sibling, incl. at the
-  WND-open GCL acquire (§3.1), vs a between-windows parked
-  conductor (§3.7), and with helpers mid-batch (CG-I22); F17
-  sub-arm: stop injected into a SECOND cycle; F18 sub-arm: >=1
-  jettison arm drives the GIL-off `VMManager.cpp:561` conductor;
-  F20 sub-arm: conduct return descheduled between
-  GCL unlock and GCA clear + second-cycle between-windows
-  requester storm; F22 sub-arm: stop-scope ctor just after a
-  non-final WND-close; F28 sub-arm: §A.3 stop while a second
-  granted ticket forces a back-to-back drain cycle — no deadlock
-  at the successor's WND-open; extended CG-I12 wait measured; GC-requester storm (sync election + poll)
-  vs a between-windows cycle — assert one `m_gcConductorThread`
-  per cycle (CG-I21); measures GCL wait vs the 30s watchdog
-  (`JSThreadsSafepoint.cpp:401`);
+- CG-T6 (C2): collector-continuity churn (FULL charter = ANNEX
+  CGT1.3, BINDING; MOVED rev 8 under the size cap, verbatim):
+  RCAC storms; activity-callback collections; SINFAC fallback;
+  R7/F24 guard arm; R10/F38 arm; F39 ~VM-vs-cycle arm.
+- CG-T7 (C3): T8-extension audit (ANNEX CGB1) executed (FULL
+  charter = ANNEX CGT1.4, BINDING; MOVED rev 8, verbatim): sweep
+  quantum vs window race; sweeper attach/detach churn;
+  F26/F29/F30 arms (mid-quantum ack, idle liveness, delayed
+  timer entry-refusal).
+- CG-T8 (all): JSThreads-stop interleaving (FULL charter = ANNEX
+  CGT1.1, BINDING; MOVED rev 8 under the size cap, verbatim +
+  the F40 arm): haveABadTime/jettison mid-concurrent-cycle arms
+  incl. the WND-open GCL acquire, a between-windows parked
+  conductor, helpers mid-batch (CG-I22); F17/F18/F20/F22/F28/F35
+  sub-arms; NEW F40 sub-arm: NL-holding Locked-native sync
+  requester — BL1.8 drop releases NL for the tenure, sibling
+  Locked natives PROGRESS mid-cycle, depth-restored reacquire
+  after the `:4955` tail; GC-requester storm (CG-I21); GCL wait
+  vs the 30s watchdog measured against the CGS2.3 budget;
   `jsThreadsStopVsGCRequester` (heap §12.1) re-run per stage.
 - CG-T9 (all): ATTACH/EXIT1 churn during forced concurrent cycles
-  (CG-I17/I20); attach storm with the §6.2(5) liveness assert
-  (§9.3(5)); exit with finalizer-side stores during full marking
-  (§9.2(1)); conductor-thread exit attempt (release-assert,
-  §9.2(4)); spawn+exit arming `m_issRevertPending` mid-cycle +
-  main-client SINFAC poll storm — assert cycle completion (F11);
-  attach-then-exit inside one between-windows gap (F25); ACT/DCT
-  amplifier-descheduled across the NotRunning -> first-WND-open
-  edge (F34);
-  `clientChurnVsGC` + `issRevertChurn` re-run (cycle must quiesce
-  before revert).
+  (CG-I17/I20; FULL charter = ANNEX CGT1.2, BINDING; MOVED rev 8
+  under the size cap, verbatim): attach storm (§9.3(5));
+  finalizer-side stores during full marking (§9.2(1));
+  F36/F11/F25/F34 arms; conductor-thread exit release-assert
+  (§9.2(4)); `clientChurnVsGC` + `issRevertChurn` re-run.
 - CG-T10 (C4): assist storm — per-client balances; assist visitor
   vs WND-open rightToRun handoff arm; §A.3 stop injected
   mid-assist-increment (§9.1(6)): fan-out completes within one
   increment, no paused-count overshoot.
 - CG-T11 (all): the §2.4 diagnostics as debug asserts gated on the
   stage flags (freelisted-block check per WND-open; endMarking
-  root-liveness check).
+  root-liveness check); A4-site all-CMS-empty walk exercised at
+  C1 with executing CodeBlocks present (F37).
 - TSAN charter: every CG-T3..T10 arm runs under the TSAN no-JIT
   target; suppressions limited to documented RACY-TOLERATED rows
   (CGA1/CGN1); any other report is a stage blocker. GIL-off rungs
@@ -888,26 +873,44 @@ all earlier stages' rungs re-run green.
    `sharedGCMutatorMarkStackDonationThreshold` (Unsigned; default
    per §5.2(ii)).
 3. Chartered out (INTEGRATE rows, not owned): (a) per-client
-   barrier-address JIT emission (§5.3(3)) — jit/ungil owners;
-   until landed, GIL-off C1+ pins the SERVER master always-fenced
-   (F19); (b) DELETED (F18): no foreign marker-pause row —
-   pause/resume live in the heap-owned scope ctor/dtor (§9.1(2));
+   barrier-address JIT emission — jit/ungil owners (§5.3(3) F19
+   server pin until landed); (b) DELETED (F18) — pause/resume
+   live in the heap-owned scope ctor/dtor (§9.1(2));
    (c) VMManager manifest deltas: none — `VMManager.cpp:561`
    covered via the ctor; ZERO VMManager edits.
-4. Supersession discipline: nothing frozen is superseded yet; the
-   §2.2 kill-switch retires are flag-gated (the `!flag` arm keeps
-   frozen behavior — heap Deviation 4's I10 clause + the flag-off
-   analog). At freeze the affected heap-spec clauses gain
-   two-sided supersessions; list = ANNEX CGS1, folded into
-   SPEC-heap-history at freeze.
+4. Supersession discipline (REWRITTEN rev 8, F42 — rev 7's
+   "nothing frozen is superseded" claim was FALSE for SPEC-ungil):
+   the §2.2 kill-switch retires stay flag-gated (the `!flag` arm
+   keeps frozen behavior — heap Deviation 4's I10 clause). TWO
+   frozen specs are touched: SPEC-heap (list = ANNEX CGS1) and
+   SPEC-ungil (the §10/F41 §LK rows; the §9.1(2) ctor/dtor pause
+   obligation vs §A.3 rule 5/HBT4.5; the conductor wait bound vs
+   U32; the HBT4 extension — list = ANNEX CGS2, every row
+   SUPERSESSION-PENDING behind a §13.5 gate, the nativeaffinity
+   §9 convention). At freeze CGS1 folds into SPEC-heap-history
+   AND CGS2 into SPEC-ungil-history, recorded both sides.
+5. ADOPTION GATES (rev 8; rows NOT in force until the named owner
+   lands the cross-cite — gate semantics per nativeaffinity §9):
+   (1) SPEC-ungil owner lands §LK rows LK.9c/LK.9d + the U20
+   extension (CGS2.1-2), both sides — BLOCKS the §5.2 CMS lock
+   and stage C1. (2) the §A.3 rule-5/HBT4.5 amendment — the
+   §9.1(2) ctor pause obligation + dtor order — plus the
+   conductor wait bound vs U32/the watchdog (CGS2.3 ledger,
+   shared with nativeaffinity BL1.6/BL1.8), both sides — BLOCKS
+   C1. (3) the HBT4 release-before-GCL order EXTENDED to window
+   re-entry (CGS2.4), both sides — BLOCKS the §3.1 re-entry
+   blocking acquire.
+   (4) nativeaffinity rev 8 BL1.8 NL-drop ruling (F40; CG-I19's
+   depth==0 assert = this spec's side) — BLOCKS C1 in gilOff
+   configs.
 
 ## 14. Ordered task list
 
 - CG-1 (C0 infra): window split of `conductSharedCollection`
   (WND-open/close helpers with the §3.1 order incl. the
   first-window carve-out + the F28 successor arm; GCL per-window; GCA tenure +
-  `m_gcConductorThread`; §3.7 closed loop; §3.4 phase-gated guards
-  at ALL THREE tryLock sites incl. the `pollIssRevertIfNeeded`
+  `m_gcConductorThread`; §3.7 closed loop; §3.4 phase-gated
+  guards at the landed tryLock sites incl. the `:5036`
   restructure); CG-T1/T2.
 - CG-2 (C0 infra): CMS + per-client fence/didRun fields + window
   fold/republish loops; consumers re-pointed (C1R-gated, F33); GIL-phase JIT
@@ -915,18 +918,20 @@ all earlier stages' rungs re-run green.
 - CG-3 (C1): retire the three C1 kill switches behind the flag;
   marker-helper between-window scheduling + the §3.7/§7.1 ISS
   conductor wait; §9.1(2) pause pair/protocol incl. the F17 exit
-  delta (F18: ctor/dtor only); §9.2 exit order + §9.3
-  attach handshake; donation threshold option; CG-A2 audit ->
-  ANNEX CGN1; CG-T3/T4/T5/T8/T9/T11.
+  delta (F18: ctor/dtor only); §8.3 rebias pin (F35); §9.2 exit
+  order + §9.3 attach handshake; donation threshold option;
+  CG-A2 audit -> ANNEX CGN1; CG-T3/T4/T5/T8/T9/T11.
 - CG-4 (C2): collector-thread conductor; activity-callback RCAC
-  routing; continuity bound; CG-T6 + re-runs.
+  routing; continuity bound; CGA2 R10 flag ruling (F38); §9.2(5)
+  teardown shutdown (F39); CG-T6 + re-runs.
 - CG-5 (C3): ANNEX CGB1 audit; bit-storage release/acquire
   publication; sweeper-client re-home + the §9.1(7) entry-gated
   pause (F29/F30); CG-T7 + re-runs.
 - CG-6 (C4): per-client assist visitors/balances; `performIncrement`
   re-enable; CG-T10 + re-runs; BENCH.md stage gates recorded.
-- CG-7: freeze pass — ANNEX CGS1 supersessions recorded both
-  sides; size-cap check; rev history updated.
+- CG-7: freeze pass — ANNEX CGS1 + CGS2 supersessions recorded
+  both sides (SPEC-heap-history AND SPEC-ungil-history); §13.5
+  gates closed; size-cap check; rev history updated.
 
 Done = every CG-I has a test/assert (§12); flags-off bench and
 behavior gates green; all four stage flags green on the ladder;

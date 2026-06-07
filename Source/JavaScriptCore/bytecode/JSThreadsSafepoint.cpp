@@ -200,6 +200,28 @@ AlreadyStoppedWorldWitnessScope::~AlreadyStoppedWorldWitnessScope()
     s_stubWorldStoppedDepth.fetch_sub(1, std::memory_order_relaxed);
 }
 
+// R1.h foreign-thread guard (review r33): the "already stopped" disjuncts of
+// worldIsStopped()/worldIsStopped(VM&) MINUS the §A.3 process-global
+// thread-granular window witness. Keep in sync with those two predicates.
+static bool worldIsStoppedEvidenceExcludingThreadGranularWindow(VM& vm)
+{
+    if (s_stubWorldStoppedDepth.load(std::memory_order_relaxed))
+        return true;
+#if defined(JSC_OM_PROVIDES_JSTHREADS_STUB_WITNESS)
+    if (g_jsThreadsStubWorldStopped)
+        return true;
+#endif
+    if (VMManager::info().worldMode == VMManager::Mode::Stopped)
+        return true;
+    if (vm.heap.worldIsStopped())
+        return true;
+#if defined(JSC_JIT_HAS_SHARED_HEAP_SERVER)
+    if (vm.clientHeap.server().worldIsStoppedForAllClients())
+        return true;
+#endif
+    return false;
+}
+
 void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
 {
     // R1.h FIRST (load-bearing for SPEC-jit section 5.3, Task 5): a caller that
@@ -216,6 +238,20 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
     // dead-weak-reference code run with the collector's stop as their safety
     // argument, not the caller contract of the requesting path below.
     if (worldIsStopped(vm)) {
+        // R1.h foreign-thread guard (review r33): when the ONLY evidence is
+        // the §A.3 process-global thread-granular window
+        // (jsThreadsThreadGranularWorldIsStopped()), inline execution is
+        // licensed solely for the CONDUCTOR thread — the §A.3 window
+        // quiesces only entered lites of the target VM holding heap access,
+        // so a non-participant thread (a worklist compiler thread's
+        // finalize/install leg, another server's GC context, a mutator
+        // between its access release and its park) that observes the global
+        // depth and patched inline here would run concurrently with the
+        // conductor's own work body: two unsynchronized patchers inside one
+        // "stopped" window. Such a caller must queue at arbitration (the
+        // requesting path below) instead — fail-stop, never patch.
+        if (jsThreadsThreadGranularWorldIsStopped() && !jsThreadsCurrentThreadIsStopConductor()) [[unlikely]]
+            RELEASE_ASSERT(worldIsStoppedEvidenceExcludingThreadGranularWindow(vm));
         // Review rounds 2/3 (R2-4, R3-1, R3-11): the entered-VM tripwire, the
         // shared-server scoping, and the witness raise/lower + F5 barrier all
         // live in AlreadyStoppedWorldWitnessScope (shared with

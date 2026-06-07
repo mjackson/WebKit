@@ -1460,12 +1460,23 @@ public:
     // fallback arm (no installed same-VM gilOff lite) deliberately matches
     // group3Primitives()' VM-block fallback so the bit always tracks the
     // storage the exception word itself resolved to.
+    //
+    // Selector identity (bit<->word same-storage-domain invariant): the
+    // lite-selection predicate here is TEXTUALLY the same as
+    // group3Primitives()' (lite && lite->vm == this) — a divergent extra
+    // lite->gilOff term would let a mis-stamped same-VM lite publish the
+    // word per-lite but the bit on the VM trap word. The stamping invariant
+    // (lite->gilOff == vm->m_gilOff at every registration site: VM ctor
+    // mainVMLite, JSLock carrier lites, ThreadObject spawned lites) is
+    // asserted here instead of being silently relied on.
     ALWAYS_INLINE VMTraps& trapsForCurrentThread()
     {
         if (gilOffWithProcessGate()) [[unlikely]] {
             VMLite* lite = VMLite::currentIfExists();
-            if (lite && lite->gilOff && lite->vm == this) [[likely]]
+            if (lite && lite->vm == this) [[likely]] {
+                ASSERT(lite->gilOff == (m_gilOff ? 1 : 0));
                 return lite->threadContext.traps();
+            }
         }
         return traps();
     }
@@ -1482,8 +1493,12 @@ public:
     {
         if (gilOffWithProcessGate()) [[unlikely]] {
             VMLite* lite = VMLite::currentIfExists();
-            if (lite && lite->gilOff && lite->vm == this) [[likely]]
+            if (lite && lite->vm == this) [[likely]] {
+                // Same selector as trapsForCurrentThread()/group3Primitives()
+                // (see the selector-identity note above).
+                ASSERT(lite->gilOff == (m_gilOff ? 1 : 0));
                 return lite->threadContext.traps().maybeNeedHandling() || traps().maybeNeedHandling();
+            }
         }
         return traps().maybeNeedHandling();
     }
