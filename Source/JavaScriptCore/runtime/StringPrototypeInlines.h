@@ -809,7 +809,7 @@ ALWAYS_INLINE JSCellButterfly* addToRegExpSearchCache(VM& vm, JSGlobalObject* gl
         return nullptr;
     }
 
-    vm.stringReplaceCache.set(source, regExp, result, globalObject->regExpGlobalData().matchResult(), regExp->ovectorSpan());
+    vm.stringReplaceCache.set(source, regExp, result, globalObject->regExpGlobalData().matchResult(), regExp->ovectorSpan(vm));
     RELEASE_AND_RETURN(scope, result);
 }
 

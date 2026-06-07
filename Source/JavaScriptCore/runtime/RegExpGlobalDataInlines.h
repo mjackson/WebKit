@@ -29,6 +29,7 @@
 #include "JSGlobalObject.h"
 #include "RegExp.h"
 #include "RegExpGlobalData.h"
+#include "RegExpInlines.h"
 
 namespace JSC {
 
@@ -57,16 +58,16 @@ ALWAYS_INLINE MatchResult RegExpGlobalData::performMatch(JSGlobalObject* owner, 
     ASSERT(owner);
     VM& vm = owner->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    int position = regExp->match(owner, input, startOffset, regExp->ovectorSpan());
+    int position = regExp->match(owner, input, startOffset, regExp->ovectorSpan(vm));
     RETURN_IF_EXCEPTION(scope, MatchResult::failed());
 
     if (ovector)
-        *ovector = regExp->ovectorSpan().data();
+        *ovector = regExp->ovectorSpan(vm).data();
 
     if (position == -1)
         return MatchResult::failed();
 
-    auto ovectorSpan = regExp->ovectorSpan();
+    auto ovectorSpan = regExp->ovectorSpan(vm);
     ASSERT(!ovectorSpan.empty());
     ASSERT(ovectorSpan[0] == position);
     ASSERT(ovectorSpan[1] >= position);
@@ -102,7 +103,7 @@ inline MatchResult RegExpGlobalData::matchResult() const
 
 inline void RegExpGlobalData::resetResultFromCache(JSGlobalObject* owner, RegExp* regExp, JSString* string, MatchResult matchResult, std::span<const int> ovector)
 {
-    auto dest = regExp->ovectorSpan();
+    auto dest = regExp->ovectorSpan(getVM(owner));
     ASSERT(dest.size() >= ovector.size());
     std::ranges::copy(ovector, dest.begin());
     m_cachedResult.record(getVM(owner), owner, regExp, string, matchResult, /* oneCharacterMatch */ false);

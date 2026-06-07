@@ -98,9 +98,20 @@ public:
         return (numSubpatterns() + 1) * 2;
     }
 
+    // AUD1.N2 (annex N7 RESOLVED-2, BINDING): offsetVectorSize() needs NO
+    // gilOff reroute — m_ovector's single resize is in finishCreation
+    // (pre-publication; RegExpCache's lock provides the release/acquire edge
+    // to other threads' lookups), so the size is immutable once the cell is
+    // visible cross-thread.
     int offsetVectorSize() const { return m_ovector.size(); }
 
-    std::span<int> ovectorSpan() { return m_ovector.mutableSpan(); }
+    // AUD1.N2 routing (1): the per-match scratch span. GIL-off this routes to
+    // the per-thread match buffer (RegExp.cpp banner; the cell-resident
+    // m_ovector must never be a match target cross-thread); flag-off/GIL-on
+    // it is byte-identically the cell vector. Takes VM& so any missed caller
+    // is a compile error instead of a silent shared-scratch race. Defined in
+    // RegExpInlines.h (needs the complete VM type for the gilOff() test).
+    inline std::span<int> ovectorSpan(VM&);
 
     bool hasNamedCaptures() const
     {
@@ -239,5 +250,10 @@ private:
     unsigned m_rtMatchFoundCount { 0 };
 #endif
 };
+
+// AUD1.N2: the GIL-off per-thread (== per-lite for scratch; ISB1 storage
+// deviation) match buffer, grown to the regexp's offsetVectorSize().
+// Defined in RegExp.cpp; reached through ovectorSpan(VM&) only.
+JS_EXPORT_PRIVATE std::span<int> regExpGilOffPerThreadMatchOvector(RegExp&);
 
 } // namespace JSC

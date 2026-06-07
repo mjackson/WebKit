@@ -278,7 +278,23 @@ public:
     HeapProfiler* heapProfiler() { return m_heapProfiler.getIfExists(); }
     HeapProfiler& ensureHeapProfiler() { return m_heapProfiler.get(*this); }
 
-    WTF::AdaptiveStringSearcherTables& adaptiveStringSearcherTables() { return m_stringSearcherTables.get(*this); }
+    // AUD1.N2 / K4.II.12 (both BINDING): adaptive-search scratch tables are
+    // per-VM match scratch — mutated (bad-char shift tables) by every
+    // AdaptiveStringSearcher use, including the RegExp::matchInline atom fast
+    // path. RULED contents per-lite; GIL-off this routes to a per-thread
+    // (== per-lite for scratch, ISB1 precedent) instance — same mode-split
+    // shape as RegExp::ovectorSpan(VM&). The LazyUniqueRef::get lazy-init
+    // also has no concurrent-arbitration story (its initializingTag ASSERT
+    // fires under racing first touches), so GIL-off must not reach it at
+    // all. Flag-off/GIL-on byte-identical: one predicted-false byte test.
+    // No tier bakes the tables' address (all consumers are C++ operations).
+    WTF::AdaptiveStringSearcherTables& adaptiveStringSearcherTables()
+    {
+        if (gilOff()) [[unlikely]]
+            return gilOffPerThreadStringSearcherTables();
+        return m_stringSearcherTables.get(*this);
+    }
+    JS_EXPORT_PRIVATE static WTF::AdaptiveStringSearcherTables& gilOffPerThreadStringSearcherTables();
 
     bool isAnalyzingHeap() const { return m_activeHeapAnalyzer; }
     HeapAnalyzer* activeHeapAnalyzer() const { return m_activeHeapAnalyzer; }

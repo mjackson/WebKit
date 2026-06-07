@@ -107,7 +107,7 @@ ALWAYS_INLINE JSArray* createRegExpMatchesArray(VM& vm, JSGlobalObject* globalOb
     if constexpr (validateDFGDoesGC)
         vm.verifyCanGC();
 
-    auto subpatternResults = regExp->ovectorSpan();
+    auto subpatternResults = regExp->ovectorSpan(vm);
     int position = regExp->matchInline<Yarr::MatchFrom::VMThread>(globalObject, vm, inputValue, startOffset, subpatternResults);
     if (position == -1) {
         result = MatchResult::failed();

@@ -361,7 +361,8 @@ void RegExp::compile(VM* vm, Yarr::CharSize charSize, std::optional<StringView> 
 //       mutation cross-thread. Minimal slice: gilOff early-return bypass.
 // =============================================================================
 
-std::span<int> regExpGilOffPerThreadMatchOvector(RegExp&); // Redundant with the RegExp.h declaration landing alongside routing (1); kept so this TU is warning-clean independent of header ordering.
+// Declared in RegExp.h (JS_EXPORT_PRIVATE); reached through ovectorSpan(VM&)
+// — the routing (1) reroute in RegExpInlines.h — only.
 std::span<int> regExpGilOffPerThreadMatchOvector(RegExp& regExp)
 {
     // Grow-only per thread; sized like the cell vector so every

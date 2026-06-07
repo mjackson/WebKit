@@ -322,6 +322,48 @@ void VMEntryScope::setUpSlow()
         //      per JIT operation in FrameTracers.h / the
         //      RETURN_IF_EXCEPTION flag-off expansion — not more edits to
         //      the two files scoped here.
+        //
+        // AB18-G follow-up (post-ab17b bench-regression round; measurements
+        // appended per item (1)'s mandate — NO code changes this round):
+        //  (1) CODEGEN RULE VERIFIED AT MACHINE-CODE LEVEL (new evidence
+        //      class; closes "does flag-off emit today's code" for this
+        //      bench): both hot FTL bodies of transition-heavy-constructor
+        //      (make: inline-capacity-12 NewObject bump-allocate + 12 inline
+        //      stores + 2 StructureID stores; run: structure check + two
+        //      inline loads + checked adds + direct call) were dumped from a
+        //      live Release process (gdb dump of the JIT region named by
+        //      --dumpDisassembly ranges; objdump decode) and are the
+        //      pre-threads instruction stream exactly: no TLS reads, no
+        //      fences, no extra loads/branches; the prologue soft-stack-limit
+        //      check is the single absolute-address compare (the AB-17
+        //      reroute's flag-off arm). Repeat the gdb/objdump procedure if
+        //      this rung reds again — it is cheap and decisive where
+        //      --dumpDisassembly has no in-process disassembler.
+        //  (2) The residual is not stalls either: a local 250-iteration copy
+        //      (BENCH.md "local copy" rule) measures marginal IPC 3.70 and
+        //      ~17.1M marginal instructions/iteration, ruling out the I3
+        //      false-sharing class and code-layout stall theories for the
+        //      observed delta. Eden cadence is policy-stable (23 GCs/run =
+        //      allocation / 32MB cycle allowance; ~142kb survivors/GC).
+        //  (3) Host-sensitivity re-confirmed on a LOW-LOAD session (loadavg
+        //      ~1.7/64): with the 7 non-allocating benchmarks within +-0.6%
+        //      of the 2026-06-05 baseline ALL session (megamorphic-access
+        //      -12..-13.6%, i.e. faster), the one allocating/GC-heavy bench
+        //      drifted +6.12% (5-run median) -> +11.36% (9-run median,
+        //      ~90 min later) on the SAME binary, plain runs 57.8 -> 64.0ms
+        //      within the session. Measured-region composition: ~56-75% FTL,
+        //      remainder split kernel (anon-page first-touch faults, futex/
+        //      timer/scheduler traffic from parallel eden marking) + GC/
+        //      allocator C++ — i.e. exactly the shared-kernel/SMP resources
+        //      a multi-tenant host perturbs, which the non-allocating
+        //      benches never touch. The ab17b-verify +10.59%/+8.04% reds sit
+        //      inside this same-binary drift envelope.
+        //  (4) Disposition: rung (iii) stays NOT-MEASURABLE-AT-1%-ON-THIS-
+        //      HOST (round-4 item (3)); AB18-G structural edits remain
+        //      blocked on the interleaved A/B per item (2), which now
+        //      additionally requires REBUILDING a pre-ab17b baseline binary
+        //      from VCS — no such binary survives on this host (Fuzz build
+        //      is ASAN; TSan build is TSAN; both incomparable).
         constexpr bool perLiteSoftStackLimitRerouteLanded = true; // COMPLETE §A.2.2 reroute landed (AB-17; this change).
         bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {

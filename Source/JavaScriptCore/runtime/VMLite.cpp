@@ -1213,11 +1213,14 @@ void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM* vm)
 //     maps already use; §E.1b alloc-outside shape. No mitigation exists in
 //     tree until that slice lands; N mutators MUST NOT touch shared module
 //     namespaces before it.
-//   GATE-2 — N7 RESOLVED-2/AUD1.N2 routing half: RegExp.h
-//     ovectorSpan()/offsetVectorSize() gilOff reroute to the per-thread
-//     buffer (RegExp.cpp banner OPEN (1)/(2)). Until it lands every gilOff
-//     global match RELEASE_ASSERTs (upgraded from debug-only ASSERT) — fail
-//     loudly, never corrupt — so the SD19 regexp corpus arms cannot run.
+//   GATE-2 — N7 RESOLVED-2/AUD1.N2 routing half: LANDED. RegExp.h
+//     ovectorSpan(VM&) gilOff-reroutes to the per-thread buffer (inline
+//     definition RegExpInlines.h; consumers RegExpGlobalDataInlines.h /
+//     RegExpMatchesArray.h / StringPrototypeInlines.h re-pointed;
+//     offsetVectorSize() ruled no-reroute — size immutable post-publication,
+//     RegExp.h comment). The RELEASE_ASSERTs in RegExp::match /
+//     matchConcurrently are KEPT as routing invariants per the RegExp.cpp
+//     banner; the SD19 regexp corpus arms can now run.
 //   GATE-3 — §K.3/LZ1/LZ2 consuming slice: LazyPropertyInlines.h + peers
 //     must call the lazyInit* machinery below (and host the LZ1.3 winner
 //     unwind scope — an RAII type is NOT definable usefully in this TU:

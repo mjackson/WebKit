@@ -3335,4 +3335,18 @@ Wasm::DebugState* VM::debugState()
 }
 #endif
 
+// AUD1.N2 / K4.II.12: GIL-off per-thread adaptive-search scratch tables —
+// see the accessor comment in VM.h. Same lifetime story as the per-thread
+// regexp match ovector (RegExp.cpp): plain scratch, no cells, no VM state;
+// dies with the thread, so no ~VM walk entry is needed. The tables are an
+// adaptive perf cache (a cold table is only a perf event), so per-thread
+// duplication is semantics-free.
+WTF::AdaptiveStringSearcherTables& VM::gilOffPerThreadStringSearcherTables()
+{
+    static thread_local std::unique_ptr<WTF::AdaptiveStringSearcherTables> tables;
+    if (!tables) [[unlikely]]
+        tables = makeUnique<WTF::AdaptiveStringSearcherTables>();
+    return *tables;
+}
+
 } // namespace JSC

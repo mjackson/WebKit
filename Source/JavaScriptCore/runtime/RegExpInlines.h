@@ -41,6 +41,19 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+// AUD1.N2 routing (1) — the keystone reroute. GIL-off the per-match scratch
+// lives OFF the cell (per-thread buffer, RegExp.cpp banner); flag-off/GIL-on
+// this is byte-identically the old ovectorSpan(): one predicted-false byte
+// test, then the cell vector. The matchInline ASSERT below (and the
+// RELEASE_ASSERTs in RegExp::match/matchConcurrently) backstop any future
+// caller that bypasses this routing.
+ALWAYS_INLINE std::span<int> RegExp::ovectorSpan(VM& vm)
+{
+    if (vm.gilOff()) [[unlikely]]
+        return regExpGilOffPerThreadMatchOvector(*this);
+    return m_ovector.mutableSpan();
+}
+
 #if REGEXP_FUNC_TEST_DATA_GEN
 class RegExpFunctionalTestCollector {
     // This class is not thread safe.
