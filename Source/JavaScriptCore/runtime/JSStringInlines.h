@@ -27,6 +27,7 @@
 
 #include "GetVM.h"
 #include "HeapCellInlines.h"
+#include "JSCellInlines.h"
 #include "JSGlobalObject.h"
 #include "JSString.h"
 #include "KeyAtomStringCacheInlines.h"
@@ -383,10 +384,34 @@ inline void JSRopeString::convertToNonRope(String&& string) const
 {
     // Concurrent compiler threads can access String held by JSString. So we always emit
     // store-store barrier here to ensure concurrent compiler threads see initialized String.
+    static_assert(sizeof(String) == sizeof(RefPtr<StringImpl>), "JSString's String initialization must be done in one pointer move.");
+    if (vm().gilOff()) [[unlikely]] {
+        // GIL-off: multiple mutators can race to resolve the same rope, so this
+        // transition must be idempotent. Serialize the one-pointer publish on
+        // the cell lock; a loser observes the winner's publish under the lock,
+        // drops its own String (the argument destructs on return), and treats
+        // "already resolved by another thread" as success. All heavy work
+        // (buffer fill, atomization, atom-table locking) stays outside the
+        // cell lock. notifyNeedsDestruction is hoisted out of the critical
+        // section so no cellLock -> directory-bitvector-lock order edge is
+        // introduced; the destructible bit is monotone toward true, so the
+        // winner flipping it after unlocking is sound (see
+        // MarkedBlock::Handle::setIsDestructible).
+        {
+            Locker locker { cellLock() };
+            if (!(fiberConcurrently() & isRopeInPointer))
+                return; // Lost the race; the winner's value is already published.
+            WTF::storeStoreFence();
+            new (&uninitializedValueInternal()) String(WTF::move(string));
+        }
+        // We do not clear the trailing fibers and length information (fiber1 and fiber2) because we could be reading the length concurrently.
+        ASSERT(!JSString::isRope());
+        notifyNeedsDestruction();
+        return;
+    }
     ASSERT(JSString::isRope());
     WTF::storeStoreFence();
     new (&uninitializedValueInternal()) String(WTF::move(string));
-    static_assert(sizeof(String) == sizeof(RefPtr<StringImpl>), "JSString's String initialization must be done in one pointer move.");
     // We do not clear the trailing fibers and length information (fiber1 and fiber2) because we could be reading the length concurrently.
     ASSERT(!JSString::isRope());
     notifyNeedsDestruction();
@@ -647,20 +672,35 @@ inline JSString* jsAtomString(JSGlobalObject* globalObject, VM& vm, JSString* st
 
     JSRopeString* ropeString = uncheckedDowncast<JSRopeString>(string);
 
+    // GIL-off: snapshot the fiber word once. Another mutator may publish a
+    // resolved impl into m_fiber at any time after the isRope() check above,
+    // and re-reading fiber0()/isSubstring()/is8Bit() after that publish would
+    // misread the published StringImpl* as a JSString* and flag bits.
+    uintptr_t fiberBits = ropeString->fiberConcurrently();
+    if (vm.gilOff() && !(fiberBits & JSString::isRopeInPointer)) [[unlikely]] {
+        // Already resolved by another mutator; take the non-rope path.
+        RELEASE_AND_RETURN(scope, jsAtomString(globalObject, vm, string));
+    }
+
     auto createFromRope = [&](VM& vm, auto& buffer) {
         auto impl = AtomStringImpl::add(buffer);
         size_t sizeToReport = impl->hasOneRef() ? impl->cost() : 0;
+        StringImpl* expectedImpl = impl.get();
         ropeString->convertToNonRope(String { WTF::move(impl) });
-        vm.heap.reportExtraMemoryAllocated(ropeString, sizeToReport);
+        // GIL-off: convertToNonRope is idempotent; on a lost publish race our
+        // impl was dropped, so do not report memory the cell does not hold.
+        // GIL-on: the comparison is always true.
+        if (ropeString->valueInternal().impl() == expectedImpl)
+            vm.heap.reportExtraMemoryAllocated(ropeString, sizeToReport);
         return ropeString;
     };
 
-    if (!ropeString->isSubstring()) {
+    if (!(fiberBits & JSRopeString::isSubstringInPointer)) {
         uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimitForCurrentThreadSlow());
-        JSString* fiber0 = ropeString->fiber0();
+        JSString* fiber0 = std::bit_cast<JSString*>(fiberBits & JSRopeString::stringMask);
         JSString* fiber1 = ropeString->fiber1();
         JSString* fiber2 = ropeString->fiber2();
-        if (ropeString->is8Bit()) {
+        if (fiberBits & JSRopeString::is8BitInPointer) {
             std::array<Latin1Character, KeyAtomStringCache::maxStringLengthForCache> characters;
             JSRopeString::resolveToBuffer(fiber0, fiber1, fiber2, std::span { characters }.first(length), stackLimit);
             WTF::HashTranslatorCharBuffer<Latin1Character> buffer { std::span { characters }.first(length) };

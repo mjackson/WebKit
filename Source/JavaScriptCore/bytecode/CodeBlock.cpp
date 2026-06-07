@@ -814,10 +814,14 @@ void CodeBlock::setBaselineJITData(std::unique_ptr<BaselineJITData>&& jitData)
 
 void CodeBlock::setupWithUnlinkedBaselineCode(Ref<BaselineJITCode> jitCode)
 {
-    setJITCode(jitCode.copyRef());
-
+    // UNGIL §5.7.2 (AB18-B): m_jitCode is the publication point GIL-off — the moment it is
+    // stored, jitType() reads BaselineJIT and racing mutators may OSR into the entrypoint
+    // (jitCompileAndSetHeuristics "already compiled" branch) before m_jitData exists, making
+    // the prologue's tier-up counter write land at null+0x10..0x18. Initialize exception
+    // handlers and BaselineJITData first; setJITCode last (its lock + storeStoreFence is the
+    // release pairing with the consumer-side loadLoadFence in LLIntSlowPaths).
     {
-        const auto& jitCodeMap = this->jitCodeMap();
+        const auto& jitCodeMap = jitCode->m_jitCodeMap;
         for (size_t i = 0; i < numberOfExceptionHandlers(); ++i) {
             HandlerInfo& handler = exceptionHandler(i);
             // FIXME: <rdar://problem/39433318>.
@@ -857,6 +861,8 @@ void CodeBlock::setupWithUnlinkedBaselineCode(Ref<BaselineJITCode> jitCode)
         // And the data is stored in JITData.
         optimizeAfterWarmUp();
     }
+
+    setJITCode(jitCode.copyRef());
 
     switch (codeType()) {
     case GlobalCode:

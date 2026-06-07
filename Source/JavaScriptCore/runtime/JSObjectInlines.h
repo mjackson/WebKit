@@ -822,7 +822,26 @@ inline bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Structure* expect
     size_t oldCapacity = expectedSource->outOfLineCapacity();
     size_t newCapacity = newStructure->outOfLineCapacity();
 
-    if (expectedSource->mayTransitionLockFreeFromThisStructure(this, word)) {
+    // AB18-R1-H (N3/I21): a butterfly-less instance (word == 0, which includes
+    // every N3 first out-of-line install) must never transition through this
+    // lock-free leg. Its publication path (nukeStructureAndSetButterfly below)
+    // claims the structureID lane with a PLAIN nuke store - or, for
+    // inline/no-growth reshapes, a plain setStructure with no nuke at all -
+    // while the lock-free N3 indexed first-install
+    // (createInitialIndexedStorageConcurrent) claims the same all-zero-word
+    // lane with a nuke-CAS, fires no TTL set, and takes no §10.6 stop. The E4
+    // poll-free-window exclusivity proof (comment in the block below) only
+    // excludes racers that fire sets or stop the world, so it does not exclude
+    // that installer: the plain nuke aliases its claim, its failure-path
+    // un-nuke hands the lane back mid-publication, and the two setStructure
+    // stores race last-writer-wins - a silent lost add. Route word==0 through
+    // the locked FirstInstall / N2 protocols below: they claim the lane by
+    // nuke-CAS, return false on a lost race, and putDirectInternal's §2
+    // RESTART loop replays the add against the winner's settled
+    // structure/storage. NOTE (review): when E4 emission lands in the JIT
+    // tiers, the SPEC-jit 5.5 mirrored predicate must carry this same word==0
+    // exclusion, or the race re-opens from compiled code.
+    if ((word & butterflyPointerMask) && expectedSource->mayTransitionLockFreeFromThisStructure(this, word)) {
         // ---- E4 lock-free path (THREAD.md "Watchpoint Optimizations"): the
         // owner of a (currentTID, 0) instance whose source TTL sets are valid
         // and watched transitions exactly as today's engine - no lock, no

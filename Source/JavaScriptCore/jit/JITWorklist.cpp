@@ -35,9 +35,21 @@
 #include "JITWorklistThread.h"
 #include "SlotVisitorInlines.h"
 #include "VMInlines.h"
+#include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace JSC {
+
+// UNGIL AB18-R1-A: keys claimed for finalize (removed from m_plans, install not
+// yet complete). Guarded by *m_lock of the global worklist (JITWorklist is a
+// process singleton, see ensureGlobalWorklist). GIL-off only; empty otherwise.
+// This would naturally be a JITWorklist member next to m_plans; it lives here
+// so the change stays within this translation unit.
+static UncheckedKeyHashSet<JITCompilationKey>& finalizingKeys()
+{
+    static NeverDestroyed<UncheckedKeyHashSet<JITCompilationKey>> set;
+    return set.get();
+}
 
 // UNGIL §A.3.2 client-scoped park pairing (Heap.cpp; same forward-declaration
 // shape as Lookup.cpp / VMManager.cpp).
@@ -197,7 +209,33 @@ CompilationResult JITWorklist::enqueue(Ref<JITPlan> plan)
     // under *m_lock and reported as CompilationDeferred. NOT flag-gated: with a single
     // mutator this path is unreachable (the old assert's invariant holds), so flag-off
     // behavior is unchanged.
-    if (m_plans.contains(plan->key())) [[unlikely]] {
+    // UNGIL AB18-R1-A: a plan disappears from m_plans in removeAllReadyPlansForVM
+    // BEFORE its finalize() installs the code, so m_plans alone cannot dedup a racer
+    // that enqueues inside the removal->install window. finalizingKeys() keeps the
+    // key claimed across that window (GIL-off only; invariantly empty otherwise).
+    bool isDuplicate = m_plans.contains(plan->key()) || finalizingKeys().contains(plan->key());
+    if (!isDuplicate && plan->vm()->gilOff() && plan->tier() == JITPlan::Tier::Baseline) [[unlikely]] {
+        // UNGIL AB18-R1-A: authoritative KEY-LEVEL re-check under *m_lock. Baseline
+        // publication is per-UnlinkedCodeBlock (CodeBlock::setupWithUnlinkedBaselineCode,
+        // CodeBlock.cpp:875), and tier-up latches (CodeBlock::TierUpEdge) are per LINKED
+        // CodeBlock — so with N lites, distinct linked CodeBlocks sharing one
+        // UnlinkedCodeBlock (= one JITCompilationKey) can each win their own latch and
+        // race a plan for the same key after the finalize claim is released. Ordering:
+        // the publication runs inside finalize(), sequenced-before the claim release
+        // under *m_lock; an enqueue that acquires *m_lock and misses both m_plans and
+        // finalizingKeys() therefore acquired after that release and must observe the
+        // published RefPtr (the claim set is the ordering token: claim checked FIRST
+        // above, field read second). A CodeBlock whose key already has published
+        // baseline code picks it up via the LLIntSlowPaths shared-code fast path on its
+        // next slow-path entry instead of recompiling; admitting the plan would trip
+        // RELEASE_ASSERT(!JITCode::isJIT(...)) in JIT::compileAndLinkWithoutFinalizing
+        // (JIT.cpp:808), which is KEPT as the invariant check. The jitType() re-check is
+        // same-CodeBlock belt-and-suspenders. GIL-on / flag-off: branch unreachable.
+        if (plan->codeBlock()->unlinkedCodeBlock()->m_unlinkedBaselineCode
+            || JITCode::isJIT(plan->codeBlock()->jitType()))
+            isDuplicate = true;
+    }
+    if (isDuplicate) [[unlikely]] {
         dataLogLnIf(Options::verboseCompilationQueue(), *this, ": Cancelling duplicate plan for ", plan->key());
         plan->cancel(); // cancel() also ends the signpost (SignpostDetail::Canceled).
         return CompilationResult::CompilationDeferred;
@@ -276,6 +314,16 @@ auto JITWorklist::completeAllReadyPlansForVM(VM& vm, JITCompilationKey requested
         RELEASE_ASSERT(plan->stage() == JITPlanStage::Ready);
         plan->finalize();
         plan->endSignpost();
+    }
+    if (vm.gilOff() && !myReadyPlans.isEmpty()) [[unlikely]] {
+        // UNGIL AB18-R1-A: release the finalize claims only now, after
+        // finalize() installed (or failed) the code. *m_lock's release/acquire
+        // pairing makes the installed code (the per-key unlinked baseline
+        // publication and the linked jitType) visible to any enqueue() that
+        // subsequently misses both m_plans and finalizingKeys().
+        Locker locker { *m_lock };
+        for (auto& plan : myReadyPlans)
+            finalizingKeys().remove(plan->key());
     }
     return resultingState;
 }
@@ -397,6 +445,13 @@ void JITWorklist::cancelAllPlansForVM(VM& vm)
         ASSERT(plan->stage() == JITPlanStage::Ready);
         plan->endSignpost(JITPlan::SignpostDetail::Canceled);
     }
+    if (vm.gilOff() && !myReadyPlans.isEmpty()) [[unlikely]] {
+        // UNGIL AB18-R1-A: these plans are dropped without finalize(); release
+        // their claims so the key is not wedged for future compiles.
+        Locker locker { *m_lock };
+        for (auto& plan : myReadyPlans)
+            finalizingKeys().remove(plan->key());
+    }
 }
 
 void JITWorklist::removeDeadPlans(VM& vm)
@@ -495,6 +550,15 @@ JITWorklist::State JITWorklist::removeAllReadyPlansForVM(VM& vm, Vector<Ref<JITP
         if (plan->key() == requestedKey)
             isCompiled = true;
         m_plans.remove(plan->key());
+        if (vm.gilOff()) [[unlikely]] {
+            // UNGIL AB18-R1-A: the install happens in plan->finalize(), outside
+            // *m_lock, AFTER this removal. Keep the key claimed so enqueue's
+            // dedup backstop (§5.7.3) keeps rejecting duplicate plans through
+            // the removal->install window. Released by the claiming caller
+            // after finalize() completes. GIL-on: single mutator, the window
+            // has no observer; set stays empty.
+            finalizingKeys().add(plan->key());
+        }
         myReadyPlans.append(WTF::move(plan));
         return true;
     });
@@ -503,7 +567,12 @@ JITWorklist::State JITWorklist::removeAllReadyPlansForVM(VM& vm, Vector<Ref<JITP
         if (isCompiled)
             return Compiled;
 
-        if (m_plans.contains(requestedKey))
+        // UNGIL AB18-R1-A: a key claimed for finalize is still Compiling from the
+        // requester's perspective. NOTE this report is advisory only for cross-lite
+        // observers — they early-return NotKnown on !vm.numberOfActiveJITPlans()
+        // before ever taking *m_lock; the enqueue dedup backstop is the actual
+        // line of defense for the cross-lite race.
+        if (m_plans.contains(requestedKey) || finalizingKeys().contains(requestedKey))
             return Compiling;
     }
     return NotKnown;

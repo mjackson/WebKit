@@ -1175,9 +1175,11 @@ bool JSObject::getOwnPropertySlotByIndex(JSObject* thisObject, JSGlobalObject* g
                     return true;
                 }
             } else if (SparseArrayValueMap* map = storage->m_sparseMap.get()) {
-                SparseArrayValueMap::iterator it = map->find(i);
-                if (it != map->notFound()) {
-                    it->value.get(thisObject, slot); // Fills the slot; runs no JS.
+                // AB18-G: map mutators serialize on the MAP's cellLock (the map
+                // is its own JSCell), so the object cellLock held above does NOT
+                // cover find() against a putEntry-internal rehash. Locked snapshot.
+                if (std::optional<SparseArrayEntry> entry = map->getEntry(i)) {
+                    entry->get(thisObject, slot); // Fills the slot; runs no JS.
                     return true;
                 }
             }
@@ -4231,11 +4233,18 @@ bool JSObject::deletePropertyByIndex(JSCell* cell, JSGlobalObject* globalObject,
                     --storage->m_numValuesInVector;
                 }
             } else if (SparseArrayValueMap* map = storage->m_sparseMap.get()) {
-                SparseArrayValueMap::iterator it = map->find(i);
-                if (it != map->notFound()) {
-                    if (it->value.attributes() & PropertyAttribute::DontDelete)
+                // AB18-G: the object lock above does not exclude a
+                // putEntry-internal rehash on the MAP's cellLock, so the probe
+                // must be a locked snapshot, and remove must re-probe by key
+                // under the map lock rather than consume an iterator minted by
+                // an unlocked-vs-map find(). Snapshot-then-keyed-remove keeps
+                // every map access locked (no memory unsafety); a racing
+                // re-add between the two windows is a benign ordering race
+                // (equivalent to the delete losing the race outright).
+                if (std::optional<SparseArrayEntry> entry = map->getEntry(i)) {
+                    if (entry->attributes() & PropertyAttribute::DontDelete)
                         return false;
-                    map->remove(it);
+                    map->remove(i);
                 }
             }
             return true;
@@ -4691,10 +4700,12 @@ void JSObject::getOwnIndexedPropertyNames(JSGlobalObject*, PropertyNameArrayBuil
                             indexes.append(i);
                     }
                     if (SparseArrayValueMap* map = storage->m_sparseMap.get()) {
-                        for (auto& entry : *map) {
-                            if (mode == DontEnumPropertiesMode::Include || !(entry.value.attributes() & PropertyAttribute::DontEnum))
-                                indexes.append(static_cast<unsigned>(entry.key));
-                        }
+                        // AB18-G: locked iteration; functor only appends to a
+                        // fastMalloc Vector (no JS, no GC allocation).
+                        map->forEachEntry([&](uint64_t key, const SparseArrayEntry& entry) {
+                            if (mode == DontEnumPropertiesMode::Include || !(entry.attributes() & PropertyAttribute::DontEnum))
+                                indexes.append(static_cast<unsigned>(key));
+                        });
                     }
                 }
                 std::ranges::sort(indexes);
@@ -5164,11 +5175,28 @@ bool JSObject::attemptToInterceptPutByIndexOnHoleForPrototype(JSGlobalObject* gl
         
         ArrayStorage* storage = current->arrayStorageOrNull();
         if (storage && storage->m_sparseMap) {
-            SparseArrayValueMap::iterator iter = storage->m_sparseMap->find(i);
-            if (iter != storage->m_sparseMap->notFound() && (iter->value.attributes() & (PropertyAttribute::Accessor | PropertyAttribute::ReadOnly))) {
-                scope.release();
-                putResult = iter->value.put(globalObject, thisValue, storage->m_sparseMap.get(), value, shouldThrow);
-                return true;
+            SparseArrayValueMap* map = storage->m_sparseMap.get();
+#if USE(JSVALUE64)
+            if (Options::useJSThreads()) [[unlikely]] {
+                // AB18-G: the unlocked find() races a locked mutator's rehash;
+                // take a locked snapshot instead. The guarded branches never
+                // write through the snapshot: Accessor calls the setter (runs
+                // JS, outside any lock, as today) and ReadOnly only throws.
+                std::optional<SparseArrayEntry> entry = map->getEntry(i);
+                if (entry && (entry->attributes() & (PropertyAttribute::Accessor | PropertyAttribute::ReadOnly))) {
+                    scope.release();
+                    putResult = entry->put(globalObject, thisValue, map, value, shouldThrow);
+                    return true;
+                }
+            } else
+#endif
+            {
+                SparseArrayValueMap::iterator iter = map->find(i);
+                if (iter != map->notFound() && (iter->value.attributes() & (PropertyAttribute::Accessor | PropertyAttribute::ReadOnly))) {
+                    scope.release();
+                    putResult = iter->value.put(globalObject, thisValue, map, value, shouldThrow);
+                    return true;
+                }
             }
         }
 
@@ -5474,9 +5502,19 @@ bool JSObject::putByIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* glob
         storage = arrayStorage();
         storage->m_numValuesInVector = numValuesInArray;
         WriteBarrier<Unknown>* vector = storage->m_vector;
-        SparseArrayValueMap::const_iterator end = map->end();
-        for (SparseArrayValueMap::const_iterator it = map->begin(); it != end; ++it)
-            vector[it->key].set(vm, this, it->value.getNonSparseMode());
+        // AB18-G: locked iteration — an unlocked begin()/end() walk races a
+        // putEntry-internal rehash. The functor does barriered stores only
+        // (no JS, no GC allocation), per the forEachEntry contract. A racing
+        // putEntry can insert an arbitrarily large key mid-window, so skip
+        // keys beyond the vector bound instead of writing through them;
+        // skipped keys stay in the orphaned map and are recovered by the
+        // racer's stillInstalled re-run.
+        unsigned vectorLength = storage->vectorLength();
+        map->forEachEntry([&](uint64_t key, const SparseArrayEntry& entry) {
+            if (key >= vectorLength) [[unlikely]]
+                return;
+            vector[static_cast<unsigned>(key)].set(vm, this, entry.getNonSparseMode());
+        });
         deallocateSparseIndexMap();
         WriteBarrier<Unknown>& valueSlot = vector[i];
         if (!valueSlot)
@@ -5746,9 +5784,19 @@ bool JSObject::putDirectIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* 
         storage = arrayStorage();
         storage->m_numValuesInVector = numValuesInArray;
         WriteBarrier<Unknown>* vector = storage->m_vector;
-        SparseArrayValueMap::const_iterator end = map->end();
-        for (SparseArrayValueMap::const_iterator it = map->begin(); it != end; ++it)
-            vector[it->key].set(vm, this, it->value.getNonSparseMode());
+        // AB18-G: locked iteration — an unlocked begin()/end() walk races a
+        // putEntry-internal rehash. The functor does barriered stores only
+        // (no JS, no GC allocation), per the forEachEntry contract. A racing
+        // putEntry can insert an arbitrarily large key mid-window, so skip
+        // keys beyond the vector bound instead of writing through them;
+        // skipped keys stay in the orphaned map and are recovered by the
+        // racer's stillInstalled re-run.
+        unsigned vectorLength = storage->vectorLength();
+        map->forEachEntry([&](uint64_t key, const SparseArrayEntry& entry) {
+            if (key >= vectorLength) [[unlikely]]
+                return;
+            vector[static_cast<unsigned>(key)].set(vm, this, entry.getNonSparseMode());
+        });
         deallocateSparseIndexMap();
         WriteBarrier<Unknown>& valueSlot = vector[i];
         if (!valueSlot)

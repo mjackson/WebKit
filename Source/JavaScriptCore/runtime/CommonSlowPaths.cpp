@@ -159,10 +159,11 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_this)
 {
     BEGIN();
     auto bytecode = pc->as<OpCreateThis>();
-    JSObject* result;
+    JSObject* result = nullptr;
     JSObject* constructorAsObject = asObject(GET(bytecode.m_callee).jsValue());
     JSFunction* constructor = dynamicDowncast<JSFunction>(constructorAsObject);
-    if (constructor && constructor->canUseAllocationProfiles()) {
+    bool useGenericPath = !(constructor && constructor->canUseAllocationProfiles());
+    if (!useGenericPath) {
         WriteBarrier<JSCell>& cachedCallee = bytecode.metadata(codeBlock).m_cachedCallee;
         if (!cachedCallee)
             cachedCallee.set(vm, codeBlock, constructor);
@@ -172,16 +173,61 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_this)
         size_t inlineCapacity = bytecode.m_inlineCapacity;
         ObjectAllocationProfileWithPrototype* allocationProfile = constructor->ensureRareDataAndObjectAllocationProfile(globalObject, inlineCapacity)->objectAllocationProfile();
         CHECK_EXCEPTION();
-        Structure* structure = allocationProfile->structure();
-        result = constructEmptyObject(vm, structure);
-        if (structure->hasPolyProto()) {
+        if (!vm.gilOff()) [[likely]] {
+            Structure* structure = allocationProfile->structure();
+            result = constructEmptyObject(vm, structure);
+            if (structure->hasPolyProto()) {
+                JSObject* prototype = allocationProfile->prototype();
+                ASSERT(prototype == constructor->prototypeForConstruction(vm, globalObject));
+                result->putDirectOffset(vm, knownPolyProtoOffset, prototype);
+                prototype->didBecomePrototype(vm);
+                ASSERT_WITH_MESSAGE(!hasIndexedProperties(result->indexingType()), "We rely on JSFinalObject not starting out with an indexing type otherwise we would potentially need to convert to slow put storage");
+            }
+        } else {
+            // UNGIL AB18-R1-F mode split. GIL-off, the profile's
+            // (structure, prototype) pair is published by another thread as
+            // two independent stores (ObjectAllocationProfileInlines.h:
+            // m_structure.set then setPrototype, after a storeStoreFence) and
+            // FunctionRareData::clear() may null it concurrently on a lost
+            // tryLock, so this consumer can observe: a coherent pair, a
+            // mid-publish pair (structure set, prototype still null), a
+            // mid-clear pair, or a pair keyed to a stale .prototype whose
+            // clearing fire raced the publish. Snapshot both fields ONCE
+            // (the accessors consume-fence after the load, pairing with the
+            // writer's storeStoreFence, so a non-null snapshot is internally
+            // initialized), validate the snapshot against the LIVE
+            // .prototype, and on any incoherence fall back to the
+            // spec-faithful uncached path below. The GIL-on ASSERT above is
+            // guaranteed here by construction. Mono-proto staleness is the
+            // silent twin of the polyProto assert (wrong [[Prototype]], no
+            // crash), so the mono-proto arm validates the snapshot
+            // structure's stored prototype, not just the polyProto field.
+            Structure* structure = allocationProfile->structure();
             JSObject* prototype = allocationProfile->prototype();
-            ASSERT(prototype == constructor->prototypeForConstruction(vm, globalObject));
-            result->putDirectOffset(vm, knownPolyProtoOffset, prototype);
-            prototype->didBecomePrototype(vm);
-            ASSERT_WITH_MESSAGE(!hasIndexedProperties(result->indexingType()), "We rely on JSFinalObject not starting out with an indexing type otherwise we would potentially need to convert to slow put storage");
+            JSObject* expectedPrototype = constructor->prototypeForConstruction(vm, globalObject);
+            bool coherent = false;
+            if (structure) {
+                if (structure->hasPolyProto())
+                    coherent = prototype == expectedPrototype;
+                else
+                    coherent = structure->storedPrototypeObject() == expectedPrototype;
+            }
+            if (coherent) {
+                result = constructEmptyObject(vm, structure);
+                if (structure->hasPolyProto()) {
+                    result->putDirectOffset(vm, knownPolyProtoOffset, prototype);
+                    prototype->didBecomePrototype(vm);
+                    ASSERT_WITH_MESSAGE(!hasIndexedProperties(result->indexingType()), "We rely on JSFinalObject not starting out with an indexing type otherwise we would potentially need to convert to slow put storage");
+                }
+            } else {
+                // Null structure (mid-clear), mid-publish pair, or stale
+                // pair: take the uncached prototype lookup. Correct, just
+                // slower; the next initialize re-keys the profile.
+                useGenericPath = true;
+            }
         }
-    } else {
+    }
+    if (useGenericPath) {
         // https://tc39.es/ecma262/#sec-getprototypefromconstructor
         JSValue proto = constructorAsObject->get(globalObject, vm.propertyNames->prototype);
         CHECK_EXCEPTION();

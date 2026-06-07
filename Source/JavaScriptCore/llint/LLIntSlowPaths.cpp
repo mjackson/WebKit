@@ -70,6 +70,7 @@
 #include "SuperSampler.h"
 #include "VMInlines.h"
 #include "VMTrapsInlines.h"
+#include <wtf/Atomics.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/StringPrintStream.h>
 
@@ -433,6 +434,25 @@ static inline bool jitCompileAndSetHeuristics(VM& vm, CodeBlock* codeBlock)
 
     if (codeBlock->jitType() != JITType::BaselineJIT) {
         if (RefPtr<BaselineJITCode> baselineRef = codeBlock->unlinkedCodeBlock()->m_unlinkedBaselineCode) {
+            if (vm.gilOff()) [[unlikely]] {
+                // UNGIL §5.7.2 (AB18-B): this install is single-shot (setBaselineJITData asserts
+                // !m_jitData) but two mutators in the prologue/loop slow path can race it on the
+                // same linked CodeBlock. Reuse the LLIntToBaseline edge latch: only the winner
+                // installs; losers stay in LLInt and re-check soon. Re-check jitType under the
+                // latch in case the previous winner finished between our check and the CAS.
+                CodeBlock::TierUpEdgeLocker tierUpLocker(codeBlock, CodeBlock::TierUpEdge::LLIntToBaseline);
+                if (!tierUpLocker.won()) [[unlikely]] {
+                    codeBlock->jitSoon();
+                    return false;
+                }
+                if (codeBlock->jitType() != JITType::BaselineJIT) {
+                    codeBlock->setupWithUnlinkedBaselineCode(baselineRef.releaseNonNull());
+                    codeBlock->ownerExecutable()->installCode(codeBlock);
+                }
+                WTF::loadLoadFence();
+                codeBlock->jitNextInvocation();
+                return true;
+            }
             codeBlock->setupWithUnlinkedBaselineCode(baselineRef.releaseNonNull());
             codeBlock->ownerExecutable()->installCode(codeBlock);
             codeBlock->jitNextInvocation();
@@ -450,6 +470,12 @@ static inline bool jitCompileAndSetHeuristics(VM& vm, CodeBlock* codeBlock)
 
     if (codeBlock->jitType() == JITType::BaselineJIT) {
         dataLogLnIf(Options::verboseOSR(), "    Code was already compiled.");
+        // UNGIL §5.7.2 (AB18-B): acquire pairing with setupWithUnlinkedBaselineCode's
+        // jitData-before-jitCode publication (release via setJITCode's lock/fence). Returning
+        // true OSRs this thread into the baseline prologue, which loads m_jitData at a
+        // different address than m_jitCode; order that load after the jitType() observation.
+        if (vm.gilOff()) [[unlikely]]
+            WTF::loadLoadFence();
         codeBlock->jitSoon();
         return true;
     }
@@ -469,6 +495,10 @@ static inline bool jitCompileAndSetHeuristics(VM& vm, CodeBlock* codeBlock)
         }
         Ref<BaselineJITPlan> plan = adoptRef(*new BaselineJITPlan(codeBlock));
         JITWorklist::ensureGlobalWorklist().enqueue(WTF::move(plan));
+        if (vm.gilOff() && codeBlock->jitType() == JITType::BaselineJIT) [[unlikely]] {
+            WTF::loadLoadFence(); // See "already compiled" branch above.
+            return true;
+        }
         return codeBlock->jitType() == JITType::BaselineJIT;
     }
 
@@ -1309,6 +1339,19 @@ LLINT_SLOW_PATH_DECL(slow_path_put_by_id)
                         }
                     }
                 }
+            } else if (vm.gilOff() && newStructure != oldStructure) [[unlikely]] {
+                // GIL-off: a foreign thread transitioned baseCell's structure in the
+                // unlocked window between our pre-put snapshot (oldStructure, read
+                // before putInline) and the post-put re-read (newStructure). The
+                // replace itself ran against a consistent structure under the cell's
+                // own synchronization; only this caching-eligibility comparison is
+                // stale. With N mutators the equality is not an invariant, so do not
+                // assert — just skip caching. The replace/transition caches were
+                // already invalidated unconditionally above (the one all-zero-word
+                // clearLLIntIdAndOffsetPairConcurrently store per SPEC-jit §4.3,
+                // plus the m_newStructureID/m_structureChain clears), so falling
+                // through with no publish leaves the metadata in the safe empty
+                // state. Next execution simply takes the slow path again.
             } else {
                 // This assert helps catch bugs if we accidentally forget to disable caching
                 // when we transition then store to an existing property. This is common among
