@@ -3392,12 +3392,44 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
     if (!Options::useGC()) [[unlikely]]
         return;
     
+    // IT-4 review: the hint write below must stay owner-thread-only. On a
+    // shared server, an unstamped thread's didDeferGCWorkSlot() aliases the
+    // server's plain bool — a cross-thread plain-bool write GIL-off, the
+    // exact race the per-client split exists to avoid. Progress never
+    // depends on the hint (see the branch comments), so unstamped threads
+    // simply skip it.
+    auto ownsDidDeferGCWorkSlot = [&]() -> bool {
+        if (!isSharedServer()) [[likely]]
+            return true; // Single-client heap: the slot is the owning thread's own flag.
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        return client && &client->server() == this;
+    };
+
     if (mayNeedToStop()) {
         if (deferralContext)
             deferralContext->m_shouldGC = true;
         else if (isDeferred())
             didDeferGCWorkSlot() = true; // Review round 4: per-client hint once ISS (pairs with the per-client depth isDeferred() just consulted).
-        else
+        else if (currentThreadHasSTWForbiddenScope()) [[unlikely]] {
+            // IT-4 (I14/S1): an allocation inside an STW-forbidden region
+            // (e.g. the SAL held for a structure transition) reached this
+            // poll without a threaded GCDeferralContext and without an
+            // enclosing DeferGC. Parking for the stop here would hold the
+            // process-global SAL across the whole stop window (S1-S3
+            // violation; debug: the I14 assert in
+            // stopIfNecessaryForAllClients). Defer instead. Progress edge:
+            // there is NO enclosing DeferGC here (isDeferred() was false),
+            // so the hint cannot be consumed by a DeferGC unwind on this
+            // path — liveness rests on GSP staying set, so the stop is
+            // served at this thread's first post-region poll (per-lite trap
+            // word or the next allocation slow-path CIND, by which point
+            // the scope has exited and this branch no longer takes). The
+            // hint write is a best-effort accelerant for a future DeferGC
+            // unwind and is skipped when this thread does not own the slot.
+            dataLogLnIf(Options::logGC(), "[GC<", RawPointer(this), ">] IT-4: deferring stop poll inside STW-forbidden scope");
+            if (ownsDidDeferGCWorkSlot())
+                didDeferGCWorkSlot() = true;
+        } else
             stopIfNecessary();
     }
     
@@ -3456,7 +3488,15 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
         deferralContext->m_shouldGC = true;
     else if (isDeferred())
         didDeferGCWorkSlot() = true; // Review round 4: per-client hint once ISS.
-    else {
+    else if (currentThreadHasSTWForbiddenScope()) [[unlikely]] {
+        // IT-4: see the mayNeedToStop() branch above — never initiate/park
+        // inside an STW-forbidden region. Liveness does not depend on the
+        // hint: shouldRequestGC() recomputes from allocation counters at the
+        // next poll after the scope exits.
+        dataLogLnIf(Options::logGC(), "[GC<", RawPointer(this), ">] IT-4: deferring GC request inside STW-forbidden scope");
+        if (ownsDidDeferGCWorkSlot())
+            didDeferGCWorkSlot() = true;
+    } else {
         collectAsync();
         stopIfNecessary(); // This will immediately start the collection if we have the conn.
     }
@@ -4156,12 +4196,11 @@ void Heap::finalizeWasmCalleeCleanup()
 // I13: at most one sticky-shared server per process (phase 1: the main VM's heap).
 static Atomic<Heap*> s_stickySharedServer;
 
-#if ASSERT_ENABLED
 // I14: per-thread depth of STW-forbidden scopes (e.g. vmstate's
-// StructureAllocationLocker). Debug-only; release builds compile the
-// increment/decrement to no-ops.
+// StructureAllocationLocker). Release-real since IT-4: collectIfNecessaryOrDefer
+// consults it to defer stop polls / GC initiation reached inside such a region
+// (S1-S3 — a scope holder must never park for a stop while holding the SAL).
 static thread_local unsigned t_stwForbiddenScopeDepth { 0 };
-#endif
 
 bool Heap::tryDesignateStickySharedServer()
 {
@@ -5154,26 +5193,18 @@ void Heap::runStopTheWorldSafepointHooks()
 
 void Heap::incrementSTWForbiddenScope()
 {
-#if ASSERT_ENABLED
     ++t_stwForbiddenScopeDepth;
-#endif
 }
 
 void Heap::decrementSTWForbiddenScope()
 {
-#if ASSERT_ENABLED
     ASSERT(t_stwForbiddenScopeDepth);
     --t_stwForbiddenScopeDepth;
-#endif
 }
 
 bool Heap::currentThreadHasSTWForbiddenScope()
 {
-#if ASSERT_ENABLED
     return !!t_stwForbiddenScopeDepth;
-#else
-    return false;
-#endif
 }
 
 void Heap::verifyServerNonIsoAllocatorsNeverMaterialized()

@@ -506,6 +506,28 @@ public:
     template<typename VMType>
     static GCClient::Heap& allocationClientForCurrentThread(VMType& vm, GCClient::Heap& vmOriginalClient);
 
+    // IT-9 (SPEC-ungil §B / I4, JIT-codegen leg): resolve the client whose
+    // LocalAllocators a JIT compilation may BAKE into generated code
+    // (JITAllocator::constant / emitAllocateVariableSized allocator-table
+    // base). GIL-off there is NO such client: the compiled artifact is
+    // executed by EVERY lite of the VM, and DFG/FTL worklist threads are
+    // unstamped, so return null (NULLABLE — every consumer must null-check) —
+    // emission then bakes an empty Allocator and every inline allocation
+    // takes the slow path, which re-dispatches per-thread through
+    // allocationClientForCurrentThread at run time. Never consults the
+    // §10A.1 TLS slot, so it is safe on unstamped compiler threads (no
+    // access-owner tripwire to trip). GIL-on/flag-off returns
+    // &vmOriginalClient — today's behavior, byte-identical codegen
+    // (golden-disasm gates unaffected). Interim until U-T7 §B.4 item (1)
+    // (lite-relative TLC/iso emission) lands; see VMLite.cpp OPEN list.
+    // NOTE: intentionally UNREFERENCED this round — the consuming edits
+    // (static iso accessors in VM.h need a mode-aware, pointer-returning
+    // Concurrently variant; iso subspaceFor overloads drop the mode) are a
+    // separate change set; do NOT delete as dead code. IT-9 stays open
+    // (Heap.h:1804 tripwire still reachable) until those consumers land.
+    template<typename VMType>
+    static GCClient::Heap* allocationClientForJITCodegen(VMType& vm, GCClient::Heap& vmOriginalClient);
+
     // GSP (F8): read-only view of the stop-pending flag; seq_cst.
     bool gcStopPendingForAllClients() const { return m_gcStopPending.load(std::memory_order_seq_cst); }
 
@@ -1804,6 +1826,22 @@ ALWAYS_INLINE GCClient::Heap& Heap::allocationClientForCurrentThread(VMType& vm,
             || vmOriginalClient.m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton());
     }
     return vmOriginalClient;
+}
+
+// IT-9: codegen-mode client resolver; see the declaration comment above.
+template<typename VMType>
+ALWAYS_INLINE GCClient::Heap* Heap::allocationClientForJITCodegen(VMType& vm, GCClient::Heap& vmOriginalClient)
+{
+    static_assert(std::is_same_v<VMType, VM>, "templated solely to defer instantiation until VM is complete");
+    ASSERT(&vmOriginalClient.server() == &vm.heap);
+    if (vm.gilOff()) [[unlikely]] {
+        // Even a STAMPED caller (synchronous baseline compile on a lite)
+        // must not hand its own client to codegen: I11 covers EXECUTION of
+        // generated code on the owning thread, not constants baked into an
+        // artifact that other lites execute. No client is correct GIL-off.
+        return nullptr;
+    }
+    return &vmOriginalClient;
 }
 
 ALWAYS_INLINE MutatorState Heap::mutatorState() const

@@ -60,7 +60,19 @@ RegExp* RegExpCache::lookupOrCreate(VM& vm, const String& patternString, OptionS
 #endif
 
     {
+        // Two threads can both miss the first lookup, both create a RegExp
+        // for the same key, and race to insert. The miss-then-add is not
+        // atomic (the lock is dropped across RegExp::createWithoutCaching
+        // because allocation can GC and run finalizers that take m_lock).
+        // Re-check under the lock and return the winner; the loser's freshly
+        // created RegExp is unreferenced by the cache and is simply collected.
+        // Note: m_weakCache.get() returns nullptr for zombie entries (a Weak
+        // cleared by GC whose finalizer has not yet run), and weakAdd's
+        // map.set() already tolerates overwriting a zombie, so that case
+        // falls through to the existing add path unchanged.
         Locker locker { m_lock };
+        if (RegExp* winner = m_weakCache.get(key))
+            return winner;
         weakAdd(m_weakCache, key, Weak<RegExp>(regExp, this));
         return regExp;
     }

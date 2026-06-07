@@ -42,10 +42,75 @@
 #include "ParserError.h"
 #include "ProgramCodeBlock.h"
 #include "VMInlines.h"
+#include "VMTraps.h"
+#include <wtf/Atomics.h>
+#include <wtf/RecursiveLockAdapter.h>
+#include <wtf/Threading.h>
 
 namespace JSC {
 
 const ClassInfo ScriptExecutable::s_info = { "ScriptExecutable"_s, &ExecutableBase::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(ScriptExecutable) };
+
+// UNGIL IT-8 (concurrent compilation/replacement): GIL-off lites of one VM
+// share Executables, UnlinkedCodeBlocks and installed CodeBlocks, but
+// CodeBlock creation/installation and tier-up finalization were written for a
+// single mutator. Bring-up-grade serialization: one process-wide recursive
+// lock, taken only under vm.gilOffWithProcessGate() (flag-off cost is one
+// predicted-untaken branch at compilation-rate sites — not transition-rate, so
+// bench-gate rung (iii) is unaffected either way). Recursive because
+// prepareForExecutionImpl holds it across its installCode call and
+// DFG::Plan::finalize holds it across the callback's installCode. Per the
+// VM.h sticky-shared-server comment there is at most one gilOff VM per
+// process, so the process-wide lock couples no GIL-on workers. Replace with
+// per-Executable striping / install-CAS once GIL-off is accepted.
+//
+// Declared locally (not in a header) by bytecompiler/BytecodeGenerator.cpp and
+// dfg/DFGPlan.cpp; keep the three declarations in sync.
+RecursiveLock& gilOffCompilationLock()
+{
+    static RecursiveLock lock;
+    return lock;
+}
+
+namespace {
+
+// Stop-protocol-safe acquisition (W1/D9 convention, AB-17 status block in
+// VMEntryScope.cpp): a lite blocked in a raw lock() is invisible to the
+// GIL-off per-lite stop fan. If the lock holder parks at a safepoint inside
+// the locked region while we block raw, the collector waits on us forever and
+// the holder never resumes — deadlock. So contended acquisition spins on
+// tryLock() and services ONLY NeedStopTheWorld between attempts: that parks
+// us for the stop cycle (keeping the stop fan live) and can neither throw nor
+// run JS, so it is safe at every call site including jettison-driven
+// installCode, where throwing is not allowed.
+class GILOffCompilationLocker {
+    WTF_MAKE_NONCOPYABLE(GILOffCompilationLocker);
+public:
+    GILOffCompilationLocker(VM& vm, bool shouldLock)
+        : m_shouldLock(shouldLock)
+    {
+        if (!m_shouldLock) [[likely]]
+            return;
+        RecursiveLock& lock = gilOffCompilationLock();
+        if (lock.tryLock()) [[likely]]
+            return;
+        while (!lock.tryLock()) {
+            handleTrapsForCurrentThreadIfNeeded(vm, VMTraps::NeedStopTheWorld);
+            Thread::yield();
+        }
+    }
+
+    ~GILOffCompilationLocker()
+    {
+        if (m_shouldLock) [[unlikely]]
+            gilOffCompilationLock().unlock();
+    }
+
+private:
+    bool m_shouldLock;
+};
+
+} // anonymous namespace
 
 ScriptExecutable::ScriptExecutable(Structure* structure, VM& vm, const SourceCode& source, LexicallyScopedFeatures lexicallyScopedFeatures, DerivedContextType derivedContextType, bool isInArrowFunctionContext, bool isInsideOrdinaryFunction, EvalContextType evalContextType, Intrinsic intrinsic)
     : ExecutableBase(vm, structure)
@@ -120,6 +185,24 @@ void ScriptExecutable::installCode(CodeBlock* codeBlock)
 
 void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType codeType, CodeSpecializationKind kind, Profiler::JettisonReason reason)
 {
+    // UNGIL IT-8 (R1a/R1c): installs arrive from any lite (mutator-side
+    // jettison, worklist drain via DFG::Plan::finalize's callback,
+    // prepareForExecutionImpl); the m_codeBlock* / m_jitCodeFor* store
+    // sequence must not interleave with a sibling's install, nor with a
+    // sibling reading these fields under the same lock in
+    // prepareForExecutionImpl. Deliberately NOT locked:
+    //  - JettisonDueToWeakReference / JettisonDueToOldAge: GC-end installs
+    //    (Heap finalizeUnconditionalFinalizers -> CodeBlock::
+    //    finalizeUnconditionally -> jettison) run in collector context with
+    //    mutators suspended — already race-free, and acquiring here while a
+    //    suspended mutator holds the lock would deadlock the collection.
+    //  - any world-stopped context, same argument.
+    // Recursive lock: the nested acquisition from prepareForExecutionImpl /
+    // Plan::finalize is a cheap re-acquire.
+    bool isGCDrivenInstall = reason == Profiler::JettisonReason::JettisonDueToWeakReference
+        || reason == Profiler::JettisonReason::JettisonDueToOldAge;
+    GILOffCompilationLocker compilationLocker(vm, vm.gilOffWithProcessGate() && !isGCDrivenInstall && !vm.heap.worldIsStopped());
+
     if (genericCodeBlock) {
         CODEBLOCK_LOG_EVENT(genericCodeBlock, "installCode", ());
         switch (reason) {
@@ -133,9 +216,32 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
             break;
         }
     }
-    
+
+    // UNGIL IT-8 (R1c, clear direction): the lock-free fast gate
+    // (ScriptExecutable::prepareForExecution in CodeBlock.h: hasJITCodeFor
+    // then codeBlockFor, plain loads) and call-link reads of m_jitCodeFor*
+    // never take the compilation lock, so field-store ORDER is the only
+    // writer-side guarantee we can give them. On clear, retract the gating
+    // jit-code pointer FIRST (before replaceCodeBlockWith clears the
+    // CodeBlock pointer below), so a sibling that still observes a non-null
+    // jit-code pointer also still observes the matching CodeBlock. The
+    // switch(kind) further down stores nullptr again — harmless.
+    if (!genericCodeBlock && vm.gilOffWithProcessGate()) [[unlikely]] {
+        switch (kind) {
+        case CodeSpecializationKind::CodeForCall:
+            m_jitCodeForCall = nullptr;
+            m_jitCodeForCallWithArityCheck = nullptr;
+            break;
+        case CodeSpecializationKind::CodeForConstruct:
+            m_jitCodeForConstruct = nullptr;
+            m_jitCodeForConstructWithArityCheck = nullptr;
+            break;
+        }
+        WTF::storeStoreFence();
+    }
+
     CodeBlock* oldCodeBlock = nullptr;
-    
+
     switch (codeType) {
     case GlobalCode: {
         ProgramExecutable* executable = uncheckedDowncast<ProgramExecutable>(this);
@@ -175,6 +281,19 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
         break;
     }
     }
+
+    // UNGIL IT-8 (R1c, install direction): publish the CodeBlock pointer
+    // stores above strictly BEFORE the jit-code pointer that gates the
+    // lock-free fast path, so a sibling that observes a non-null jit-code
+    // pointer observes the matching CodeBlock. KNOWN RESIDUAL: this is a
+    // writer-side fence only; the fast-path reader does two independent plain
+    // loads (hasJITCodeFor then codeBlockFor) with no acquire/dependency
+    // ordering, so ARM64 load-load reordering can still pair a fresh jit-code
+    // observation with a stale CodeBlock read. Closing that requires a
+    // CodeBlock.h reader-side change (out of this change's scope) — recorded
+    // for the next IT-8 round.
+    if (genericCodeBlock && vm.gilOffWithProcessGate()) [[unlikely]]
+        WTF::storeStoreFence();
 
     switch (kind) {
     case CodeSpecializationKind::CodeForCall:
@@ -394,6 +513,34 @@ void ScriptExecutable::prepareForExecutionImpl(VM& vm, JSFunction* function, JSS
     if (vm.getAndClearFailNextNewCodeBlock()) [[unlikely]] {
         JSGlobalObject* globalObject = scope->realm();
         throwException(globalObject, throwScope, createError(globalObject, "Forced Failure"_s));
+        return;
+    }
+
+    // UNGIL IT-8 (R1): the caller's hasJITCodeFor() gate (CodeBlock.h
+    // prepareForExecution) runs BEFORE this lock, so a sibling lite may have
+    // generated and installed this executable's code while we waited. Adopt
+    // the installed CodeBlock instead of re-generating: the re-generation
+    // path RELEASE_ASSERTs !codeBlockFor(kind) (newCodeBlockFor) and would
+    // clobber a CodeBlock the sibling is already running. Ordering notes:
+    //  - lock taken AFTER DeferGCForAWhile, so the locked region cannot
+    //    trigger a collection at its own allocation sites;
+    //  - the failNextNewCodeBlock test-flag check stays ABOVE the lock and
+    //    the adopt path, preserving its flag-off/GIL-on semantics (the flag
+    //    is consumed only when this thread would actually create a new
+    //    CodeBlock — an adopting thread leaves it armed).
+    GILOffCompilationLocker compilationLocker(vm, vm.gilOffWithProcessGate());
+    if (vm.gilOffWithProcessGate() && hasJITCodeFor(kind)) [[unlikely]] {
+        if (classInfo() == FunctionExecutable::info())
+            resultCodeBlock = uncheckedDowncast<FunctionExecutable>(this)->codeBlockFor(kind);
+        else if (classInfo() == EvalExecutable::info())
+            resultCodeBlock = uncheckedDowncast<EvalExecutable>(this)->codeBlock();
+        else if (classInfo() == ProgramExecutable::info())
+            resultCodeBlock = uncheckedDowncast<ProgramExecutable>(this)->codeBlock();
+        else {
+            RELEASE_ASSERT(classInfo() == ModuleProgramExecutable::info());
+            resultCodeBlock = uncheckedDowncast<ModuleProgramExecutable>(this)->codeBlock();
+        }
+        RELEASE_ASSERT(resultCodeBlock);
         return;
     }
 

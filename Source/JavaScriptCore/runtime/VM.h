@@ -1599,6 +1599,52 @@ private:
     // an L2 VMLite tail append, NOT part of the frozen VMLitePrimitives
     // ABI). Until it lands, EXCEPTION_SCOPE_VERIFICATION builds are not
     // N-mutator-safe GIL-off — dark today.
+    //
+    // IT-1 review round (obligation 10 apply attempt): REJECTED 1/3 — do
+    // NOT flip this block's status without the conditions below. The race
+    // itself is confirmed real: ExceptionScope's ctor/dtor push/pop one
+    // VM-shared m_topExceptionScope word, so a spawned lite's scope links
+    // m_previousScope into the carrier's stack; the carrier's pop unlinks
+    // the spawned scope (chain unwinds to null -> the
+    // TopExceptionScope.cpp RELEASE_ASSERT variant) and leaves the spawned
+    // ~ThrowScope dereferencing a popped, ASAN-poisoned frame via
+    // ExceptionScope::stackPosition() (the deterministic GIL-off
+    // stack-use-after-return; VMEntryScope.cpp status item (i)). The
+    // transmitted diff, however, was truncated and covered only
+    // VM.h/VMLite.h; landing it would have broken EVERY Debug/ASAN build
+    // (ENABLE(EXCEPTION_SCOPE_VERIFICATION) = ASSERT || ASAN).
+    //
+    // Resubmission must be ONE complete change: group3Primitives()-style
+    // mode-split accessor (GIL-on / second-VM U0b alias to this block;
+    // gilOff lites use an L2 tail append on VMLite AFTER threadContext —
+    // debug-only, NOT part of the frozen VMLitePrimitives ABI, no
+    // generated-code offset moves) rerouting ALL raw-member sites:
+    //   - ExceptionScope.cpp ctor/dtor (the race site itself);
+    //   - ThrowScope.cpp simulateThrow + dtor verification;
+    //   - TopExceptionScope.cpp RELEASE_ASSERT;
+    //   - VM.cpp throwException capture, verifyExceptionCheckNeedIsSatisfied,
+    //     clearNativeStackTraceOfLastThrow;
+    //   - LockObject.cpp/.h GILParkSavedExecutionState save/clear/restore
+    //     (GIL-on arm only — GIL-off carrier takes the §J.2 early-return;
+    //     the split makes §J.2's "per-lite words" premise true, so also
+    //     fix the now-stale LockObject.cpp rationale comment near the
+    //     park-site predicate);
+    //   - VM.h getters (nativeStackTraceOfLastThrow/throwingThread/
+    //     needExceptionCheck), exception() const, clearException().
+    // Required at landing: ASSERT in the accessor's GIL-off fallback arm
+    // (no current lite, or lite->vm != this) that the thread is the
+    // carrier or holds m_lock — otherwise a future non-mutator scope user
+    // silently reopens the shared-word race; and note that a scope whose
+    // lifetime straddles a t_currentVMLite install/uninstall resolves
+    // DIFFERENT storage in ctor vs dtor (linked-list write-back is not
+    // idempotent, unlike the group3Primitives precedent) — keep scopes
+    // strictly inside a stable (thread, lite) window.
+    // Acceptance gate: clean Debug/ASAN build (the rename turns any missed
+    // site into a compile error) + the pinned GIL-off smoke command +
+    // ta-wait-thread-gate.js. Release smoke red/green does NOT count
+    // against this item — VMEntryScope.cpp status items (ii)/(iii) are
+    // separate legs. (Also: the proposal's file list named CatchScope.cpp,
+    // which does not exist in this tree — correct the list on resubmit.)
     ExceptionScope* m_topExceptionScope { nullptr };
     ExceptionEventLocation m_simulatedThrowPointLocation;
     unsigned m_simulatedThrowPointRecursionDepth { 0 };

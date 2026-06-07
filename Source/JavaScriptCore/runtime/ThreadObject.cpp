@@ -50,6 +50,7 @@
 #include "TypedArrayType.h"
 #include "VMLite.h"
 #include "VMLiteShared.h"
+#include <wtf/MainThread.h>
 #include <wtf/StackAllocation.h>
 
 namespace JSC {
@@ -480,6 +481,36 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
             vm.setHasTerminationRequest();
             vm.throwTerminationException();
             return { };
+        }
+
+        // GIL-off realization of the SPEC-api 4.6.1 / 4.6-4 "who drains"
+        // contract: under the GIL the joinee's completion sequence drained
+        // the single shared VM queue (ThreadObject.cpp fn-return tail), so a
+        // reaction the joiner queued before parking had run by the time
+        // join() observed completion. GIL-off that job sits on the
+        // joiner-owned queue — per-lite for spawned joiners, the VM default
+        // queue under the main-carrier key for a main-thread joiner (E.1b
+        // rule 1: settling-thread enqueue; the U-T9 VM::queueMicrotask
+        // reroute) — and the joinee may not touch it (I11, SD2
+        // own-queues-only, SD17 no adoption). Drain it HERE — after the
+        // GILDroppedSection closed (D11 holds: no drain inside the park) and
+        // completion was observed, back under this thread's token, before
+        // join() returns. The joinee sampled its result at fn-return, so
+        // this cannot perturb the value join() reports. drainMicrotasks
+        // reroutes to the CURRENT lite's queue, so this is I11-clean for
+        // spawned joiners too. A pending termination raised by a drained job
+        // propagates like any other host-call exit. If a
+        // drainMicrotaskDelayScope is active the drain is a silent no-op,
+        // degrading to pre-fix behavior (jobs run at the natural turn
+        // boundary instead). The gate mirrors the AB-25 main-carrier
+        // condition: a GIL-off non-main embedder joiner with no current lite
+        // must NOT fall through into the default-queue body and drain the
+        // main carrier's unlocked Deque from a foreign thread (the sibling
+        // VM::queueMicrotask fail-stops on that shape; drainMicrotasks has
+        // no such guard).
+        if (vm.gilOff() && (WTF::isMainThread() || (VMLite::currentIfExists() && VMLite::currentIfExists()->vm == &vm))) {
+            vm.drainMicrotasks();
+            RETURN_IF_EXCEPTION(scope, { });
         }
     }
 
