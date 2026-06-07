@@ -3012,7 +3012,16 @@ JSC_DEFINE_JIT_OPERATION(operationHandleTraps, UnusedPtr, (JSGlobalObject* globa
     auto scope = DECLARE_THROW_SCOPE(vm);
     // UNGIL §A.2.2 item 3b (AB-17): GIL-off dispatch services the current
     // lite's instance too. GIL-on: the landed unconditional form.
-    if (vm.gilOff()) [[unlikely]]
+    // AB18-G / Bench item I3: gate via gilOffWithProcessGate() rather than the
+    // raw m_gilOff load — m_gilOff shares a VM cache line with the
+    // concurrently fetch_or'd m_entryScopeServicesRawBits, so a flag-off
+    // mutator's load here can take a cross-core coherence miss after a
+    // collector/watchdog RFO (performance-only false sharing; m_gilOff is
+    // immutable post-ctor). The gate reads only the frozen read-only Config
+    // page and returns exactly m_gilOff in every reachable state (equivalence
+    // proof obligations beside its definition in VM.h), so this is
+    // behavior-identical in all modes.
+    if (vm.gilOffWithProcessGate()) [[unlikely]]
         handleTrapsForCurrentThreadIfNeeded(vm);
     else {
         ASSERT(vm.traps().needHandling(VMTraps::AsyncEvents));
@@ -3151,7 +3160,16 @@ JSC_DEFINE_JIT_OPERATION(operationOptimize, UGPRPair, (VM* vmPointer, uint32_t b
         // "Compiling implies no replacement" does not hold; if a replacement is already
         // installed, treat this exactly like the Compiled state and fall through to the
         // OSR-consideration paths below.
-        if (vm.gilOff() && codeBlock->hasOptimizedReplacement()) [[unlikely]] {
+        // AB18-G / Bench item I3: hasOptimizedReplacement() is evaluated first so
+        // the flag-off path never touches the contended VM cache line holding
+        // m_gilOff (shared with the fetch_or'd m_entryScopeServicesRawBits), and
+        // the gilOff term uses the Config-page gate (gilOffWithProcessGate() ==
+        // m_gilOff in every reachable state; proof in VM.h). The reorder is sound:
+        // both operands are side-effect-free reads, and GIL-on already evaluates
+        // hasOptimizedReplacement() unconditionally in the RELEASE_ASSERT below,
+        // so the reachable assert states are unchanged in both modes — the swap
+        // only changes which cheap read short-circuits.
+        if (codeBlock->hasOptimizedReplacement() && vm.gilOffWithProcessGate()) [[unlikely]] {
             CODEBLOCK_LOG_EVENT(codeBlock, "delayOptimizeToDFG", ("compiling, but another mutator installed the replacement; treating as compiled"));
             worklistState = JITWorklist::Compiled;
         } else {
@@ -3160,7 +3178,10 @@ JSC_DEFINE_JIT_OPERATION(operationOptimize, UGPRPair, (VM* vmPointer, uint32_t b
             // optimized replacement. GIL-off the replacement can still appear in the window
             // after the check above; setOptimizationThresholdBasedOnCompilationResult's
             // Deferred-with-replacement tolerance (CodeBlock.cpp) absorbs that.
-            RELEASE_ASSERT(vm.gilOff() || !codeBlock->hasOptimizedReplacement());
+            // gilOffWithProcessGate() here for the same off-the-contended-line
+            // reason; equal-or-stricter is safe because gate-false while
+            // m_gilOff-true is statically impossible (see VM.h proof).
+            RELEASE_ASSERT(vm.gilOffWithProcessGate() || !codeBlock->hasOptimizedReplacement());
             codeBlock->setOptimizationThresholdBasedOnCompilationResult(CompilationResult::CompilationDeferred);
             OPERATION_RETURN(scope, encodeResult(nullptr, nullptr));
         }

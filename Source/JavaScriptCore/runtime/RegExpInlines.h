@@ -137,6 +137,10 @@ ALWAYS_INLINE int RegExp::matchInline(JSGlobalObject* nullOrGlobalObject, VM& vm
         return throwError();
 
     ASSERT(ovector.size() >= static_cast<size_t>(offsetVectorSize()));
+    // AUD1.N2: GIL-off, the cell-resident m_ovector must never be a match
+    // target on any inlined entry path (JIT thunks included) — they are
+    // covered by ovectorSpan(VM&) routing at their span origin.
+    ASSERT(!vm.gilOff() || ovector.empty() || ovector.data() != m_ovector.mutableSpan().data());
     int* offsetVector = ovector.data();
 
     if constexpr (matchFrom == Yarr::MatchFrom::VMThread) {

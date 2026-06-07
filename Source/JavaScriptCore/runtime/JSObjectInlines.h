@@ -870,7 +870,10 @@ inline bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Structure* expect
                 if (newButterfly)
                     nukeStructureAndSetButterfly(vm, sourceID, newButterfly);
                 if (offset != invalidOffset) { // invalidOffset = structure-only reshape (attribute change): no value store.
-                    ASSERT(!getDirect(offset) || !JSValue::encode(getDirect(offset)));
+                    // Flag-on, a quarantine-promoted deleted slot holds the
+                    // D1 jsUndefined() store (I30), not EMPTY — accept both;
+                    // anything else is still a real lost/aliased add.
+                    ASSERT(!getDirect(offset) || !JSValue::encode(getDirect(offset)) || getDirect(offset).isUndefined());
                     putDirectOffset(vm, offset, value);
                 }
                 setStructure(vm, newStructure);
@@ -978,7 +981,9 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
                                 growOutOfLineStorageForConcurrentLockedAdd(vm, structureID, structure, newMaxOffset, oldOutOfLineCapacity, newOutOfLineCapacity);
                             else
                                 structure->setMaxOffset(vm, newMaxOffset);
-                            ASSERT_UNUSED(offset, !getDirect(offset) || !JSValue::encode(getDirect(offset)));
+                            // I30: reused quarantine-promoted slots hold the
+                            // D1 jsUndefined() store flag-on, not EMPTY.
+                            ASSERT_UNUSED(offset, !getDirect(offset) || !JSValue::encode(getDirect(offset)) || getDirect(offset).isUndefined());
                         });
                         if (!isAdded && mode == PutModePut && (attributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor)) [[unlikely]]
                             readonlyError = true;
@@ -1128,10 +1133,52 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
                 && !butterflySharedWrite(word) && butterflyWriterIsForeign(word)) // incl. §9.6 forceButterflySWBit
                 ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
         }
+
+        if (jsThreads) [[unlikely]] {
+            // I18/I30 staleness guard (same pattern as the round-4
+            // dictionary-delete fix in JSObject.cpp): `offset` was resolved at
+            // the line above through the m_lock-holding getConcurrently
+            // routing, and the SW-bit publication just above can take a
+            // per-event stop — both are safepoints a parked/stopped writer
+            // crosses with `offset` in hand. While we were parked, a racing
+            // delete can retire this property (offset quarantined, D1
+            // undefined stored), a safepoint can PROMOTE the quarantined
+            // offset, and a racing add can reuse it for a DIFFERENT property.
+            // Storing through the stale offset would clobber the new
+            // property's value (lost add / type confusion downstream) and
+            // fire replacement watchpoints against the wrong shape. This
+            // applies to INLINE offsets too — the getConcurrently park
+            // precedes both flavors and inline deleted offsets are
+            // quarantined/reused the same way — so the recheck is
+            // unconditional. Re-validate the structureID snapshot directly
+            // before the store: between this load and putDirectOffset there
+            // is no park, poll, lock, or allocation (straight-line code), and
+            // quarantine promotion requires every mutator to cross a
+            // safepoint, so no reuse can complete inside the recheck->store
+            // window. The local `structure` pointer pins the snapshot against
+            // ID recycling (conservative scan), non-dictionary tables are
+            // never edited in place, and a nuked ID fails the == and
+            // RESTARTs — so an unchanged structureID proves `offset` still
+            // names this property. The recheck sits after ensureSharedWriteBit
+            // (which can stop) and BEFORE didReplaceProperty (which can fire
+            // rank-6b watchpoints and park); flag-on, didReplaceProperty moves
+            // AFTER the validated store so nothing parkable separates the
+            // recheck from the store. NOTE: the baseline/DFG/FTL PutById
+            // replace ICs are unaffected — their inline structure-check ->
+            // store sequence has no safepoint between check and store; this
+            // runtime leg was the only unguarded replace path.
+            if (this->structureID() != structureID)
+                continue; // RESTART from a fresh structureID/tag (§2); offset/attributes re-derive at loop top.
+            putDirectOffset(vm, offset, value);
+            structure->didReplaceProperty(offset);
+        } else {
 #endif
 
         structure->didReplaceProperty(offset);
         putDirectOffset(vm, offset, value);
+#if USE(JSVALUE64)
+        }
+#endif
 
         // FIXME: Check attributes against PropertyAttribute::CustomAccessorOrValue. Changing GetterSetter should work w/o transition.
         // https://bugs.webkit.org/show_bug.cgi?id=214342

@@ -38,6 +38,13 @@
 
 namespace JSC {
 
+// UNGIL §A.3 (U-T5) cross-TU seams — defined in runtime/VMManager.cpp;
+// declaration pattern matches heap/Heap.cpp:151 and
+// bytecode/JSThreadsSafepoint.cpp:71/77 (VMManager.h is outside the writable
+// file set). Signatures must stay byte-identical.
+bool jsThreadsThreadGranularWorldIsStopped(); // §A.3.2 post-quiescence depth.
+bool jsThreadsCurrentThreadIsStopConductor(); // §A.3.3 tenure check.
+
 #if ASSERT_ENABLED
 // SharedGC (§5.2(4)): stop/resume/prepare/teardown may mutate an allocator's
 // FreeList/current block only while the world is stopped for all clients
@@ -50,7 +57,20 @@ static void assertSharedAllocatorMutationIsSafe(BlockDirectory* directory)
     JSC::Heap& heap = directory->markedSpace().heap();
     if (!heap.isSharedServer())
         return;
-    ASSERT(heap.worldIsStoppedForAllClients() || heap.mutatorSlowPathLock().isHeld());
+    // AB18-D (V3, jit/int-gate-epoch-reclaim): a §A.3 thread-granular
+    // JSThreads stop (jsThreadsThreadGranularStopTheWorldAndRun) is a stopped
+    // world for allocator purposes — its §A.3.2 predicate parks every entered
+    // mutator at a poll site, all of which sit OUTSIDE MSPL sections and BVL
+    // holds (see allocateSlowCase's "never inside the lock" rule), and its
+    // JSThreadsStopScope GCL bracket + STW-forbidden counter exclude any
+    // shared GC — but it publishes neither heap witness (WSAC stays false;
+    // no MSPL is taken). Accept the window's CONDUCTOR thread only, and only
+    // once the §A.3.2 predicate is satisfied (s_jsThreadsWorldStoppedDepth is
+    // bumped post-quiescence, after the access re-acquire) — the same
+    // conductor-exemption shape as Heap.cpp:5781 and notifyVMStop's park leg
+    // — so a pre-quiescence conductor touch or any non-conductor thread
+    // mutating mid-window still trips.
+    ASSERT(heap.worldIsStoppedForAllClients() || heap.mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
 }
 #endif
 

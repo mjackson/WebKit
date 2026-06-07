@@ -2334,7 +2334,29 @@ void CodeBlock::unlinkOrUpgradeIncomingCalls(VM& vm, CodeBlock* newCodeBlock)
 {
 IGNORE_GCC_WARNINGS_BEGIN("dangling-pointer")
     SentinelLinkedList<CallLinkInfoBase, BasicRawSentinelNode<CallLinkInfoBase>> toBeRemoved;
-    toBeRemoved.takeFrom(m_incomingCalls);
+    if (vm.gilOff()) [[unlikely]] {
+        // AB18-C: m_incomingCalls is pushed by the Repatch.cpp linkers
+        // (linkMonomorphicCall / linkDirectCall / linkPolymorphicCallImpl)
+        // under CallLinkInfo::s_callLinkSerializationLock (precondition 11),
+        // and the per-node unlinkOrUpgradeImpl drains under the SAME lock —
+        // but this takeFrom() rewired every node's prev/next OUTSIDE it. The
+        // two live-mutator callers (ScriptExecutable::installCode tier-up
+        // drain, and the destructor drain on a lazy-sweep mutator) therefore
+        // race the locked pushes: SentinelLinkedList corruption, or a node
+        // silently dropped from both lists so its published call record is
+        // never unlinked and outlives the code it targets. Take the lock for
+        // the takeFrom ONLY and release before the drain loop: each
+        // unlinkOrUpgrade() re-acquires the same non-recursive lock
+        // (CallLinkInfo.cpp:225,784). Nodes parked in toBeRemoved stay
+        // isOnList(), so the linkers' locked isOnList() re-check still
+        // prevents a double push in the window between takeFrom and drain.
+        // The jettison caller runs world-stopped; the lock is uncontended
+        // there because link-lock holders never park at a safepoint (the
+        // invariant already recorded at unlinkOrUpgradeImpl).
+        Locker locker { CallLinkInfo::s_callLinkSerializationLock };
+        toBeRemoved.takeFrom(m_incomingCalls);
+    } else
+        toBeRemoved.takeFrom(m_incomingCalls);
 
     // Note that upgrade may relink CallLinkInfo into newCodeBlock, and it is possible that |this| and newCodeBlock are the same.
     // This happens when newCodeBlock is installed by upgrading LLInt to Baseline. In that case, |this|'s m_incomingCalls will

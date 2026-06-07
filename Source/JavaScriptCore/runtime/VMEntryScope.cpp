@@ -285,6 +285,43 @@ void VMEntryScope::setUpSlow()
         //      class as the round-4 item-(2) exonerated m_gilOff branches;
         //      rung (iii) remains OPEN and blocked on a quiet host per
         //      round-4 item (3) — do not record it green without that run.
+        //
+        // AB18-G disposition (V5 bench worsening; reviewed 3/3):
+        //  (1) The two failing V5 gates were PROTOCOL-INVALID: --runs 5 vs
+        //      the bench-gate.sh default 9, on this shared load ~8-12 host
+        //      whose documented noise envelope (round-4 item (3): 35%
+        //      single-binary spread; +7.9%/+11.8% source-identical rebuild)
+        //      strictly contains the reported +4.18%/+6.35%. The
+        //      WORSE-than-+1.78% claim is superseded as protocol-invalid,
+        //      not as measured-and-closed. V5/AB18-G must NOT be recorded
+        //      green on this argument or on the code edits below alone;
+        //      closure requires actually running the round-4-mandated
+        //      interleaved A/B (taskset on an isolated core, loadavg < 1
+        //      checked first, >= 15 runs, baseline and candidate alternated
+        //      B,C,B,C in ONE session) and appending the numbers here. Do
+        //      not re-record baseline.json from this host/session.
+        //  (2) Code change (JITOperations.cpp operationHandleTraps /
+        //      operationOptimize + its companion RELEASE_ASSERT): the last
+        //      raw vm.gilOff() loads in that file now use
+        //      gilOffWithProcessGate(), and the operationOptimize
+        //      conjunction is reordered so flag-off never touches the
+        //      m_gilOff line (Bench item I3 false sharing with the
+        //      fetch_or'd m_entryScopeServicesRawBits). These edits SHRINK
+        //      the I3 window at two cold sites (traps fire rarely; tier-up
+        //      is warmup-only) and do NOT close it: a real GIL-off process
+        //      still loads m_gilOff from the contended line, and other
+        //      readers of that VM member cluster still take the coherence
+        //      miss. Structural closure is a FOLLOW-UP, only after the
+        //      interleaved A/B proves an attributable delta: isolate
+        //      m_entryScopeServicesRawBits on its own cache line
+        //      (alignas/padding) or relocate immutable m_gilOff into a
+        //      read-mostly cluster.
+        //  (3) If the interleaved A/B still shows a reproducible delta,
+        //      AB18-G stays open and the next proposal is the out-of-scope
+        //      residual: hoisting one group3Primitives() materialization
+        //      per JIT operation in FrameTracers.h / the
+        //      RETURN_IF_EXCEPTION flag-off expansion — not more edits to
+        //      the two files scoped here.
         constexpr bool perLiteSoftStackLimitRerouteLanded = true; // COMPLETE §A.2.2 reroute landed (AB-17; this change).
         bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 landed: false for gilOff lites.
         if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {

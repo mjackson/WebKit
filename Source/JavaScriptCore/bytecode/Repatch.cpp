@@ -633,6 +633,45 @@ static InlineCacheAction tryCacheGetBy(JSGlobalObject* globalObject, CodeBlock* 
             if (action != AttemptToCache)
                 return action;
 
+            if (vm.gilOff() && !slot.isUnset() && (slot.isCacheableValue() || slot.isCacheableGetter())) [[unlikely]] {
+                // OM-1 (gilOff() mode-split) — GetBy analog of the
+                // tryCachePutBy Replace/Setter revalidation: the slow-path
+                // operation filled `slot` {slotBase, cachedOffset} DURING
+                // getOwnPropertySlot, but the guarding structure is read NOW.
+                // GIL-off, another mutator can transition base or the holder
+                // between those points (delete / dictionary flatten shift
+                // named offsets), so publishing (structure-now, offset-then)
+                // keys an IC that loads a sibling slot on every future hit
+                // (named-property corruption), or treats a data slot as a
+                // GetterSetter and calls through a non-callable cell. Bind
+                // the offset to the structure the IC will actually be keyed
+                // on: for self access that is `structure` itself (its
+                // uid->offset table is immutable for non-dictionaries, so
+                // this hard-closes the tear including A->B->A); for proto
+                // hits it is the holder's current structure, which is also
+                // what generateConditionsForPrototypePropertyHit asserts
+                // against. getConcurrently is the structure-lock walk; the
+                // codeBlock-lock -> structure-lock order here is the existing
+                // concurrent-JIT order (same as the landed PutBy OM-1 guard).
+                // Require the entry's kind to match the slot's. Cacheable
+                // dictionaries mutate their table in place under the same
+                // structureID, invisible to the IC guard; refuse those.
+                JSObject* slotBaseObject = slot.slotBase();
+                if (!slotBaseObject)
+                    return RetryCacheLater;
+                Structure* validationStructure = slot.slotBase() == baseValue ? structure : slotBaseObject->structure();
+                if (validationStructure->isDictionary())
+                    return RetryCacheLater;
+                unsigned attributes;
+                PropertyOffset tableOffset = validationStructure->getConcurrently(propertyName.uid(), attributes);
+                if (tableOffset != slot.cachedOffset())
+                    return RetryCacheLater;
+                if (slot.isCacheableGetter() != !!(attributes & PropertyAttribute::Accessor))
+                    return RetryCacheLater;
+                if (attributes & PropertyAttribute::CustomAccessorOrValue)
+                    return RetryCacheLater;
+            }
+
             // Optimize self access.
             if (propertyCache.cacheType() == CacheType::Unset
                 && slot.isCacheableValue()
@@ -707,7 +746,18 @@ static InlineCacheAction tryCacheGetBy(JSGlobalObject* globalObject, CodeBlock* 
                             conditionSet = generateConditionsForPrototypePropertyHit(
                                 vm, codeBlock, globalObject, structure, slot.slotBase(),
                                 propertyName.uid());
-                            RELEASE_ASSERT(!conditionSet.isValid() || conditionSet.slotBaseCondition().offset() == offset);
+                            if (vm.gilOff()) [[unlikely]] {
+                                // OM-1: generateConditionsForPrototypePropertyHit
+                                // re-walks the holder AFTER the revalidation guard
+                                // above, so GIL-off a racing transition can leave
+                                // the freshly generated condition's offset
+                                // disagreeing with the slot's. That is a benign
+                                // publish-time race, not a corrupted invariant —
+                                // refuse the cache attempt instead of crashing.
+                                if (conditionSet.isValid() && conditionSet.slotBaseCondition().offset() != offset)
+                                    return RetryCacheLater;
+                            } else
+                                RELEASE_ASSERT(!conditionSet.isValid() || conditionSet.slotBaseCondition().offset() == offset);
                         } else {
                             conditionSet = generateConditionsForPrototypePropertyHitCustom(
                                 vm, codeBlock, globalObject, structure, slot.slotBase(),

@@ -39,6 +39,12 @@
 
 namespace JSC {
 
+// UNGIL §A.3 (U-T5) cross-TU seams — defined in runtime/VMManager.cpp;
+// declaration pattern matches heap/Heap.cpp:151 and
+// bytecode/JSThreadsSafepoint.cpp:71/77. Signatures must stay byte-identical.
+bool jsThreadsThreadGranularWorldIsStopped(); // §A.3.2 post-quiescence depth.
+bool jsThreadsCurrentThreadIsStopConductor(); // §A.3.3 tenure check.
+
 namespace BlockDirectoryInternal {
 static constexpr bool verbose = false;
 }
@@ -623,7 +629,17 @@ void BlockDirectory::assertIsMutatorOrMutatorIsStopped() const
     // Accesses that hold this directory's bitvector lock do not come through
     // here; they are safe against the resize because addBlock also holds it.
     if (heap.isSharedServer()) {
-        ASSERT(heap.worldIsStoppedForAllClients() || heap.mutatorSlowPathLock().isHeld());
+        // AB18-D (V3, jit/int-gate-epoch-reclaim): also accept the §A.3
+        // thread-granular stop conductor — its window parks every entered
+        // mutator outside MSPL/BVL holds and holds the GCL bracket, so the
+        // conductor is the sole possible directory mutator, but the window
+        // sets neither WSAC nor MSPL (the heap witnesses this assert knows).
+        // Conductor-thread-only AND post-quiescence only
+        // (s_jsThreadsWorldStoppedDepth bumps after the §A.3.2 predicate is
+        // satisfied) — the Heap.cpp:5781 / notifyVMStop conductor-exemption
+        // shape: a pre-quiescence touch or a third thread escaping the park
+        // must still trip.
+        ASSERT(heap.worldIsStoppedForAllClients() || heap.mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
         return;
     }
 

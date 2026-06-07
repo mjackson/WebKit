@@ -836,7 +836,22 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
     ASSERT(!isCompilationThread());
     ASSERT(!structure->isUncacheableDictionary());
     ASSERT(structure->isObject());
-    ASSERT(!Structure::removePropertyTransitionFromExistingStructure(structure, propertyName, offset));
+    // SPEC-objectmodel L6/I37: same TOCTOU as addNewPropertyTransition — a
+    // racing mutator can publish the identical PropertyDeletion transition
+    // between the caller's locked miss (removePropertyTransition line 775)
+    // and here. Flag-on, re-check under the source's m_lock and adopt the
+    // winner (its transitionOffset is authoritative) instead of asserting;
+    // this also skips the doomed Structure allocation + table steal. The
+    // locked dual-check before m_transitionTable.add() below remains the
+    // guard for the window between this recheck and the insert.
+    // Flag-off: today's debug assert, bit-identical behavior (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        if (Structure* existing = removePropertyTransitionFromExistingStructureConcurrently(structure, propertyName, offset)) {
+            existing->checkOffsetConsistency();
+            return existing;
+        }
+    } else
+        ASSERT(!Structure::removePropertyTransitionFromExistingStructure(structure, propertyName, offset));
     ASSERT(structure->getConcurrently(propertyName.uid()) != invalidOffset);
 
     if (structure->shouldDoCacheableDictionaryTransitionForRemoveAndAttributeChange()) {
