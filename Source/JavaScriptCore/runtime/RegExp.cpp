@@ -249,7 +249,16 @@ void RegExp::byteCodeCompileIfNecessary(VM* vm)
 void RegExp::compile(VM* vm, Yarr::CharSize charSize, std::optional<StringView> sampleString)
 {
     Locker locker { cellLock() };
-    
+    compileHoldingCellLock(locker, vm, charSize, sampleString);
+}
+
+// AUD1.N2 residuals (A)/(B) (RegExp.cpp banner below): lock-held body so the
+// GIL-off compileIfNecessary arm (RegExpInlines.h) can run check + compile
+// under ONE cellLock hold (no unlock window between hasCodeFor and compile —
+// the residual-(A) visibility gap). GIL-on callers reach it through
+// compile() above, byte-identically the old code.
+void RegExp::compileHoldingCellLock(const AbstractLocker&, VM* vm, Yarr::CharSize charSize, std::optional<StringView> sampleString)
+{
     Yarr::YarrPattern pattern(m_patternString, m_flags, m_constructionErrorCode);
     if (hasError(m_constructionErrorCode)) {
         m_state = ParseError;
@@ -288,6 +297,14 @@ void RegExp::compile(VM* vm, Yarr::CharSize charSize, std::optional<StringView> 
     dataLogLnIf(Options::dumpCompiledRegExpPatterns(), "Can't JIT this regular expression: \"/", m_patternString, "/\"");
 
     m_state = ByteCode;
+    // AUD1.N2 residual (B): GIL-off, never replace live bytecode — a CharSize
+    // upgrade reaches here with m_regExpBytecode already set, and the Yarr
+    // interpreter may be running that pattern on another thread (it holds
+    // vm->m_regExpAllocatorLock, NOT this cellLock). Bytecode is
+    // charsize-agnostic, so keeping the existing pattern is semantically
+    // identical; flag-off/GIL-on keeps the historical replace.
+    if (vm->gilOff() && m_regExpBytecode) [[unlikely]]
+        return;
     m_regExpBytecode = byteCodeCompilePattern(vm, pattern, m_constructionErrorCode);
     if (!m_regExpBytecode) {
         m_state = ParseError;
@@ -343,22 +360,25 @@ void RegExp::compile(VM* vm, Yarr::CharSize charSize, std::optional<StringView> 
 // SD19 regexp corpus arms can run.
 //
 // RESIDUALS (chartered follow-ups per AB18-B review — distinct mechanisms
-// sharing the same trigger (shared deduped RegExp* under gilOff), NOT closed
-// by this routing change):
-//   (A) compileIfNecessary's lock-free m_state read has no acquire edge to
-//       the cellLock'd publication of m_regExpBytecode / m_regExpJITCode /
-//       m_atom / m_specificPattern (RegExpInlines.h hasCodeFor/hasValidAtom
-//       fast paths vs the compile paths above). Needs atomic m_state with
-//       release-after-dependent-stores + acquire on the readers, or a
-//       gilOff first-check under cellLock.
-//   (B) compile() does not recheck hasCodeFor under the lock, and its
-//       bytecode fallback unconditionally replaces m_regExpBytecode — a
-//       CharSize-upgrade recompile can free a BytecodePattern out from
-//       under a concurrent interpreter sitting in the JITCodeFailure punt
-//       (interpreter holds vm.m_regExpAllocatorLock, not the cellLock).
-//       Needs recheck-under-lock + publish-once/never-replace-live-code.
-//   (C) StringReplaceCache (VM-shared, fully unlocked get/set) races Entry
-//       mutation cross-thread. Minimal slice: gilOff early-return bypass.
+// sharing the same trigger (shared deduped RegExp* under gilOff)):
+//   (A) LANDED (AB17c family 2): compileIfNecessary/compileIfNecessaryMatchOnly
+//       run {hasCodeFor check, compile} under ONE cellLock hold GIL-off
+//       ("gilOff first-check under cellLock" option) via the
+//       compile*HoldingCellLock bodies; matchInline gates the compile call on
+//       MatchFrom::VMThread (CompilerThread entries hold the cellLock in
+//       matchConcurrently — was a no-op, now skipped, avoiding self-deadlock).
+//       Flag-off/GIL-on path byte-identical.
+//   (B) LANDED (AB17c family 2): recheck-under-lock comes with (A)'s single
+//       hold; both bytecode fallbacks publish-once GIL-off (never replace a
+//       live BytecodePattern — bytecode is charsize-agnostic, so a CharSize
+//       upgrade keeps the existing pattern). deleteCode() vs a concurrent
+//       interpreter remains the deleteAllCode-only window: deleteAllCode is a
+//       debugger/inspector/shell stop-the-world-shaped operation, chartered
+//       with the code-lifecycle family, NOT here.
+//   (C) MINIMAL SLICE LANDED (AB17c family 2): gilOff bypass at both
+//       StringPrototypeInlines.h call sites (get returns null, set skipped) —
+//       pure value cache, a miss is only a perf event. The real per-lite
+//       split stays with the K4.II.7 owner.
 // =============================================================================
 
 // Declared in RegExp.h (JS_EXPORT_PRIVATE); reached through ovectorSpan(VM&)
@@ -423,7 +443,12 @@ bool RegExp::matchConcurrently(
 void RegExp::compileMatchOnly(VM* vm, Yarr::CharSize charSize, std::optional<StringView> sampleString)
 {
     Locker locker { cellLock() };
-    
+    compileMatchOnlyHoldingCellLock(locker, vm, charSize, sampleString);
+}
+
+// Lock-held body — same shape and rationale as compileHoldingCellLock above.
+void RegExp::compileMatchOnlyHoldingCellLock(const AbstractLocker&, VM* vm, Yarr::CharSize charSize, std::optional<StringView> sampleString)
+{
     Yarr::YarrPattern pattern(m_patternString, m_flags, m_constructionErrorCode);
     if (hasError(m_constructionErrorCode)) {
         m_state = ParseError;
@@ -462,6 +487,10 @@ void RegExp::compileMatchOnly(VM* vm, Yarr::CharSize charSize, std::optional<Str
     dataLogLnIf(Options::dumpCompiledRegExpPatterns(), "Can't JIT this regular expression: \"/", m_patternString, "/\"");
 
     m_state = ByteCode;
+    // AUD1.N2 residual (B): publish-once GIL-off — same rationale as the
+    // compileHoldingCellLock fallback above.
+    if (vm->gilOff() && m_regExpBytecode) [[unlikely]]
+        return;
     m_regExpBytecode = byteCodeCompilePattern(vm, pattern, m_constructionErrorCode);
     if (!m_regExpBytecode) {
         m_state = ParseError;

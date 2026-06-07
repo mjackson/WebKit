@@ -748,7 +748,11 @@ ALWAYS_INLINE JSCellButterfly* addToRegExpSearchCache(VM& vm, JSGlobalObject* gl
 {
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    if (auto* entry = vm.stringReplaceCache.get(source, regExp)) {
+    // AUD1.N2 residual (C) minimal slice (RegExp.cpp banner; K4.II.7 owns the
+    // real per-lite split): the VM-shared StringReplaceCache is fully
+    // unlocked — GIL-off, bypass it (pure value cache; a miss is only a perf
+    // event). Flag-off/GIL-on identical.
+    if (auto* entry = vm.gilOff() ? nullptr : vm.stringReplaceCache.get(source, regExp)) {
         auto lastMatch = entry->m_lastMatch;
         auto matchResult = entry->m_matchResult;
         globalObject->regExpGlobalData().resetResultFromCache(globalObject, regExp, string, matchResult, lastMatch.span());
@@ -809,7 +813,10 @@ ALWAYS_INLINE JSCellButterfly* addToRegExpSearchCache(VM& vm, JSGlobalObject* gl
         return nullptr;
     }
 
-    vm.stringReplaceCache.set(source, regExp, result, globalObject->regExpGlobalData().matchResult(), regExp->ovectorSpan(vm));
+    // AUD1.N2 residual (C) minimal slice: GIL-off, never publish into the
+    // unlocked VM-shared cache (see the get-side bypass above).
+    if (!vm.gilOff()) [[likely]]
+        vm.stringReplaceCache.set(source, regExp, result, globalObject->regExpGlobalData().matchResult(), regExp->ovectorSpan(vm));
     RELEASE_AND_RETURN(scope, result);
 }
 

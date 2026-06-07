@@ -2163,8 +2163,24 @@ Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKin
         uint64_t word = object->taggedButterflyWord();
         auto* idAtomic = std::bit_cast<Atomic<uint32_t>*>(std::bit_cast<char*>(this) + JSCell::structureIDOffset());
 
-        // ---- N3: first install on a butterfly-less object.
-        if (!word) {
+        // ---- N3: first install on a butterfly-less object. CVE-audit
+        // MC-LOCK S6 (CHECK-NOW item 4): a butterfly-less instance keys its
+        // transition ownership on the structure's N1 transition TID (§2.1
+        // N1/F2) — a FOREIGN first indexed install is a foreign butterfly
+        // transition and must fire BOTH TTL sets under a §10.6 stop before
+        // publication (I10/I10b/I13), exactly like the sibling
+        // createArrayStorageConcurrent leg. Otherwise an owner-thread E4 plain
+        // store elided on the still-valid writeThreadLocal set races our
+        // lock-free publication. Route the foreign-keyed install (incl. §9.6
+        // forceButterflySWBit) through the shared per-event-stop leg below;
+        // once every relevant set is already fired there is nothing left to
+        // elide against and the lock-free nuke-CAS protocol is sound again.
+        bool foreignButterflyLessInstall = !word
+            && (currentButterflyTID() != oldStructure->transitionThreadLocalTID() || forceButterflySWBitEnabled())
+            && (oldStructure->transitionThreadLocalIsStillValid() || oldStructure->writeThreadLocalIsStillValid()
+                || (newStructure != oldStructure
+                    && (newStructure->transitionThreadLocalIsStillValid() || newStructure->writeThreadLocalIsStillValid())));
+        if (!word && !foreignButterflyLessInstall) {
             ASSERT(!propertySize);
             unsigned vectorLength = Butterfly::optimalContiguousVectorLength(propertyCapacity, length);
             Butterfly* newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, sizeof(EncodedJSValue) * vectorLength);
@@ -2315,8 +2331,11 @@ Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKin
                 }
                 // §4.6-style shared materialization: FLAT, tagged
                 // (currentButterflyTID(), SW), SW = shared trigger or the
-                // source's own SW bit.
-                bool sharedWriteBit = butterflySharedWrite(word) || butterflyWriterIsForeign(word);
+                // source's own SW bit. A butterfly-less (word == 0) install
+                // only reaches this leg via the foreign N1 keying above —
+                // shared trigger, so SW=1 (mirrors createArrayStorageConcurrent).
+                bool sharedWriteBit = butterflySharedWrite(word) || butterflyWriterIsForeign(word)
+                    || !(word & butterflyPointerMask);
                 newWord = encodeButterfly(newButterfly, currentButterflyTID(), sharedWriteBit);
             } else
                 newWord = encodeSegmentedButterfly(newSpine); // (notTTLTID, 1) - I3; out-of-line fragments aliased, nothing to copy.

@@ -204,6 +204,13 @@ private:
     void compileMatchOnly(VM*, Yarr::CharSize, std::optional<StringView> sampleString);
     void compileIfNecessaryMatchOnly(VM&, Yarr::CharSize, std::optional<StringView> sampleString);
 
+    // AUD1.N2 residual (A): lock-held compile bodies, so the GIL-off
+    // compileIfNecessary* arms can run {hasCodeFor check, compile} under one
+    // cellLock hold (RegExp.cpp). GIL-on goes through compile()/
+    // compileMatchOnly() above, unchanged.
+    void compileHoldingCellLock(const AbstractLocker&, VM*, Yarr::CharSize, std::optional<StringView> sampleString);
+    void compileMatchOnlyHoldingCellLock(const AbstractLocker&, VM*, Yarr::CharSize, std::optional<StringView> sampleString);
+
 #if ENABLE(YARR_JIT_DEBUG)
     void matchCompareWithInterpreter(StringView, int startOffset, int* offsetVector, int jitResult);
 #endif

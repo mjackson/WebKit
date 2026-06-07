@@ -3349,4 +3349,15 @@ WTF::AdaptiveStringSearcherTables& VM::gilOffPerThreadStringSearcherTables()
     return *tables;
 }
 
+// GIL-off per-thread VM-entry disallowance count — see the slot accessor
+// comment in VM.h. Strictly stack-scoped RAII increments/decrements on the
+// owning thread, so a plain thread_local is exact (a thread serves one
+// installed lite at a time; a scope outliving its VM's installation window
+// would be a bug under EITHER storage shape).
+unsigned& VM::gilOffPerThreadDisallowVMEntryCount()
+{
+    static thread_local unsigned count { 0 };
+    return count;
+}
+
 } // namespace JSC

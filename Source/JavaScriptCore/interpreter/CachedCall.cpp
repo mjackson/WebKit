@@ -56,7 +56,7 @@ CachedCall::CachedCall(JSGlobalObject* globalObject, JSFunction* function, int a
         return;
     }
 
-    if (vm.disallowVMEntryCount) [[unlikely]] {
+    if (vm.disallowVMEntryCountSlot()) [[unlikely]] {
         VM::checkVMEntryPermission();
         throwStackOverflowError(globalObject, scope);
         return;

@@ -521,7 +521,27 @@ public:
     Structure* cellButterflyStructure(IndexingType indexingType) { return rawImmutableButterflyStructure(indexingType).get(); }
 
     // Keep super frequently accessed fields top in VM.
-    unsigned disallowVMEntryCount { 0 };
+    //
+    // GIL-off reroute (same mode-split shape as adaptiveStringSearcherTables()
+    // above / RegExp::ovectorSpan(VM&)): disallowVMEntryCount guards the
+    // CURRENT THREAD's stack state (VMInquiry property slots, debug
+    // ObjectInitializationScope) against reentry ON THAT THREAD — per-thread
+    // execution state by meaning (K4 §II.15/.16 class). GIL-off, a shared
+    // counter makes thread A's inquiry/init scope fail-stop thread B's
+    // CachedCall / vmEntryToJavaScript / microtask checkpoint
+    // (VM::checkVMEntryPermission, observed in the AB17c bring-up). The slot
+    // accessor routes GIL-off to a per-thread count; GIL-on/flag-off it is
+    // byte-identically the member. The member was renamed so any direct
+    // spelling is a compile error (keystone pattern); no .asm/JIT reader
+    // exists (verified: C++ sites only).
+    ALWAYS_INLINE unsigned& disallowVMEntryCountSlot()
+    {
+        if (gilOff()) [[unlikely]]
+            return gilOffPerThreadDisallowVMEntryCount();
+        return m_disallowVMEntryCountSharedGILOn;
+    }
+    JS_EXPORT_PRIVATE static unsigned& gilOffPerThreadDisallowVMEntryCount();
+    unsigned m_disallowVMEntryCountSharedGILOn { 0 };
 private:
     // SPEC-vmstate §6.3 relocated member: cross-thread by design, deliberately
     // NOT in VMLitePrimitives. Kept just outside the block; name/type/sites

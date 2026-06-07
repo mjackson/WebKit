@@ -1035,7 +1035,7 @@ JSValue Interpreter::executeProgram(const SourceCode& source, JSGlobalObject*, J
     if (!vm.isSafeToRecurseSoft()) [[unlikely]]
         return throwStackOverflowError(globalObject, throwScope);
 
-    if (vm.disallowVMEntryCount) [[unlikely]]
+    if (vm.disallowVMEntryCountSlot()) [[unlikely]]
         return VM::checkVMEntryPermission();
 
     // First check if the "program" is actually just a JSON object. If so,
@@ -1279,7 +1279,7 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
     if (!vm.isSafeToRecurseSoft() || args.size() > maxArguments) [[unlikely]]
         return throwStackOverflowError(globalObject, scope);
 
-    if (vm.disallowVMEntryCount) [[unlikely]]
+    if (vm.disallowVMEntryCountSlot()) [[unlikely]]
         return VM::checkVMEntryPermission();
 
     RefPtr<JSC::JITCode> jitCode;
@@ -1373,7 +1373,7 @@ JSObject* Interpreter::executeConstruct(JSObject* constructor, const CallData& c
         return nullptr;
     }
 
-    if (vm.disallowVMEntryCount) [[unlikely]] {
+    if (vm.disallowVMEntryCountSlot()) [[unlikely]] {
         VM::checkVMEntryPermission();
         return globalObject->globalThis();
     }
@@ -1678,7 +1678,7 @@ JSValue Interpreter::executeModuleProgram(JSModuleRecord* record, ModuleProgramE
     if (!vm.isSafeToRecurseSoft()) [[unlikely]]
         return throwStackOverflowError(globalObject, throwScope);
 
-    if (vm.disallowVMEntryCount) [[unlikely]]
+    if (vm.disallowVMEntryCountSlot()) [[unlikely]]
         return VM::checkVMEntryPermission();
 
     if (scope->structure()->isUncacheableDictionary())
