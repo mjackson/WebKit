@@ -66,12 +66,23 @@ public:
     VM& vm();
 
     // UNGIL §F.3 flag-off codegen seam (review fix): cached copy of the
-    // owning VM's immutable m_gilOff byte, stamped in the ctor
-    // (HandleSet.cpp), so the ALWAYS_INLINE strongHandle* wrappers below can
-    // test the mode without pulling VM's definition into this header (and
-    // without re-deriving from Options). Immutable for the VM's lifetime
-    // (U0c), exactly like VM::gilOff().
+    // owning VM's immutable m_gilOff byte, so the ALWAYS_INLINE strongHandle*
+    // wrappers below can test the mode without pulling VM's definition into
+    // this header (and without re-deriving from Options). NOTE the stamping
+    // order (AB17c F4 root-cause fix): this HandleSet is a Heap member,
+    // constructed in VM's ctor INIT LIST — i.e. BEFORE the ctor body's U0c
+    // designation block computes VM::m_gilOff. The ctor therefore always
+    // stamps false, and the U0c winner re-stamps via
+    // noteOwnerVMDesignatedGILOff() immediately after setting its own bit,
+    // while the VM is still single-threaded and unpublished (no lite is
+    // registered, no Strong can yet be touched by another thread). After
+    // that single pre-publication write the byte is immutable for the VM's
+    // lifetime, exactly like VM::gilOff().
     bool gilOff() const { return m_gilOff; }
+
+    // U0c re-stamp; see gilOff() above. Called exactly once, from the VM
+    // ctor's designation block (VM.cpp), pre-publication.
+    void noteOwnerVMDesignatedGILOff() { m_gilOff = true; }
 
     HandleSlot allocate();
     void deallocate(HandleSlot);

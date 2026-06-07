@@ -880,6 +880,23 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
     at the §B.5 flag-off bench + golden-disasm gate (already owed at
     Build; the JSCConfig gilOffProcess byte (AB-1/U-T3) is the planned
     replacement for the isGILOffProcess re-derivation).
+    **AB17c F4 follow-up (stamp-ordering root-cause fix):** the
+    "ctor-stamped HandleSet gilOff byte" above was stamped from
+    `vm.gilOff()` inside Heap's construction — which runs in VM's ctor
+    INIT LIST, before the ctor body's U0c designation block computes
+    `VM::m_gilOff`. The byte therefore read false in every gilOff
+    process and ALL Strong allocate/free/barrier traffic took the
+    unlocked inline arm (latent §F.3 violation; observed as a
+    double-allocated Strong slot under races/counter-lock.js — a
+    spawned thread's property-wait Strong clobbered the carrier's
+    in-flight UnlinkedCodeBlockGenerator codeBlock handle, crashing
+    bytecode generation). Fixed by a one-shot pre-publication re-stamp:
+    `HandleSet::noteOwnerVMDesignatedGILOff()` called from the U0c
+    winner branch in the VM ctor, immediately after `m_gilOff = true`
+    (still single-threaded, no lite registered — the byte remains
+    immutable-after-publication). Audited the other two cached gilOff
+    bytes (Watchdog.cpp:73, LockObject.cpp:87): both are constructed
+    lazily after the VM ctor completes, so they stamp correctly.
   - R4-9 (per-lite drains skip the per-tick hook; MAJOR, CONFIRMED) —
     fixed: VMLite::drainDefaultMicrotaskQueue now drains with
     performMicrotaskCheckpoint<true>, matching the §E.1b.4 disposition

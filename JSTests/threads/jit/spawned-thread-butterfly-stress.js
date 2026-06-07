@@ -63,8 +63,11 @@ function threadBody(slot) {
     // shared executable: §5.7 racy-profiling tolerance also gets exercise).
     for (let serial = 0; serial < OBJECTS_PER_THREAD; ++serial)
         registry[slot].push(buildOne(slot, serial));
-    ready.count++;
-    waitUntil(() => ready.count > THREADS, 30000);
+    // Annex T2 (no preemptive-GIL reliance): Atomics rendezvous - a plain
+    // `count++` is a two-step RMW that loses increments under true
+    // parallelism and hangs this barrier (scaffolding only; oracle untouched).
+    Atomics.add(ready, "count", 1);
+    waitUntil(() => Atomics.load(ready, "count") > THREADS, 30000);
 
     let checksum = 0;
     for (let round = 0; round < ROUNDS; ++round) {

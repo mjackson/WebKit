@@ -399,6 +399,19 @@ static InlineCacheAction actionForCell(VM& vm, JSCell* cell)
     if (structure->isUncacheableDictionary()) {
         if (structure->hasBeenFlattenedBefore())
             return GiveUpOnCache;
+        if (vm.gilOff()) [[unlikely]] {
+            // O2/GT11 (stw-watchdog-timeout root cause, transition-vs-write):
+            // every tryCache* caller holds codeBlock->m_lock (rank 6b) here,
+            // and flag-on flattenDictionaryObject routes through
+            // flattenDictionaryStructureUnderStop — a §10.6 per-event stop.
+            // Requesting a stop while holding a lock that other mutators
+            // block on WITH heap access held (ConcurrentJSLocker has no
+            // access-release bracket) wedges the conductor's quiescence
+            // predicate into the 30s watchdog. Skip the inline flatten: the
+            // IC stays uncached this round and the access keeps taking the
+            // slow path — a perf forgone, never a correctness change.
+            return RetryCacheLater;
+        }
         // Flattening could have changed the offset, so return early for another try.
         asObject(cell)->flattenDictionaryObject(vm);
         return RetryCacheLater;

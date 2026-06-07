@@ -1549,7 +1549,15 @@ public:
     CONCURRENT_SAFE void requestStop()
     {
         requestEntryScopeService(ConcurrentEntryScopeService::NeedStopTheWorld); // FIXME rdar://161576886
-        traps().fireTrap(VMTraps::NeedStopTheWorld);
+        // SA.2.3 rule 3 (stw-watchdog-timeout root cause): GIL-off, generated
+        // code and the D9/W1 pollers read each lite's OWN trap word (the
+        // AB-17 per-lite split), so a VM-word-only fireTrap never reaches a
+        // mutator resident in a JIT loop - the SA.3 conductor then starves
+        // into the 30s watchdog with that mutator reported NON-QUIESCENT.
+        // fireTrapVMWide fans the bit to every same-VM lite under the
+        // registry lock; GIL-on / flag-off it degrades to exactly the old
+        // single-word fireTrap (byte-equivalent).
+        traps().fireTrapVMWide(VMTraps::NeedStopTheWorld);
     }
     CONCURRENT_SAFE void cancelStop()
     {

@@ -407,6 +407,18 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     if (VM::isGILOffProcess()) [[unlikely]] {
         if (heap.tryDesignateStickySharedServer()) {
             m_gilOff = true;
+            // AB17c F4: re-stamp the HandleSet's cached §F.3 mode byte. The
+            // HandleSet was constructed in this ctor's INIT LIST (Heap
+            // member), i.e. before m_gilOff above was computed, so its ctor
+            // stamp is always false; without this re-stamp every Strong
+            // allocate/free/barrier takes the UNLOCKED inline arm GIL-off
+            // and two threads race m_freeList (observed: double-allocated
+            // Strong slot under counter-lock.js — a spawned thread's
+            // property-wait Strong clobbered the carrier's in-flight
+            // UnlinkedCodeBlockGenerator codeBlock handle). Still
+            // single-threaded and unpublished here, so the write is
+            // pre-publication (see noteOwnerVMDesignatedGILOff()).
+            heap.handleSet()->noteOwnerVMDesignatedGILOff();
             // U0c invariant check immediately before EVERY in-scope
             // noteSharedServerSticky() trigger (annex U0C). The second
             // trigger family — HeapClientSet::add's second-client site
