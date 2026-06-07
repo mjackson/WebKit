@@ -1031,7 +1031,12 @@ void SpeculativeJIT::emitCall(Node* node)
                     CCallHelpers::callOperation<OperationPtrTag>(vmEntryHostFunction);
                 } else
                     CCallHelpers::callOperation<HostFunctionPtrTag>(nativeFunction);
-                loadPtr(vm().addressOfException(), GPRInfo::regT2);
+                // UNGIL §A.1.3 (U-T4): mode-keyed — GIL-off the host wrote the
+                // CURRENT lite's exception word; the raw VM-block read always
+                // sees null and silently misses the throw (same bug family as
+                // the nativeForGenerator thunk check). GIL-on/flag-off
+                // loadException emits the legacy AbsoluteAddress load.
+                loadException(vm(), GPRInfo::regT2);
                 branchTestPtr(NonZero, GPRInfo::regT2).linkThunk(CodeLocationLabel(vm().getCTIStub(CommonJITThunkID::HandleException).retaggedCode<NoPtrTag>()), this);
                 emitFunctionEpilogue();
             };

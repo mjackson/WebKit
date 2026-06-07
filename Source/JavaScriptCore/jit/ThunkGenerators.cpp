@@ -522,7 +522,17 @@ static MacroAssemblerCodeRef<JITThunkPtrTag> nativeForGenerator(VM& vm, ThunkFun
 
     // Check for an exception
 #if USE(JSVALUE64)
-    jit.loadPtr(vm.addressOfException(), JSInterfaceJIT::regT2);
+    // UNGIL §A.1.3 (U-T4): GIL-off the host function published any exception
+    // through the CURRENT lite's VMLitePrimitives::m_exception (the VM-block
+    // word is inert spare storage and always reads null), so this check MUST
+    // be mode-keyed — the raw AbsoluteAddress form silently misses the
+    // exception, execution continues past the call site, and the pending
+    // exception surfaces at the next C++ poll OUTSIDE the active try range
+    // (observed: JSTests/threads/smoke.js exception-rethrow block GIL-off).
+    // loadException emits the legacy AbsoluteAddress load byte-for-byte
+    // GIL-on/flag-off. regT2 is dead here (it is being defined) and is not
+    // the per-arch reserved temp loadVMLite uses.
+    jit.loadException(vm, JSInterfaceJIT::regT2);
     JSInterfaceJIT::Jump exceptionHandler = jit.branchTestPtr(JSInterfaceJIT::NonZero, JSInterfaceJIT::regT2);
 #else
     JSInterfaceJIT::Jump exceptionHandler = jit.branch32(

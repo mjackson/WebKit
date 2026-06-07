@@ -14740,7 +14740,11 @@ IGNORE_CLANG_WARNINGS_END
                         jit.CCallHelpers::callOperation<OperationPtrTag>(vmEntryHostFunction);
                     } else
                         jit.CCallHelpers::callOperation<HostFunctionPtrTag>(nativeFunction);
-                    jit.loadPtr(vm->addressOfException(), GPRInfo::regT2);
+                    // UNGIL §A.1.3 (U-T4): mode-keyed — GIL-off the host wrote
+                    // the CURRENT lite's exception word; the raw VM-block read
+                    // always sees null and silently misses the throw (same bug
+                    // family as the nativeForGenerator thunk check).
+                    jit.loadException(*vm, GPRInfo::regT2);
                     jit.branchTestPtr(CCallHelpers::NonZero, GPRInfo::regT2).linkThunk(CodeLocationLabel(vm->getCTIStub(CommonJITThunkID::HandleException).retaggedCode<NoPtrTag>()), &jit);
                     jit.emitFunctionEpilogue();
                 };

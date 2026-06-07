@@ -112,12 +112,19 @@ void VM::logEvent(CodeBlock* codeBlock, const char* summary, const Func& func)
 
 inline CallFrame* VM::topJSCallFrame() const
 {
-    CallFrame* frame = topCallFrame;
+    // UNGIL §A.1.3 mode split: GIL-off the live topCallFrame/topEntryFrame
+    // are the CURRENT lite's Group-3 words; the raw VM-block members are
+    // inert spare storage (stale or another thread's frame — walking them
+    // crashes in isZombieFrame, observed via VM::throwException on the
+    // smoke.js recursive-hold throw). GIL-on/flag-off group3Primitives()
+    // aliases the VM block, byte-identical behavior.
+    const VMLitePrimitives& primitives = group3Primitives();
+    CallFrame* frame = primitives.topCallFrame;
     if (!frame) [[unlikely]]
         return frame;
     if (!frame->isNativeCalleeFrame() && !frame->isZombieFrame()) [[likely]]
         return frame;
-    EntryFrame* entryFrame = topEntryFrame;
+    EntryFrame* entryFrame = primitives.topEntryFrame;
     do {
         frame = frame->callerFrame(entryFrame);
         ASSERT(!frame || !frame->isZombieFrame());
