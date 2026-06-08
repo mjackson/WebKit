@@ -87,15 +87,25 @@ public:
     PointerType pointer() const { return std::bit_cast<PointerType>(m_data & pointerMask); }
     void setPointer(PointerType pointer)
     {
-        m_data = encode(pointer, type());
-        ASSERT(this->pointer() == pointer);
+        // The assertions below intentionally validate the locally encoded
+        // word, NOT a re-read of m_data: some tuples are racy-by-design
+        // profiling words shared between threads (e.g. JSC's
+        // ArrayAllocationProfile under shared CodeBlocks, SPEC-jit §5.7
+        // racy-profiling tolerance), and a concurrent store between our
+        // store and a re-read would fail a re-read assert without any
+        // encoding bug. The invariant being checked — the pointer survives
+        // the 48-bit encoding — is a property of the encoded value itself.
+        uint64_t encoded = encode(pointer, type());
+        m_data = encoded;
+        ASSERT(std::bit_cast<PointerType>(encoded & pointerMask) == pointer);
     }
 
     Type type() const { return decodeType(m_data); }
     void setType(Type type)
     {
-        m_data = encode(pointer(), type);
-        ASSERT(this->type() == type);
+        uint64_t encoded = encode(pointer(), type);
+        m_data = encoded;
+        ASSERT(decodeType(encoded) == type);
     }
 
     uint64_t data() const { return m_data; }

@@ -12568,6 +12568,17 @@ IGNORE_CLANG_WARNINGS_END
             }
 
             if (cache) {
+                if (Options::useJSThreads()) [[unlikely]] {
+                    // SPEC-jit section 5.5 (Task 8 pattern): no inline
+                    // quick-cache probes flag-on — a key compare + separate
+                    // value load races foreign mutators' entry writes through
+                    // the shared CodeBlock. Defer to the generic operation;
+                    // getOrInsert serializes on the cache's lock
+                    // (ConcatKeyAtomStringCacheInlines.h). Flag-off codegen
+                    // is byte-identical to today's.
+                    setJSValue(vmCall(pointerType(), operationMakeAtomString2WithCache, weakPointer(globalObject), strings[0], strings[1], m_out.constIntPtr(cache)));
+                    break;
+                }
                 LBasicBlock cacheHit0Case = m_out.newBlock();
                 LBasicBlock cacheCheck1Case = m_out.newBlock();
                 LBasicBlock cacheHit1Case = m_out.newBlock();
@@ -12621,6 +12632,13 @@ IGNORE_CLANG_WARNINGS_END
             }
 
             if (cache) {
+                if (Options::useJSThreads()) [[unlikely]] {
+                    // See the numberOfStrings==2 case above: flag-on, no
+                    // inline quick-cache probes; defer to the locked generic
+                    // operation.
+                    setJSValue(vmCall(pointerType(), operationMakeAtomString3WithCache, weakPointer(globalObject), strings[0], strings[1], strings[2], m_out.constIntPtr(cache)));
+                    break;
+                }
                 LBasicBlock cacheHit0Case = m_out.newBlock();
                 LBasicBlock cacheCheck1Case = m_out.newBlock();
                 LBasicBlock cacheHit1Case = m_out.newBlock();

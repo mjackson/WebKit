@@ -18370,20 +18370,32 @@ void SpeculativeJIT::compileMakeAtomString(Node* node)
         }
 
         if (cache) {
-            JumpList doneCases;
-            move(TrustedImmPtr(cache), cachePtrGPR);
-            auto notEqual0 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
-            loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
-            doneCases.append(jump());
-            notEqual0.link(this);
+            if (Options::useJSThreads()) [[unlikely]] {
+                // SPEC-jit section 5.5 (Task 8 pattern): the quick-cache words
+                // are mutated by racing mutators through the shared CodeBlock;
+                // a key-compare + separate value load can pair a key with a
+                // foreign value (or a still-null one). Flag-on, defer to the
+                // generic operation — getOrInsert serializes on the cache's
+                // lock (ConcatKeyAtomStringCacheInlines.h). Flag-off codegen
+                // is byte-identical to today's.
+                move(TrustedImmPtr(cache), cachePtrGPR);
+                callOperation(operationMakeAtomString2WithCache, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1], cachePtrGPR);
+            } else {
+                JumpList doneCases;
+                move(TrustedImmPtr(cache), cachePtrGPR);
+                auto notEqual0 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
+                loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
+                doneCases.append(jump());
+                notEqual0.link(this);
 
-            auto notEqual1 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
-            loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
-            doneCases.append(jump());
-            notEqual1.link(this);
+                auto notEqual1 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
+                loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
+                doneCases.append(jump());
+                notEqual1.link(this);
 
-            callOperation(operationMakeAtomString2WithCache, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1], cachePtrGPR);
-            doneCases.link(this);
+                callOperation(operationMakeAtomString2WithCache, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1], cachePtrGPR);
+                doneCases.link(this);
+            }
         } else
             callOperation(operationMakeAtomString2, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1]);
         break;
@@ -18407,20 +18419,27 @@ void SpeculativeJIT::compileMakeAtomString(Node* node)
         }
 
         if (cache) {
-            JumpList doneCases;
-            move(TrustedImmPtr(cache), cachePtrGPR);
-            auto notEqual0 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
-            loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
-            doneCases.append(jump());
-            notEqual0.link(this);
+            if (Options::useJSThreads()) [[unlikely]] {
+                // See the numOpGPRs==2 case above: flag-on, no inline
+                // quick-cache probes; defer to the locked generic operation.
+                move(TrustedImmPtr(cache), cachePtrGPR);
+                callOperation(operationMakeAtomString3WithCache, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1], opGPRs[2], cachePtrGPR);
+            } else {
+                JumpList doneCases;
+                move(TrustedImmPtr(cache), cachePtrGPR);
+                auto notEqual0 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
+                loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache0() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
+                doneCases.append(jump());
+                notEqual0.link(this);
 
-            auto notEqual1 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
-            loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
-            doneCases.append(jump());
-            notEqual1.link(this);
+                auto notEqual1 = branchPtr(NotEqual, variableGPR, Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfKey()));
+                loadPtr(Address(cachePtrGPR, ConcatKeyAtomStringCache::offsetOfQuickCache1() + ConcatKeyAtomStringCache::CacheEntry::offsetOfValue()), resultGPR);
+                doneCases.append(jump());
+                notEqual1.link(this);
 
-            callOperation(operationMakeAtomString3WithCache, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1], opGPRs[2], cachePtrGPR);
-            doneCases.link(this);
+                callOperation(operationMakeAtomString3WithCache, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1], opGPRs[2], cachePtrGPR);
+                doneCases.link(this);
+            }
         } else
             callOperation(operationMakeAtomString3, resultGPR, LinkableConstant::globalObject(*this, node), opGPRs[0], opGPRs[1], opGPRs[2]);
         break;

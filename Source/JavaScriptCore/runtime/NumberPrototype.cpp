@@ -499,7 +499,13 @@ JSString* NumericStrings::addJSString(VM& vm, int i)
         auto& entry = lookupSmallString(static_cast<unsigned>(i));
         if (entry.jsString)
             return entry.jsString;
-        JSString* string = jsNontrivialString(vm, entry.value);
+        // 0-9: the immortal single-character strings. The main instance never
+        // reaches here for them (initializeSmallIntCache prefills the
+        // jsStrings in the VM ctor), but K4.II.1 per-thread instances skip
+        // that prefill, and jsNontrivialString asserts length > 1.
+        JSString* string = static_cast<unsigned>(i) <= 9
+            ? vm.smallStrings.singleCharacterString(i + '0')
+            : jsNontrivialString(vm, entry.value);
         // K4.II.1: per-thread instances hold no GC-visited cells (see
         // disableJSStringCaching in NumericStrings.h).
         if (!m_jsStringCachingDisabled) [[likely]]
