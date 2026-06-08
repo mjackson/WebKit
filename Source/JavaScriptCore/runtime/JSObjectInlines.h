@@ -911,6 +911,17 @@ inline NEVER_INLINE bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Stru
                 // store); benign today because the E4 predicate excludes
                 // ArrayStorage and these transitions change neither type nor
                 // indexing mode — revisit if the E4 predicate is ever widened.
+                // F3 triage (spawned-thread-butterfly-stress p8-for-p17 flake):
+                // audited and exonerated — all five flag-on publish sites in
+                // this file carry this protocol, the reader has the M7(d)
+                // loadLoadFence + structureID re-validation, add transitions
+                // never relocate existing offsets, and butterfly growth copies
+                // are base-aligned, so no structure/butterfly mispairing can
+                // return another property's value here. Do not add further
+                // fences in this file for that signature; the suspect surface
+                // is the JIT IC publication/refill path (bytecode/
+                // PropertyInlineCache, InlineCacheHandler, InlineCacheCompiler,
+                // Repatch), pending a concrete cited site.
                 WTF::storeStoreFence();
                 setStructure(vm, newStructure);
                 return true;
