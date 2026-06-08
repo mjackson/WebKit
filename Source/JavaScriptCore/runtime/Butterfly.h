@@ -32,6 +32,7 @@
 #include <wtf/Atomics.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/Noncopyable.h>
+#include <wtf/ThreadSanitizerSupport.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -359,6 +360,33 @@ constexpr bool butterflyAliasEquationsHold()
 }
 static_assert(butterflyAliasEquationsHold(), "I8: the §4.1 equations reproduce every flat slot address");
 
+// V7 (TSAN): spine words are racy-but-safe by design (I6 fenced publish +
+// address dependency). Express that contract as relaxed atomics on BOTH the
+// publishing side (ConcurrentButterfly.cpp spine construction) and every
+// reader, so the race detector sees the contract the hardware enforces.
+// Relaxed 32/64-bit loads/stores compile to the same plain MOV/LDR/STR on
+// x86-64/arm64, and segmented spines only exist flag-on (I22), so flag-off
+// codegen is untouched. NOTE (review round 1): relaxed atomic pairs only
+// exempt the annotated WORDS from reporting — they do NOT transfer TSAN
+// vector clocks. The happens-before edge for everything plain-initialized
+// before publication (fragment contents, spine fields) is established
+// separately: the converter calls ButterflySpine::tsanPublish() after the
+// last pre-publication store, and every consumer entry point
+// (ConcurrentButterfly.cpp segmented* wrappers) calls tsanConsume(), which
+// pair via TSAN_ANNOTATE_HAPPENS_BEFORE/AFTER on the spine address. Both are
+// no-ops outside TSAN builds.
+template<typename T>
+ALWAYS_INLINE T butterflyConcurrentLoad(const T* location)
+{
+    return WTF::atomicLoad(const_cast<T*>(location), std::memory_order_relaxed);
+}
+
+template<typename T>
+ALWAYS_INLINE void butterflyConcurrentStore(T* location, T value)
+{
+    WTF::atomicStore(location, value, std::memory_order_relaxed);
+}
+
 struct ButterflySpine {
     // IMMUTABLE after publication (I6): every field is written before the
     // spine is published (§4.2 step 5 / §4.3 step 5) and never again; growth
@@ -381,19 +409,39 @@ struct ButterflySpine {
 
     uint32_t totalFragmentCount() const { return outOfLineFragmentCount + indexedFragmentCount; }
 
+    // V7 (TSAN): relaxed getters for accesses to a PUBLISHED spine that race
+    // with another thread's view of the same words. Identical codegen to the
+    // plain reads; debug ASSERTs use them too in case the TSAN rig builds
+    // with ASSERT_ENABLED (review amendment E).
+    uint32_t outOfLineFragmentCountConcurrent() const { return butterflyConcurrentLoad(&outOfLineFragmentCount); }
+    uint32_t indexedFragmentCountConcurrent() const { return butterflyConcurrentLoad(&indexedFragmentCount); }
+    uint32_t vectorLengthConcurrent() const { return butterflyConcurrentLoad(&vectorLength); }
+    uint32_t totalFragmentCountConcurrent() const { return outOfLineFragmentCountConcurrent() + indexedFragmentCountConcurrent(); }
+
+    // V7 (TSAN): the publish/consume happens-before pair. The constructing
+    // thread calls tsanPublish() after the LAST pre-publication store to the
+    // spine or its fresh fragments (and before the dcas that makes the spine
+    // reachable); every reader entry point calls tsanConsume() on the spine
+    // it loaded from the tagged word. This imports the publisher's vector
+    // clock, so TSAN sees a happens-before edge covering ALL plain
+    // pre-publication initialization reached through the spine — not just
+    // the individually annotated words. No-ops outside TSAN.
+    void tsanPublish() const { TSAN_ANNOTATE_HAPPENS_BEFORE(this); }
+    void tsanConsume() const { TSAN_ANNOTATE_HAPPENS_AFTER(this); }
+
     ButterflyFragment** fragments() { return reinterpret_cast<ButterflyFragment**>(this + 1); }
     ButterflyFragment* const* fragments() const { return reinterpret_cast<ButterflyFragment* const*>(this + 1); }
 
     ButterflyFragment* outOfLineFragment(unsigned fragmentIndex) const
     {
-        ASSERT(fragmentIndex < outOfLineFragmentCount);
-        return fragments()[fragmentIndex];
+        ASSERT(fragmentIndex < outOfLineFragmentCountConcurrent());
+        return butterflyConcurrentLoad(&fragments()[fragmentIndex]);
     }
 
     ButterflyFragment* indexedFragment(unsigned fragmentIndex) const
     {
-        ASSERT(fragmentIndex < indexedFragmentCount);
-        return fragments()[outOfLineFragmentCount + fragmentIndex];
+        ASSERT(fragmentIndex < indexedFragmentCountConcurrent());
+        return butterflyConcurrentLoad(&fragments()[outOfLineFragmentCountConcurrent() + fragmentIndex]);
     }
 
     // Precondition (I33, out-of-line clause): outOfLineIndex <
@@ -403,7 +451,7 @@ struct ButterflySpine {
     // (segmentedOutOfLineSlotIfWithinBounds) encode that protocol.
     WriteBarrierBase<Unknown>* outOfLineSlot(unsigned outOfLineIndex) const
     {
-        ASSERT(static_cast<uint64_t>(outOfLineIndex) < static_cast<uint64_t>(butterflyFragmentSlots) * outOfLineFragmentCount); // I33
+        ASSERT(static_cast<uint64_t>(outOfLineIndex) < static_cast<uint64_t>(butterflyFragmentSlots) * outOfLineFragmentCountConcurrent()); // I33
         return &outOfLineFragment(butterflyOutOfLineIndexToFragment(outOfLineIndex))->slots[butterflyOutOfLineIndexToSlot(outOfLineIndex)];
     }
 
@@ -415,11 +463,11 @@ struct ButterflySpine {
     // IndexingHeader) by construction of the +1 mapping.
     WriteBarrierBase<Unknown>* indexedSlot(unsigned index) const
     {
-        ASSERT(index < vectorLength); // C4
+        ASSERT(index < vectorLengthConcurrent()); // C4
         unsigned fragmentIndex = butterflyIndexedIndexToFragment(index);
         unsigned slotIndex = butterflyIndexedIndexToSlot(index);
         ASSERT(fragmentIndex || slotIndex); // Never the frozen IndexingHeader slot.
-        ASSERT(fragmentIndex < indexedFragmentCount); // C2 sizing covers vectorLength + 1 slots.
+        ASSERT(fragmentIndex < indexedFragmentCountConcurrent()); // C2 sizing covers vectorLength + 1 slots.
         return &indexedFragment(fragmentIndex)->slots[slotIndex];
     }
 
@@ -430,13 +478,13 @@ struct ButterflySpine {
     // C4 requires (SAB-granularity staleness is legal).
     uint32_t publicLength() const
     {
-        RELEASE_ASSERT(indexedFragmentCount); // C2
+        RELEASE_ASSERT(indexedFragmentCountConcurrent()); // C2
         return WTF::atomicLoad(headerSlotWord(0), std::memory_order_relaxed);
     }
 
     void setPublicLength(uint32_t value)
     {
-        RELEASE_ASSERT(indexedFragmentCount); // C2
+        RELEASE_ASSERT(indexedFragmentCountConcurrent()); // C2
         WTF::atomicStore(headerSlotWord(0), value, std::memory_order_relaxed);
     }
 
@@ -451,7 +499,7 @@ struct ButterflySpine {
     // (ARM64 acquire) KNOWN RESIDUAL.
     void bumpPublicLengthToAtLeast(uint32_t newLength)
     {
-        RELEASE_ASSERT(indexedFragmentCount); // C2
+        RELEASE_ASSERT(indexedFragmentCountConcurrent()); // C2
         uint32_t* location = headerSlotWord(0);
         uint32_t current = WTF::atomicLoad(location, std::memory_order_relaxed);
         while (current < newLength) {
@@ -464,7 +512,7 @@ struct ButterflySpine {
 
     uint32_t frozenFlatVectorLength() const // I9b: bounds tardy flat-side readers; unused while segmented.
     {
-        RELEASE_ASSERT(indexedFragmentCount); // C2
+        RELEASE_ASSERT(indexedFragmentCountConcurrent()); // C2
         return WTF::atomicLoad(headerSlotWord(1), std::memory_order_relaxed);
     }
 
@@ -473,16 +521,16 @@ struct ButterflySpine {
     // (ButterflyInlines.h).
     void validateConsistency() const
     {
-        if (!indexedFragmentCount)
-            ASSERT(!vectorLength); // C2: no header => no indexed storage at all.
+        if (!indexedFragmentCountConcurrent())
+            ASSERT(!vectorLengthConcurrent()); // C2: no header => no indexed storage at all.
         else {
             // C2: indexedFragmentCount = (1 + flatVectorLength + 3) / 4 at conversion
             // (+1 = the header slot) and only grows with vectorLength afterwards. The
             // last fragment may cover past 8 * vectorLength but is never dereferenced
             // there (C4 first).
-            ASSERT(static_cast<uint64_t>(indexedFragmentCount) * butterflyFragmentSlots >= static_cast<uint64_t>(vectorLength) + 1);
+            ASSERT(static_cast<uint64_t>(indexedFragmentCountConcurrent()) * butterflyFragmentSlots >= static_cast<uint64_t>(vectorLengthConcurrent()) + 1);
         }
-        ASSERT(aliasedAllocationBase || !aliasedAllocationSize); // §4.1: both unset together.
+        ASSERT(butterflyConcurrentLoad(&aliasedAllocationBase) || !butterflyConcurrentLoad(&aliasedAllocationSize)); // §4.1: both unset together.
     }
 
 private:

@@ -1037,15 +1037,19 @@ static JSValue performLLIntGetByID(BytecodeIndex bytecodeIndex, CodeBlock* codeB
         && !slot.isUnset()) {
         {
             StructureID oldStructureID;
-            switch (metadata.mode) {
+            // V7: foreign threads publish/clear these fields with relaxed
+            // stores (setDefaultModeCacheConcurrently / clearToDefaultModeWithoutCache);
+            // snapshot them with relaxed loads. Stale-but-coherent is fine: the
+            // value only feeds the poly-proto heuristic.
+            switch (WTF::atomicLoad(&metadata.mode, std::memory_order_relaxed)) {
             case GetByIdMode::Default:
-                oldStructureID = metadata.defaultMode.structureID;
+                oldStructureID = WTF::atomicLoad(&metadata.defaultMode.structureID, std::memory_order_relaxed);
                 break;
             case GetByIdMode::Unset:
-                oldStructureID = metadata.unsetMode.structureID;
+                oldStructureID = WTF::atomicLoad(&metadata.unsetMode.structureID, std::memory_order_relaxed);
                 break;
             case GetByIdMode::ProtoLoad:
-                oldStructureID = metadata.protoLoadMode.structureID;
+                oldStructureID = WTF::atomicLoad(&metadata.protoLoadMode.structureID, std::memory_order_relaxed);
                 break;
             default:
                 oldStructureID = StructureID();
@@ -1093,7 +1097,7 @@ static JSValue performLLIntGetByID(BytecodeIndex bytecodeIndex, CodeBlock* codeB
                 }
             }
 #endif
-        } else if (metadata.hitCountForLLIntCaching && slot.isValue()) [[unlikely]] {
+        } else if (WTF::atomicLoad(&metadata.hitCountForLLIntCaching, std::memory_order_relaxed) && slot.isValue()) [[unlikely]] {
             ASSERT(slot.slotBase() != baseValue);
 
             // SPEC-jit §4.3 (Task 6): the prototype cache (ProtoLoad/Unset) is
@@ -1283,7 +1287,11 @@ LLINT_SLOW_PATH_DECL(slow_path_put_by_id)
         && oldStructure->propertyAccessesAreCacheable()
         && !oldStructure->mayBePrototype()) {
         {
-            StructureID oldStructureID = metadata.m_oldStructureID;
+            // V7: races with foreign publishLLIntIdAndOffsetPairConcurrently /
+            // clearLLIntIdAndOffsetPairConcurrently relaxed u64 stores. Only the
+            // id half is consumed here (poly-proto heuristic), so a relaxed
+            // 32-bit load is enough — torn {id, offset} pairing is not consumed.
+            StructureID oldStructureID = WTF::atomicLoad(&metadata.m_oldStructureID, std::memory_order_relaxed);
             if (oldStructureID) {
                 Structure* a = oldStructureID.decode();
                 Structure* b = baseValue.asCell()->structure();
@@ -1301,14 +1309,21 @@ LLINT_SLOW_PATH_DECL(slow_path_put_by_id)
         if (useUnthreadedLLIntPropertyCaches()) {
             metadata.m_oldStructureID = StructureID();
             metadata.m_offset = 0;
+            metadata.m_newStructureID = StructureID();
+            metadata.m_structureChain.clear();
         } else {
             // SPEC-jit §4.3 (Task 6): flag-on, {m_oldStructureID, m_offset} is the
             // surviving replace cache, read by the asm as ONE 64-bit word;
             // invalidate it with one all-zero store (F3).
             clearLLIntIdAndOffsetPairConcurrently(&metadata.m_oldStructureID);
+            // V7: flag-on, the transition cache is disabled wholesale (SPEC-jit
+            // §4.3: m_newStructureID/m_structureChain are never published, the
+            // asm transition branch is dead), so the clears are skipped here —
+            // as plain stores they were a write-write race between concurrent
+            // slow_path_put_by_id callers on permanently-null fields, and
+            // m_structureChain is a WriteBarrier slot that cannot be atomicized
+            // without bypassing the barrier. Flag-off behavior is unchanged.
         }
-        metadata.m_newStructureID = StructureID();
-        metadata.m_structureChain.clear();
 
         JSCell* baseCell = baseValue.asCell();
         Structure* newStructure = baseCell->structure();
@@ -1348,10 +1363,11 @@ LLINT_SLOW_PATH_DECL(slow_path_put_by_id)
                 // stale. With N mutators the equality is not an invariant, so do not
                 // assert — just skip caching. The replace/transition caches were
                 // already invalidated unconditionally above (the one all-zero-word
-                // clearLLIntIdAndOffsetPairConcurrently store per SPEC-jit §4.3,
-                // plus the m_newStructureID/m_structureChain clears), so falling
-                // through with no publish leaves the metadata in the safe empty
-                // state. Next execution simply takes the slow path again.
+                // clearLLIntIdAndOffsetPairConcurrently store per SPEC-jit §4.3;
+                // m_newStructureID/m_structureChain are permanently null flag-on,
+                // V7), so falling through with no publish leaves the metadata in
+                // the safe empty state. Next execution simply takes the slow path
+                // again.
             } else {
                 // This assert helps catch bugs if we accidentally forget to disable caching
                 // when we transition then store to an existing property. This is common among

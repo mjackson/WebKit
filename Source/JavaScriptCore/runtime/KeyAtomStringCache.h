@@ -32,6 +32,24 @@ namespace JSC {
 class JSString;
 class VM;
 
+// UNGIL V7 (Race C, DEFERRED — no functional change yet): this per-VM
+// 512-slot open-address cache is hit by every lite under GIL-off
+// (JSStringInlines.h toIdentifier/jsSubstringOfResolved key paths), so the
+// plain slot load/deref/store pair in KeyAtomStringCacheInlines.h::make()
+// is a cross-lite data race (TSAN family: KeyAtomStringCache::make x6).
+// The agreed fix keeps the cache SHARED (entries are verified by hash+equal
+// before use) and makes the slots Atomic<JSString*>:
+//   - Cache becomes std::array<Atomic<JSString*>, capacity>;
+//   - make() snapshots `JSString* cached = slot.load(memory_order_consume)`,
+//     null-checks cached AND cached->tryGetValueImpl(), and publishes with
+//     `slot.store(result, memory_order_release)`;
+//   - clear() loops `slot.store(nullptr, memory_order_relaxed)` (runs at
+//     GC-finalize STW; annotation is for the rebuilt TSAN binary).
+// BOTH halves must land in ONE change: flipping only this header breaks
+// compilation against the raw-pointer slot uses in
+// KeyAtomStringCacheInlines.h (if (slot) / slot->tryGetValueImpl() /
+// slot = result / return slot). That file is outside this item's write
+// scope, so the whole fix is deferred; V7 triage must expect the residual.
 class KeyAtomStringCache {
 public:
     static constexpr auto maxStringLengthForCache = 64;

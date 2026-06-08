@@ -3155,7 +3155,37 @@ void Heap::didAllocate(size_t bytes)
     // (I15, T5). Counters are relaxed atomics (F3); exact at safepoints (I7).
     if (m_edenActivityCallback && !isSharedServer())
         m_edenActivityCallback->didAllocate(*this, totalBytesAllocatedThisCycle() + m_bytesAbandonedSinceLastFullCollect.load(std::memory_order_relaxed));
-    if (bytes >= oversizedAllocationThreshold) {
+    if (!isSharedServer()) [[likely]] {
+        // Single-writer regime: plain load+store RMW (no lock-prefixed xadd on
+        // the per-freelist-refill path). Why no increment can be lost:
+        //   (a) Precondition — didAllocate executes only within heap-access-
+        //       holding sections (every caller is a mutator-side allocation /
+        //       extra-memory path; asserted below), so when !isSharedServer()
+        //       there is exactly one writer, serialized by heap access; the
+        //       store(0) resets in updateAllocationLimits run world-stopped.
+        //   (b) isSharedServer() transitions in BOTH directions only while
+        //       heap access is quiescent or held by the transitioning thread:
+        //       false->true at second-client attach (§10B.4: flip under
+        //       *m_threadLock with hasAccessBit pinned, so the legacy inline
+        //       access CAS is unwinnable and post-flip acquisition routes
+        //       through acquireAccessSlow(), which locks *m_threadLock —
+        //       store happens-before unlock happens-before lock happens-before
+        //       the next relaxed isSharedServer() load here); true->false in
+        //       pollIssRevertIfNeeded (§10D), executed by the sole surviving
+        //       client's own access-holding thread after the registry-locked
+        //       size==1 re-check, ticket-quiescent, collector not running.
+        //   Therefore a plain-leg execution and a fetch_add-leg execution can
+        //   never be concurrent; whenever two writers can exist, every writer
+        //   observes isSharedServer()==true and takes the fetch_add leg.
+        // Counters stay std::atomic (store/load) — at-safepoint cross-thread
+        // readers rely on atomicity for tear-freedom.
+        ASSERT(hasHeapAccess() || worldIsStopped());
+        if (bytes >= oversizedAllocationThreshold) {
+            m_oversizedBytesAllocatedThisCycle.store(m_oversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed) + bytes, std::memory_order_relaxed);
+            m_lastOversidedAllocationThisCycle.store(bytes, std::memory_order_relaxed);
+        } else
+            m_nonOversizedBytesAllocatedThisCycle.store(m_nonOversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed) + bytes, std::memory_order_relaxed);
+    } else if (bytes >= oversizedAllocationThreshold) {
         m_oversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
         m_lastOversidedAllocationThisCycle.store(bytes, std::memory_order_relaxed);
     } else

@@ -54,6 +54,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "VMTraps.h"
 #include "WeakGCMap.h"
 #include "WriteBarrier.h"
+#include <atomic>
 #include <wtf/Atomics.h>
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/CheckedArithmetic.h>
@@ -904,7 +905,15 @@ public:
     ALWAYS_INLINE GCClient::IsoSubspace& unlinkedFunctionExecutableSpace() { return Heap::allocationClientForCurrentThread(*this, clientHeap).unlinkedFunctionExecutableSpace; }
 
     VMType vmType;
-    bool m_mightBeExecutingTaintedCode { false };
+    // V7: written by N lites' slow paths and by JIT code via the absolute
+    // address baked through addressOfMightBeExecutingTaintedCode() (shared
+    // code — must stay ONE VM-level byte, see the addressOfCallFrameForCatch
+    // comment about not baking a lite's slot into shared code). Relaxed
+    // atomic on the C++ side; the byte layout is unchanged for the baked
+    // store8.
+    std::atomic<bool> m_mightBeExecutingTaintedCode { false };
+    static_assert(sizeof(std::atomic<bool>) == sizeof(bool), "baked JIT store8 relies on this");
+    static_assert(std::atomic<bool>::is_always_lock_free);
     ClientData* clientData { nullptr };
 #if ENABLE(WEBASSEMBLY)
     Wasm::Context wasmContext;
@@ -1025,9 +1034,9 @@ public:
     Vector<unsigned> stringSplitIndice;
     StringReplaceCache stringReplaceCache;
 
-    bool mightBeExecutingTaintedCode() const { return m_mightBeExecutingTaintedCode; }
-    bool* addressOfMightBeExecutingTaintedCode() LIFETIME_BOUND { return &m_mightBeExecutingTaintedCode; }
-    void setMightBeExecutingTaintedCode(bool value = true) { m_mightBeExecutingTaintedCode = value; }
+    bool mightBeExecutingTaintedCode() const { return m_mightBeExecutingTaintedCode.load(std::memory_order_relaxed); }
+    bool* addressOfMightBeExecutingTaintedCode() LIFETIME_BOUND { return reinterpret_cast<bool*>(&m_mightBeExecutingTaintedCode); }
+    void setMightBeExecutingTaintedCode(bool value = true) { m_mightBeExecutingTaintedCode.store(value, std::memory_order_relaxed); }
 
     AtomStringTable* atomStringTable() const { return m_atomStringTable; }
     WTF::SymbolRegistry& symbolRegistry() { return m_symbolRegistry.get(); }
@@ -1235,12 +1244,14 @@ public:
     // exception without interfering with Throw/CatchScopes.
     Exception* exceptionForInspection() const { return group3Primitives().m_exception; }
 
-    void setFailNextNewCodeBlock() { m_failNextNewCodeBlock = true; }
+    void setFailNextNewCodeBlock() { m_failNextNewCodeBlock.store(true, std::memory_order_relaxed); }
     bool getAndClearFailNextNewCodeBlock()
     {
-        bool result = m_failNextNewCodeBlock;
-        m_failNextNewCodeBlock = false;
-        return result;
+        // Fast path is a plain byte load — STRICTLY cheaper flag-off than the
+        // old unconditional false-store on every CodeBlock install.
+        if (!m_failNextNewCodeBlock.load(std::memory_order_relaxed)) [[likely]]
+            return false;
+        return m_failNextNewCodeBlock.exchange(false, std::memory_order_relaxed);
     }
     
     // UNGIL §A.1.4: per-entry-token lite fields when gilOff (the L7
@@ -1476,11 +1487,18 @@ public:
     void finalizeSynchronousJSExecution()
     {
         ASSERT(currentThreadIsHoldingAPILock());
-        m_currentWeakRefVersion++;
-        setMightBeExecutingTaintedCode(false);
+        m_currentWeakRefVersion.fetch_add(1, std::memory_order_relaxed);
+        // V7: GIL-off the taint hint is shared by N lites — one lite's
+        // synchronous-execution boundary must not erase another lite's
+        // in-flight taint mark. Leave it sticky (over-tainting is the safe
+        // direction; the flag is already a conservative "might"). GIL-on /
+        // flag-off: byte-identical clear behind the read-only Config-page
+        // gate (same pattern as softStackLimitForCurrentThreadSlow).
+        if (!gilOffWithProcessGate()) [[likely]]
+            setMightBeExecutingTaintedCode(false);
     }
-    
-    uintptr_t currentWeakRefVersion() const { return m_currentWeakRefVersion; }
+
+    uintptr_t currentWeakRefVersion() const { return m_currentWeakRefVersion.load(std::memory_order_relaxed); }
 
     void setGlobalConstRedeclarationShouldThrow(bool globalConstRedeclarationThrow) { m_globalConstRedeclarationShouldThrow = globalConstRedeclarationThrow; }
     ALWAYS_INLINE bool globalConstRedeclarationShouldThrow() const { return m_globalConstRedeclarationShouldThrow; }
@@ -1882,7 +1900,11 @@ private:
     // NEVER calls VMLite::setCurrent — JSLock::didAcquireLock installs it
     // (M4). Uninstalled+unregistered+destroyed at the TOP of ~VM (I20).
     std::unique_ptr<VMLite> m_mainVMLite;
-    bool m_failNextNewCodeBlock { false };
+    // V7: test hook written by $vm/jsc-shell on one lite and consumed at
+    // CodeBlock-install time on any lite. Relaxed atomic; the exchange in
+    // getAndClearFailNextNewCodeBlock makes the "fail the NEXT code block"
+    // contract exactly-once under N mutators.
+    std::atomic<bool> m_failNextNewCodeBlock { false };
     bool m_globalConstRedeclarationShouldThrow { true };
     bool m_shouldBuildPCToCodeOriginMapping { false };
     DeletePropertyMode m_deletePropertyMode { DeletePropertyMode::Default };
@@ -1932,7 +1954,12 @@ private:
     StackTraceAppenderFunction m_onAppendStackTrace;
     WTF::Function<void(VM&, SourceProvider*, LineColumn&, String&)> m_computeLineColumnWithSourcemap;
 #endif
-    uintptr_t m_currentWeakRefVersion { 0 };
+    // V7: bumped at each lite's synchronous-execution boundary; read by other
+    // lites and by GC marker threads (JSWeakObjectRef::visitChildren).
+    // Relaxed is sufficient: readers only compare for equality against a
+    // version they captured on their own thread, and the GC handshake orders
+    // the marking-time read.
+    std::atomic<uintptr_t> m_currentWeakRefVersion { 0 };
 
     int64_t m_moduleAsyncEvaluationCount { 0 };
 

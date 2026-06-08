@@ -54,7 +54,19 @@ class RegExp;
 // {m_reified + 4 reified barriers}. It is NOT lockable without putting a
 // §LK acquisition on every successful match, so the ruling is §K.1 per-lite:
 //
-//   - GIL-OFF: each entered thread owns a PRIVATE RegExpGlobalData stream
+//   - GIL-OFF (NOT YET LIVE — V7: the consumer re-point has not landed; all
+//     runtime+DFG consumers still hit the shared in-object stream, so
+//     record()'s five plain stores + the reify flip still race cross-lite.
+//     The RegExpCachedResult::record / RawPtrTraits<RegExp|JSString>::
+//     exchange / MatchingContextHolder TSAN families persist until the
+//     mechanical re-point of the performMatch/record call sites
+//     (RegExpGlobalDataInlines.h, RegExpConstructor.cpp,
+//     StringPrototypeInlines.h / RegExpObjectInlines.h) from
+//     globalObject->regExpGlobalData() to threadRegExpGlobalData() lands.
+//     vm.m_executingRegExp (YarrMatchingContextHolder.h ctor/dtor) is a
+//     tracked sub-item of the same re-point: per-lite field or relaxed
+//     Atomic with a diagnostic-tolerance ruling):
+//     each entered thread owns a PRIVATE RegExpGlobalData stream
 //     (carrying one RegExpCachedResult) — the per-lite side table in
 //     JSGlobalObject.cpp (threadRegExpGlobalData), GC-rooted via the
 //     global's visitChildren registry walk and freed by the lite-teardown

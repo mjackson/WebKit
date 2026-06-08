@@ -438,7 +438,8 @@ public:
 
     bool hasAnyOfBitFieldFlags(unsigned flags) const
     {
-        return m_bitField & flags;
+        // V7: relaxed read paired with the DEFINE_BITFIELD CAS writers (same codegen as the plain load).
+        return WTF::atomicLoad(const_cast<uint32_t*>(&m_bitField), std::memory_order_relaxed) & flags;
     }
 
     // Type accessors.
@@ -995,16 +996,44 @@ public:
         Uncacheable = 3, // Prototype chain isn't covered by the watchpoint; always recompute.
     };
 
+// V7 fix (real lost-update bug, not an annotation): with shared-memory
+// threads GIL-off, two mutators can run set##upperName for DIFFERENT fields
+// of the SAME shared Structure concurrently (e.g. T1 setIsPinnedPropertyTable
+// vs T2 setIsWatchingReplacement). The plain load/mask/store RMW lets the
+// interleaving T1-load, T2-load, T2-store, T1-store silently erase T2's bit —
+// a replacement watchpoint that never fires (wrong-value caches survive) or a
+// lost pin (property table reclaimed under a dictionary). The setter therefore
+// takes a CAS loop when Options::useJSThreads() is on. It stays the plain RMW
+// flag-off (single mutator inside the VM at a time GIL-on/flag-off, so the
+// interleaving cannot exist), preserving flag-off codegen on transition paths
+// per the project rule (cf. the ab17c flag-off-bench-first precedent); a V5b
+// bench re-run is still pinned to this change because of the added branch.
+// Readers are relaxed atomic loads unconditionally — identical MOV/LDR
+// codegen — so TSAN sees the reader side paired with the CAS writers.
 #define DEFINE_BITFIELD(type, lowerName, upperName, width, offset) \
     static constexpr uint32_t s_##lowerName##Shift = offset;\
     static constexpr uint32_t s_##lowerName##Mask = ((1 << (width - 1)) | ((1 << (width - 1)) - 1));\
     static constexpr uint32_t s_##lowerName##Bits = s_##lowerName##Mask << s_##lowerName##Shift;\
     static constexpr uint32_t s_bitWidthOf##upperName = width;\
-    type lowerName() const { return static_cast<type>((m_bitField >> offset) & s_##lowerName##Mask); }\
+    type lowerName() const { return static_cast<type>((WTF::atomicLoad(const_cast<uint32_t*>(&m_bitField), std::memory_order_relaxed) >> offset) & s_##lowerName##Mask); }\
     void set##upperName(type newValue) \
     {\
-        m_bitField &= ~(s_##lowerName##Mask << offset);\
-        m_bitField |= (static_cast<uint32_t>(newValue) & s_##lowerName##Mask) << offset;\
+        uint32_t setBits = (static_cast<uint32_t>(newValue) & s_##lowerName##Mask) << offset;\
+        if (!Options::useJSThreads()) [[likely]] {\
+            m_bitField &= ~(s_##lowerName##Mask << offset);\
+            m_bitField |= setBits;\
+            return;\
+        }\
+        uint32_t oldWord = WTF::atomicLoad(&m_bitField, std::memory_order_relaxed);\
+        while (true) {\
+            uint32_t newWord = (oldWord & ~(s_##lowerName##Mask << offset)) | setBits;\
+            if (newWord == oldWord)\
+                return;\
+            uint32_t observed = WTF::atomicCompareExchangeStrong(&m_bitField, oldWord, newWord);\
+            if (observed == oldWord)\
+                return;\
+            oldWord = observed;\
+        }\
     }
 
     DEFINE_BITFIELD(DictionaryKind, dictionaryKind, DictionaryKind, 2, 0);

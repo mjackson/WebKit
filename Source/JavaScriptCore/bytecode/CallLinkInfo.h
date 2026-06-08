@@ -36,6 +36,7 @@
 #include "Options.h"
 #include "PolymorphicCallStubRoutine.h"
 #include "WriteBarrier.h"
+#include <wtf/Atomics.h>
 #include <wtf/Lock.h>
 #include <wtf/RecursiveLockAdapter.h>
 #include <wtf/ScopedLambda.h>
@@ -237,49 +238,69 @@ public:
         // CallLinkInfo may still retain a displaced routine in m_stub purely
         // to keep the pointer published for racing JIT'd thunk readers (see
         // clearStub()); logically there is no stub then.
-        if (Options::useJSThreads() && mode() != Mode::Polymorphic) [[unlikely]]
-            return nullptr;
+        //
+        // V7 code-lifecycle: flag-on, m_stub is published by setStub's atomic
+        // release store, so racing readers load it atomically here. The load
+        // is RELAXED and the mode()-then-stub() pair has NO reader-side
+        // happens-before: this is safe only because (a) every C++ caller
+        // null-checks the result and (b) m_stub is never unpublished while
+        // the flag is on (clearStub's keep-published rule), so a stale
+        // non-null pointer always names a live routine. The LLInt
+        // polymorphic thunk's m_record->m_stub load pair (LowLevelInterpreter
+        // .asm) still has no address/acquire dependency — that remains the
+        // IT-8 weak-memory residual; this change does NOT close it.
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (mode() != Mode::Polymorphic)
+                return nullptr;
+            auto* stubSlot = std::bit_cast<PolymorphicCallStubRoutine**>(const_cast<RefPtr<PolymorphicCallStubRoutine>*>(&m_stub));
+            return WTF::atomicLoad(stubSlot, std::memory_order_relaxed);
+        }
         return m_stub.get();
     }
 
     bool seenOnce()
     {
-        return m_hasSeenShouldRepatch;
+        return m_flags.loadRelaxed() & hasSeenShouldRepatchFlag;
     }
 
     void clearSeen()
     {
-        m_hasSeenShouldRepatch = false;
+        m_flags.exchangeAnd(static_cast<uint8_t>(~hasSeenShouldRepatchFlag));
     }
 
     void setSeen()
     {
-        m_hasSeenShouldRepatch = true;
+        m_flags.exchangeOr(hasSeenShouldRepatchFlag);
     }
 
     bool hasSeenClosure()
     {
-        return m_hasSeenClosure;
+        return m_flags.loadRelaxed() & hasSeenClosureFlag;
     }
 
     void setHasSeenClosure()
     {
-        m_hasSeenClosure = true;
+        m_flags.exchangeOr(hasSeenClosureFlag);
     }
 
     bool clearedByGC()
     {
-        return m_clearedByGC;
+        return m_flags.loadRelaxed() & clearedByGCFlag;
     }
-    
+
+    void setClearedByGC()
+    {
+        m_flags.exchangeOr(clearedByGCFlag);
+    }
+
     bool clearedByVirtual()
     {
-        return m_clearedByVirtual;
+        return m_flags.loadRelaxed() & clearedByVirtualFlag;
     }
 
     void setClearedByVirtual()
     {
-        m_clearedByVirtual = true;
+        m_flags.exchangeOr(clearedByVirtualFlag);
     }
     
     void setCallType(CallType callType)
@@ -362,7 +383,7 @@ public:
 
     Type type() const { return static_cast<Type>(m_type); }
 
-    Mode mode() const { return static_cast<Mode>(m_mode); }
+    Mode mode() const { return static_cast<Mode>(m_mode.loadRelaxed()); }
 
     JSCell* owner() const { return m_owner; }
 
@@ -375,7 +396,7 @@ public:
 protected:
     CallLinkInfo(Type type, JSCell* owner, CodeOrigin codeOrigin)
         : CallLinkInfoBase(CallSiteType::CallLinkInfo)
-        , m_type(static_cast<unsigned>(type))
+        , m_type(static_cast<uint8_t>(type))
         , m_owner(owner)
         , m_codeOrigin(codeOrigin)
     {
@@ -393,13 +414,31 @@ protected:
     void publishRecord(VM&, uintptr_t comparand, CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer);
     void clearRecord(VM&);
 
-    bool m_hasSeenShouldRepatch : 1 { false };
-    bool m_hasSeenClosure : 1 { false };
-    bool m_clearedByGC : 1 { false };
-    bool m_clearedByVirtual : 1 { false };
-    unsigned m_callType : 4 { CallType::None }; // CallType
-    unsigned m_type : 1; // Type
-    unsigned m_mode : 3 { static_cast<unsigned>(Mode::Init) }; // Mode
+    // V7 code-lifecycle: this used to be ONE packed bit-field word, so every
+    // flag write was a plain RMW of the whole word. gilOff, a lock-free
+    // slow-path setSeen() on lite A could load the word, lose lite B's
+    // concurrent (locked) setStub()/setVirtualCall() m_mode update, and store
+    // the stale mode back — a LOST mode publication, not just a TSAN report
+    // (see CallLinkInfo.cpp publishRecord comment block). Split into
+    // independent memory locations: the write-once identity fields stay a
+    // plain bit-field byte of their own (m_type at construction, m_callType
+    // at initialize/setUpCall, both before this CallLinkInfo is reachable by
+    // other lites); the monotone flags become a relaxed-atomic flag byte
+    // (RMWs via exchangeOr/exchangeAnd so visitWeak's writers cannot erase a
+    // racing slow-path setSeen and vice versa); m_mode becomes its own atomic
+    // byte. m_mode readers tolerate staleness: the record they gate is
+    // published via publishRecord's fence + atomic exchange, and m_stub is
+    // never unpublished flag-on (clearStub keep-published rule). Packing
+    // m_callType/m_type into one byte keeps sizeof(CallLinkInfo) unchanged
+    // (the frozen "+8B per call op" D7 budget note below still holds).
+    static constexpr uint8_t hasSeenShouldRepatchFlag = 1 << 0;
+    static constexpr uint8_t hasSeenClosureFlag = 1 << 1;
+    static constexpr uint8_t clearedByGCFlag = 1 << 2;
+    static constexpr uint8_t clearedByVirtualFlag = 1 << 3;
+    Atomic<uint8_t> m_flags { 0 };
+    uint8_t m_callType : 4 { CallType::None }; // CallType; write-once before publication.
+    uint8_t m_type : 1; // Type; write-once at construction.
+    Atomic<uint8_t> m_mode { static_cast<uint8_t>(Mode::Init) }; // Mode
     uint8_t m_maxArgumentCountIncludingThisForVarargs { 0 }; // For varargs: the profiled maximum number of arguments. For direct: the number of stack slots allocated for arguments.
     uint32_t m_slowPathCount { 0 };
 
@@ -415,8 +454,10 @@ protected:
     // emitFastPathImpl, serving both DataOnlyCallLinkInfo - LLInt/Baseline
     // bytecode metadata, +8B per call op, unconditional per D7 - and
     // OptimizingCallLinkInfo). Null = unlinked. Flag-off this stays null
-    // forever and no emitted sequence reads it (I1).
-    CallLinkRecord* m_record { nullptr };
+    // forever and no emitted sequence reads it (I1). V7: typed Atomic —
+    // layout-identical; publish/clear were already atomic exchanges through a
+    // bit_cast, this just makes the type say so.
+    Atomic<CallLinkRecord*> m_record { nullptr };
 };
 
 class DataOnlyCallLinkInfo final : public CallLinkInfo {
@@ -480,8 +521,7 @@ public:
         // sweep), so no JIT'd frame can still hold the record pointer (I16);
         // inline delete is sound here, unlike replacement/unlink which must go
         // through RetiredJITArtifacts.
-        delete m_record;
-        m_record = nullptr;
+        delete m_record.exchange(nullptr);
     }
 
     void setCallType(CallType callType)
@@ -579,8 +619,9 @@ private:
     JSCell* m_owner;
     ExecutableBase* m_executable { nullptr }; // This is weakly held. DFG / FTL CommonData already ensures this.
     // SPEC-jit section 5.8 frozen placement: LAST member. Null = unlinked;
-    // flag-off this stays null forever (I1).
-    CallLinkRecord* m_record { nullptr };
+    // flag-off this stays null forever (I1). V7: typed Atomic —
+    // layout-identical (see CallLinkInfo::m_record).
+    Atomic<CallLinkRecord*> m_record { nullptr };
 };
 
 class OptimizingCallLinkInfo final : public CallLinkInfo {

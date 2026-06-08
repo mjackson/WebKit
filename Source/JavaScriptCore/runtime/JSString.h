@@ -37,6 +37,7 @@
 #include <array>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/ForbidHeapAllocation.h>
+#include <wtf/Atomics.h>
 #include <wtf/UnalignedAccess.h>
 #include <wtf/text/StringView.h>
 
@@ -269,7 +270,7 @@ public:
 
     ALWAYS_INLINE bool isRope() const
     {
-        return m_fiber & isRopeInPointer;
+        return fiberConcurrently() & isRopeInPointer;
     }
     ALWAYS_INLINE JSRopeString* asRope()
     {
@@ -302,7 +303,17 @@ protected:
 
     inline JSString* tryReplaceOneCharImpl(JSGlobalObject*, char16_t search, JSString* replacement, uint8_t* stackLimit, bool& found);
 
-    uintptr_t fiberConcurrently() const { return m_fiber; }
+    // UNGIL V7 (read side only): m_fiber can be republished by a concurrent
+    // JSRopeString::convertToNonRope (JSStringInlines.h) while lock-free
+    // readers snapshot it, so the read must be an annotated relaxed atomic
+    // load (same codegen as the plain load on every supported target).
+    // NOTE: the publish side in convertToNonRope is still a PLAIN
+    // placement-new store — the TSAN JSString::fiberConcurrently family
+    // persists, and the C++ HB story for the pointee's contents is
+    // incomplete, until the out-of-scope companion (release-ordered atomic
+    // publish of m_fiber, plus a consume/acquire-or-documented-dependency
+    // ruling on this load) lands. V7 triage must expect that residual.
+    uintptr_t fiberConcurrently() const { return WTF::atomicLoad(&m_fiber, std::memory_order_relaxed); }
 
     mutable uintptr_t m_fiber;
 
@@ -688,7 +699,7 @@ private:
 
     JSString* fiber0() const
     {
-        return std::bit_cast<JSString*>(m_fiber & stringMask);
+        return std::bit_cast<JSString*>(fiberConcurrently() & stringMask);
     }
 
     JSString* fiber1() const
@@ -806,7 +817,7 @@ ALWAYS_INLINE unsigned JSString::length() const
 inline StringImpl* JSString::getValueImpl() const
 {
     ASSERT(!isRope());
-    return std::bit_cast<StringImpl*>(m_fiber);
+    return std::bit_cast<StringImpl*>(fiberConcurrently());
 }
 
 inline StringImpl* JSString::tryGetValueImpl() const

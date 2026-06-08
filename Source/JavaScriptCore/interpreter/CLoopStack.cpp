@@ -341,23 +341,41 @@ void CLoopStack::gatherConservativeRoots(ConservativeRoots& conservativeRoots, J
 void CLoopStack::sanitizeStack()
 {
 #if !ASAN_ENABLED
-    // The region a segment's SP abandoned since the last sanitize ([last, sp))
-    // holds dead frames for that segment regardless of which thread zeroes it,
-    // and every segment's saved SP is stable while its owner is parked, so we
-    // can sanitize all segments under the lock.
-    Locker locker { m_lock };
-    for (auto& state : m_threadStates) {
-        if (state->retired)
-            continue;
-        void* stackTop = state->currentStackPointer;
-        ASSERT(stackTop <= highAddress(*state));
-        if (state->lastStackPointer < stackTop) {
-            char* begin = reinterpret_cast<char*>(state->lastStackPointer);
-            char* end = reinterpret_cast<char*>(stackTop);
-            memset(begin, 0, end - begin);
-        }
-        state->lastStackPointer = stackTop;
+    // GIL-off (useVMLite N-mutator), other threads' segments are NOT stable:
+    // sanitizeStack() is reached from ordinary mutator paths (e.g.
+    // LocalAllocator::allocate -> sanitizeStackForVM), not from a
+    // stop-the-world section, so another thread's interpreter is concurrently
+    // moving its SP (setCurrentStackPointer, CLoopStackInlines.h) and writing
+    // frames into the very [last, sp) window we would memset. Each thread
+    // therefore sanitizes only its OWN segment — mirroring the !C_LOOP path,
+    // where sanitizeStackForVMImpl only scrubs the calling thread's native
+    // stack. Other segments' dead regions are scrubbed by their owners' next
+    // sanitize call (or zeroed wholesale at retirement); missing a scrub is
+    // only a conservative-GC precision loss, never a correctness issue.
+    //
+    // No m_lock needed: threadStateIfExists() is safe to call here (it hits
+    // the calling thread's own thread-local cache, and takes m_lock itself on
+    // a cache miss), and after that every field touched below is
+    // owner-exclusive (sole writers are this thread's interpreter and, only
+    // after this thread has exited, retireSegmentsForThread()).
+    //
+    // Flag-off (single mutator) this degenerates to exactly the old
+    // single-segment body. With multiple parked threads (GIL-on) behavior is
+    // observationally equivalent: parked segments' dead regions are now
+    // scrubbed by their owners' next sanitize instead of by the caller; the
+    // skipped region lies below each owner's SP, outside the range
+    // gatherConservativeRoots() scans.
+    ThreadState* state = threadStateIfExists();
+    if (!state)
+        return; // This thread never entered the CLoop on this stack; nothing of ours to scrub.
+    void* stackTop = state->currentStackPointer;
+    ASSERT(stackTop <= highAddress(*state));
+    if (state->lastStackPointer < stackTop) {
+        char* begin = reinterpret_cast<char*>(state->lastStackPointer);
+        char* end = reinterpret_cast<char*>(stackTop);
+        memset(begin, 0, end - begin);
     }
+    state->lastStackPointer = stackTop;
 #endif
 }
 

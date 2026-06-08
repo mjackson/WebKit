@@ -334,6 +334,20 @@ ALWAYS_INLINE uint64_t mergeVolatileHeaderBits(uint64_t desired, uint64_t fresh)
 // casButterfly, the 1-byte lock-bit CASes in the same 16 bytes, or plain
 // tagged-word loads. The GCC/Clang path uses the __sync builtin, which is
 // either inlined or a link error - it never silently routes through libatomic.
+//
+// V7 (TSAN, review amendment D — PRECONDITION TO VERIFY on the rebuilt
+// WebKitBuild/TSan binary): the V7 annotation scheme (relaxed header-byte
+// loads in JSCell.h, spine tsanPublish/tsanConsume pairs in Butterfly.h /
+// ConcurrentButterfly.cpp) assumes clang lowers this __sync builtin to atomic
+// cmpxchg IR that the TSAN pass instruments (__tsan_atomic128_compare_
+// exchange_strong), making the publish an ATOMIC write in TSAN's model. One-
+// shot empirical check before trusting a green V7 rung: disassemble or
+// `nm`-grep the TSAN jsc for __tsan_atomic128_* referenced from this TU (or
+// inspect any surviving report's dcas frame for an atomic-op annotation). If
+// the CAS is NOT instrumented (raw cmpxchg16b asm), the publish is invisible
+// to TSAN and the dcas-vs-header-load family will keep reporting: the fix
+// then is to route the publish through explicit __tsan_atomic128 hooks under
+// TSAN_ENABLED — do NOT suppress.
 ALWAYS_INLINE bool dcasHeaderAndButterfly(JSCell* cell, CellHeaderAndButterfly expected, CellHeaderAndButterfly desired)
 {
     RELEASE_ASSERT(!(reinterpret_cast<uintptr_t>(cell) & 15)); // I1; PA cells (8-mod-16) forbidden (I36)

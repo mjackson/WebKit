@@ -123,7 +123,7 @@ void CallLinkInfo::publishRecord(VM& vm, uintptr_t comparand, CodePtr<JSEntryPtr
         return;
     auto* record = new CallLinkRecord { comparand, target, codeBlockToTransfer };
     WTF::storeStoreFence();
-    auto* oldRecord = std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(record);
+    auto* oldRecord = m_record.exchange(record);
     retireCallLinkRecord(vm, oldRecord);
 }
 
@@ -134,11 +134,11 @@ void CallLinkInfo::clearRecord(VM& vm)
     // under STW/GC (their callers - reset/visitWeak-driven unlinkOrUpgrade -
     // run there, asserted by the section 5.3 machinery).
     if (!Options::useJSThreads()) [[likely]] {
-        ASSERT(!m_record);
+        ASSERT(!m_record.loadRelaxed());
         return;
     }
     // AB18-D: atomic for the same no-double-retire reason as publishRecord.
-    auto* oldRecord = std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(nullptr);
+    auto* oldRecord = m_record.exchange(nullptr);
     retireCallLinkRecord(vm, oldRecord);
 }
 
@@ -210,7 +210,7 @@ CallLinkInfo::~CallLinkInfo()
         // m_record; inline delete is sound (destruction can run in
         // heap-internal contexts where RetiredJITArtifacts::retire is not
         // allowed, heap ranks 7-9).
-        delete std::exchange(m_record, nullptr);
+        delete m_record.exchange(nullptr);
         return;
     }
     clearStub();
@@ -219,7 +219,7 @@ CallLinkInfo::~CallLinkInfo()
     // JIT'd frame can still hold the record pointer (I16); inline delete is
     // sound here - and destruction can run in heap-internal contexts where
     // RetiredJITArtifacts::retire is not allowed (heap ranks 7-9).
-    delete std::exchange(m_record, nullptr);
+    delete m_record.exchange(nullptr);
 }
 
 void CallLinkInfo::clearStub()
@@ -335,7 +335,7 @@ void CallLinkInfo::setMonomorphicCallee(VM& vm, JSCell* owner, JSObject* callee,
     // SPEC-jit section 5.8: monomorphic link publishes the record the flag-on
     // fast path dispatches on; the fields above remain the GC mirror.
     publishRecord(vm, std::bit_cast<uintptr_t>(callee), codePtr, codeBlock);
-    m_mode = static_cast<unsigned>(Mode::Monomorphic);
+    m_mode.store(static_cast<uint8_t>(Mode::Monomorphic));
 }
 
 void CallLinkInfo::clearCallee()
@@ -391,21 +391,25 @@ void CallLinkInfo::visitWeak(VM& vm)
 {
     auto handleSpecificCallee = [&] (JSFunction* callee) {
         if (vm.heap.isMarked(callee->executable()))
-            m_hasSeenClosure = true;
+            setHasSeenClosure();
         else
-            m_clearedByGC = true;
+            setClearedByGC();
     };
-    
+
     switch (mode()) {
     case Mode::Init:
     case Mode::Virtual:
         break;
     case Mode::Polymorphic: {
-        if (stub()) {
-            if (!stub()->visitWeak(vm)) {
-                dataLogLnIf(Options::verboseOSR(), "At ", codeOrigin(), ", ", RawPointer(this), ": clearing call stub to ", listDump(stub()->variants()), ", stub routine ", RawPointer(stub()), ".");
+        // V7: load the stub ONCE — stub() is now an always-reloading atomic
+        // load flag-on, so repeated calls would be a TOCTOU if visitWeak ever
+        // ran concurrent with a linker. Today visitWeak runs STW, which is
+        // what makes the single load (and everything below) safe.
+        if (auto* stub = this->stub()) {
+            if (!stub->visitWeak(vm)) {
+                dataLogLnIf(Options::verboseOSR(), "At ", codeOrigin(), ", ", RawPointer(this), ": clearing call stub to ", listDump(stub->variants()), ", stub routine ", RawPointer(stub), ".");
                 unlinkOrUpgrade(vm, nullptr, nullptr);
-                m_clearedByGC = true;
+                setClearedByGC();
             }
         }
         break;
@@ -418,7 +422,7 @@ void CallLinkInfo::visitWeak(VM& vm)
                 handleSpecificCallee(static_cast<JSFunction*>(callee));
             } else {
                 dataLogLnIf(Options::verboseOSR(), "Clearing call to ", RawPointer(callee), ".");
-                m_clearedByGC = true;
+                setClearedByGC();
             }
             unlinkOrUpgrade(vm, nullptr, nullptr);
         }
@@ -430,7 +434,7 @@ void CallLinkInfo::visitWeak(VM& vm)
         if (lastSeenCallee()->type() == JSFunctionType)
             handleSpecificCallee(uncheckedDowncast<JSFunction>(lastSeenCallee()));
         else
-            m_clearedByGC = true;
+            setClearedByGC();
         m_lastSeenCallee.clear();
     }
 }
@@ -465,11 +469,11 @@ void CallLinkInfo::revertCallToStub()
 void DataOnlyCallLinkInfo::initialize(VM& vm, CodeBlock* owner, CallType callType, CodeOrigin codeOrigin)
 {
     m_owner = owner;
-    m_type = static_cast<unsigned>(Type::DataOnly);
+    m_type = static_cast<uint8_t>(Type::DataOnly);
     ASSERT(Type::DataOnly == type());
     m_codeOrigin = codeOrigin;
     m_callType = callType;
-    m_mode = static_cast<unsigned>(Mode::Init);
+    m_mode.store(static_cast<uint8_t>(Mode::Init));
     if (!Options::useLLIntICs()) [[unlikely]]
         setVirtualCall(vm);
 }
@@ -498,7 +502,7 @@ void CallLinkInfo::reset(VM& vm)
     clearStub();
     if (isOnList())
         remove();
-    m_mode = static_cast<unsigned>(Mode::Init);
+    m_mode.store(static_cast<uint8_t>(Mode::Init));
 }
 
 void CallLinkInfo::revertCall(VM& vm)
@@ -545,7 +549,7 @@ void CallLinkInfo::setVirtualCall(VM& vm)
     publishRecord(vm, polymorphicCalleeMask, m_monomorphicCallDestination, nullptr);
 
     setClearedByVirtual();
-    m_mode = static_cast<unsigned>(Mode::Virtual);
+    m_mode.store(static_cast<uint8_t>(Mode::Virtual));
 }
 
 JSGlobalObject* CallLinkInfo::globalObjectForSlowPath(JSCell* owner)
@@ -575,10 +579,13 @@ void CallLinkInfo::setStub(VM& vm, Ref<PolymorphicCallStubRoutine>&& newStub)
         // zero its memory is reclaimed only after a GC conservative scan of
         // all mutator stacks (R2/I7), so a reader mid-dispatch is safe.
         PolymorphicCallStubRoutine** stubSlot = std::bit_cast<PolymorphicCallStubRoutine**>(&m_stub);
-        PolymorphicCallStubRoutine* oldStub = *stubSlot;
+        PolymorphicCallStubRoutine* oldStub = *stubSlot; // Plain read is writer-writer safe: writers serialize on s_callLinkSerializationLock.
         PolymorphicCallStubRoutine* incoming = &newStub.leakRef();
-        WTF::storeStoreFence(); // Order the new routine's payload initialization before the publishing store (F1 pattern).
-        *stubSlot = incoming;
+        // V7: release store orders the new routine's payload initialization
+        // before the publishing store (subsumes the old storeStoreFence, F1
+        // pattern) and is a typed atomic so racing thunk/stub() readers are
+        // no longer plain-vs-store pairs.
+        WTF::atomicStore(stubSlot, incoming, std::memory_order_release);
         if (oldStub)
             oldStub->deref();
     } else
@@ -609,7 +616,7 @@ void CallLinkInfo::setStub(VM& vm, Ref<PolymorphicCallStubRoutine>&& newStub)
     if (isOnList())
         remove();
 
-    m_mode = static_cast<unsigned>(Mode::Polymorphic);
+    m_mode.store(static_cast<uint8_t>(Mode::Polymorphic));
 }
 
 #if ENABLE(JIT)
@@ -784,18 +791,18 @@ void DirectCallLinkInfo::publishRecord(VM& vm, CodePtr<JSEntryPtrTag> target, Co
     WTF::storeStoreFence();
     // AB18-D: atomic swap — same no-double-retire rule as
     // CallLinkInfo::publishRecord (precondition 11).
-    auto* oldRecord = std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(record);
+    auto* oldRecord = m_record.exchange(record);
     retireRecord(vm, oldRecord);
 }
 
 void DirectCallLinkInfo::clearRecord(VM& vm)
 {
     if (!Options::useJSThreads()) [[likely]] {
-        ASSERT(!m_record);
+        ASSERT(!m_record.loadRelaxed());
         return;
     }
     // AB18-D: atomic for the same no-double-retire reason as publishRecord.
-    retireRecord(vm, std::bit_cast<Atomic<CallLinkRecord*>*>(&m_record)->exchange(nullptr));
+    retireRecord(vm, m_record.exchange(nullptr));
 }
 
 void DirectCallLinkInfo::retireRecord(VM& vm, CallLinkRecord* record)

@@ -46,7 +46,10 @@ ALWAYS_INLINE VM& CLoopStack::vm() const
 }
 
 // Saves the interpreter SP into the calling thread's own segment (the
-// offlineasm cloop emits this before every native/slow-path call), and
+// offlineasm cloop emits this before every native/slow-path call; the
+// segment's currentStackPointer/lastStackPointer are owner-exclusive while
+// the owner lives — sanitizeStack() only touches the calling thread's own
+// segment), and
 // republishes this thread's stack limit if another thread published its own
 // in the meantime (GIL handoff), so the asm fast-path stack checks compare
 // against the running thread's segment. See the class comment in CLoopStack.h.

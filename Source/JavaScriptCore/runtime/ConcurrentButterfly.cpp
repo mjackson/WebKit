@@ -100,11 +100,13 @@ namespace JSC {
 
 ButterflyFragment* spineOutOfLineFragment(ButterflySpine* spine, unsigned fragmentIndex)
 {
+    spine->tsanConsume(); // V7: import the publisher's clock (see Butterfly.h).
     return spine->outOfLineFragment(fragmentIndex);
 }
 
 ButterflyFragment* spineIndexedFragment(ButterflySpine* spine, unsigned fragmentIndex)
 {
+    spine->tsanConsume(); // V7
     return spine->indexedFragment(fragmentIndex);
 }
 
@@ -115,22 +117,26 @@ WriteBarrierBase<Unknown>* segmentedOutOfLineSlot(ButterflySpine* spine, Propert
     // (offsetInOutOfLineStorage() is the NEGATIVE PropertyStorage index, not
     // the spine index - see outOfLineButterflyIndex in ConcurrentButterfly.h.)
     ASSERT(isOutOfLineOffset(offset));
+    spine->tsanConsume(); // V7
     return spine->outOfLineSlot(outOfLineButterflyIndex(offset));
 }
 
 WriteBarrierBase<Unknown>* segmentedIndexedSlot(ButterflySpine* spine, unsigned index)
 {
     // Precondition (C4): index < spine->vectorLength; the member ASSERTs it.
+    spine->tsanConsume(); // V7
     return spine->indexedSlot(index);
 }
 
 uint32_t segmentedPublicLength(ButterflySpine* spine)
 {
+    spine->tsanConsume(); // V7
     return spine->publicLength(); // RELEASE_ASSERTs indexedFragmentCount (C2).
 }
 
 void setSegmentedPublicLength(ButterflySpine* spine, uint32_t value)
 {
+    spine->tsanConsume(); // V7
     spine->setPublicLength(value); // RELEASE_ASSERTs indexedFragmentCount (C2).
 }
 
@@ -141,35 +147,43 @@ void setSegmentedPublicLength(ButterflySpine* spine, uint32_t value)
 WriteBarrierBase<Unknown>* segmentedOutOfLineSlotIfWithinBounds(ButterflySpine* spine, PropertyOffset offset)
 {
     ASSERT(isOutOfLineOffset(offset));
+    spine->tsanConsume(); // V7
     uint64_t outOfLineIndex = outOfLineButterflyIndex(offset);
-    if (outOfLineIndex >= static_cast<uint64_t>(butterflyFragmentSlots) * spine->outOfLineFragmentCount)
+    if (outOfLineIndex >= static_cast<uint64_t>(butterflyFragmentSlots) * spine->outOfLineFragmentCountConcurrent())
         return nullptr; // I33: stale spine.
     return spine->outOfLineSlot(static_cast<unsigned>(outOfLineIndex));
 }
 
 WriteBarrierBase<Unknown>* segmentedIndexedSlotIfReadable(ButterflySpine* spine, unsigned index)
 {
-    if (!spine->indexedFragmentCount)
+    spine->tsanConsume(); // V7
+    if (!spine->indexedFragmentCountConcurrent())
         return nullptr; // C2: header-less spine has no indexed storage.
     // C4: bound by min(publicLength, the SAME loaded spine's vectorLength);
     // [vectorLength, publicLength) reads as holes (SAB-granularity staleness).
-    if (index >= std::min(spine->publicLength(), spine->vectorLength))
+    // publicLength() is already a relaxed atomic load of the shared header
+    // slot (review amendment C: the one spine-reachable word that is mutable
+    // post-publication is annotated on both sides — setPublicLength /
+    // bumpPublicLengthToAtLeast are its paired atomic writers).
+    if (index >= std::min(spine->publicLength(), spine->vectorLengthConcurrent()))
         return nullptr;
     return spine->indexedSlot(index);
 }
 
 WriteBarrierBase<Unknown>* segmentedIndexedSlotIfWithinVectorLength(ButterflySpine* spine, unsigned index)
 {
-    if (!spine->indexedFragmentCount)
+    spine->tsanConsume(); // V7
+    if (!spine->indexedFragmentCountConcurrent())
         return nullptr; // C2
-    if (index >= spine->vectorLength)
+    if (index >= spine->vectorLengthConcurrent())
         return nullptr; // C4 precondition for writes that may bump publicLength.
     return spine->indexedSlot(index);
 }
 
 uint32_t segmentedVectorLength(ButterflySpine* spine)
 {
-    return spine->vectorLength;
+    spine->tsanConsume(); // V7
+    return spine->vectorLengthConcurrent();
 }
 
 // ===== Task 10: O3/I20 cell-lock depth witness =====
@@ -458,7 +472,7 @@ void validatePartiallyAliasedSpine(const ButterflySpine* spine, Butterfly* flat,
         // engine.
         RELEASE_ASSERT(reinterpret_cast<char*>(&spine->indexedFragment(0)->slots[0]) == base - 8);
         RELEASE_ASSERT(spine->frozenFlatVectorLength() == flat->vectorLength()); // I9b: frozen high half vs immutable flat VL — stable, keep.
-        for (uint32_t i = 0; i < spine->vectorLength; ++i)
+        for (uint32_t i = 0; i < spine->vectorLengthConcurrent(); ++i)
             RELEASE_ASSERT(reinterpret_cast<char*>(spine->indexedSlot(i)) == base + sizeof(EncodedJSValue) * static_cast<size_t>(i));
     }
 }
@@ -650,19 +664,19 @@ ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* objec
             // aliased base/size recorded VERBATIM for GC (§4.5/I7 - the old
             // flat allocation's only references after publication are the
             // spine's interior fragment pointers).
-            spine->outOfLineFragmentCount = totalOutOfLineFragments;
-            spine->indexedFragmentCount = indexedFragments;
-            spine->vectorLength = flatVectorLength; // Authoritative live VL; the flat-era copy stays frozen in fragment 0 slot 0's high half (I9b).
-            spine->spineEpoch = 1; // First spine this object publishes; replacements (§4.3-1/T2) copy + increment.
-            spine->aliasedAllocationBase = aliasedAllocationBaseForConversion(flat, 0, aliasedOutOfLineCapacity); // C3 RELEASE_ASSERT inside.
-            spine->aliasedAllocationSize = aliasedAllocationSizeForConversion(aliasedOutOfLineCapacity, hasIndexingHeader, static_cast<size_t>(flatVectorLength) * sizeof(EncodedJSValue));
+            butterflyConcurrentStore(&spine->outOfLineFragmentCount, totalOutOfLineFragments); // V7: paired with the reader-side relaxed loads (Butterfly.h).
+            butterflyConcurrentStore(&spine->indexedFragmentCount, indexedFragments);
+            butterflyConcurrentStore(&spine->vectorLength, flatVectorLength); // Authoritative live VL; the flat-era copy stays frozen in fragment 0 slot 0's high half (I9b).
+            butterflyConcurrentStore(&spine->spineEpoch, 1u); // First spine this object publishes; replacements (§4.3-1/T2) copy + increment.
+            butterflyConcurrentStore(&spine->aliasedAllocationBase, aliasedAllocationBaseForConversion(flat, 0, aliasedOutOfLineCapacity)); // C3 RELEASE_ASSERT inside.
+            butterflyConcurrentStore(&spine->aliasedAllocationSize, aliasedAllocationSizeForConversion(aliasedOutOfLineCapacity, hasIndexingHeader, static_cast<size_t>(flatVectorLength) * sizeof(EncodedJSValue)));
 
             for (uint32_t j = 0; j < aliasedOutOfLineFragments; ++j)
-                spine->fragments()[j] = aliasedOutOfLineFragmentForConversion(flat, j);
+                butterflyConcurrentStore(&spine->fragments()[j], aliasedOutOfLineFragmentForConversion(flat, j));
             for (uint32_t j = 0; j < freshOutOfLineFragments; ++j)
-                spine->fragments()[aliasedOutOfLineFragments + j] = freshFragments[j];
+                butterflyConcurrentStore(&spine->fragments()[aliasedOutOfLineFragments + j], freshFragments[j]);
             for (uint32_t f = 0; f < indexedFragments; ++f)
-                spine->fragments()[totalOutOfLineFragments + f] = aliasedIndexedFragmentForConversion(flat, f);
+                butterflyConcurrentStore(&spine->fragments()[totalOutOfLineFragments + f], aliasedIndexedFragmentForConversion(flat, f));
 
             if (!freshOutOfLineFragments)
                 validateSpineAliasesFlatButterfly(spine, flat, 0, aliasedOutOfLineCapacity, hasIndexingHeader); // Full I8 sweep.
@@ -696,6 +710,7 @@ ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* objec
             }
 
             StructureID newStructureID = newStructureOrNull ? newStructureOrNull->id() : sourceID;
+            spine->tsanPublish(); // V7: last pre-publication store done; pairs with tsanConsume() in every segmented* reader (Butterfly.h rationale).
             uint64_t spineWord = encodeSegmentedButterfly(spine); // (notTTLTID, SW=1, spine) - I3.
 
             // Nuke: 32-bit CAS structureID -> nuke(old) (M5). The lane holds
@@ -1029,8 +1044,9 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
             // per-event STW relabels (Tasks 7/8), never this locked protocol.
             RELEASE_ASSERT(hasDouble(source->indexingType()) == hasDouble(newStructure->indexingType()));
             ButterflySpine* planningSpine = butterflySpine(planningWord);
-            planningSpineOutOfLineFragments = planningSpine->outOfLineFragmentCount;
-            plannedIndexedFragments = planningSpine->indexedFragmentCount;
+            planningSpine->tsanConsume(); // V7: published spine.
+            planningSpineOutOfLineFragments = planningSpine->outOfLineFragmentCountConcurrent();
+            plannedIndexedFragments = planningSpine->indexedFragmentCountConcurrent();
             RELEASE_ASSERT(!(newOutOfLineCapacity % butterflyFragmentSlots)); // C1
             neededOutOfLineFragments = static_cast<uint32_t>(newOutOfLineCapacity / butterflyFragmentSlots);
             if (neededOutOfLineFragments > planningSpineOutOfLineFragments) {
@@ -1138,40 +1154,44 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
                     break;
                 }
                 ButterflySpine* currentSpine = butterflySpine(expectedWord);
+                currentSpine->tsanConsume(); // V7: published spine; import the publisher's clock.
                 // The out-of-line fragment count is capacity-derived and the
                 // capacity is structure-determined: stable while the
                 // structureID check above holds.
-                ASSERT(currentSpine->outOfLineFragmentCount == planningSpineOutOfLineFragments);
-                bool needGrow = neededOutOfLineFragments > currentSpine->outOfLineFragmentCount;
+                ASSERT(currentSpine->outOfLineFragmentCountConcurrent() == planningSpineOutOfLineFragments);
+                uint32_t currentOutOfLineFragments = currentSpine->outOfLineFragmentCountConcurrent();
+                uint32_t currentIndexedFragments = currentSpine->indexedFragmentCountConcurrent();
+                bool needGrow = neededOutOfLineFragments > currentOutOfLineFragments;
                 ButterflySpine* targetSpine = currentSpine;
                 if (needGrow) {
-                    if (!replacementSpine || currentSpine->indexedFragmentCount > plannedIndexedFragments) {
+                    if (!replacementSpine || currentIndexedFragments > plannedIndexedFragments) {
                         refit = true; // A racing T2 grew the right side: the step-1 spine is too small.
                         break;
                     }
-                    replacementSpine->outOfLineFragmentCount = neededOutOfLineFragments;
-                    replacementSpine->indexedFragmentCount = currentSpine->indexedFragmentCount;
-                    replacementSpine->vectorLength = currentSpine->vectorLength;
-                    replacementSpine->spineEpoch = currentSpine->spineEpoch + 1;
-                    replacementSpine->aliasedAllocationBase = currentSpine->aliasedAllocationBase; // VERBATIM (I7)
-                    replacementSpine->aliasedAllocationSize = currentSpine->aliasedAllocationSize; // VERBATIM (I7)
-                    for (uint32_t j = 0; j < currentSpine->outOfLineFragmentCount; ++j)
-                        replacementSpine->fragments()[j] = currentSpine->outOfLineFragment(j);
-                    for (uint32_t j = 0; j < neededOutOfLineFragments - currentSpine->outOfLineFragmentCount; ++j)
-                        replacementSpine->fragments()[currentSpine->outOfLineFragmentCount + j] = freshFragments[j];
-                    for (uint32_t f = 0; f < currentSpine->indexedFragmentCount; ++f)
-                        replacementSpine->fragments()[neededOutOfLineFragments + f] = currentSpine->indexedFragment(f);
+                    butterflyConcurrentStore(&replacementSpine->outOfLineFragmentCount, neededOutOfLineFragments); // V7: paired with reader-side relaxed loads.
+                    butterflyConcurrentStore(&replacementSpine->indexedFragmentCount, currentIndexedFragments);
+                    butterflyConcurrentStore(&replacementSpine->vectorLength, currentSpine->vectorLengthConcurrent());
+                    butterflyConcurrentStore(&replacementSpine->spineEpoch, butterflyConcurrentLoad(&currentSpine->spineEpoch) + 1);
+                    butterflyConcurrentStore(&replacementSpine->aliasedAllocationBase, butterflyConcurrentLoad(&currentSpine->aliasedAllocationBase)); // VERBATIM (I7)
+                    butterflyConcurrentStore(&replacementSpine->aliasedAllocationSize, butterflyConcurrentLoad(&currentSpine->aliasedAllocationSize)); // VERBATIM (I7)
+                    for (uint32_t j = 0; j < currentOutOfLineFragments; ++j)
+                        butterflyConcurrentStore(&replacementSpine->fragments()[j], currentSpine->outOfLineFragment(j));
+                    for (uint32_t j = 0; j < neededOutOfLineFragments - currentOutOfLineFragments; ++j)
+                        butterflyConcurrentStore(&replacementSpine->fragments()[currentOutOfLineFragments + j], freshFragments[j]);
+                    for (uint32_t f = 0; f < currentIndexedFragments; ++f)
+                        butterflyConcurrentStore(&replacementSpine->fragments()[neededOutOfLineFragments + f], currentSpine->indexedFragment(f));
                     replacementSpine->validateConsistency();
                     targetSpine = replacementSpine;
                 }
                 if (offset != invalidOffset) {
                     unsigned outOfLineIndex = outOfLineButterflyIndex(offset);
-                    RELEASE_ASSERT(static_cast<uint64_t>(outOfLineIndex) < static_cast<uint64_t>(butterflyFragmentSlots) * targetSpine->outOfLineFragmentCount); // I33 by construction.
+                    RELEASE_ASSERT(static_cast<uint64_t>(outOfLineIndex) < static_cast<uint64_t>(butterflyFragmentSlots) * targetSpine->outOfLineFragmentCountConcurrent()); // I33 by construction.
                     reinterpret_cast<Atomic<uint64_t>*>(targetSpine->outOfLineSlot(outOfLineIndex))->store(JSValue::encode(value), std::memory_order_release); // Step 4 (M2/I9)
                     if (verifyConcurrentButterflyEnabled()) [[unlikely]]
                         RELEASE_ASSERT(reinterpret_cast<Atomic<uint64_t>*>(targetSpine->outOfLineSlot(outOfLineIndex))->load(std::memory_order_relaxed) == JSValue::encode(value)); // I9/M2 witness (Task 10).
                     storedValue = true;
                 }
+                targetSpine->tsanPublish(); // V7: last pre-publication store done (no-op re-annotation when targetSpine == currentSpine).
                 desiredWord = encodeSegmentedButterfly(targetSpine); // (notTTLTID, 1) - I3.
                 // Publication debug-assert (I11/E1): never publish
                 // (notTTLTID, 1) while transitionThreadLocal is valid.
@@ -1961,31 +1981,33 @@ bool ensureSegmentedOutOfLineCapacity(VM& vm, JSObjectWithButterfly* object, siz
         if (!isSegmentedButterfly(word))
             return false; // Regime moved: re-dispatch at the caller.
         ButterflySpine* spine = butterflySpine(word);
-        uint32_t haveFragments = spine->outOfLineFragmentCount;
+        spine->tsanConsume(); // V7: published spine; import the publisher's clock.
+        uint32_t haveFragments = spine->outOfLineFragmentCountConcurrent();
         uint32_t needFragments = static_cast<uint32_t>((neededCapacitySlots + butterflyFragmentSlots - 1) / butterflyFragmentSlots);
         if (haveFragments >= needFragments)
             return true;
-        uint32_t indexedFragments = spine->indexedFragmentCount;
+        uint32_t indexedFragments = spine->indexedFragmentCountConcurrent();
         auto* newSpine = static_cast<ButterflySpine*>(vm.auxiliarySpace().allocate(
             vm, ButterflySpine::allocationSize(needFragments + indexedFragments), nullptr, AllocationFailureMode::Assert));
-        newSpine->outOfLineFragmentCount = needFragments;
-        newSpine->indexedFragmentCount = indexedFragments;
-        newSpine->vectorLength = spine->vectorLength;
-        newSpine->spineEpoch = spine->spineEpoch + 1;
-        newSpine->aliasedAllocationBase = spine->aliasedAllocationBase; // VERBATIM (I7)
-        newSpine->aliasedAllocationSize = spine->aliasedAllocationSize; // VERBATIM (I7)
+        butterflyConcurrentStore(&newSpine->outOfLineFragmentCount, needFragments); // V7: paired with reader-side relaxed loads.
+        butterflyConcurrentStore(&newSpine->indexedFragmentCount, indexedFragments);
+        butterflyConcurrentStore(&newSpine->vectorLength, spine->vectorLengthConcurrent());
+        butterflyConcurrentStore(&newSpine->spineEpoch, butterflyConcurrentLoad(&spine->spineEpoch) + 1);
+        butterflyConcurrentStore(&newSpine->aliasedAllocationBase, butterflyConcurrentLoad(&spine->aliasedAllocationBase)); // VERBATIM (I7)
+        butterflyConcurrentStore(&newSpine->aliasedAllocationSize, butterflyConcurrentLoad(&spine->aliasedAllocationSize)); // VERBATIM (I7)
         for (uint32_t j = 0; j < haveFragments; ++j)
-            newSpine->fragments()[j] = spine->outOfLineFragment(j); // Shared fragments aliased verbatim (I6).
+            butterflyConcurrentStore(&newSpine->fragments()[j], spine->outOfLineFragment(j)); // Shared fragments aliased verbatim (I6).
         for (uint32_t j = haveFragments; j < needFragments; ++j) {
             auto* fragment = static_cast<ButterflyFragment*>(
                 vm.auxiliarySpace().allocate(vm, sizeof(ButterflyFragment), nullptr, AllocationFailureMode::Assert));
             for (size_t slotIndex = 0; slotIndex < butterflyFragmentSlots; ++slotIndex)
                 fragment->slots[slotIndex].clear(); // Beyond outOfLineSize: never value-visited (§4.5 step 4).
-            newSpine->fragments()[j] = fragment;
+            butterflyConcurrentStore(&newSpine->fragments()[j], fragment);
         }
         for (uint32_t f = 0; f < indexedFragments; ++f)
-            newSpine->fragments()[needFragments + f] = spine->indexedFragment(f);
+            butterflyConcurrentStore(&newSpine->fragments()[needFragments + f], spine->indexedFragment(f));
         newSpine->validateConsistency();
+        newSpine->tsanPublish(); // V7: last pre-publication store done; pairs with tsanConsume() in readers.
         WTF::storeStoreFence(); // Spine contents before publication.
         if (casButterfly(object, word, encodeSegmentedButterfly(newSpine))) {
             vm.writeBarrier(object);
@@ -2233,17 +2255,18 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
     if (!isSegmentedButterfly(word))
         return false; // Re-dispatch: the word left the segmented regime (cannot happen outside STW today; defensive).
     ButterflySpine* spine = butterflySpine(word);
-    if (spine->vectorLength >= newVectorLength)
+    spine->tsanConsume(); // V7: published spine; import the publisher's clock.
+    if (spine->vectorLengthConcurrent() >= newVectorLength)
         return true; // A racing T2 grow already covers us.
 
     // C2: gaining elements on a header-less spine is a §4.3 SHAPE transition
     // (new spine + header fragment), not a T2 resize.
-    RELEASE_ASSERT(spine->indexedFragmentCount);
+    RELEASE_ASSERT(spine->indexedFragmentCountConcurrent());
 
-    uint32_t outOfLineFragments = spine->outOfLineFragmentCount;
-    uint32_t oldIndexedFragments = spine->indexedFragmentCount;
+    uint32_t outOfLineFragments = spine->outOfLineFragmentCountConcurrent();
+    uint32_t oldIndexedFragments = spine->indexedFragmentCountConcurrent();
     uint32_t oldCoveredVectorLength = oldIndexedFragments * butterflyFragmentSlots - 1;
-    bool fullCoverage = spine->vectorLength == oldCoveredVectorLength;
+    bool fullCoverage = spine->vectorLengthConcurrent() == oldCoveredVectorLength;
 
     // +1 = the header slot (C2).
     uint32_t neededIndexedFragments = std::max<uint32_t>(oldIndexedFragments,
@@ -2278,20 +2301,20 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
     uint32_t aliasedIndexedFragments = fullCoverage ? oldIndexedFragments : 0; // Mode (b) rebuilds ALL indexed fragments.
     ButterflySpine* newSpine = static_cast<ButterflySpine*>(vm.auxiliarySpace().allocate(
         vm, ButterflySpine::allocationSize(outOfLineFragments + neededIndexedFragments), nullptr, AllocationFailureMode::Assert));
-    newSpine->outOfLineFragmentCount = outOfLineFragments;
-    newSpine->indexedFragmentCount = neededIndexedFragments;
-    newSpine->vectorLength = publishedVectorLength;
-    newSpine->spineEpoch = spine->spineEpoch + 1;
-    newSpine->aliasedAllocationBase = spine->aliasedAllocationBase; // VERBATIM (I7)
-    newSpine->aliasedAllocationSize = spine->aliasedAllocationSize;
+    butterflyConcurrentStore(&newSpine->outOfLineFragmentCount, outOfLineFragments); // V7: paired with reader-side relaxed loads.
+    butterflyConcurrentStore(&newSpine->indexedFragmentCount, neededIndexedFragments);
+    butterflyConcurrentStore(&newSpine->vectorLength, publishedVectorLength);
+    butterflyConcurrentStore(&newSpine->spineEpoch, butterflyConcurrentLoad(&spine->spineEpoch) + 1);
+    butterflyConcurrentStore(&newSpine->aliasedAllocationBase, butterflyConcurrentLoad(&spine->aliasedAllocationBase)); // VERBATIM (I7)
+    butterflyConcurrentStore(&newSpine->aliasedAllocationSize, butterflyConcurrentLoad(&spine->aliasedAllocationSize));
     for (uint32_t j = 0; j < outOfLineFragments + aliasedIndexedFragments; ++j)
-        newSpine->fragments()[j] = spine->fragments()[j]; // Shared fragments aliased verbatim (mode (a) incl. fragment 0 = the shared publicLength slot, C4).
+        butterflyConcurrentStore(&newSpine->fragments()[j], butterflyConcurrentLoad(&spine->fragments()[j])); // Shared fragments aliased verbatim (mode (a) incl. fragment 0 = the shared publicLength slot, C4).
     for (uint32_t f = aliasedIndexedFragments; f < neededIndexedFragments; ++f) {
         auto* fragment = static_cast<ButterflyFragment*>(
             vm.auxiliarySpace().allocate(vm, sizeof(ButterflyFragment), nullptr, AllocationFailureMode::Assert));
         for (size_t slotIndex = 0; slotIndex < butterflyFragmentSlots; ++slotIndex)
             fillFragmentSlotWithHole(&fragment->slots[slotIndex], fillDouble);
-        newSpine->fragments()[outOfLineFragments + f] = fragment;
+        butterflyConcurrentStore(&newSpine->fragments()[outOfLineFragments + f], fragment);
     }
     newSpine->validateConsistency();
 
@@ -2299,6 +2322,7 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
         // ---- Mode (a): ONE lock-free 64-bit CAS, tag (notTTLTID, 1)
         // (I27/T2). Failure => re-dispatch on the fresh tag, never
         // blind-retry (§4.4).
+        newSpine->tsanPublish(); // V7: last pre-publication store done.
         WTF::storeStoreFence(); // Spine contents before publication (M2-equivalent).
         if (hasDouble(object->indexingType()) != fillDouble)
             return false; // I28: a relabel stop intervened during allocation; re-dispatch with the right fill.
@@ -2324,8 +2348,9 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
         ButterflyFragment* oldHeaderFragment = spine->indexedFragment(0);
         ButterflyFragment* newHeaderFragment = newSpine->indexedFragment(0);
         *std::bit_cast<uint64_t*>(&newHeaderFragment->slots[0]) = *std::bit_cast<uint64_t*>(&oldHeaderFragment->slots[0]);
-        for (uint32_t i = 0; i < spine->vectorLength; ++i)
+        for (uint32_t i = 0; i < spine->vectorLengthConcurrent(); ++i)
             *std::bit_cast<uint64_t*>(newSpine->indexedSlot(i)) = *std::bit_cast<uint64_t*>(spine->indexedSlot(i));
+        newSpine->tsanPublish(); // V7: last pre-publication store done (mode (b): inside the stop).
         WTF::storeStoreFence(); // Contents before publication.
         // World-stopped => unraced; CAS anyway so the publication stays
         // I17-shaped (cf. the Task 7 AS per-event stop).
@@ -2479,7 +2504,8 @@ void shrinkButterflyForSetLengthConcurrent(VM& vm, JSObjectWithButterfly* object
         // the spine's vectorLength (storage bound), not publicLength.
         if (isSegmentedButterfly(word)) [[unlikely]] {
             ButterflySpine* spine = butterflySpine(word);
-            uint32_t bound = std::min(segmentedPublicLength(spine), spine->vectorLength);
+            spine->tsanConsume(); // V7: published spine.
+            uint32_t bound = std::min(segmentedPublicLength(spine), spine->vectorLengthConcurrent());
             for (uint32_t i = length; i < bound; ++i) {
                 WriteBarrierBase<Unknown>* slot = spine->indexedSlot(i);
                 if (fillDouble)
@@ -3336,6 +3362,7 @@ Structure* visitSegmentedButterfly(Visitor& visitor, JSObjectWithButterfly* obje
     if (hasAnyArrayStorage(indexingMode) || isCopyOnWrite(indexingMode)) [[unlikely]]
         return nullptr;
 
+    spine->tsanConsume(); // V7: published spine; import the publisher's clock (GC visit races the publish benignly — I6).
     spine->validateConsistency(); // Debug/verify-only inside.
 
     // I6/I7 witnesses (Task 10): published spines are immutable - snapshot the
@@ -3344,20 +3371,20 @@ Structure* visitSegmentedButterfly(Visitor& visitor, JSObjectWithButterfly* obje
     // and aliasedAllocationBase/Size are null/0 together (§4.1; a base without
     // a size - or vice versa - would let GC sweep the aliased flat allocation,
     // the exact UAF I7 exists to prevent).
-    const uint32_t entryOutOfLineFragmentCount = spine->outOfLineFragmentCount;
-    const uint32_t entryIndexedFragmentCount = spine->indexedFragmentCount;
-    const uint32_t entryVectorLength = spine->vectorLength;
-    const uint32_t entrySpineEpoch = spine->spineEpoch;
-    const void* entryAliasedBase = spine->aliasedAllocationBase;
-    const uint64_t entryAliasedSize = spine->aliasedAllocationSize;
+    const uint32_t entryOutOfLineFragmentCount = spine->outOfLineFragmentCountConcurrent();
+    const uint32_t entryIndexedFragmentCount = spine->indexedFragmentCountConcurrent();
+    const uint32_t entryVectorLength = spine->vectorLengthConcurrent();
+    const uint32_t entrySpineEpoch = butterflyConcurrentLoad(&spine->spineEpoch);
+    const void* entryAliasedBase = butterflyConcurrentLoad(&spine->aliasedAllocationBase);
+    const uint64_t entryAliasedSize = butterflyConcurrentLoad(&spine->aliasedAllocationSize);
     if (verifyConcurrentButterflyEnabled()) [[unlikely]]
         RELEASE_ASSERT(!!entryAliasedBase == !!entryAliasedSize); // §4.1/I7
 
     // ---- Step 3: mark the spine and the aliased flat allocation's base.
     ASSERT(visitor.heap() == Heap::heap(object));
     visitor.markAuxiliary(spine);
-    char* aliasedBegin = static_cast<char*>(spine->aliasedAllocationBase);
-    char* aliasedEnd = aliasedBegin + spine->aliasedAllocationSize; // aliasedSize is 0 when base is null (§4.1).
+    char* aliasedBegin = static_cast<char*>(const_cast<void*>(entryAliasedBase));
+    char* aliasedEnd = aliasedBegin + entryAliasedSize; // aliasedSize is 0 when base is null (§4.1).
     if (aliasedBegin)
         visitor.markAuxiliary(aliasedBegin);
 
@@ -3369,7 +3396,7 @@ Structure* visitSegmentedButterfly(Visitor& visitor, JSObjectWithButterfly* obje
     // ---- Step 4: out-of-line fragments. Mark ALL of them (quarantined slots
     // stay visited until released - D1/I18/I30 keep the bound from shrinking);
     // value-visit only up to outOfLineSize.
-    uint32_t outOfLineFragmentCount = spine->outOfLineFragmentCount;
+    uint32_t outOfLineFragmentCount = entryOutOfLineFragmentCount;
     for (uint32_t j = 0; j < outOfLineFragmentCount; ++j) {
         ButterflyFragment* fragment = spine->outOfLineFragment(j);
         if (!fragmentIsInAliasedAllocation(fragment))
@@ -3393,7 +3420,7 @@ Structure* visitSegmentedButterfly(Visitor& visitor, JSObjectWithButterfly* obje
 
     // ---- Step 5: indexed fragments (indexedFragmentCount == 0 iff the flat
     // butterfly was header-less at conversion, C2).
-    uint32_t indexedFragmentCount = spine->indexedFragmentCount;
+    uint32_t indexedFragmentCount = entryIndexedFragmentCount;
     if (indexedFragmentCount) {
         for (uint32_t f = 0; f < indexedFragmentCount; ++f) {
             ButterflyFragment* fragment = spine->indexedFragment(f);
@@ -3432,7 +3459,7 @@ Structure* visitSegmentedButterfly(Visitor& visitor, JSObjectWithButterfly* obje
             // [vectorLength, publicLength) belongs to a newer spine, which the
             // re-greyed revisit scans. The C2 tail past vectorLength is never
             // visited.
-            uint32_t bound = spine->vectorLength;
+            uint32_t bound = entryVectorLength; // V7: the (annotated) entry snapshot — same immutable word.
             for (uint32_t f = 0; f < indexedFragmentCount; ++f) {
                 // Element i lives at fragment (i+1)/4, slot (i+1)%4 (§4.1):
                 // fragment 0 carries elements 0..2 in slots 1..3 (slot 0 is the
@@ -3463,12 +3490,12 @@ Structure* visitSegmentedButterfly(Visitor& visitor, JSObjectWithButterfly* obje
         // snapshot - published spines are never mutated (growth = new spine;
         // the SOLE mutable spine-reachable word is fragment 0 slot 0, the
         // shared publicLength, which lives in a FRAGMENT, not the header).
-        RELEASE_ASSERT(spine->outOfLineFragmentCount == entryOutOfLineFragmentCount);
-        RELEASE_ASSERT(spine->indexedFragmentCount == entryIndexedFragmentCount);
-        RELEASE_ASSERT(spine->vectorLength == entryVectorLength);
-        RELEASE_ASSERT(spine->spineEpoch == entrySpineEpoch);
-        RELEASE_ASSERT(spine->aliasedAllocationBase == entryAliasedBase);
-        RELEASE_ASSERT(spine->aliasedAllocationSize == entryAliasedSize);
+        RELEASE_ASSERT(spine->outOfLineFragmentCountConcurrent() == entryOutOfLineFragmentCount);
+        RELEASE_ASSERT(spine->indexedFragmentCountConcurrent() == entryIndexedFragmentCount);
+        RELEASE_ASSERT(spine->vectorLengthConcurrent() == entryVectorLength);
+        RELEASE_ASSERT(butterflyConcurrentLoad(&spine->spineEpoch) == entrySpineEpoch);
+        RELEASE_ASSERT(butterflyConcurrentLoad(&spine->aliasedAllocationBase) == entryAliasedBase);
+        RELEASE_ASSERT(butterflyConcurrentLoad(&spine->aliasedAllocationSize) == entryAliasedSize);
     }
     if (object->structureID() != expectedStructureID)
         return nullptr;
