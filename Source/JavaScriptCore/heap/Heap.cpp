@@ -5022,6 +5022,23 @@ void Heap::runSafepointHooksAndReclaim()
 
     runStopTheWorldSafepointHooks();
 
+    // V5b fast path (I10): when nothing is retired, bumpAndReclaim() is a
+    // documented no-op (§11 empty-check: no bump, no client iteration), so
+    // the reclaimer's compiler-thread suspension (I11(c)) would license
+    // nothing and the localEpoch stamping loop (I11(a)) would feed nothing —
+    // a later cycle that DOES find retired items re-stamps every client to
+    // the then-current epoch before its own bump, so skipping the stamp here
+    // can never shrink that later min(localEpoch). Flag-off every retire()
+    // feeder is useJSThreads-gated (the I10 exemption), making this the
+    // every-eden-GC path: skip the suspend/resume pair and the bracket
+    // instead of paying them to license a no-op. A racing in-stop retire()
+    // landing just after this check simply waits for the NEXT reclaim
+    // sequence — the same sound, later-destruction outcome bumpAndReclaim's
+    // own under-bracket empty-check already permits for items retired during
+    // the current stop window (epoch == oldEpoch survives the bump).
+    if (!m_safepointEpoch.hasRetiredItems())
+        return;
+
     // I11: compiler threads must be suspended across the bump by the
     // reclaimer's OWN suspend/resume pair — a conducted cycle's periphery
     // suspension does not by itself license a bump (bumpAndReclaim

@@ -88,6 +88,17 @@ public:
     // publishes epoch + 1.
     JS_EXPORT_PRIVATE void bumpAndReclaim();
 
+    // True iff retire() has enqueued an item not yet reclaimed. Used by the
+    // reclaim sequence (Heap::runSafepointHooksAndReclaim) to skip the
+    // reclaimer suspension bracket when bumpAndReclaim() would no-op anyway
+    // (§11 empty-check; the I10 option-off exemption) — see the comment at
+    // that call site for the soundness argument.
+    bool hasRetiredItems()
+    {
+        Locker locker { m_retireLock };
+        return !m_retired.isEmpty();
+    }
+
 private:
     friend class JSC::Heap; // setServer + the reclaimer bracket (§11).
     friend class JSC::SharedHeapTestHarness; // reclaimLicensed() for the I11 unit test (T7).
