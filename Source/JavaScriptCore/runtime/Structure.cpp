@@ -2522,8 +2522,29 @@ bool Structure::canCachePropertyNameEnumerator(VM&) const
     if (!this->canCacheOwnPropertyNames())
         return false;
 
+    // GIL-off, a sibling mutator's prototypeChain() (StructureInlines.h) can
+    // clearCachedPrototypeChain() and republish a fresh StructureChain
+    // lock-free between our caller computing its chain snapshot
+    // (propertyNameEnumeratorSlow, JSPropertyNameEnumeratorInlines.h:87-90)
+    // and this read. Observing the null window just means "decline to cache"
+    // -- the same loser path as the chain-mismatch bail in
+    // setCachedPropertyNameEnumerator above. If we instead observe a
+    // replacement chain, walking it is still safe (a StructureChain is an
+    // immutable null-terminated StructureID list once created) and a stale
+    // `true` is caught by the chain == m_cachedPrototypeChain re-validation
+    // under m_lock in setCachedPropertyNameEnumerator, which then declines to
+    // cache. Identity: single-threaded / GIL-on, the caller's prototypeChain()
+    // call just published m_cachedPrototypeChain with no interleaving
+    // possible, so null is unreachable -- preserved by the ASSERT below.
+    // Note the concurrent-GC clear in visitChildrenImpl (above) is NOT a
+    // source of this null: it fires only for !isObject() structures, and this
+    // path is object-only, so the identity ASSERT is safe even under
+    // concurrent marking.
     StructureChain* structureChain = m_cachedPrototypeChain.get();
-    ASSERT(structureChain);
+    if (!structureChain) [[unlikely]] {
+        ASSERT(Options::useJSThreads() && !Options::useThreadGIL());
+        return false;
+    }
     StructureID* currentStructureID = structureChain->head();
     while (true) {
         StructureID structureID = *currentStructureID;
