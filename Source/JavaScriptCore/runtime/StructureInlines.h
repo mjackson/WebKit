@@ -631,7 +631,7 @@ inline void Structure::pin(const AbstractLocker&, VM& vm, PropertyTable* table)
 // the lost-update CAS loop, outlined so flag-off setter call sites carry only
 // a predicted-false byte test + a never-taken call. Flag-on, this path
 // immediately enters a CAS retry loop, so one extra call is noise.
-inline void Structure::setBitFieldConcurrently(uint32_t setBits, uint32_t fieldBits)
+NEVER_INLINE inline void Structure::setBitFieldConcurrently(uint32_t setBits, uint32_t fieldBits)
 {
     uint32_t oldWord = WTF::atomicLoad(&m_bitField, std::memory_order_relaxed);
     while (true) {

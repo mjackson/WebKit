@@ -1006,10 +1006,25 @@ public:
 // takes a CAS loop when Options::useJSThreads() is on; that loop is outlined
 // into setBitFieldConcurrently (StructureInlines.h) so the flag-off path stays
 // the pre-threads plain RMW behind a single predicted-false byte test, per the
-// project rule (cf. the ab17c flag-off-bench-first precedent); a V5b bench
-// re-run is re-pinned to this change.
+// project rule (cf. the ab17c flag-off-bench-first precedent).
+// ITEM-2 STATUS (V5b transition-heavy-constructor, +3.05%/+3.23% quiet-host):
+// still OPEN — that regression was measured on a binary that ALREADY contains
+// this outlining, so the outlining is not the fix. Remaining suspect: the
+// per-setter Options::useJSThreads() load + branch repeated between adjacent
+// setters in the transition-install clusters (Structure::add, both arms of
+// addOrReplacePropertyWithoutTransition, pin), which blocks clang from
+// coalescing adjacent m_bitField RMWs into one load/modify/store — but do NOT
+// edit on that theory alone: per review, first run the ITEM-2 perf protocol
+// (perf record -e cycles on a high-iteration local copy of
+// JSTests/threads/bench/transition-heavy-constructor.js, diffed against a
+// pre-ab17d Release jsc) to pin where the cycles actually live, then gate any
+// fix on two consecutive bench-gate runs plus V3/V6 re-runs.
 // Readers are relaxed atomic loads unconditionally — identical MOV/LDR
-// codegen — so TSAN sees the reader side paired with the CAS writers.
+// codegen — so TSAN sees the reader side paired with the CAS writers. Note:
+// flag-off this intentionally mixes a plain non-atomic writer RMW with
+// relaxed-atomic readers on m_bitField; that is the pre-threads accepted
+// benign baseline (concurrent JIT/GC readers predate threads) and must not be
+// "fixed" by a flag-off TSAN pass — TSAN rungs run flag-on, where writers CAS.
 
     // Flag-on slow path of DEFINE_BITFIELD's set##upperName: the lost-update
     // CAS loop, outlined (AB17g F1 pattern) so flag-off transition paths carry
