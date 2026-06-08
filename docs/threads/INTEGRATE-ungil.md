@@ -1852,3 +1852,178 @@ the next verify round builds and adjudicates. Gate state is NOT flipped here:
 This round's code deltas: StructureInlines.h x2 (item 3 comment
 supersession; item 4 NEVER_INLINE IIFE outlining). Ledger: this section.
 Gate state after AB17g: **F1 OPEN, F3 OPEN, F4 OPEN** (unchanged).
+
+## AB17h — final-binary re-verification round (post-AB17e reviewer findings)
+
+Charter: re-establish every AB17e closure claim against the FINAL tree
+(Release jsc rebuilt 08:34 after the 08:32 Structure.cpp/StructureRareData.h
+edits; Debug jsc REBUILT this round — `ninja jsc` had real work, confirming
+the 08:13 Debug binary used for the AB17e closing evidence was stale), and
+either fix or refute the seven reviewer findings. Build proof: Release
+`ninja jsc` reports "no work to do" (the 08:34 binary IS the final tree);
+Debug relinked clean (206/206). No Source/** edits this round — all deltas
+are Tools/threads/load6.sh (new) + this ledger — so the re-verified binaries
+remain the binaries of record. Binaries of record (sha256 prefix):
+Release jsc 56726e501eac2c1e, Debug jsc d42145b0b88ead2b. Future bench/test
+closure claims MUST record the gate output, /proc/loadavg, and the binary
+hash together (reviewer T1 exit-criterion amendment, adopted).
+
+1. **T1/F1 flag-off bench (BLOCKER, CONFIRMED-OPEN — not adjudicable on
+   this host; no green claim).** First measurements of the FINAL Release
+   binary, all with /proc/loadavg recorded:
+   - Official gate (9-run medians), three valid runs: +0.62% PASS
+     (loadavg 2.0-2.4), +1.32% FAIL (2.32), +2.42% FAIL (2.49). A fourth
+     run that overlapped a 64-way ninja rebuild read +63% and is discarded.
+   - 31 consecutive unpinned runs: median 55.693 ms (+1.41%), range
+     51.757-58.899 ms — a 13% spread, consistent with the AB17f item-6
+     record of ~9% run-to-run spread on this host.
+   - 31 consecutive runs pinned with `taskset -c 40`: median 51.752 ms
+     (**-5.76% vs baseline**), min 48.858 ms (-11.0%).
+   - Instructions retired (perf stat, 3 runs): 1.27922e9 / 1.28061e9 /
+     1.28093e9 — stable to ±0.07% (~183 instructions per constructed
+     object including warmup) while wall time varied 13%. The work the
+     binary executes is CONSTANT; the wall-clock deltas are cycle/IPC
+     (scheduling, migration, cache) effects, NOT extra instructions.
+   Disposition: the reviewer's two FAIL gates (+2.04%/+1.89%) are
+   REPRODUCED in kind (2 of my 3 gate runs also fail) but the pinned
+   median 5.8% BELOW baseline and the instruction-count stability refute
+   "isolated and stable rules out host noise": this bench is the most
+   allocation/GC-bound of the suite (perf profile: ~70% identical-codegen
+   JIT, remainder MarkedBlock sweep/tryCreate + kernel page alloc), i.e.
+   exactly the one most sensitive to host state. Under the BINDING AB17f
+   item-6 protocol (quiet host, pinned governor, interleaved A/B against a
+   same-toolchain REFERENCE BUILD, >=15 runs) the item cannot be
+   adjudicated here: no reference binary exists (baseline.json was
+   recorded 2026-06-05 over the same WebKitBuild/Release path, since
+   overwritten) and rebuilding one requires repo history access this
+   round does not have. F1 stays OPEN; closure path unchanged: build the
+   pre-threads (or pre-AB17e) reference jsc, interleave A/B pinned, and
+   record the number here. Code-side audit done this round found NO
+   ungated flag-off delta on the transition path: putDirectInternal's
+   constexpr split (JSObjectInlines.h ~957-1030), the static butterfly
+   publish (nukeStructureAndSetButterflyStatic), every DFG/FTL threads
+   emission gated at JIT-compile time (DFGSpeculativeJIT.cpp,
+   FTLLowerDFGToB3.cpp — all sites are `if (Options::useJSThreads())`
+   around EMISSION, so flag-off machine code is unchanged), the
+   allocation-client dispatch (Heap.h FIX-V5B-F1, one predicted-false
+   Config-page byte test), and operationReallocateButterflyAndTransition's
+   gated handler Ref (JITOperations.cpp). JSCell::structure()'s
+   unconditional decontaminate() (JSCell.h:203) is the one audited
+   flag-off ALU delta: a single register AND between two register ops (no
+   memory traffic, no branch); at ~183 instructions/object total and with
+   C++ structure() off the per-object steady-state path, it cannot
+   account for percent-level deltas — EXONERATED with this note standing
+   in for the unpublished AB17e "5-file list". Gating it behind a runtime
+   branch would cost more than the AND; revisit only if the interleaved
+   A/B protocol ever lands and still shows red.
+
+2. **T2 spawned-thread-butterfly-stress (MAJOR, REFUTED-AS-STATED — the
+   mechanism IS in the tree; closure artifact assembled here).** The
+   reviewer dismissed ConcatKeyAtomStringCacheInlines.h:80 as "a PRIOR-
+   round fix describing a different symptom"; both halves are wrong.
+   (1) FAULTING FRAME (on-disk ASAN artifacts,
+   /tmp/sbs-load-fail-{7-1,12-2}.log, written 05:34-05:39 DURING AB17e):
+   SEGV reading address 0x000000000005 in
+   cellHeaderConcurrentLoad<JSType> ← JSCell::isSymbol ←
+   CacheableIdentifier::getCacheableIdentifier(JSValue) ←
+   operationPutByValSloppyOptimize (JITOperations.cpp:1854) /
+   operationGetByValOptimize (:3755): the IC slow path received an EMPTY
+   JSValue as the property-key subscript — bits 0, isCell() true, null
+   cell + m_type offset 5 = the 0x5 address. (2) THE CHANGE THAT CLOSES
+   IT: ConcatKeyAtomStringCacheInlines.h flag-on rewrite (mtime 07:16,
+   AFTER the crashes), whose hole-(3) note names this exact signature
+   ("key was published BEFORE value, so a pointer-matching reader could
+   load a still-null value (observed as the empty-JSValue subscript SEGV
+   in operationGetByValOptimize/putByValOptimize)") — the cache is
+   graph-owned and shared by N mutators through the shared DFG/FTL
+   CodeBlock; a foreign thread's quick-cache key pointer-matched (digits
+   0-9 are immortal shared singleCharacterStrings) while the value slot
+   was still null, and the null flowed into the get_by_val/put_by_val
+   subscript. (3) HAPPENS-BEFORE EDGE: writer publishes
+   entry.m_value.set(...) → WTF::storeStoreFence() → entry.m_key.set(...)
+   under m_lock with slot-once fills (slot index = locked map size);
+   reader orders key-match before value load, so a matching key now
+   implies a published value — and defensively, flag-on DFG/FTL no longer
+   read the quick entries at all (compileMakeAtomString defers to
+   operationMakeAtomString*WithCache). Sibling same-round closers for the
+   other three symptoms of this test: NumericStrings per-thread instance
+   (06:50), MegamorphicCache fills disabled flag-on + the
+   hasMegamorphicProperty bail (06:53/06:56), CompactPointerTuple
+   setPointer racy-profiling assert (07:06). The registers in the reports
+   also carry ASAN redzone magics (rcx=0xf3f3f300f1f1f1f1, rsi=0xf3) in
+   NON-operand registers; the literal stack-use-after/alloca-redzone
+   manifestation has not reproduced on any post-rebuild tree (210+ runs)
+   and the "alloca-redzone UAF" framing of this item should be retired in
+   favor of the empty-JSValue/wrong-atom shared-cache mechanism above.
+   What this round adds besides the artifact: the 6-way load harness is
+   now committed and re-runnable — **Tools/threads/load6.sh**
+   (parameterized version of the /tmp/item2 script; 6 workers x 20 runs,
+   rotating --randomYieldSeed, pinned GIL-off flag set) — and the 0/120
+   result was re-established on the FINAL Debug binary (see item 4).
+
+3. **T4 GIL-ON put_by_id/delete_by_id livelock (MAJOR, FIXED-AND-NOW-
+   DISCHARGED; one prior-record claim CORRECTED).** The Structure.cpp:399
+   born-invalid inheritance fix is verified end-to-end (convergence
+   argument as recorded there). New evidence, final Debug binary, via an
+   instrumented copy of the staged reducer (describe() dictionary scan +
+   $vm.getStructureTransitionList chain length, sampled every 5 passes):
+   - CLIFF ARITHMETIC DISCHARGED: with JIT, GIL-on, the longest victim
+     transition chain crosses s_maxTransitionLength=128 (Structure.h:219;
+     the REMOVE path's transitionCountHasOverflowed uses the 128 limit
+     regardless of PutById context — Structure.h:295-305, driven here by
+     the per-pass `delete o.g` plus thread B's flood deletes) at
+     **pass 129 of the mono phase**, immediately followed by the chain
+     collapsing to ~1 (the dictionary-pin + flatten fingerprint:
+     previousID cleared). That is the observed PASSES=120-fine /
+     PASSES>=135-wedge cliff: the first family crosses 128 between those
+     counts, goes cachedDictionaryTransition (hasBeenDictionary set), and
+     pre-fix the NEXT transition-form put against that family entered the
+     unbounded fire->RESTART loop.
+   - 10x CONVERGENCE: PASSES=1500 (10x the wedging count) completes in
+     34s GIL-on full-JIT Debug, crossing at the same pass 129 — the fix
+     removed the non-convergence; it did not move the cliff.
+   - Both staged reducers (ic-put_by_id-vs-transition.js,
+     ic-delete_by_id-vs-transition.js, default PASSES=150) PASS in ~2.4s
+     GIL-on on the final Debug binary (pre-fix: >12 min wedge).
+   - NO-JIT CORRECTION (this round REFUTES the prior hypothesis): the
+     livelock precondition IS reachable under --useJIT=0. The probe shows
+     the chain crossing 128 (mega phase, pass 54) and collapsing no-JIT
+     too, and the flatten-back is NOT JIT-only (LLInt flattens at
+     LLIntSlowPaths.cpp:981). So "dictionary/flatten onset is dead under
+     --useJIT=0" is FALSE and must not be cited as the no-JIT immunity
+     mechanism. The pre-fix no-JIT immunity (PASSES=150 in 3.5s) remains
+     UNEXPLAINED (plausibly the crossing landing late in the phase walk
+     plus interleaving differences; not proven — the pre-fix binary no
+     longer exists to instrument). This does NOT weaken the closure: the
+     born-invalid convergence argument is tier-independent and does not
+     rest on explaining the old immunity.
+
+4. **T5/T6 stale-binary closures (MAJOR, CONFIRMED — now re-verified on
+   the final binaries).** The reviewer's premise was correct: Debug ninja
+   had real work this round, so every 08:17-08:23 corpus log predated the
+   tree's final state. Re-runs on the rebuilt binaries:
+   - Corpus GIL-on (plain run-tests.sh): **93 passed / 0 failed / 2
+     skipped** (/tmp/tl2/corpus-gilon.log).
+   - Corpus GIL-off (pinned env): **92 passed / 0 failed / 3 skipped**
+     (/tmp/tl2/corpus-giloff.log).
+   - 120x spawned-thread-butterfly-stress under Tools/threads/load6.sh
+     (6 workers x 20 runs, rotating seeds, GIL-off pinned flags, final
+     Debug binary d42145b0): **120 runs, 0 failures**.
+   - Both staged ic reducers: PASS (item 3).
+   - V5a flag-off identity (Tools/threads/v5a-identity.sh, 40 stress
+     tests, --useJSThreads=false vs no flags, final Release binary):
+     40/40 OK, 0 mismatches.
+
+5. **Stuck-process note for future bench rounds.** This host carries a
+   wedged `bun test --inspect-wait` process (PID 785900, pegging one core
+   since May 26, ~19,000 CPU-minutes). It is one steady core of load in
+   every "quiet host" reading on this machine, including the AB17d
+   baseline gates. Not killed this round (not ours); kill or migrate
+   before any future adjudicated A/B session.
+
+Gate state after AB17h: **F1 OPEN** (item 1; adjudication protocol unmet,
+reference build required), **F3/F4 per AB17g (unchanged by this round)**.
+T2 is CLOSED with the assembled mechanism artifact (item 2: faulting frame
+↔ ConcatKeyAtomStringCacheInlines.h hole-(3) fix ↔ value-before-key
+happens-before, harness committed, 0/120 re-run on the final binary).
+T3/T4 closures are now VERIFIED on the final binaries (items 3-4).

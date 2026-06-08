@@ -2189,3 +2189,17 @@ Regression test: JSTests/threads/objectmodel/i08-named-vs-indexed-first-install.
 (races named adds with indexed first-installs on the SAME shared object).
 createArrayStorageConcurrent publishes only inside a §10.6 stop and needed
 no change.
+
+## AB17h pointer (flag-off transition-path audit + T4 cliff discharge)
+
+The AB17h final-binary re-verification round is ledgered in
+docs/threads/INTEGRATE-ungil.md, section "AB17h". Object-model-relevant
+results recorded there: the flag-off transition-path codegen audit
+(putDirectInternal constexpr split, static butterfly publish, gated DFG/FTL
+emission, allocation-client byte test) with the JSCell::structure()
+decontaminate() exoneration note; the T4 livelock cliff arithmetic
+(transition chain crosses s_maxTransitionLength=128 at pass 129; 10x-PASSES
+convergence on the final binary) including the CORRECTION that the no-JIT
+immunity hypothesis ("flatten is IC-only") is refuted (LLInt flattens at
+LLIntSlowPaths.cpp:981); and the corpus/load-harness re-runs on the rebuilt
+binaries (GIL-on 93/0, GIL-off 92/0, Tools/threads/load6.sh).
