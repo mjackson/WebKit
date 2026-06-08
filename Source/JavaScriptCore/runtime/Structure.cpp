@@ -2453,7 +2453,10 @@ void Structure::setCachedPropertyNameEnumerator(VM& vm, JSPropertyNameEnumerator
     ASSERT(!isDictionary());
     if (!hasRareData())
         allocateRareData(vm);
-    ASSERT(chain == m_cachedPrototypeChain.get());
+    // The chain == m_cachedPrototypeChain validation moved below, under m_lock:
+    // GIL-off, a racing prototypeChain() call can replace m_cachedPrototypeChain
+    // between our caller computing `chain` and this point (see interleaving in
+    // the comment below), so an unlocked equality assert here is a TOCTOU.
     // AUD1.N4(2)/(3): the multi-word enumerator install {watchpoint vector
     // rebuild + chain installs, then the flag word} runs under the owning
     // Structure's m_lock — two mutators for-in-ing a shared structure GIL-off
@@ -2463,7 +2466,7 @@ void Structure::setCachedPropertyNameEnumerator(VM& vm, JSPropertyNameEnumerator
     // publication. Winner-keeps under the lock, same as the sibling
     // cacheSpecialPropertySlow install (StructureRareData.cpp AUD1.N4(2)):
     // a loser's enumerator is simply not cached. No nested ConcurrentJSLock:
-    // tryCachePropertyNameEnumeratorViaWatchpoint only reads chain structures
+    // propertyNameEnumerator (JSPropertyNameEnumeratorInlines.h) only reads chain structures
     // and calls addTransitionWatchpoint (InlineWatchpointSet::add, lock-free).
     // Watchpoint FIRES (clearCachedPropertyNameEnumerator) stay K4.VI.2 —
     // inside a §A.3 stop — so the unlocked clear cannot race this install.
@@ -2476,6 +2479,27 @@ void Structure::setCachedPropertyNameEnumerator(VM& vm, JSPropertyNameEnumerator
     ConcurrentJSLocker locker(m_lock);
     if (rareData()->cachedPropertyNameEnumerator())
         return; // A racing installer won under the lock; keep its entry.
+    // Re-validate the caller's chain snapshot now that we hold m_lock. GIL-off,
+    // Structure::prototypeChain() (StructureInlines.h) clears and re-creates
+    // m_cachedPrototypeChain WITHOUT taking m_lock, so a concurrent for-in on a
+    // sibling thread can have replaced it with a distinct-but-equivalent
+    // StructureChain after our caller (propertyNameEnumerator,
+    // JSPropertyNameEnumeratorInlines.h) computed `chain`. The safe move is the
+    // same as the loser path above: decline to cache when the snapshot is
+    // observed superseded at lock entry. Note this is only a check at lock
+    // entry, not a happens-before with prototypeChain()'s lock-free writer —
+    // it can republish during the install below. That residual window is
+    // benign: `chain` is consumed only as a StructureID list for transition
+    // watchpoint installs (no chain pointer is stored), and a
+    // content-divergent snapshot fails propertyNameEnumeratorShouldWatch into
+    // the traversing-validated path where readers re-validate every use.
+    // Identity: single-threaded / GIL-on, prototypeChain() returned
+    // m_cachedPrototypeChain with no interleaving possible, so chain always
+    // equals it and this bail is unreachable — preserved by the ASSERT below.
+    if (chain != m_cachedPrototypeChain.get()) {
+        ASSERT(Options::useJSThreads() && !Options::useThreadGIL());
+        return;
+    }
     rareData()->setCachedPropertyNameEnumerator(vm, this, enumerator, chain);
 }
 

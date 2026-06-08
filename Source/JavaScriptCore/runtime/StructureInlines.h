@@ -627,6 +627,24 @@ inline void Structure::pin(const AbstractLocker&, VM& vm, PropertyTable* table)
     // (fires may STW; never stop-the-world while holding a §6-ranked lock - O2).
 }
 
+// Flag-on slow path of DEFINE_BITFIELD's set##upperName (see Structure.h):
+// the lost-update CAS loop, outlined so flag-off setter call sites carry only
+// a predicted-false byte test + a never-taken call. Flag-on, this path
+// immediately enters a CAS retry loop, so one extra call is noise.
+inline void Structure::setBitFieldConcurrently(uint32_t setBits, uint32_t fieldBits)
+{
+    uint32_t oldWord = WTF::atomicLoad(&m_bitField, std::memory_order_relaxed);
+    while (true) {
+        uint32_t newWord = (oldWord & ~fieldBits) | setBits;
+        if (newWord == oldWord)
+            return;
+        uint32_t observed = WTF::atomicCompareExchangeStrong(&m_bitField, oldWord, newWord);
+        if (observed == oldWord)
+            return;
+        oldWord = observed;
+    }
+}
+
 // SPEC-objectmodel E4 (Task 3). See the declaration in Structure.h for the full
 // contract. The caller passes the freshly loaded 64-bit tagged butterfly word of
 // the instance being transitioned (JSObject::taggedButterflyWord()).

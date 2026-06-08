@@ -1003,13 +1003,21 @@ public:
 // interleaving T1-load, T2-load, T2-store, T1-store silently erase T2's bit —
 // a replacement watchpoint that never fires (wrong-value caches survive) or a
 // lost pin (property table reclaimed under a dictionary). The setter therefore
-// takes a CAS loop when Options::useJSThreads() is on. It stays the plain RMW
-// flag-off (single mutator inside the VM at a time GIL-on/flag-off, so the
-// interleaving cannot exist), preserving flag-off codegen on transition paths
-// per the project rule (cf. the ab17c flag-off-bench-first precedent); a V5b
-// bench re-run is still pinned to this change because of the added branch.
+// takes a CAS loop when Options::useJSThreads() is on; that loop is outlined
+// into setBitFieldConcurrently (StructureInlines.h) so the flag-off path stays
+// the pre-threads plain RMW behind a single predicted-false byte test, per the
+// project rule (cf. the ab17c flag-off-bench-first precedent); a V5b bench
+// re-run is re-pinned to this change.
 // Readers are relaxed atomic loads unconditionally — identical MOV/LDR
 // codegen — so TSAN sees the reader side paired with the CAS writers.
+
+    // Flag-on slow path of DEFINE_BITFIELD's set##upperName: the lost-update
+    // CAS loop, outlined (AB17g F1 pattern) so flag-off transition paths carry
+    // only the predicted-false byte test + a never-taken call, not an inlined
+    // CAS loop per setter call site. Code placement only: the identical
+    // instruction sequence executes flag-on.
+    NEVER_INLINE void setBitFieldConcurrently(uint32_t setBits, uint32_t fieldBits);
+
 #define DEFINE_BITFIELD(type, lowerName, upperName, width, offset) \
     static constexpr uint32_t s_##lowerName##Shift = offset;\
     static constexpr uint32_t s_##lowerName##Mask = ((1 << (width - 1)) | ((1 << (width - 1)) - 1));\
@@ -1019,21 +1027,12 @@ public:
     void set##upperName(type newValue) \
     {\
         uint32_t setBits = (static_cast<uint32_t>(newValue) & s_##lowerName##Mask) << offset;\
-        if (!Options::useJSThreads()) [[likely]] {\
-            m_bitField &= ~(s_##lowerName##Mask << offset);\
-            m_bitField |= setBits;\
+        if (Options::useJSThreads()) [[unlikely]] {\
+            setBitFieldConcurrently(setBits, s_##lowerName##Mask << offset);\
             return;\
         }\
-        uint32_t oldWord = WTF::atomicLoad(&m_bitField, std::memory_order_relaxed);\
-        while (true) {\
-            uint32_t newWord = (oldWord & ~(s_##lowerName##Mask << offset)) | setBits;\
-            if (newWord == oldWord)\
-                return;\
-            uint32_t observed = WTF::atomicCompareExchangeStrong(&m_bitField, oldWord, newWord);\
-            if (observed == oldWord)\
-                return;\
-            oldWord = observed;\
-        }\
+        m_bitField &= ~(s_##lowerName##Mask << offset);\
+        m_bitField |= setBits;\
     }
 
     DEFINE_BITFIELD(DictionaryKind, dictionaryKind, DictionaryKind, 2, 0);

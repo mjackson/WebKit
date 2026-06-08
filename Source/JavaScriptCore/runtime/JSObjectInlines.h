@@ -893,6 +893,25 @@ inline NEVER_INLINE bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Stru
                     ASSERT(!getDirect(offset) || !JSValue::encode(getDirect(offset)) || getDirect(offset).isUndefined());
                     putDirectOffset(vm, offset, value);
                 }
+                // I9/I29 step-3 release order: the slot store above (and, in the
+                // growth case, the butterfly word published while the ID lane was
+                // still nuked) must be globally visible BEFORE the new, un-nuked
+                // StructureID. setStructure() performs a PLAIN m_structureID
+                // store with no preceding barrier (JSCellInlines.h), and
+                // putDirectOffset is a plain WriteBarrierBase store to a distinct
+                // location — without this fence the compiler is free to sink the
+                // slot store below the StructureID store (storeStoreFence is the
+                // required compiler barrier on x86-64 and a dmb ishst on arm64).
+                // This matches every other flag-on publish site in this file,
+                // which all end "storeStoreFence(); setStructureIDDirectly(...)"
+                // (growOutOfLineStorageForConcurrentLockedAdd, the §6 dictionary
+                // leg, putDirectWithoutTransitionConcurrent).
+                // NOTE: the fence does NOT order setStructure's trailing
+                // m_flags/m_type/indexing-byte stores (they land after the ID
+                // store); benign today because the E4 predicate excludes
+                // ArrayStorage and these transitions change neither type nor
+                // indexing mode — revisit if the E4 predicate is ever widened.
+                WTF::storeStoreFence();
                 setStructure(vm, newStructure);
                 return true;
             }
