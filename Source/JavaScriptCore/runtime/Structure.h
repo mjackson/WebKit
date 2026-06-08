@@ -1189,10 +1189,32 @@ private:
 
     void clearPreviousID()
     {
-        if (hasRareData())
-            rareData()->clearPreviousID();
-        else
-            m_previousOrRareData.clear();
+        if (!Options::useJSThreads()) [[likely]] {
+            if (hasRareData())
+                rareData()->clearPreviousID();
+            else
+                m_previousOrRareData.clear();
+            return;
+        }
+        // Flag-on: allocateRareData()'s idempotent-CAS install (Structure.cpp)
+        // can land between the hasRareData() check and the clear; a plain
+        // clear() here would then wipe the freshly installed rare data off the
+        // slot (losing watchpoint sets / caches it already carries). CAS so we
+        // only clear the exact previous pointer we observed; if rare data
+        // appears, clear its previousID field instead. The slot stays
+        // monotonic: Structure*/null -> StructureRareData*, never back.
+        JSCell** slot = m_previousOrRareData.slot();
+        while (true) {
+            JSCell* cell = m_previousOrRareData.get();
+            if (isRareData(cell)) {
+                static_cast<StructureRareData*>(cell)->clearPreviousID();
+                return;
+            }
+            if (!cell)
+                return;
+            if (WTF::atomicCompareExchangeStrong(slot, cell, static_cast<JSCell*>(nullptr)) == cell)
+                return;
+        }
     }
 
     bool isValid(JSGlobalObject*, StructureChain* cachedPrototypeChain, JSObject* base) const;

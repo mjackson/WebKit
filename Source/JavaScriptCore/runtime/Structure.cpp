@@ -1781,10 +1781,57 @@ void Structure::fireTTLWatchpointSetsAfterPinning(VM& vm, const Structure* sourc
 
 void Structure::allocateRareData(VM& vm)
 {
-    ASSERT(!hasRareData());
-    StructureRareData* rareData = StructureRareData::create(vm, previousID());
+    if (!Options::useJSThreads()) [[likely]] {
+        // Flag-off: single mutator inside the VM at a time, today's code is
+        // unconditionally correct (I22) and flag-off codegen on transition
+        // paths is preserved per the project rule.
+        ASSERT(!hasRareData());
+        StructureRareData* rareData = StructureRareData::create(vm, previousID());
+        WTF::storeStoreFence();
+        m_previousOrRareData.set(vm, this, rareData);
+        ASSERT(hasRareData());
+        return;
+    }
+
+    // Flag-on, rare-data install is idempotent-CAS. Every caller is a
+    // check-then-act on hasRareData() (ensureRareData(), setMaxOffset(), ...),
+    // so two mutators can both reach here for the same shared Structure; the
+    // old ASSERT(!hasRareData()) then fired on the loser (Structure.cpp:1784,
+    // races/transition-vs-write.js). We cannot serialize with m_lock here:
+    // some callers already HOLD it (setMaxOffset()/setTransitionOffset() run
+    // inside Structure::add's GCSafeConcurrentJSLocker lambda) and
+    // ConcurrentJSLock is not recursive — and O1 forbids allocating under
+    // m_lock anyway. So: allocate a private cell, then CAS it into the
+    // m_previousOrRareData slot. Flag-on the slot is monotonic — Structure*
+    // or null -> StructureRareData*, never back (clearPreviousID() routes
+    // through the installed rare data, see Structure.h) — so the loser just
+    // abandons its private cell to the GC.
+    JSCell* expected = m_previousOrRareData.get();
+    if (isRareData(expected))
+        return; // Another thread already installed rare data.
+    StructureRareData* rareData = StructureRareData::create(vm, static_cast<Structure*>(expected));
+    // Publish the cell's fields before the pointer: rareDataConcurrently() /
+    // tryRareData() readers are lock-free.
     WTF::storeStoreFence();
-    m_previousOrRareData.set(vm, this, rareData);
+    JSCell** slot = m_previousOrRareData.slot();
+    while (true) {
+        JSCell* observed = WTF::atomicCompareExchangeStrong(slot, expected, static_cast<JSCell*>(rareData));
+        if (observed == expected)
+            break;
+        if (isRareData(observed))
+            return; // Lost the install race; drop our private cell.
+        // The previousID we snapshotted changed under us (pin() ->
+        // clearPreviousID() runs m_lock-held, but we are lock-free relative
+        // to it). Our cell is still private, so refresh it and retry — we
+        // must never resurrect a cleared previousID.
+        expected = observed;
+        if (expected)
+            rareData->setPreviousID(vm, static_cast<Structure*>(expected));
+        else
+            rareData->clearPreviousID();
+        WTF::storeStoreFence();
+    }
+    vm.writeBarrier(this, rareData);
     ASSERT(hasRareData());
 }
 
