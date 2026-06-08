@@ -132,6 +132,13 @@ public:
     static constexpr uintptr_t cachedPropertyNameEnumeratorIsValidatedViaTraversingFlag = 1;
     static constexpr uintptr_t cachedPropertyNameEnumeratorMask = ~static_cast<uintptr_t>(1);
 
+    // Flag-off (single mutator inside the VM): exact, plain counter. Flag-on
+    // (useJSThreads) the counter is ADVISORY ONLY: it is incremented under
+    // Structure::m_lock at set creation, but the fire path never consults it
+    // — Structure::firePropertyReplacementWatchpointSet instead rescans
+    // m_replacementWatchpointSets under m_lock before clearing
+    // isWatchingReplacement (see the T3-residual comment there). Do not add
+    // flag-on callers that trust this counter.
     unsigned incrementActiveReplacementWatchpointSet()
     {
         return ++m_activeReplacementWatchpointSet;

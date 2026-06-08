@@ -395,9 +395,42 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     // shared instance transitioning INTO this structure fires the target's sets
     // per-event (F2/§4.2-0) before publishing, so fresh-valid is sound.
     // Flag-off both sets keep their inert NSDMI ClearWatchpoint (I22).
+    //
+    // F4 monotonicity at creation time (GIL-ON put_by_id/delete_by_id IC
+    // livelock, staging semantics/ic-{put,delete}_by_id-vs-transition.js):
+    // each TTL set is born ALREADY-INVALID when the parent's same set has
+    // fired. The F4 chain-fire propagates firing to every successor that
+    // exists at fire time; a successor created AFTERWARDS used to be born
+    // fresh-valid, which is non-monotone — and for transitions that are
+    // never cached in the transition table (hasBeenDictionary() sources skip
+    // both the existing-transition lookup and the m_transitionTable.add), the
+    // §2 RESTART loop in putDirectInternal re-created a fresh-valid target on
+    // EVERY iteration: tryStructureOnlyTransition/trySegmentedTransition step
+    // 0 then saw anyTTLSetStillValid(source, target) true through the fresh
+    // target alone, fired it under a full stop-the-world, returned false
+    // (RESTART), and the next iteration made another fresh target — an
+    // unbounded fire->RESTART livelock on a shared object whose source family
+    // already has fired sets (observed: >12min inside one JS put). Inheriting
+    // per-set invalidity makes the retry converge (the re-created target no
+    // longer satisfies anyTTLSetStillValid) and matches what the chain-fire
+    // would have produced had this structure existed when the parent fired.
+    // The plain invalidating store is sound without a stop: this structure is
+    // unpublished (no other thread can reference it), the sets are thin (no
+    // Watchpoints installed, no compiled code can depend on them), and
+    // invalidate() on a thin set neither allocates nor iterates — so the
+    // constructor no-fire rule below is respected. Consumers only gate
+    // optimizations on IsStillValid/IsValidAndWatched, so born-invalid merely
+    // disables thread-locality elision for the new shape, exactly as F4
+    // intends for a shared family. Flag-off unchanged (I22).
     if (Options::useJSThreads()) [[unlikely]] {
-        m_transitionThreadLocalWatchpointSet.startWatching();
-        m_writeThreadLocalWatchpointSet.startWatching();
+        if (previous->transitionThreadLocalIsStillValid()) [[likely]]
+            m_transitionThreadLocalWatchpointSet.startWatching();
+        else
+            m_transitionThreadLocalWatchpointSet.invalidate(vm, StringFireDetail("F4: transition target created from a structure whose transitionThreadLocal set already fired"));
+        if (previous->writeThreadLocalIsStillValid()) [[likely]]
+            m_writeThreadLocalWatchpointSet.startWatching();
+        else
+            m_writeThreadLocalWatchpointSet.invalidate(vm, StringFireDetail("F4: transition target created from a structure whose writeThreadLocal set already fired"));
     }
     // N1: the structure transition TID is the CREATOR's TID, copied to targets
     // (§2.1) - the shape's butterfly-less transition ownership follows the
@@ -1800,8 +1833,16 @@ void Structure::allocateRareData(VM& vm)
     // races/transition-vs-write.js). We cannot serialize with m_lock here:
     // some callers already HOLD it (setMaxOffset()/setTransitionOffset() run
     // inside Structure::add's GCSafeConcurrentJSLocker lambda) and
-    // ConcurrentJSLock is not recursive — and O1 forbids allocating under
-    // m_lock anyway. So: allocate a private cell, then CAS it into the
+    // ConcurrentJSLock is not recursive. (Those m_lock-held callers DO still
+    // reach the StructureRareData::create GC allocation below when the
+    // offset overflows the uint16 inline encoding — the rare >=
+    // useRareDataFlag arms of setMaxOffset()/setTransitionOffset(),
+    // Structure.h. That leg is the O1/I20-sanctioned exception, not a
+    // violation: GCSafeConcurrentJSLocker carries a DeferGC, so the
+    // allocation's collectIfNecessaryOrDefer poll takes the isDeferred()
+    // branch (Heap.cpp, "didDeferGCWorkSlot") and DEFERS instead of parking
+    // for a foreign stop-the-world — no FIX-2 mechanism-(2) stall under
+    // m_lock.) So: allocate a private cell, then CAS it into the
     // m_previousOrRareData slot. Flag-on the slot is monotonic — Structure*
     // or null -> StructureRareData*, never back (clearPreviousID() routes
     // through the installed rare data, see Structure.h) — so the loser just
@@ -1868,8 +1909,48 @@ WatchpointSet* Structure::firePropertyReplacementWatchpointSet(VM& vm, PropertyO
             watchpointSet->fireAllSlow(vm, deferred); // Invalidates now; fires at scope exit (SPEC-jit §5.6 deferral).
         else
             watchpointSet->fireAll(vm, reason);
-        if (!rareData->decrementActiveReplacementWatchpointSet())
-            structure->setIsWatchingReplacement(false);
+        if (!Options::useJSThreads()) [[likely]] {
+            // Flag-off: single mutator inside the VM, the plain counter is
+            // exact; preserve today's codegen per the project rule.
+            if (!rareData->decrementActiveReplacementWatchpointSet())
+                structure->setIsWatchingReplacement(false);
+        } else {
+            // T3 residual (ab17e review): flag-on, the IsWatched check above
+            // runs lock-free, so two mutators racing didReplaceProperty on
+            // the SAME offset can both enter this block (fireAllSlow's
+            // internal IsWatched re-check (I11) makes the second FIRE a
+            // no-op, but not the second pass through this bookkeeping), and
+            // decrements for DIFFERENT offsets are plain-word lost-update
+            // races against each other and against the m_lock-held increment
+            // in ensurePropertyReplacementWatchpointSet. A counter that
+            // prematurely reaches zero clears isWatchingReplacement while
+            // another offset's set is still IsWatched; didReplaceProperty
+            // (Structure.h) then early-returns forever and DFG/FTL keep
+            // constant-folded property values — silent wrong values. So
+            // flag-on we do not trust the counter at all: serialize the
+            // bookkeeping on m_lock (taken only AFTER the fire completes —
+            // nothing fires under the lock, per I20/§5.6) and clear the flag
+            // only when a scan of the map shows no set is still IsWatched.
+            // Racy duplicate scans are harmless and conservative: a scan can
+            // only leave the flag SET too long (extra slow-path calls, never
+            // a missed fire), and the thread whose fire performed the last
+            // IsWatched -> IsInvalidated transition acquires m_lock after
+            // every earlier firing thread released it, so it observes all
+            // prior transitions and the flag is always eventually cleared.
+            // The m_activeReplacementWatchpointSet counter is advisory-only
+            // flag-on (still incremented under m_lock at create; never
+            // consulted here).
+            ConcurrentJSLocker locker(structure->m_lock);
+            bool anyStillWatched = false;
+            for (auto& entry : rareData->m_replacementWatchpointSets) {
+                if (entry.value && entry.value->state() == IsWatched) {
+                    anyStillWatched = true;
+                    break;
+                }
+            }
+            if (!anyStillWatched)
+                structure->setIsWatchingReplacement(false);
+        }
     }
     return watchpointSet;
 }
