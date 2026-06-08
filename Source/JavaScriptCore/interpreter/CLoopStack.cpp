@@ -99,9 +99,26 @@ CLoopStack::CLoopStack()
     // never compares against a null limit before the first lazy lookup.
     // Note: this relies on StackManager's m_mirrors being initialized before
     // its m_cloopStack member (see the comment in StackManager.h).
+    //
+    // Pre-registration window: for a per-lite embedded instance (VMTraps
+    // inside VMLite::threadContext), this constructor runs before
+    // VMLiteRegistry::registerLite/setCurrent, so the ctor-time publish
+    // routed through publishTargetStackManager() sees the constructing
+    // thread's PREVIOUS current lite (or none). If that previous lite is
+    // gilOff, its published limit briefly points into this new instance's
+    // reservation. This is benign and self-corrects on the previous lite's
+    // next publish hook: CLoop::execute entry calls
+    // cloopStack.currentStackPointer() -> publishStackLimit(), and every
+    // native/slow-path call republishes via setCurrentStackPointer().
+    //
+    // Do NOT touch vm() here: for a per-lite embedded instance,
+    // VMTraps::vm() in this window falls back to `this - VM::offsetOfTraps()`
+    // (see VMTrapsInlines.h), which is valid only for the VM-embedded
+    // instance — any store through it would be a wild write. The historical
+    // `vm().topCallFrame = nullptr;` that lived here was redundant anyway:
+    // VM::topCallFrame is brace-initialized in-class (VM.h, via
+    // FOR_EACH_VMLITE_PRIMITIVE_FIELD).
     threadState();
-
-    vm().topCallFrame = nullptr;
 }
 
 CLoopStack::~CLoopStack()

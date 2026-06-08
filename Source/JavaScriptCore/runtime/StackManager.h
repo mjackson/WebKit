@@ -104,6 +104,16 @@ private:
     SentinelLinkedList<Mirror, BasicRawSentinelNode<Mirror>> m_mirrors WTF_GUARDED_BY_LOCK(m_mirrorLock);
 
 #if ENABLE(C_LOOP)
+    // Read by the LLInt cloop stack checks. Flag-off (and GIL-on) the carrier
+    // VM's instance is read via the VMCLoopStackLimitOffset chained const;
+    // GIL-off the per-lite instance (VMTraps inside VMLite::threadContext) is
+    // read via VMLiteCLoopStackLimitOffset (both consts are built from the
+    // raw member through the LLIntOffsetsExtractor friendship below — no
+    // offsetOf accessor needed). Per-lite, the slot is single-writer/
+    // single-reader (the owning thread, via
+    // CLoopStack::publishTargetStackManager routing); cross-thread stop
+    // delivery uses m_trapAwareSoftStackLimit under m_mirrorLock, never this
+    // slot.
     void* m_cloopStackLimit { nullptr };
 
     // m_cloopStack must be declared after the m_mirrors list because CLoopStack

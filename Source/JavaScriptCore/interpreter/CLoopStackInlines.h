@@ -78,7 +78,14 @@ ALWAYS_INLINE StackManager& CLoopStack::stackManager() const
 // See the declaration comment in CLoopStack.h: this must mirror the asm
 // gilOffGroup3Check discriminator byte-for-byte (process byte -> lite
 // presence -> lite->gilOff) so the slot C++ publishes is exactly the slot
-// the rerouted asm stack checks read. The lite's StackManager is reached
+// the rerouted asm stack checks read — the per-lite read leg is the
+// VMLiteCLoopStackLimitOffset chained const used by the two `if C_LOOP`
+// stack checks in LowLevelInterpreter64.asm (doVMEntry stack-height check
+// and the arity check). GIL-off, the per-lite slot is strictly
+// thread-local: its sole writer is setCLoopStackLimit() reached through
+// this routing, and its sole fast-path reader is the owning thread's
+// interpreter, so cross-segment limit comparisons cannot occur.
+// The lite's StackManager is reached
 // through threadContext directly (NOT perThreadTrapsIfExists, which returns
 // null in the pre-registration window while lite->vm is still unset and
 // would either deref null or fall back to the carrier slot the asm no
