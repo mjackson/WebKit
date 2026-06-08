@@ -953,6 +953,18 @@ std::tuple<AssemblyHelpers::JumpList, AssemblyHelpers::JumpList> AssemblyHelpers
 
 AssemblyHelpers::JumpList AssemblyHelpers::hasMegamorphicProperty(VM& vm, GPRReg baseGPR, GPRReg uidGPR, UniquedStringImpl* uid, GPRReg resultGPR, GPRReg scratch1GPR, GPRReg scratch2GPR, GPRReg scratch3GPR)
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        // SPEC-jit section 5.5 (Task 8): see loadMegamorphicProperty above.
+        // This emitter was missed by the Task 8 sweep: it reads the shared
+        // HasEntry words (incl. the RefPtr'd uid slot) with no
+        // synchronization. With MegamorphicCache fills disabled flag-on
+        // (MegamorphicCache.h) a hit is impossible anyway; bail like the
+        // load/store emitters.
+        JumpList slowCases;
+        slowCases.append(jump());
+        return slowCases;
+    }
+
     // uidGPR can be InvalidGPRReg if uid is non-nullptr.
 
     if (!uid)

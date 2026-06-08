@@ -232,7 +232,7 @@ JSValue PropertyNameForFunctionCall::value(VM& vm) const
         else {
             if (m_number <= 9)
                 return vm.smallStrings.singleCharacterString(m_number + '0');
-            m_value = jsNontrivialString(vm, vm.numericStrings.add(m_number));
+            m_value = jsNontrivialString(vm, vm.liveNumericStrings().add(m_number));
         }
     }
     return m_value;

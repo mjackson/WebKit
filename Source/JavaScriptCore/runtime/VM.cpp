@@ -3361,6 +3361,22 @@ WTF::AdaptiveStringSearcherTables& VM::gilOffPerThreadStringSearcherTables()
     return *tables;
 }
 
+// AUD1 / K4.II.1: GIL-off per-thread number->string caches — see the
+// liveNumericStrings() comment in VM.h. The per-thread instance holds
+// Strings only (JSString caching disabled, so no GC-visited cells live
+// outside a registry walk); the Strings die with the thread, so no ~VM
+// walk entry is needed. A cold cache is only a perf event, so per-thread
+// duplication is semantics-free.
+NumericStrings& VM::gilOffPerThreadNumericStrings()
+{
+    static thread_local std::unique_ptr<NumericStrings> strings;
+    if (!strings) [[unlikely]] {
+        strings = makeUniqueWithoutFastMallocCheck<NumericStrings>();
+        strings->disableJSStringCaching();
+    }
+    return *strings;
+}
+
 // GIL-off per-thread VM-entry disallowance count — see the slot accessor
 // comment in VM.h. Strictly stack-scoped RAII increments/decrements on the
 // owning thread, so a plain thread_local is exact (a thread serves one

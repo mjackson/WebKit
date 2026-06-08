@@ -299,6 +299,30 @@ public:
     }
     JS_EXPORT_PRIVATE static WTF::AdaptiveStringSearcherTables& gilOffPerThreadStringSearcherTables();
 
+    // AUD1 / K4.II.1 (BINDING): numericStrings is a per-VM number->string
+    // value cache mutated on ordinary JS paths (jsAdd string concat,
+    // toString, JSON, joins). Its entries reassign String members on every
+    // colliding miss, so a foreign thread reading entry.value while the
+    // owner reassigns it is a StringImpl use-after-free; the lazy
+    // lookupSmallString fill has the same double-init shape. RULED per-lite
+    // copy; GIL-off this routes to a per-thread instance (same mode-split
+    // shape as adaptiveStringSearcherTables() above / RegExp::ovectorSpan).
+    // The per-thread instance never caches JSString* (no visitAggregate
+    // walk reaches it — see disableJSStringCaching), so the DFG/FTL
+    // NumberToString fast path, which bakes the MAIN instance's
+    // smallIntCache address into shared code, keeps hitting only the
+    // immortal 0-9 entries written once in the VM ctor (initializeSmallIntCache,
+    // pre-spawn) and misses to the routed slow call for everything else:
+    // under GIL-off the main instance is never written on a JS path again.
+    // Flag-off/GIL-on byte-identical: one predicted-false Config-page test.
+    ALWAYS_INLINE NumericStrings& liveNumericStrings()
+    {
+        if (gilOffWithProcessGate()) [[unlikely]]
+            return gilOffPerThreadNumericStrings();
+        return numericStrings;
+    }
+    JS_EXPORT_PRIVATE static NumericStrings& gilOffPerThreadNumericStrings();
+
     bool isAnalyzingHeap() const { return m_activeHeapAnalyzer; }
     HeapAnalyzer* activeHeapAnalyzer() const { return m_activeHeapAnalyzer; }
     void setActiveHeapAnalyzer(HeapAnalyzer* analyzer) { m_activeHeapAnalyzer = analyzer; }

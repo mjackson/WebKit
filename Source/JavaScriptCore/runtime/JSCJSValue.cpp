@@ -427,9 +427,9 @@ String JSValue::toWTFStringSlowCase(JSGlobalObject* globalObject) const
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (isInt32())
-        return vm.numericStrings.add(asInt32());
+        return vm.liveNumericStrings().add(asInt32());
     if (isDouble())
-        return vm.numericStrings.add(asDouble());
+        return vm.liveNumericStrings().add(asDouble());
     if (isTrue())
         return vm.propertyNames->trueKeyword.string();
     if (isFalse())

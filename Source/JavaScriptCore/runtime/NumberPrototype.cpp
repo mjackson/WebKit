@@ -499,8 +499,12 @@ JSString* NumericStrings::addJSString(VM& vm, int i)
         auto& entry = lookupSmallString(static_cast<unsigned>(i));
         if (entry.jsString)
             return entry.jsString;
-        entry.jsString = jsNontrivialString(vm, entry.value);
-        return entry.jsString;
+        JSString* string = jsNontrivialString(vm, entry.value);
+        // K4.II.1: per-thread instances hold no GC-visited cells (see
+        // disableJSStringCaching in NumericStrings.h).
+        if (!m_jsStringCachingDisabled) [[likely]]
+            entry.jsString = string;
+        return string;
     }
     auto& entry = lookup(i);
     if (i != entry.key || entry.value.isNull()) {
@@ -510,8 +514,10 @@ JSString* NumericStrings::addJSString(VM& vm, int i)
         if (entry.jsString)
             return entry.jsString;
     }
-    entry.jsString = jsNontrivialString(vm, entry.value);
-    return entry.jsString;
+    JSString* string = jsNontrivialString(vm, entry.value);
+    if (!m_jsStringCachingDisabled) [[likely]]
+        entry.jsString = string;
+    return string;
 }
 
 JSString* NumericStrings::addJSString(VM& vm, double value)
@@ -526,8 +532,10 @@ JSString* NumericStrings::addJSString(VM& vm, double value)
         if (entry.jsString)
             return entry.jsString;
     }
-    entry.jsString = jsNontrivialString(vm, entry.value);
-    return entry.jsString;
+    JSString* string = jsNontrivialString(vm, entry.value);
+    if (!m_jsStringCachingDisabled) [[likely]]
+        entry.jsString = string;
+    return string;
 }
 
 void NumericStrings::initializeSmallIntCache(VM& vm)
@@ -546,7 +554,7 @@ static ALWAYS_INLINE JSString* int32ToStringInternal(VM& vm, int32_t value, int3
     ASSERT(!(radix < 2 || radix > 36));
 
     if (radix == 10)
-        return vm.numericStrings.addJSString(vm, value);
+        return vm.liveNumericStrings().addJSString(vm, value);
 
     // A negative value casted to unsigned would be bigger than 36 (the max radix).
     if (static_cast<unsigned>(value) < static_cast<unsigned>(radix)) {
@@ -568,7 +576,7 @@ static ALWAYS_INLINE JSString* numberToStringInternal(VM& vm, double doubleValue
         return int32ToStringInternal(vm, integerValue, radix);
 
     if (radix == 10)
-        return vm.numericStrings.addJSString(vm, doubleValue);
+        return vm.liveNumericStrings().addJSString(vm, doubleValue);
 
     if (!std::isfinite(doubleValue))
         return jsNontrivialString(vm, String::number(doubleValue));
@@ -596,7 +604,7 @@ JSString* int52ToString(VM& vm, int64_t value, int32_t radix)
         return int32ToString(vm, static_cast<int32_t>(value), radix);
 
     if (radix == 10)
-        return jsNontrivialString(vm, vm.numericStrings.add(static_cast<double>(value)));
+        return jsNontrivialString(vm, vm.liveNumericStrings().add(static_cast<double>(value)));
 
     // Position the decimal point at the center of the string, set
     // the startOfResultString pointer to point at the decimal point.
