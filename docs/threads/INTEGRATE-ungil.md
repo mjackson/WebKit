@@ -2027,3 +2027,66 @@ T2 is CLOSED with the assembled mechanism artifact (item 2: faulting frame
 ↔ ConcatKeyAtomStringCacheInlines.h hole-(3) fix ↔ value-before-key
 happens-before, harness committed, 0/120 re-run on the final binary).
 T3/T4 closures are now VERIFIED on the final binaries (items 3-4).
+
+## AB17i — reviewer-findings verification round (post-AB17h)
+
+All seven external findings verified against the tree; two code fixes
+landed, the rest are confirmed-open carries (no gate state was closed).
+
+1. **AUD1.N4(3) enumerator install — FIXED.** Confirmed real: the
+   Structure::setCachedPropertyNameEnumerator install (Structure.cpp) ran
+   with no m_lock while the StructureRareDataInlines.h setter destroys and
+   rebuilds m_cachedPropertyNameEnumeratorWatchpoints — two mutators
+   racing for-in caching on a shared Structure GIL-off could free
+   watchpoints the other thread had just linked into live transition
+   WatchpointSets (UAF on fire) and tear the enumerator/flag publication.
+   Landed per the AUD1.N4(2) rule: ConcurrentJSLocker(m_lock) +
+   winner-keeps in Structure::setCachedPropertyNameEnumerator;
+   storeStoreFence before the JIT-read flag word in the setter (published
+   LAST, after the vector it summarizes); the StructureRareData.cpp
+   AUD1.N4(3) record flipped OPEN -> RESOLVED. No nested ConcurrentJSLock
+   (tryCachePropertyNameEnumeratorViaWatchpoint only reads chain structures
+   and calls lock-free InlineWatchpointSet::add); fires stay K4.VI.2.
+   Flag-off: uncontended lock + one fence on a cold path; no codegen change
+   on bench paths.
+
+2. **amplify.sh divergence check was structurally false-red — FIXED.**
+   Confirmed: RaceAmplifier.cpp logs the per-run seed
+   ("[RaceAmplifier] enabled: ... seed=<N> ...") onto the compared stream,
+   and amplify.sh raw-cmp'd full outputs against a reference run with a
+   different seed, so EVERY amplified run diverged by construction (the
+   ~99/100 DIVERGENCE findings on the races filter were all banner-only).
+   Fix: outputs are compared with '^\[RaceAmplifier\]' lines stripped from
+   both sides; exit-status divergence checking and raw replay logs are
+   unchanged. CONSEQUENCE: every prior amplified-rung PASS/FAIL produced by
+   amplify.sh output-comparison is void as divergence evidence (rc-based
+   evidence stands); the amplified races rung must be re-run as real
+   evidence in the next verify round.
+
+3. **F1 flag-off bench — CONFIRMED-OPEN (no change, three findings
+   agree).** Independent pinned measurement on the final binary still
+   reads transition-heavy-constructor above the 1% gate after control
+   normalization. Closure path unchanged and binding (AB17f item 6 /
+   AB17h amendment): kill/migrate wedged PID 785900; build a
+   same-toolchain reference jsc in a separate build dir (requires
+   repo-history access — must be chartered explicitly); interleaved
+   pinned A/B, >=15 runs/binary, gate output + /proc/loadavg + binary
+   sha recorded together. Do NOT re-record baseline.json without
+   orchestrator sign-off.
+
+4. **AB17g item 2 (latchGILOffProcess reorder) — CONFIRMED-OPEN, carried
+   verbatim.** Verified: no latchGILOffProcess symbol exists;
+   VM.h gilOffWithProcessGate() still carries the two-term fallback. The
+   bench-hot site remains covered by FIX-V5B-F1 (Heap.h
+   allocationClientForCurrentThread single Config-page byte test). After
+   landing, re-run V6 GIL-on corpus + V1 GIL-off smoke per amendment (e).
+
+5. **AB17g item 1 (golden-disasm adjudication) — CONFIRMED-OPEN, carried.**
+   No disasm artifact exists; the AB17h source-level audit stands but is
+   not the ordered empirical proof. Bundle the disasm diff into the same
+   chartered session that builds the reference jsc for item 3 (one
+   reference build serves both obligations).
+
+Gate state after AB17i: **F1 OPEN** (item 3), F3/F4 per AB17g (unchanged).
+AUD1.N4(3) closed in-code (item 1); amplified-races rung evidence reset
+(item 2) — re-run owed.

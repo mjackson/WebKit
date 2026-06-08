@@ -2454,6 +2454,28 @@ void Structure::setCachedPropertyNameEnumerator(VM& vm, JSPropertyNameEnumerator
     if (!hasRareData())
         allocateRareData(vm);
     ASSERT(chain == m_cachedPrototypeChain.get());
+    // AUD1.N4(2)/(3): the multi-word enumerator install {watchpoint vector
+    // rebuild + chain installs, then the flag word} runs under the owning
+    // Structure's m_lock — two mutators for-in-ing a shared structure GIL-off
+    // otherwise interleave FixedVector destroy/rebuild (one thread frees the
+    // StructureChainInvalidationWatchpoints the other just linked into live
+    // transition WatchpointSets => UAF on fire) and tear the enumerator/flag
+    // publication. Winner-keeps under the lock, same as the sibling
+    // cacheSpecialPropertySlow install (StructureRareData.cpp AUD1.N4(2)):
+    // a loser's enumerator is simply not cached. No nested ConcurrentJSLock:
+    // tryCachePropertyNameEnumeratorViaWatchpoint only reads chain structures
+    // and calls addTransitionWatchpoint (InlineWatchpointSet::add, lock-free).
+    // Watchpoint FIRES (clearCachedPropertyNameEnumerator) stay K4.VI.2 —
+    // inside a §A.3 stop — so the unlocked clear cannot race this install.
+    // Flag-off / GIL-on identity: the lock is uncontended. The winner-keeps
+    // early-return is reachable single-threaded only via reentrancy (a proxy
+    // trap inside getEnumerablePropertyNames caching this structure first);
+    // keeping the first-installed enumerator is observably equivalent — both
+    // candidates validated against the same structure/chain state and the
+    // caller returns its own enumerator either way.
+    ConcurrentJSLocker locker(m_lock);
+    if (rareData()->cachedPropertyNameEnumerator())
+        return; // A racing installer won under the lock; keep its entry.
     rareData()->setCachedPropertyNameEnumerator(vm, this, enumerator, chain);
 }
 

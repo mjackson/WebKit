@@ -124,11 +124,14 @@ SpecialPropertyCacheEntry::~SpecialPropertyCacheEntry() = default;
 //       m_cachedPropertyNameEnumeratorAndFlag; m_cachedPropertyNames[k]) is
 //       single-word release-published LAST, after every word it summarizes.
 //   (3) The enumerator install {watchpoint vector filled first, immutable
-//       after; flag word published last} lives in
+//       after; flag word fence-published last} lives in
 //       StructureRareDataInlines.h (setCachedPropertyNameEnumerator /
-//       clearCachedPropertyNameEnumerator) — OUTSIDE U-T8b's owned file set;
-//       recorded OPEN for that header's owning slice, against the rule text
-//       here. Watchpoint-set FIRING stays K4.VI.2 (inside a §A.3 stop, jit
+//       clearCachedPropertyNameEnumerator). RESOLVED (was OPEN for that
+//       header's owning slice): the install now runs under the owning
+//       Structure's m_lock with winner-keeps, taken in
+//       Structure::setCachedPropertyNameEnumerator (Structure.cpp), and the
+//       flag word is storeStoreFence-published last per rule (2).
+//       Watchpoint-set FIRING stays K4.VI.2 (inside a §A.3 stop, jit
 //       deopt machinery); the OM-annex cross-pointer is recorded in AUD1.
 // Flag-off / GIL-on identity: the CAS cannot lose and the added lock is
 // uncontended; no codegen or semantic change.

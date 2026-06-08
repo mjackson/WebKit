@@ -110,6 +110,15 @@ REF_OUT="$WORK_DIR/reference.out"
 REF_STATUS=""
 BAD_SEEDS=()
 
+# The amplifier logs its effective seed ("[RaceAmplifier] enabled: period=..
+# seed=<N> ..", RaceAmplifier.cpp) and every run uses a different seed, so a
+# raw byte comparison would diverge on every run by construction. Compare
+# outputs with amplifier banner lines stripped from BOTH sides; exit-status
+# divergence checking is unaffected. Raw logs are kept untouched for replay.
+outputs_differ() {
+    ! cmp -s <(grep -v '^\[RaceAmplifier\]' "$1") <(grep -v '^\[RaceAmplifier\]' "$2")
+}
+
 echo "amplify: $RUNS runs of $SCRIPT under $JSC (period=$PERIOD, maxSleepUs=$MAX_SLEEP_US, timeout=${TIMEOUT_SECS}s)"
 
 for ((i = 1; i <= RUNS; i++)); do
@@ -142,7 +151,7 @@ for ((i = 1; i <= RUNS; i++)); do
     elif [[ -z "$KIND" ]]; then
         if [[ "$STATUS" -ne "$REF_STATUS" ]]; then
             KIND="DIVERGENCE (exit $STATUS vs reference $REF_STATUS)"
-        elif ! cmp -s "$OUT" "$REF_OUT"; then
+        elif outputs_differ "$OUT" "$REF_OUT"; then
             KIND="DIVERGENCE (output differs from reference)"
         fi
     fi
