@@ -227,7 +227,17 @@ macro doVMEntry(makeCall)
     # and the frame for the JS code we're executing. We need to do this check
     # before we start copying the args from the protoCallFrame below.
     if C_LOOP
+        # UNGIL sec A.2.2 / AB-1 C_LOOP arm: GIL-off, the published cloop
+        # limit lives on the CURRENT lite (CLoopStack::publishTargetStackManager);
+        # the carrier VM word is stale by design.
+        branchIfGilOffGroup3ToT5(.liteCloopEntryStackCheck)
         bpaeq t3, VMCLoopStackLimitOffset[vm], .stackHeightOK
+        if GILOFF_TLS
+            jmp .cloopEntryStackCheckSlow
+        .liteCloopEntryStackCheck:
+            bpaeq t3, VMLiteCLoopStackLimitOffset[t5], .stackHeightOK
+        .cloopEntryStackCheckSlow:
+        end
         move entry, t4
         move vm, t5
         cloopCallSlowPath _llint_stack_check_at_vm_entry, vm, t3
@@ -810,7 +820,14 @@ macro functionArityCheck(opcodeName, doneLabel)
     subp sp, t3, t5
     loadp CodeBlock::m_vm[t1], t0
     if C_LOOP
+        branchIfGilOffGroup3ToT3(.liteCloopArityStackCheck)
         bpbeq VMCLoopStackLimitOffset[t0], t5, .stackHeightOK
+        if GILOFF_TLS
+            jmp .cloopArityStackCheckSlow
+        .liteCloopArityStackCheck:
+            bpbeq VMLiteCLoopStackLimitOffset[t3], t5, .stackHeightOK
+        .cloopArityStackCheckSlow:
+        end
     else
         # UNGIL sec A.2.2 (AB-17 item 3): per-lite soft limit GIL-off. t3 is
         # dead here (consumed computing t5 above); the taken path leaves the

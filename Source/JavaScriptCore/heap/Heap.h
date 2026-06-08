@@ -53,6 +53,7 @@
 #include <JavaScriptCore/SubspaceAccess.h>
 #include <atomic>
 #include <limits>
+#include <wtf/Atomics.h>
 #include <wtf/AutomaticThread.h>
 #include <wtf/Box.h>
 #include <wtf/Condition.h>
@@ -411,7 +412,7 @@ public:
             return mainClientHasHeapAccess();
         return m_worldState.load() & hasAccessBit;
     }
-    bool worldIsStopped() const { return m_worldIsStopped; }
+    bool worldIsStopped() const { return WTF::atomicLoad(const_cast<bool*>(&m_worldIsStopped), std::memory_order_relaxed); }
     bool worldIsRunning() const { return !worldIsStopped(); }
 
     // --- Shared heap server interface (SPEC-heap.md §9; THREADS) ---

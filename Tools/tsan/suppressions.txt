@@ -125,24 +125,147 @@ race:JSC::Heap::overCriticalMemoryThreshold
 #   Part B but its enumerations sum 177/25; reconcile to exactly 202 against
 #   a FRESH TSan run before any Part B entry lands.
 #
-# Part B — remaining ~25 reports (upstream lock-free mark-bit protocol:
-# wtf/Atomics.h:55/:81 via concurrentTestAndSet, IsoCellSetInlines.h:45,
-# BlockDirectoryBits.h:98 raw word() views, FastBitVector FastBitReference
-# operator=, MarkedBlockInlines.h:265 specializedSweep, SlotVisitor.cpp:330
-# noteLiveAuxiliaryCell, :299 appendToMarkStack): DO NOT SUPPRESS YET.
-# Binding amendment replaces the proposal's control: rebuild WebKitBuild/TSan
-# at the current tree, then run the same tests in STOCK-UPSTREAM config — NO
-# thread flags at all (not GIL-off-minus-shared-heap) — with
-# --numberOfGCMarkers=8 and forced full GCs. Only signatures reproducing in
-# that stock run qualify under rule 1; everything else escalates as a
-# possible real shared-GC bug. Candidate entries (complete, untruncated
-# list; each still needs its own rule-2 justification line, and prefer
-# narrower anchors, e.g. concurrentTestAndSet over IsoCellSet::add, if
-# TSAN frame matching allows):
-#   race:JSC::IsoCellSet::add
-#   race:JSC::MarkedBlock::Handle::specializedSweep
-#   race:JSC::SlotVisitor::noteLiveAuxiliaryCell
-#   race:JSC::SlotVisitor::appendToMarkStack
+# Part B — adjudication round (v7-corpus.log, 53 reports). Entries below are
+# PRE-STAGED and COMMENTED OUT. Zero suppressions activate with this change;
+# the active set remains the six upstream entries above.
+#
+# UNCOMMENT GATE (strengthened per review): an entry may be uncommented ONLY
+# if the stock-upstream control (TSan rebuild at current tree via tsan.sh;
+# NO thread flags and no JSC_* thread env at all; --numberOfGCMarkers=8;
+# --collectContinuously=true / forced full GCs over GC-heavy stock drivers
+# that do NOT use Thread()) reproduces the family with BOTH access stacks
+# matching — the writer-side AND reader-side frame families — not the anchor
+# frame alone; anchor-name-only matching conflates distinct interleavings
+# (e.g. a genuine upstream mutator-vs-GC setIsAllocated pairing must not
+# license suppressing a mutator-vs-mutator corpus report). Record the
+# control count and the matched stack pair in the [CONTROL: ...] marker.
+# Additionally, any corpus report whose ACCESS stacks (either side; the
+# thread-creation ancestry does not count, it trivially contains the harness
+# for every client thread) contain SharedHeapTestHarness or
+# runStandaloneClientThreads frames is categorically rule-1-INELIGIBLE:
+# escalate it to the V7 ledger regardless of control results. Families with
+# zero qualifying control reproductions escalate as possible real
+# shared-GC-election bugs — never suppress those.
+#
+# Rule-3 cross-check (extended per review) before uncommenting ANY entry:
+# re-assert against docs/threads/INTEGRATE-heap.md, at PER-FUNCTION
+# granularity, that the heap workstreams made no FUNCTIONAL edits to the
+# anchor's enclosing function in BlockDirectoryBits.h, BlockDirectory.h,
+# IsoCellSet.cpp, SlotVisitor.cpp, and MarkedBlockInlines.h. The existing
+# "comment-only changes" claim above covered the six landed entries only.
+# Distinguish the Part A relaxed-atomic conversions (recorded above; they
+# alter TSAN visibility but are not functional handout edits) from real
+# functional edits — SlotVisitor.cpp and IsoCellSet.cpp WERE touched by the
+# Part A fix round, so the per-function check is mandatory there.
+#
+# Frame-matching note: TSAN race: patterns match ANY frame of EITHER access
+# stack, so each anchor below is the narrowest frame present in every report
+# of its family (rule 4); the earlier candidates race:JSC::IsoCellSet::add
+# and the raw FastBitReference/word() anchors were rejected as either too
+# broad (FastBitVector is used engine-wide) or not the common frame, and
+# race:JSC::SlotVisitor::appendToMarkStack was rejected because it would
+# mask real mark-stack races (see B5).
+#
+# B1 (8 reports: 5x FastBitReference::operator= + 3x WordView word() reads):
+# the LOGGED interleaving is mutator-vs-mutator, NOT locked-writer vs
+# parallel-marking helper: LocalAllocator::didConsumeFreeList ->
+# BlockDirectory::setIsAllocated (MarkedBlock.cpp:469 -> BlockDirectory.h:116
+# -> BlockDirectoryBits.h:185, non-atomic RMW of the segment word under the
+# directory's m_bitvectorLock) in one client thread vs another client
+# thread's lock-free MarkedBlock::Handle::isAllocated() read
+# (MarkedBlockInlines.h:104 -> BlockDirectoryBitVectorWordView::word(),
+# BlockDirectoryBits.h:98) inside tryAllocateIn -> sweep — an N-mutator
+# interleaving impossible upstream; the corpus stacks carry
+# SharedHeapTestHarness::runAllocationStormScenario /
+# runStandaloneClientThreads frames (SharedHeapTestHarness.cpp:243/496/632),
+# so these reports are rule-1-INELIGIBLE under the gate above. Before any
+# uncomment decision, verify the shared-heap handout invariant that two
+# clients can never sweep/allocate the same MarkedBlock::Handle; same-block
+# access is a code bug — file it against the open V3 shared-arraystorage
+# UAF family. The entry stays staged only for a hypothetical control
+# reproduction of the genuine upstream mutator-vs-GC pairing with both
+# stacks matching a corpus report free of harness frames.
+# [CONTROL: PENDING] race:JSC::BlockDirectoryBits::setIsAllocated
+#
+# B2 (14 reports: 10x Atomic<unsigned long>::compareExchangeWeak,
+# Atomics.h:81 + 4x Atomic<unsigned long>::load seed reads, Atomics.h:55):
+# WTF::BitSet::concurrentTestAndSet (relaxed seed load + CAS via
+# Atomic::transaction, Atomics.h:133) from one marker vs another marker's
+# CAS on the same word (benign by construction: a lost seed read just
+# retries), and vs the sweep epoch's bulk non-atomic clear which upstream
+# orders via the marking/sweeping phase handshake
+# (IsoCellSetInlines.h:45 comment block describes the contract).
+# ANCHOR CAVEATS (per review): race:concurrentTestAndSet is
+# namespace-unqualified and matches WTF::BitSet::concurrentTestAndSet
+# engine-wide — it would hide any future race against a mark-bit CAS.
+# Before uncommenting, verify that EVERY B2 corpus report's opposing stack
+# falls in an already-anchored family (B4 sweep, or another CAS); if so,
+# PREFER DROPPING this entry entirely and letting the B4 anchor cover the
+# CAS-vs-sweep pairs.
+# [CONTROL: PENDING] race:concurrentTestAndSet
+#
+# B3 (4 reports: IsoCellSetInlines.h:45 summaries; unique_ptr _M_ptr-vs-reset
+# pairing): IsoCellSet::addSlow (IsoCellSet.cpp:92) publishes
+# m_bits[blockIndex] via unique_ptr::reset while IsoCellSet::add/contains
+# (IsoCellSetInlines.h) read bitsPtrRef.get() lock-free. Safety condition
+# VERIFIED in source this round (review-confirmed): addSlow double-checks
+# under m_bitvectorLock (IsoCellSet.cpp:92-103), never overwrites a non-null
+# pointer, and issues storeStoreFence before the flag publish — no UAF. If a
+# future tree change lets reset overwrite non-null, escalate as a code bug
+# instead, control reproduction notwithstanding.
+# [CONTROL: PENDING] race:JSC::IsoCellSet::addSlow
+#
+# B4 (16 reports: MarkedBlockInlines.h:265 summaries): specializedSweep's
+# bulk copy `live = header.m_marks` vs a concurrent marker's CAS into the
+# same block's m_marks word (Heap::testAndSetMarked). Upstream's
+# mark-version protocol (areMarksStale / MarkedBlock::aboutToMarkSlow,
+# already adjudicated above) makes the torn copy safe: a block whose marks
+# are being concurrently set is in the current marking version and the
+# sweep's eligibility checks account for it. Same family as the existing
+# aboutToMarkSlow entry, sweep side.
+# [CONTROL: PENDING] race:JSC::MarkedBlock::Handle::specializedSweep
+#
+# B5 (2 reports: appendToMarkStack SlotVisitor.cpp:300 1x,
+# noteLiveAuxiliaryCell SlotVisitor.cpp:331 1x): the racy reader common to
+# BOTH reports is MarkingConstraintSolver::didVisitSomething
+# (MarkingConstraintSolver.cpp:50), called during converge — a
+# constraint-convergence decision, NOT a mere pacing heuristic — reading
+# the per-visitor m_visitCount/m_bytesVisited that each marker increments
+# unsynchronized (via AbstractSlotVisitor.h:185 visitCount()). Benignity
+# REQUIRES demonstrating from MarkingConstraintSolver.cpp that a stale-LOW
+# visitCount read can only cause extra convergence iterations, never
+# premature fixpoint termination; if that error-direction argument cannot
+# be made, ESCALATE — do not uncomment even on control reproduction.
+# Anchoring the getter (not appendToMarkStack) deliberately keeps
+# m_collectorStack.append() and container.noteMarked() in those function
+# bodies VISIBLE to TSAN. Caveat (per review): visitCount() is an inline
+# getter that may never appear as a symbolized TSAN frame — if absent from
+# control output, pick the next-narrowest frame common to both B5 reports
+# (candidate: didVisitSomething) rather than leaving B5 unadjudicated.
+# [CONTROL: PENDING] race:JSC::AbstractSlotVisitor::visitCount
+#
+# NOT Part B — routed out of this adjudication (present in v7-corpus.log
+# but they are Part A residuals; fixing them is the header-side pass, NOT
+# suppression candidates):
+#   - 4x WTF::Atomic<bool>::store (Atomics.h:67): the now-atomic Part A
+#     .cpp stores (SlotVisitor::m_mutatorIsStopped / Heap::m_worldIsStopped)
+#     pairing against the still-plain header-inlined reads
+#     (SlotVisitor.h:166, Heap.h:414) — "finish the header pass".
+#   - 1x JSC::Heap::worldIsStopped (Heap.h:414): same residual, read side.
+#   - 4x WTF::Thread::registerGCThread (Threading.cpp:417): Part A item 5,
+#     the m_gcThreadType packed bit-field RMW — NOT yet fixed; FIXME at the
+#     site; must land in the header-side pass (Threading.h layout change).
+#
+# 53-report reconciliation (by SUMMARY frame; the earlier per-frame tallies
+# in the proposal counted constituent frames, not reports):
+#   B1 = 8 (5 FastBitReference::operator= + 3 BlockDirectoryBits.h:98 word())
+#   B2 = 14 (10 Atomics.h:81 compareExchangeWeak + 4 Atomics.h:55 load)
+#   B3 = 4 (IsoCellSetInlines.h:45)
+#   B4 = 16 (MarkedBlockInlines.h:265)
+#   B5 = 2 (SlotVisitor.cpp:300 + :331)
+#   Part A residuals = 9 (4 Atomics.h:67 store + 1 Heap.h:414 +
+#                         4 Threading.cpp:417)
+#   Total = 8 + 14 + 4 + 16 + 2 + 9 = 53. Reconciles exactly.
 #
 # Mandatory post-apply gates (next verify round): V5a/V5b bench re-run
 # (flag-off codegen changed: GC-path atomic RMWs in shared upstream code),

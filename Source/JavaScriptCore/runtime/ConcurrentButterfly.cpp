@@ -436,9 +436,28 @@ void validatePartiallyAliasedSpine(const ButterflySpine* spine, Butterfly* flat,
         RELEASE_ASSERT(reinterpret_cast<char*>(spine->outOfLineSlot(static_cast<unsigned>(k))) == base - 16 - sizeof(EncodedJSValue) * k);
 
     if (hasIndexingHeader) {
+        // C4 holds by ADDRESS identity: the slot-0 assert below proves the
+        // spine's live publicLength (fragment 0 slot 0, low half — half
+        // layout static_asserted against IndexingHeader in Butterfly.h) and
+        // flat->publicLength() are the SAME 4 bytes at B - 8. Do NOT
+        // value-compare two reads of that live word: a lock-free in-bounds
+        // dense grower (Butterfly::bumpPublicLengthToAtLeast) legally
+        // advances it between the reads even while we hold the cell lock —
+        // §4.4 in-bounds stores touch neither the butterfly word nor the
+        // structureID, so neither the step-3 re-read nor the DCAS-failure
+        // taxonomy excludes them. The old equality assert was a TOCTOU; it
+        // was also a TSAN-visible data race, since flat->publicLength() is a
+        // plain (non-atomic) IndexingHeader load racing the grower's CAS.
+        // Note the RETAINED I9b assert below is likewise a same-address
+        // double read (high half of B - 8) when aliased; it is sound only
+        // because flat vectorLength is immutable flag-on (every bound
+        // increase publishes fresh storage, caught by the step-3 word
+        // re-read/DCAS) and the grower CAS is a 32-bit low-half-only RMW
+        // that cannot tear the high half. If I9b ever flakes under load,
+        // apply the same TOCTOU-vs-invariant analysis before suspecting the
+        // engine.
         RELEASE_ASSERT(reinterpret_cast<char*>(&spine->indexedFragment(0)->slots[0]) == base - 8);
-        RELEASE_ASSERT(spine->frozenFlatVectorLength() == flat->vectorLength()); // I9b
-        RELEASE_ASSERT(spine->publicLength() == flat->publicLength()); // C4: live publicLength = low half.
+        RELEASE_ASSERT(spine->frozenFlatVectorLength() == flat->vectorLength()); // I9b: frozen high half vs immutable flat VL — stable, keep.
         for (uint32_t i = 0; i < spine->vectorLength; ++i)
             RELEASE_ASSERT(reinterpret_cast<char*>(spine->indexedSlot(i)) == base + sizeof(EncodedJSValue) * static_cast<size_t>(i));
     }
@@ -3530,7 +3549,12 @@ template Structure* visitSegmentedButterfly(SlotVisitor&, JSObjectWithButterfly*
 //        step 4 and §4.3 segmented case, CB); tryStructureOnlyTransition
 //        stores the inline value before its header CAS (M2 site, CB).
 //   I9b  validatePartiallyAliasedSpine RELEASE_ASSERT(frozenFlatVectorLength
-//        == flat->vectorLength()) (CB).
+//        == flat->vectorLength()) (CB). C4 at the same site is an
+//        address-aliasing witness (slot-0 address == B - 8 + the Butterfly.h
+//        half-layout static_asserts), NOT a value compare: the live
+//        publicLength may be bumped lock-free between two reads
+//        (Butterfly::bumpPublicLengthToAtLeast), so equality of double reads
+//        is not an invariant.
 //   I10  §4.2/§4.3 step-0 firing precedes every segmented publication; the
 //        step-5 verify RELEASE_ASSERTs (no segmented publish under a valid
 //        set) are its witness (CB).

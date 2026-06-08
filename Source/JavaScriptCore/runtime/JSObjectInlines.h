@@ -910,6 +910,50 @@ inline NEVER_INLINE bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Stru
 }
 #endif // USE(JSVALUE64)
 
+#if USE(JSVALUE64)
+// V5B-transition-heavy-regression: NEVER_INLINE forwarding trampoline for the
+// jsThreads==true arm of putDirectInternal below. Previously BOTH template
+// instantiations of the shared impl body were carried inline at every
+// flag-off put site (putDirectInternal is ALWAYS_INLINE into its callers, and
+// both lambda instantiations were taken inline at the dispatch), so every
+// growth of the concurrent arm — most recently the §3 F1 SW-bit ensure on the
+// out-of-line replace leg and the I18/I30 staleness-recheck block — inflated
+// cold code, register pressure / spill code in the shared hot prologue, and
+// i-cache/iTLB footprint at flag-off sites, and pushed enclosing callers over
+// inlining budgets. That is the documented V5B-1 mechanism re-opening (see
+// the V5B-1 comment in putDirectInternal). Routing the true arm through this
+// out-of-line call makes flag-off codegen permanently insensitive to future
+// growth of the concurrent path: flag-off sites carry only the frozen
+// one-byte test plus a predicted-not-taken call.
+//
+// There is exactly ONE shared body (zero source duplication): the trampoline
+// forwards to the same impl lambda, instantiated <true>, so the
+// constexpr-false publish tails and loop back-edges remain statically
+// unreachable in the true arm exactly as before, and no token of the body
+// changed. The trampoline is instantiated once per PutMode (the closure type
+// is unique per putDirectInternal<mode> instantiation, not per inlined call
+// site), so the concurrent body is emitted out-of-line once and shared.
+//
+// Race/interleaving statement: this call boundary is not a safepoint — it
+// takes no lock, performs no poll/park/allocation, and emits no fence — so
+// the FIX-2 park-poll, M5 nuke-spin, I9 store-under-cell-lock, §3 F1 SW-bit
+// ensure, and I18/I30 recheck->store orderings inside the body are unchanged;
+// the recheck and putDirectOffset remain adjacent straight-line code inside
+// the outlined instantiation, so the no-quarantine-promotion-inside-the-window
+// proof carries verbatim. The dispatch still reads the frozen post-Config
+// Options::useJSThreads() byte exactly once per call, and every §2 RESTART
+// iteration stays inside the body's own while (true), so no iteration can
+// change arms. The captured locals (including the structure-pinning
+// snapshots) live in frames covered identically by conservative stack
+// scanning.
+template<typename Functor>
+NEVER_INLINE auto putDirectInternalConcurrentOutOfLine(const Functor& functor) -> decltype(functor())
+{
+    ASSERT(Options::useJSThreads());
+    return functor();
+}
+#endif // USE(JSVALUE64)
+
 template<JSObject::PutMode mode>
 ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName propertyName, JSValue value, unsigned newAttributes, PutPropertySlot& slot)
 {
@@ -1334,11 +1378,17 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     };
 
 #if USE(JSVALUE64)
-    // V5B-1: frozen-Config one-byte test; the threads instantiation is taken
-    // only behind this predicted-false branch, so flag-off put sites carry
-    // the pre-threads body plus this single branch.
-    if (Options::useJSThreads()) [[unlikely]]
-        return impl.template operator()</* jsThreads */ true>();
+    // V5B-1 / V5B-transition-heavy-regression: frozen-Config one-byte test;
+    // the threads instantiation is OUTLINED behind the NEVER_INLINE
+    // trampoline above (one shared out-of-line copy per PutMode), so flag-off
+    // put sites carry the pre-threads body plus this single predicted-false
+    // branch and a cold call — insensitive to future growth of the
+    // concurrent arm. See the trampoline comment for the full race statement.
+    if (Options::useJSThreads()) [[unlikely]] {
+        return putDirectInternalConcurrentOutOfLine([&]() ALWAYS_INLINE_LAMBDA {
+            return impl.template operator()</* jsThreads */ true>();
+        });
+    }
 #endif
     return impl.template operator()</* jsThreads */ false>();
 }

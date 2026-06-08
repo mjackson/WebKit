@@ -286,7 +286,7 @@ public:
 
     bool isCompilationThread() const { return m_isCompilationThread; }
     bool isJSThread() const { return m_isJSThread; }
-    GCThreadType gcThreadType() const { return static_cast<GCThreadType>(m_gcThreadType); }
+    GCThreadType gcThreadType() const { return static_cast<GCThreadType>(m_gcThreadType.load(std::memory_order_relaxed)); }
 
     struct NewThreadContext;
     static void entryPoint(NewThreadContext*);
@@ -378,9 +378,12 @@ protected:
     bool m_isDestroyedOnce : 1 { false };
     bool m_isCompilationThread: 1 { false };
     bool m_isJSThread : 1 { false };
-    unsigned m_gcThreadType : 2 { static_cast<unsigned>(GCThreadType::None) };
 
     bool m_isRealtime : 1 { false };
+
+    // Stored outside the bit-field run: registerGCThread() must not byte-RMW
+    // the flag byte shared with m_isShuttingDown / m_didExit / m_isJSThread.
+    Atomic<uint8_t> m_gcThreadType { static_cast<uint8_t>(GCThreadType::None) };
 
     // Lock & ParkingLot rely on ThreadSpecific. But Thread object can be destroyed even after ThreadSpecific things are destroyed.
     // Use WordLock since WordLock does not depend on ThreadSpecific and this "Thread".

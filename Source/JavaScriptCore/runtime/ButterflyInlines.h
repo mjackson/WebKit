@@ -404,9 +404,18 @@ inline void validateSpineAliasesFlatButterfly(const ButterflySpine* spine, Butte
 
     if (hasIndexingHeader) {
         // I8: the frozen IndexingHeader is indexed fragment 0 slot 0, [B - 8, B).
+        // C4 holds by ADDRESS identity (next line + the Butterfly.h half-layout
+        // static_asserts); no value compare — the live publicLength may be
+        // advanced concurrently by lock-free in-bounds growers
+        // (Butterfly::bumpPublicLengthToAtLeast) even under the cell lock, so
+        // two reads of it need not agree (TOCTOU, not a race signal). The old
+        // compare was also a TSAN-visible data race: flat->publicLength() is a
+        // plain (non-atomic) load racing the grower's CAS. The retained I9b
+        // compare is a same-address double read too (high half of B - 8) but
+        // is sound: flat vectorLength is immutable flag-on and the grower CAS
+        // is a 32-bit low-half-only RMW that cannot tear the high half.
         RELEASE_ASSERT(reinterpret_cast<char*>(&spine->indexedFragment(0)->slots[0]) == base - 8);
         RELEASE_ASSERT(spine->frozenFlatVectorLength() == flatVectorLength); // I9b: high half frozen.
-        RELEASE_ASSERT(spine->publicLength() == flat->publicLength()); // Live publicLength = low half.
 
         // I8: element i lives at B + 8i.
         for (uint32_t i = 0; i < flatVectorLength; ++i)

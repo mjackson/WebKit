@@ -27,6 +27,7 @@
 
 #include "AbstractSlotVisitor.h"
 #include "HandleTypes.h"
+#include <wtf/Atomics.h>
 #include <wtf/Forward.h>
 #include <wtf/IterationStatus.h>
 #include <wtf/MonotonicTime.h>
@@ -163,7 +164,7 @@ public:
 
     HeapVersion markingVersion() const { return m_markingVersion; }
 
-    bool mutatorIsStopped() const final { return m_mutatorIsStopped; }
+    bool mutatorIsStopped() const final { return WTF::atomicLoad(const_cast<bool*>(&m_mutatorIsStopped), std::memory_order_relaxed); }
     
     Lock& rightToRun() LIFETIME_BOUND WTF_RETURNS_LOCK(m_rightToRun) { return m_rightToRun; }
     

@@ -179,12 +179,18 @@
 // storage-selection branches need an LLInt-visible TLS read of
 // g_jscCurrentVMLite. Same per-OS surface as SPEC-jit App. R5
 // (loadButterflyTIDTagToT6 / jit/AssemblyHelpers.cpp loadVMLite): ELF
-// initial-exec relocations on Linux x86-64/arm64 only. Elsewhere (Darwin
-// until the vmLiteTLSKey M4a slot lands, Windows, C_LOOP) a SET
-// gilOffProcess byte fail-stops in the LLInt (`break`) instead of silently
-// reading VM-block Group-3 state — the in-LLInt tripwire AB-1 records as
-// absent (mirrors the JIT tiers' Darwin RELEASE_ASSERT, AB-2).
-#if OS(LINUX) && (CPU(X86_64) || CPU(ARM64)) && !ENABLE(C_LOOP) && USE(JSVALUE64)
+// initial-exec relocations on Linux x86-64/arm64. The C_LOOP backend IS
+// C++, so its "TLS loader" is a cloopDo call to VMLite::currentIfExists()
+// — the same thread_local the IE-model symbol mirrors (VM.cpp CS3
+// contract: VMLite::setCurrent is the sole writer, mirror store
+// immediately after) — so JSVALUE64 CLoop qualifies on any OS. Elsewhere
+// (Darwin hardware LLInt until the vmLiteTLSKey M4a slot lands, Windows
+// hardware LLInt, 32-bit cloop) a SET gilOffProcess byte fail-stops in
+// the LLInt (`break`) instead of silently reading VM-block Group-3 state
+// — the in-LLInt tripwire AB-1 records as absent (mirrors the JIT tiers'
+// Darwin RELEASE_ASSERT, AB-2).
+#if (OS(LINUX) && (CPU(X86_64) || CPU(ARM64)) && !ENABLE(C_LOOP) && USE(JSVALUE64)) \
+    || (ENABLE(C_LOOP) && USE(JSVALUE64))
 #define OFFLINE_ASM_GILOFF_TLS 1
 #else
 #define OFFLINE_ASM_GILOFF_TLS 0

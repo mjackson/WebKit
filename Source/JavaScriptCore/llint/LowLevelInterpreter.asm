@@ -290,6 +290,7 @@ const VMSoftStackLimitOffset = VM::m_threadContext + VMThreadContext::m_traps + 
 # words these sites now read.
 const VMLiteTrapAwareSoftStackLimitOffset = VMLite::threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_trapAwareSoftStackLimit
 const VMLiteSoftStackLimitOffset = VMLite::threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_softStackLimit
+const VMLiteCLoopStackLimitOffset = VMLite::threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_cloopStackLimit
 
 # Registers
 
@@ -558,7 +559,15 @@ end
 # TLS loaders: only ever expanded under GILOFF_TLS (Linux x86-64/arm64, ELF
 # initial-exec; the GOT slot holds the thread-invariant tp-relative offset).
 macro loadCurrentVMLiteToT6()
-    if X86_64
+    if C_LOOP
+        # cloop backend is C++: read the same per-thread lite through the
+        # frozen L4 accessor (VMLite.cpp t_currentVMLite, which
+        # g_jscCurrentVMLite mirrors via the VM.cpp CS3 contract -- sole
+        # writer VMLite::setCurrent, mirror store immediately after).
+        # NOTE: annotation MUST stay on the same physical line as cloopDo
+        # (see the m_trapBits precedent at the traps poll site).
+        cloopDo // t6 = JSC::VMLite::currentIfExists();
+    elsif X86_64
         emit "movq g_jscCurrentVMLite@GOTTPOFF(%rip), %rdi"   # t6 == rdi
         emit "movq %fs:(%rdi), %rdi"                          # lite = *(tp + offset)
     elsif ARM64 or ARM64E
@@ -570,7 +579,9 @@ macro loadCurrentVMLiteToT6()
 end
 
 macro loadCurrentVMLiteToT3()
-    if X86_64
+    if C_LOOP
+        cloopDo // t3 = JSC::VMLite::currentIfExists();
+    elsif X86_64
         emit "movq g_jscCurrentVMLite@GOTTPOFF(%rip), %rcx"   # t3 == rcx
         emit "movq %fs:(%rcx), %rcx"
     elsif ARM64 or ARM64E
@@ -582,7 +593,9 @@ macro loadCurrentVMLiteToT3()
 end
 
 macro loadCurrentVMLiteToT5()
-    if X86_64
+    if C_LOOP
+        cloopDo // t5 = JSC::VMLite::currentIfExists();
+    elsif X86_64
         emit "movq g_jscCurrentVMLite@GOTTPOFF(%rip), %r10"   # t5 == r10
         emit "movq %fs:(%r10), %r10"
     elsif ARM64 or ARM64E
@@ -644,7 +657,9 @@ end
 # reuse at any other site without re-checking scratch discipline. State of
 # the world: the VMTraps.h ACTIVATION CHECKLIST -- STATUS block.
 macro loadCurrentVMLiteToT2()
-    if X86_64
+    if C_LOOP
+        cloopDo // t2 = JSC::VMLite::currentIfExists();
+    elsif X86_64
         emit "movq g_jscCurrentVMLite@GOTTPOFF(%rip), %rdx"   # t2 == rdx
         emit "movq %fs:(%rdx), %rdx"
     elsif ARM64 or ARM64E
@@ -665,6 +680,9 @@ end
 # live, so the lite base register is per-arch -- t5 (r10) on x86-64, t9 (x9)
 # on ARM64. Only expanded inside the `(ARM64* or X86_64) and ADDRESS64 and
 # not C_LOOP` fast-entry block below.
+# GUARD: this macro expands EMPTY under C_LOOP (no arch arm matches), i.e. a
+# silent no-discriminator. It must NEVER be expanded outside the existing
+# `not C_LOOP` fast-entry block; add a C_LOOP arm first if that ever changes.
 macro vmEntryBranchIfGilOffGroup3(gilOffLabel)
     if X86_64
         gilOffGroup3Check(loadCurrentVMLiteToT5, t5, gilOffLabel)
