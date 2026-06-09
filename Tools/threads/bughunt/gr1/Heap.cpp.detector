@@ -489,13 +489,6 @@ Heap::Heap(VM& vm, HeapType heapType)
         m_barrierThreshold = tautologicalThreshold;
     }
 
-    // BUGHUNT-GR1 FIX ARM (candidate fix under test): with N GIL-off mutators,
-    // Heap::addToRememberedSet appends to this shared stack concurrently;
-    // GCSegmentedArray::postIncTop/expand are not multi-producer safe.
-    // Serialize appends via the (previously unwired) per-instance lock.
-    if (Options::useJSThreads())
-        m_mutatorMarkStack->setMultiProducerAccess();
-
     m_worldState.store(0);
 
     // §11 (T7): the epoch is a by-value member; wire its server back-pointer
