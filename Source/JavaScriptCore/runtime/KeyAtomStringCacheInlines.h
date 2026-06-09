@@ -57,41 +57,10 @@ ALWAYS_INLINE JSString* KeyAtomStringCache::make(VM& vm, Buffer& buffer, const F
     // snapshot; re-reading the slot after verification can return a
     // different, also-valid atom and silently resolve the wrong property key
     // (UNGIL Race C; see KeyAtomStringCache.h).
-    // BUGHUNT r3 ARM-B' instrumentation (REVERT BEFORE LANDING ANYTHING):
-    // - one-shot provenance canary so every campaign log self-certifies the
-    //   binary contains the snapshot-return fix;
-    // - after a successful verification, widen the verify->return window with
-    //   a spin (GIL-off, p-keys only), re-load the slot, and log KEYATOM-RACE
-    //   when the reload differs from the verified snapshot;
-    // - default arm returns the VERIFIED snapshot (shipped semantics);
-    //   env KEYATOM_REGRESS=1 returns the RELOAD (pre-fix bug restored).
-    static std::atomic<int> s_regressArm { -1 };
-    if (Options::useJSThreads() && !Options::useThreadGIL()) {
-        static std::atomic<unsigned> s_loggedActive;
-        if (!s_loggedActive.exchange(1, std::memory_order_relaxed)) {
-            s_regressArm.store(!!getenv("KEYATOM_REGRESS"), std::memory_order_relaxed);
-            dataLogLn("KEYATOM-SNAPSHOT-FIX-ACTIVE regressArm=", !!getenv("KEYATOM_REGRESS"));
-        }
-    }
     if (JSString* cached = slot.load(std::memory_order_acquire)) {
         if (auto* impl = cached->tryGetValueImpl()) {
-            if (impl->hash() == buffer.hash && equal(impl, buffer.characters)) {
-                if (Options::useJSThreads() && !Options::useThreadGIL()
-                    && buffer.characters.size() >= 2 && buffer.characters.size() <= 3 && buffer.characters[0] == 'p') {
-                    for (volatile int spin = 0; spin < 30000; ++spin) { }
-                    JSString* reloaded = slot.load(std::memory_order_acquire);
-                    if (reloaded != cached) [[unlikely]] {
-                        auto* rimpl = reloaded ? reloaded->tryGetValueImpl() : nullptr;
-                        dataLogLn("KEYATOM-RACE idx=", buffer.hash % capacity,
-                            " requested=", String(buffer.characters),
-                            " verified=", String(impl),
-                            " reloaded=", rimpl ? String(rimpl) : String("<null-or-rope>"_s));
-                        if (s_regressArm.load(std::memory_order_relaxed) == 1)
-                            return reloaded; // ARM-REGRESS: pre-fix `return slot;` reload semantics.
-                    }
-                }
+            if (impl->hash() == buffer.hash && equal(impl, buffer.characters))
                 return cached;
-            }
         }
     }
 

@@ -2087,12 +2087,6 @@ PropertyOffset Structure::getConcurrently(UniquedStringImpl* uid, unsigned& attr
         // from non mutator thread.
         auto [offset, entryAttributes] = table->get(uid);
         if (offset != invalidOffset) {
-            // BUGHUNT r3 canary (REVERT BEFORE LANDING): re-probe under the
-            // same lock. A torn or mid-rehash index/table observable from this
-            // reader would yield an unstable answer; uid is a unique pointer so
-            // a stable wrong offset is impossible by find()'s key compare.
-            auto [offset2, attributes2] = table->get(uid);
-            RELEASE_ASSERT(offset2 == offset && attributes2 == entryAttributes);
             result = offset;
             attributes = entryAttributes;
         }
