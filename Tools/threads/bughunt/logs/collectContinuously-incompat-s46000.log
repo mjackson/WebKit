@@ -1,0 +1,16 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+[RaceAmplifier] enabled: period=64 seed=46000 maxSleepUs=100
+ASSERTION FAILED: m_requests.isEmpty() || (m_worldState.load() & mutatorHasConnBit)
+/root/WebKit/Source/JavaScriptCore/heap/Heap.cpp(1654) : bool JSC::Heap::shouldCollectInCollectorThread(const AbstractLocker &)
+1   0x556673445f0c /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x66fcf0c) [0x556673445f0c]
+2   0x55666fcd317f /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x2f8a17f) [0x55666fcd317f]
+3   0x55666fd2491c /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x2fdb91c) [0x55666fd2491c]
+4   0x55667344e4d5 /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x67054d5) [0x55667344e4d5]
+5   0x55667344de29 /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x6704e29) [0x55667344de29]
+6   0x55666f08f76a /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x234676a) [0x55666f08f76a]
+7   0x5566735ea16c /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x68a116c) [0x5566735ea16c]
+8   0x5566736f1025 /root/WebKit/WebKitBuild/Debug/bin/jsc(+0x69a8025) [0x5566736f1025]
+9   0x55666dc965e7 /root/WebKit/WebKitBuild/Debug/bin/jsc(+0xf4d5e7) [0x55666dc965e7]
+10  0x7f3ed348b2ea /lib64/libc.so.6(+0x8b2ea) [0x7f3ed348b2ea]
+11  0x7f3ed3510b40 /lib64/libc.so.6(+0x110b40) [0x7f3ed3510b40]
+timeout: the monitored command dumped core

@@ -10,7 +10,7 @@ unless noted). Facts only; no fixes, no hypotheses beyond what data forces.
 
 ## 0. Headline result of this run
 
-The silent corruption did NOT reproduce on the current binary in ~2,400
+The silent corruption did NOT reproduce on the current binary in ~2,560
 fresh runs across 13 configurations (details §3) — including an exact
 replication of the seed set, worker layout, and 6-way load shape that
 produced the two known failures on 2026-06-08 evening (same binary).
@@ -18,7 +18,7 @@ The only current-binary corruption evidence remains the two 2026-06-08 logs
 (§1). Everything any hypothesis must explain is therefore: (a) the decoded
 semantics of those two failures (which are sharp), (b) the layout facts
 (§2), and (c) the non-reproduction envelope (§3), which bounds the failure
-rate at my load shapes to < ~1/2400 even though the 06-08 round saw ~2/240.
+rate at my load shapes to < ~1/2560 even though the 06-08 round saw ~2/240.
 The discriminating variable between 06-08 and today is host load shape
 (unknown co-running workloads then), NOT the binary or seeds.
 
@@ -130,9 +130,19 @@ transition-vs-read, i03-i37-same-shape-add-storm, i03-t5-racing-growers
 | --forceRAMSize=100MB (F) | 60 | 0 | 2× STW-watchdog 30s (stress-ng window) |
 | baseline (G) + --forceRAMSize=60MB (H) under `stress-ng --cpu 24 --vm 8` | ~120 | 0 | 3× STW-watchdog 30s (JSThreadsSafepoint.cpp:476/494, "CodeBlock jettison" requester, one lite `hasHeapAccess=true` non-quiescent) — known ab17b/ab17c family, fires under extreme host starvation; pollutes campaigns, so extreme oversubscription is NOT a usable amplifier either |
 | --useFTLJIT=0 (N1) | 90 | 0 | 0 |
-| --useDFGJIT=0 (N2), --forceSegmentedButterflies=1 (N3), --verifyConcurrentButterfly=1 (N4), baseline loop ×8 (original test) | in flight at time of writing — final counts in §3.1 |
+| --useDFGJIT=0 (N2: LLInt+baseline only) | 90 | 0 | 0 |
+| --forceSegmentedButterflies=1 (N3) | 90 | 0 | 0 |
+| --verifyConcurrentButterfly=1 (N4) | 90 | 0 | 0 — the verifier never tripped |
+| baseline loop, ORIGINAL test, plain load6 + corpus load, rounds 7–9 (seeds 70000/80000/90000 bases) | 360 | 0 | 18× rc124 (120s timeouts in round 8, coinciding with a host load-average spike to ~870 from co-tenant workloads) |
 
-§3.1 FINAL COUNTS: (filled in at end of run — see addendum at bottom.)
+§3.1 TOTALS (current binary, this run): ≈2,560 completed runs across 13
+configurations, ZERO occurrences of the silent value corruption. Tier
+narrowing is therefore UNANSWERED by direct evidence (no config — including
+the pinned full-JIT baseline — fired); what the narrowing campaigns DO
+establish at the ~90-run level is that none of no-FTL, no-DFG,
+forceSegmentedButterflies, verifyConcurrentButterfly makes the bug EASIER to
+hit, and the concurrent-butterfly tag-decode/flatness verifier finds nothing
+wrong on this workload at this sample size.
 
 Determinism answer (item 1 of the brief): failing seeds do NOT fail
 deterministically. Seed 3012: 0/10 solo, 0/10 under taskset-2-cores, 0/~8
@@ -228,3 +238,17 @@ standing campaign test (identical oracle, rich state dump at mismatch +
 HEALED/STILL-WRONG probe) so the NEXT natural occurrence pins down
 persistence, sibling state, structureID and butterfly at the moment of
 corruption.
+
+## 8. Artifacts
+
+- `Tools/threads/bughunt/repro.js` — instrumented copy (oracle unchanged;
+  rich dump + HEALED probe at mismatch).
+- `Tools/threads/bughunt/repro-loop.js` — 5-rep hot-JIT variant.
+- `Tools/threads/bughunt/load6x.sh` — load6 with EXTRA_FLAGS support.
+- `Tools/threads/bughunt/logs/` — preserved copies of the key failure logs:
+  the two corruption hits (s3012, s6014), the torn-Structure assert
+  (s12011, older binary), the new GC mark-stack assert (s33004, current
+  binary), the collectContinuously incompatibility, and a representative
+  STW-watchdog overload log (s53002).
+- Campaign log dirs (volatile, /tmp): load6-c1..4, bh-exact-1..4, bh-A/B/B2,
+  bh-D/E/F/G/H, bh-N1..N4, bh-loop, bh-base-7..9, det3012.
