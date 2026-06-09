@@ -365,3 +365,134 @@ barrier-during-GC population, which the ORIGINAL test is not a member of.
   AFTER PASS — 2/18 in one loaded slice
   (`gr1/logs/destroyvm-teardown-assert-artifact.log`). Only affects the
   instrumented SUMMARY harness; excluded from stats.
+
+## 10. EXPERIMENTER round 2 (2026-06-09): TP2 / GR2-r2 / SK2 — ROOT CAUSE FOUND
+
+One-line verdict: **TP2-keyatomcache-return-reload-swap is CONFIRMED as the
+chartered bug**, with an on-demand reproducer, an in-vivo smoking-gun
+detector trip causally paired with the exact historical corruption signature,
+and a validated fix-shape (snapshot return). GR2-r2 (storage exonerated) and
+SK2 (test sound / outcome illegal) are both CONFIRMED by the same data.
+
+### 10.1 Instrumentation (all reverted; diffs kept)
+
+Single scratch edit to `Source/JavaScriptCore/runtime/KeyAtomStringCacheInlines.h`
+(`Tools/threads/bughunt/tp2/armA-instrumentation.patch`, `armB-instrumentation.patch`):
+- one-shot log of the 512-bucket index of "p8"/"p17" (collision check);
+- after the hash+equal verification SUCCEEDS, a GIL-off-gated spin (ARM A:
+  2000 volatile iters on every hit; ARM A': 30000 iters gated to 2-3-char
+  'p'-keys) to widen the verify->return window;
+- explicit re-load of the slot after the spin, with a `KEYATOM-RACE` dataLog
+  whenever the reload differs from the verified pointer;
+- ARM A/A' return the RELOAD (faithful to the stock `return slot;` — the
+  Debug build is -O0, CMAKE_CXX_FLAGS_DEBUG="-g", so every mention of `slot`
+  is a distinct memory load: TP2 confirmIf(1) holds statically);
+- ARM B returns the VERIFIED snapshot (the deferred V7 Race C fix shape),
+  spin and detector unchanged.
+Tree restored to pristine afterward and rebuilt; final smoke s3012 PASS.
+
+### 10.2 Collision arithmetic verified in vivo
+
+First run, both keys logged once:
+`KEYATOM-IDX p8 hash=15955301 idx=357` / `KEYATOM-IDX p17 hash=14316901 idx=357`
+(0xF37565 / 0xDA7565 — identical low 16 bits, both -> slot 357 of 512),
+exactly as TP2 computed offline. No other p-pair ever appeared in any race
+line across all arms.
+
+### 10.3 ARM A / A' — corruption reproduced ON DEMAND with the smoking gun
+
+All runs SOLO (no external load), pinned GIL-off flags, original test:
+| arm | window | runs | corruptions | detector trips |
+|---|---|---|---|---|
+| A (2000-iter spin, all hits) | ~12 | 1 | 2 (1 harmful, 1 benign same-content) |
+| A' (30000-iter spin, p-keys) | 10 | 1 | 2 (both harmful) |
+
+The two corruption runs (preserved: `logs/TP2-armA-CORRUPT-s12000.log`,
+`/tmp/tp2-armA2/CORRUPT-r1-s21001.log`):
+- s12000: `KEYATOM-RACE idx=357 requested=p17 verified=p17 reloaded=p8`
+  + `named property corrupt: got 2000008 want 2000017` in the SAME run,
+  thrown from checkOne via the foreign-read frame (test line 86) — the
+  byte-identical historical signature (same-object {p8,p17}, foreign reader).
+- s21001: two trips `requested=p17 verified=p17 reloaded=p8`,
+  corruption `got 23008 want 23017` (tid=0 serial=23).
+Natural rate was ~1/120 under 6-way load and 0/2560 solo; the widened window
+fires ~1/10 SOLO — orders-of-magnitude amplification as predicted.
+
+### 10.4 GR2 arm — storage intact at the instant of corruption
+
+`repro.js` loop under the ARM A' binary: hit at s40011
+(preserved: `logs/TP2-GR2-repro-MISMATCH-s40011.log`):
+- `KEYATOM-RACE idx=357 requested=p17 verified=p17 reloaded=p8` immediately
+  followed by `MISMATCH prop=p17 got=3030008 want=3030017`;
+- same-form re-read, Reflect.get, and GOPD all return 3030017 (correct);
+- ALL 24 sibling named props correct; indexed lane correct; ownKeys correct;
+- $vm.dumpCell: butterfly base/propertyCapacity 32 intact, slot contents
+  correct (p17's slot holds 3030017);
+- after-5ms re-read: HEALED.
+This is GR2-r2's exact confirm condition: the wrong VALUE was manufactured in
+the KEY-PRODUCTION lane (wrong atom returned for the right characters), not
+in butterfly storage, growth, relocation, or offset resolution. The §6
+"wrong-offset" framing in this pack is hereby corrected: the offset WAS
+right — for the WRONG uid.
+
+### 10.5 ARM B — snapshot return kills it with the window still hot
+
+Same widened window + detector, `return verified;` instead of the reload:
+36 runs (3x12, including every seed that corrupted under A/A': 12000, 21001,
+40000-base repro.js) — **0 corruptions, 0 other failures**, while the
+detector tripped TWICE with the harmful shape
+`idx=357 requested=p8 verified=p8 reloaded=p17` (the MIRROR direction,
+matching historic s6014). I.e. the race window was entered and would have
+swapped under the stock return; the snapshot return neutralized it. Both
+historic directions (p17->p8 and p8->p17) have now been observed in vivo.
+
+### 10.6 SK2 — test soundness chain (static)
+
+- GIL-off Atomics on plain objects dispatch via `vm.gilOff()`
+  (ThreadAtomics.cpp:594/613/653/691) to the concurrent probe +
+  `JSObject::atomicSlotReadModifyWrite` (ConcurrentButterfly.cpp:2907),
+  whose slot accesses are seq_cst loads/CAS (atomicSlotLockFreeLoop,
+  ConcurrentButterfly.cpp:2855/2897; lockedUndefinedArm seq_cst). The
+  `ready.count` rendezvous therefore establishes happens-before from every
+  thread's buildOne writes to every post-barrier foreign read.
+- Each p-slot is written exactly once pre-publication; butterfly never moves
+  (§2); decode is forced (base ≡ 0 mod 1000).
+- And now demonstrated dynamically: the "got p8's value for p17" outcome is
+  produced by an engine defect (cross-lite cache race returning the wrong
+  atom), not by any legal racy-but-correct execution. The test is sound; the
+  outcome is illegal; a fix is required (no test-side waiver).
+
+### 10.7 Mechanism summary + fix gate
+
+`KeyAtomStringCache::make` (KeyAtomStringCacheInlines.h:49-59): `slot` is a
+reference into the shared per-VM 512-entry array; the value is verified by
+hash+equal, then `return slot;` RE-LOADS the cell, which a colliding-key miss
+on another lite can overwrite between the two — returning a fully valid atom
+string for the OTHER key. Downstream lookup is then a perfectly correct read
+of the wrong property. Explains every §6 hard fact: same-object sibling pair
+{p8,p17} both directions (unique 512-bucket collision among the test's keys),
+tier-independence (C++ slow path shared by all tiers), no-crash/no-ASAN
+(all values live and well-formed), GIL-on immunity and load-shaping (needs a
+preemption inside a ~few-instruction C++ window with no RaceAmplifier site),
+survival of the ConcatKey/NumericStrings/MegamorphicCache fixes (different
+cache), and storage-verifier silence (object model innocent).
+
+FIX TO PROPOSE (normal propose -> 2-reviewer -> implement flow; NOT landed
+here): the KeyAtomStringCache.h:35-52 deferred "UNGIL V7 Race C" change —
+`std::array<Atomic<JSString*>, capacity>`, make() loads the slot ONCE
+(consume/acquire), null-checks BOTH the cached pointer and
+`tryGetValueImpl()` (the stock code derefs a possibly-null impl — a rope
+JSString stored by a racing lite would crash), verifies the LOCAL, returns
+the LOCAL, publishes with release store; clear() relaxed-stores nullptr.
+CRITICAL REVIEW POINT (this round's evidence): the fix MUST return the
+verified snapshot — an atomic-slot conversion that still `return slot;`
+re-loads would keep the bug while silencing TSAN.
+
+### 10.8 Artifacts
+
+- `tp2/armA-instrumentation.patch`, `tp2/armB-instrumentation.patch`,
+  `tp2/KeyAtomStringCacheInlines.h.orig`, `tp2/run-arm.sh`, `tp2/NOTES.md`,
+  `tp2/armB-note.md`
+- `logs/TP2-armA-CORRUPT-s12000.log` (trip + corruption, same run)
+- `logs/TP2-GR2-repro-MISMATCH-s40011.log` (trip + full intact-storage dump)
+- volatile: /tmp/tp2-armA*, /tmp/tp2-armA2, /tmp/tp2-gr2, /tmp/tp2-armB1..3
