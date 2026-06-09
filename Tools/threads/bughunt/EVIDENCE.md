@@ -252,3 +252,116 @@ corruption.
   STW-watchdog overload log (s53002).
 - Campaign log dirs (volatile, /tmp): load6-c1..4, bh-exact-1..4, bh-A/B/B2,
   bh-D/E/F/G/H, bh-N1..N4, bh-loop, bh-base-7..9, det3012.
+
+## 9. EXPERIMENTER round 1 (2026-06-09): GR1-remset-lost-append-premature-reclaim
+
+Verdict in one line: the MECHANISM is real, on-demand reproducible, and the
+one-line fix is validated — but the mechanism is UNREACHABLE in the failing
+workload (the original test performs ZERO GCs, measured solo and under the
+06-08 loaded shape, including the historic failing seeds), so GR1 is REFUTED
+as the cause of the chartered {p8,p17} silent corruption. The unwired
+`setMultiProducerAccess()` remains a confirmed must-fix defect regardless.
+
+### 9.1 Instrumentation (all reverted; forward patches kept)
+
+Scratch build on top of the current tree (Debug):
+- `Heap::addToRememberedSet` (Heap.cpp:1480, the ONLY physical append site to
+  `m_mutatorMarkStack`): concurrent-entry detector (atomic in-append counter),
+  per-append size-delta check, relaxed shadow append counter.
+- Drain-side shadow check `appends - drained == size()` at
+  `MarkStackMergingConstraint::executeImplImpl` (world stopped) and the
+  full-GC `clear()`; per-process SUMMARY (appends/overlaps/anomalies/shadow
+  mismatches/gcVersion/allocThisCycle/maxEdenSize) at Heap teardown
+  (`--destroy-vm`).
+- ConcatKey vehicle check (request 2B): on every flag-on
+  `ConcatKeyAtomStringCache::getOrInsert` cache HIT, re-derive the expected
+  concatenation from the three fibers and RELEASE_ASSERT on mismatch.
+Patches: `gr1/heap-detector-plus-fix.patch`, `gr1/msmc-detector.patch`,
+`gr1/concatkey-detector.patch`. Tree restored to pristine and rebuilt after
+the experiments (final smoke: s3012 PASS).
+
+### 9.2 Mechanism arm: lost/corrupted appends reproduce ON DEMAND
+
+New amplifier `gr1/barrier-storm.js` (owner-only stores of young cells into
+2048 old objects per thread x 5 threads, eden pressure, run with
+`--forceRAMSize=8388608` + pinned GIL-off flags): maximizes concurrent
+`addToRememberedSet` traffic. NOTE: a first variant doing FOREIGN writes to
+shared old objects wedged the STW watchdog (Class-A WatchpointSet fire,
+JSThreadsSafepoint.cpp:494) at any heap size — known overload family,
+avoided by owner-only writes.
+
+Unpatched binary, 50 runs (seeds 4001-4050, ~3 s each):
+- 50/50 CRASH on `ASSERTION FAILED: result == m_segments.head()->m_top++`
+  (GCSegmentedArrayInlines.h:145, postIncTop) — the EXACT s33004 signature,
+  now deterministic instead of 1-in-hundreds.
+- 49/50 runs logged OVERLAP (two threads inside the remset append at once).
+- 42/50 runs logged per-append size anomalies BEFORE crashing: delta=2 (784x,
+  interleave), delta=510/511/1019/1020 (66x — exactly +-1/+-2 segments;
+  s_segmentCapacity is ~510 for 4 KB blocks => racing `expand()` segment-list
+  pushes), and ONE delta=0 (a thread observed its OWN append not reflected:
+  a lost m_top increment in vivo).
+- 2/50 runs survived to a merge drain and tripped SHADOW-MISMATCH:
+  `appends=10245 drained=0 actual-size=11248` and `appends=10246
+  actual-size=10744` — the stack's bookkept size diverges from the number of
+  real appends by ~+-2 segments (both inflation = drains would read
+  stale/garbage slot contents as remembered cells, and the loss direction
+  GR1 needs). In a Release build all of this is SILENT.
+Logs: `gr1/logs/storm-unpatched-*`.
+
+### 9.3 Fix arm: wiring the dormant lock kills the whole failure class
+
+One-line candidate fix (as predicted by the hypothesis): in Heap's
+constructor, `if (Options::useJSThreads()) m_mutatorMarkStack->
+setMultiProducerAccess();` (MarkStack.h:53 lock plumbing was fully written
+and had ZERO callers — confirmed dead code before this).
+
+Patched binary, same 50 storm seeds: 50/50 PASS, 0 asserts, 0 shadow
+mismatches across 1,912,411 appends with ~100k contended entries (overlaps
+still logged in 50/50 runs — contention is constant; the lock makes it safe).
+Residual size-delta anomalies (delta 2..140, two -507) are artifacts of the
+DETECTOR's own unlocked before/after `size()` reads (size() is a non-atomic
+two-field read: m_top + 510*(nSegments-1)); the authoritative invariant
+appends==drained held EXACTLY in every run. Butterfly stress + repro-loop
+also pass on the fix arm.
+
+### 9.4 Linkage arm: the failing workload NEVER GCs — GR1 cannot have done it
+
+GR1's corruption story REQUIRES an eden collection inside the
+silenced-barrier window (premature reclaim + slot recycling). Measured on
+the instrumented binary, original `spawned-thread-butterfly-stress.js`,
+pinned flags:
+- Solo, seeds 1000/2001/3012(!!)/6014(!!)/9999/12345: gcVersion=0,
+  appends=0 every time.
+- Under the 06-08 shape (gr1 variant of load6, 6 workers, SEED_BASE=1000,
+  stress-ng --cpu 96 co-tenant on the 64-core host): 34 valid runs, ALL
+  gcVersion=0, appends=0, zero detector events of any kind.
+- Why it never GCs: total allocation is 11.27-11.31 MB per run (measured
+  spread across seeds AND under load: +-0.2%) against maxEdenSize=33.55 MB —
+  the run ends at ~34% of the first-GC threshold. Allocation is
+  workload-determined; host load cannot triple it. No GC => no remembered
+  set, no eden sweep, no reclaim => no GR1 corruption path. (GC activity
+  timers were never observed to fire in this shell config either.)
+- The ConcatKey vehicle check (9.1) stayed silent in every storm/campaign
+  run; it remains armed in the patch file for any future natural hit.
+
+By contrast repro-loop.js (5 reps) does GC (gcVersion=1+, ~180 appends/run):
+this is exactly why s33004 (the postIncTop assert) was caught on repro-loop
+under corpus load — the side-finding-1 crash family belongs to the
+barrier-during-GC population, which the ORIGINAL test is not a member of.
+
+### 9.5 Disposition
+
+- GR1 as THE chartered bug: REFUTED (necessary precondition — a GC during
+  the run — does not occur in this workload; measured including the two
+  historic failing seeds).
+- GR1 as a defect: CONFIRMED with an on-demand reproducer
+  (`gr1/barrier-storm.js` + `--forceRAMSize=8388608`, 50/50) and a validated
+  one-line fix (wire `setMultiProducerAccess()` on `m_mutatorMarkStack` —
+  and audit the other shared `MarkStackArray`s) that must land regardless of
+  the chartered bug's verdict. Hand the fix through the normal
+  propose -> 2-reviewer -> implement flow.
+- Side artifact (pre-existing, not the bug): `--destroy-vm` GIL-off teardown
+  intermittently asserts `currentThreadIsHoldingAPILock()` (VM.cpp:1044)
+  AFTER PASS — 2/18 in one loaded slice
+  (`gr1/logs/destroyvm-teardown-assert-artifact.log`). Only affects the
+  instrumented SUMMARY harness; excluded from stats.

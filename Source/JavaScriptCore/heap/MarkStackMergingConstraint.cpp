@@ -32,11 +32,6 @@
 
 namespace JSC {
 
-// BUGHUNT-GR1 (scratch instrumentation): shadow counters defined in Heap.cpp.
-extern std::atomic<size_t> g_bhRemsetAppends;
-extern std::atomic<size_t> g_bhRemsetDrained;
-extern std::atomic<size_t> g_bhRemsetShadowMismatches;
-
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MarkStackMergingConstraint);
 
 MarkStackMergingConstraint::MarkStackMergingConstraint(JSC::Heap& heap)
@@ -74,19 +69,6 @@ void MarkStackMergingConstraint::executeImplImpl(Visitor& visitor)
     if (m_heap.m_isMarkingForGCVerifier)
         return;
 
-    // BUGHUNT-GR1: world is stopped here (constraint solving); the shadow
-    // append count minus prior drains must equal the stack's current size.
-    // A deficit means the unsynchronized multi-producer append lost entries.
-    {
-        size_t size = m_heap.m_mutatorMarkStack->size();
-        size_t appends = g_bhRemsetAppends.load(std::memory_order_relaxed);
-        size_t drained = g_bhRemsetDrained.load(std::memory_order_relaxed);
-        if (appends - drained != size) {
-            g_bhRemsetShadowMismatches.fetch_add(1, std::memory_order_relaxed);
-            dataLogLn("[BUGHUNT-GR1] SHADOW-MISMATCH at merge: appends=", appends, " drained=", drained, " expected-pending=", appends - drained, " actual-size=", size);
-        }
-        g_bhRemsetDrained.fetch_add(size, std::memory_order_relaxed);
-    }
     m_heap.m_mutatorMarkStack->transferTo(visitor.mutatorMarkStack());
     m_heap.m_raceMarkStack->transferTo(visitor.mutatorMarkStack());
 }
