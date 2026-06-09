@@ -149,8 +149,19 @@ seed does not capture enough of the schedule to make this bug replayable.
    (GCSegmentedArrayInlines.h:145), i.e. two threads pushing/popping one
    mark stack concurrently, seed 33004, repro-loop.js under corpus load.
    First time this signature is on record per /tmp history. Symbolized
-   frames in `/tmp/bh-loop-gc-assert-symbolized.txt` (if addr2line
-   completed; raw offsets in the log otherwise).
+   (llvm-symbolizer) — the full chain is:
+   `JSC::trySegmentedTransition` (ConcurrentButterfly.cpp:1357)
+   → `JSObject::tryPutDirectTransitionConcurrent` (JSObjectInlines.h:938)
+   → `VM::writeBarrier` → `Heap::writeBarrierSlowPath`
+   → `Heap::addToRememberedSet` (Heap.cpp:1481)
+   → `MarkStackArray::append` → `GCSegmentedArray::postIncTop` assert.
+   I.e. during concurrent GC, TWO MUTATORS executing concurrent property-add
+   transitions append to the SHARED mutator mark stack (remembered set)
+   without mutual exclusion. This is exactly the code path the test's
+   `late*`/`fromSlot*` concurrent writes exercise. Recorded as fact; whether
+   it relates to the silent corruption is undetermined (this failure mode is
+   a crash/assert, and remembered-set corruption affects liveness, not
+   property offsets).
 2. **STW watchdog under extreme starvation**: see table (F/G/H). Known
    family; the participant dump shows a single lite with
    `hasHeapAccess=true` blocking a CodeBlock-jettison stop for >30s wall
