@@ -1234,6 +1234,51 @@ static InlineCacheAction tryCachePutBy(JSGlobalObject* globalObject, CodeBlock* 
     VM& vm = globalObject->vm();
     AccessGenerationResult result;
     Identifier ident = Identifier::fromUid(vm, propertyName.uid());
+
+    if (Options::useJSThreads()) [[unlikely]] {
+        // SPEC-jit App. 5.6(c) / Task-11 bucket (iii): the (oldStructure, offset)
+        // replacement-set fire in the ExistingProperty branch below is a direct
+        // Class-A fireAll and must NOT run under CodeBlock::m_lock (section-7):
+        // the requester parks inside the stop protocol (arbitration tryLock loop
+        // or quiescence-predicate wait) while sibling mutators blind-wait on
+        // m_lock in tryCacheGetBy/tryCachePutBy with heap access held, so the
+        // conductor's predicate can never be satisfied (30s STW-watchdog abort;
+        // bughunt H1-lockheld-classA-fire-repatch-1360). Fire HERE, before the
+        // locker, exactly like the LLInt (LLIntSlowPaths.cpp:1384/1398/1705),
+        // scope (CommonSlowPathsInlines.h:105) and megamorphic
+        // (JITOperations.cpp:1277/2135) put caches: the fire COMPLETES (world-
+        // stopped jettison of every consumer that constant-folded this
+        // property) strictly before any Replace IC is published under the
+        // lock, so the M6.1 fireAllSlow ORDERING CAVEAT ("fact published
+        // before fire") never applies to this site. Firing for an attempt
+        // that later refuses to cache (forceICFailure, length/lastIndex
+        // special cases, CoW indexing) is sound: the set is invalidate-only
+        // and one-shot per (structure, offset).
+        if (baseValue.isCell() && slot.isCacheablePut() && slot.type() == PutPropertySlot::ExistingProperty && isValidOffset(slot.cachedOffset())) {
+            JSCell* replaceBase = baseValue.asCell();
+            if (replaceBase->type() == GlobalProxyType)
+                replaceBase = uncheckedDowncast<JSGlobalProxy>(replaceBase)->target();
+            if (slot.base() == replaceBase && oldStructure->propertyAccessesAreCacheable()) {
+                bool offsetStillValid = true;
+                if (vm.gilOff()) [[unlikely]] {
+                    // Mirror of the OM-1 revalidation in the locked region
+                    // below: never fire (or cache) a (structure, offset) pair
+                    // the structure's own table does not vouch for, and
+                    // refuse dictionaries (in-place table mutation under the
+                    // same structureID).
+                    if (oldStructure->isDictionary())
+                        offsetStillValid = false;
+                    else {
+                        unsigned attributes;
+                        PropertyOffset tableOffset = oldStructure->getConcurrently(propertyName.uid(), attributes);
+                        offsetStillValid = tableOffset == slot.cachedOffset() && !(attributes & (PropertyAttribute::Accessor | PropertyAttribute::CustomAccessorOrValue | PropertyAttribute::ReadOnly));
+                    }
+                }
+                if (offsetStillValid)
+                    oldStructure->didCachePropertyReplacement(vm, slot.cachedOffset());
+            }
+        }
+    }
     {
         GCSafeConcurrentJSLocker locker(codeBlock->m_lock, globalObject->vm());
 
@@ -1357,7 +1402,24 @@ static InlineCacheAction tryCachePutBy(JSGlobalObject* globalObject, CodeBlock* 
                 } else
                     RELEASE_ASSERT(baseValue.asCell()->structure() == oldStructure);
 
-                oldStructure->didCachePropertyReplacement(vm, slot.cachedOffset());
+                if (!Options::useJSThreads()) [[likely]]
+                    oldStructure->didCachePropertyReplacement(vm, slot.cachedOffset());
+                else {
+                    // App. 5.6(c): the Class-A fire for this (structure, offset)
+                    // ran before the locker scope (pre-lock block above) — never
+                    // fire under codeBlock->m_lock. If the set is not invalidated
+                    // here, the pre-lock guard and this branch disagreed (the
+                    // base/structure changed in the unlocked window); REFUSE to
+                    // publish a Replace case against a still-watched set and let
+                    // the next slow-path call retry — publishing would let IC
+                    // stores mutate the property without a fire while constant-
+                    // folding consumers are still live. (codeBlock-lock ->
+                    // structure-lock is the established order, so the set query
+                    // is legal here.)
+                    WatchpointSet* replacementSet = oldStructure->propertyReplacementWatchpointSet(slot.cachedOffset());
+                    if (!replacementSet || !replacementSet->hasBeenInvalidated())
+                        return RetryCacheLater;
+                }
 
                 if (propertyCache.cacheType() == CacheType::Unset
                     && InlineAccess::canGenerateSelfPropertyReplace(propertyCache, slot.cachedOffset())

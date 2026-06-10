@@ -106,4 +106,4 @@ Tools/threads/tsan/r*/
 Tools/threads/tsan/*.log
 Tools/threads/bughunt/**/*.log
 Tools/threads/bughunt/*/logs/
-Tools/threads/bughunt/rr-traces/
+Tools/threads/bughunt/**/rr-traces/

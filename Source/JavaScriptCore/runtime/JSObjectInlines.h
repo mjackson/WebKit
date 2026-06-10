@@ -1119,6 +1119,13 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
                             preNuked = true;
                     }
                     if (!restart) {
+#if ASSERT_ENABLED
+                        // Discriminates fresh vs quarantine-reused offsets in the
+                        // assert below (reused offsets never raise maxOffset,
+                        // D1/I30). ASSERT_ENABLED-only so the release dictionary
+                        // add path is byte-identical.
+                        PropertyOffset preEditMaxOffset = structure->maxOffset();
+#endif
                         std::tie(offset, attributes, isAdded) = structure->addOrReplacePropertyWithoutTransition(vm, propertyName, newAttributes, [&](const GCSafeConcurrentJSLocker&, PropertyOffset offset, PropertyOffset newMaxOffset) {
                             unsigned oldOutOfLineCapacity = structure->outOfLineCapacity();
                             unsigned newOutOfLineCapacity = Structure::outOfLineCapacity(newMaxOffset);
@@ -1126,9 +1133,31 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
                                 growOutOfLineStorageForConcurrentLockedAdd(vm, structureID, structure, newMaxOffset, oldOutOfLineCapacity, newOutOfLineCapacity);
                             else
                                 structure->setMaxOffset(vm, newMaxOffset);
-                            // I30: reused quarantine-promoted slots hold the
-                            // D1 jsUndefined() store flag-on, not EMPTY.
-                            ASSERT_UNUSED(offset, !getDirect(offset) || !JSValue::encode(getDirect(offset)) || getDirect(offset).isUndefined());
+                            // FRESH offsets (offset > preEditMaxOffset) must be
+                            // EMPTY: inline storage is zeroed at creation, and the
+                            // only dictionary shrink (flattenDictionaryStructureImpl)
+                            // runs only under a stop (Structure.cpp:1729) and
+                            // gcSafeZeroMemory-clears all freed inline/out-of-line
+                            // tails (Structure.cpp:1751-1773) — a future change
+                            // letting flatten run unstopped or skip the zeroing
+                            // breaks this arm.
+                            // REUSED quarantine-promoted offsets must be NON-empty:
+                            // normally they hold the D1 jsUndefined() store — but a
+                            // sanctioned tardy putDirectOffset (a writer inside its
+                            // poll-free check->store window when the delete landed)
+                            // may have overwritten the undefined BEFORE the epoch
+                            // bump that promoted the slot (INTEGRATE-objectmodel.md
+                            // §54; D1 only promises tardy READERS "old value or
+                            // undefined", SPEC-objectmodel §6). The residue is a
+                            // fully formed, GC-visited JSValue (propertyStorageSize
+                            // keeps counting quarantined/reusable slots) and is
+                            // overwritten by putDirectOffset below inside this same
+                            // cell-locked section (dictionary readers are
+                            // cell-locked, L3), so it is never observable under the
+                            // new name — accept it, but never EMPTY (D1 forbids a
+                            // clear()-style delete; a quarantine bypass handing out
+                            // never-zapped slots would trip this).
+                            ASSERT_UNUSED(offset, offset <= preEditMaxOffset ? !!JSValue::encode(getDirect(offset)) : !JSValue::encode(getDirect(offset)));
                         });
                         if (!isAdded && mode == PutModePut && (attributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor)) [[unlikely]]
                             readonlyError = true;

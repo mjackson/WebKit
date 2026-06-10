@@ -37,6 +37,8 @@
 #include "VMThreadContext.h"
 #include "WasmDebugServerUtilities.h"
 #include <atomic>
+#include <cstdlib> // BUGHUNT instrumentation (getenv/atexit; NOT FOR LANDING).
+#include <mutex> // BUGHUNT instrumentation (call_once; NOT FOR LANDING).
 #include <wtf/DataLog.h> // V4 watchdog: arbitration-queue breadcrumb.
 #include <wtf/HashMap.h>
 #include <wtf/Locker.h>
@@ -560,6 +562,7 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
     // is retired.
     MonotonicTime requestStart = MonotonicTime::now();
     const MonotonicTime originalRequestStart = requestStart;
+    const MonotonicTime bhRequestBegin = originalRequestStart; // BUGHUNT (NOT FOR LANDING): request-to-resume latency.
     {
         // HBT4 step 2: arbitration. Exactly one requesting THREAD is
         // released as conductor; losers PARK here in bounded 1ms tryLock
@@ -717,6 +720,26 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         jsThreadsStopWordStore(nullptr);
         s_jsThreadsConductorThread.store(nullptr, std::memory_order_seq_cst);
         s_jsThreadsCompletedWindowCount.fetch_add(1, std::memory_order_relaxed); // V4 watchdog progress token (see the arbitration loop).
+        // BUGHUNT INSTRUMENTATION (stw-watchdog evidence pack; env-gated; NOT FOR LANDING):
+        // JSC_CLASSA_FIRE_STATS=1 also dumps the completed SectionA.3 window count and
+        // request-to-resume latency aggregates at exit.
+        if (getenv("JSC_CLASSA_FIRE_STATS")) [[unlikely]] {
+            static std::atomic<double> bhTotalMs { 0 };
+            static std::atomic<double> bhMaxMs { 0 };
+            double ms = (MonotonicTime::now() - bhRequestBegin).milliseconds();
+            double cur = bhTotalMs.load(std::memory_order_relaxed);
+            while (!bhTotalMs.compare_exchange_weak(cur, cur + ms)) { }
+            double curMax = bhMaxMs.load(std::memory_order_relaxed);
+            while (ms > curMax && !bhMaxMs.compare_exchange_weak(curMax, ms)) { }
+            static std::once_flag bhOnce;
+            std::call_once(bhOnce, [] {
+                std::atexit([] {
+                    dataLogLn("BUGHUNT-A3-WINDOWS completed=", s_jsThreadsCompletedWindowCount.load(std::memory_order_relaxed),
+                        " totalRequestToResumeMs=", bhTotalMs.load(std::memory_order_relaxed),
+                        " maxMs=", bhMaxMs.load(std::memory_order_relaxed));
+                });
+            });
+        }
         // Retire this window's stop bits (review round): leaving the
         // NeedStopTheWorld trap + entry-scope-service bits set forever would
         // (a) route EVERY later VMEntryScope entry/exit of every thread

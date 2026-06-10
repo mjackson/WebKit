@@ -40,8 +40,12 @@
 #include "StructureRareDataInlines.h"
 #include "VM.h"
 #include <atomic>
+#include <cstdlib>
+#include <mutex>
+#include <wtf/DataLog.h>
 #include <wtf/Lock.h>
 #include <wtf/Locker.h>
+#include <wtf/MonotonicTime.h>
 
 namespace JSC {
 
@@ -237,6 +241,57 @@ struct PendingClassAFire {
 static Lock s_classAFireQueueLock;
 static PendingClassAFire* s_classAFireQueueHead WTF_GUARDED_BY_LOCK(s_classAFireQueueLock) { nullptr };
 
+// ===== BUGHUNT INSTRUMENTATION (stw-watchdog evidence pack; env-gated; NOT FOR LANDING) =====
+// JSC_CLASSA_FIRE_STATS=1: atexit summary (fire counts + wall-clock span) of Class-A fires.
+// JSC_CLASSA_FIRE_LOG=1: one line per Class-A fire naming the set and FireDetail.
+static std::atomic<uint64_t> s_bhInlineClassAFires { 0 };
+static std::atomic<uint64_t> s_bhStopClassAFires { 0 };
+static std::atomic<uint64_t> s_bhDrainedFireEntries { 0 };
+static std::atomic<double> s_bhFirstFireMs { 0 };
+static std::atomic<double> s_bhLastFireMs { 0 };
+
+static bool bhFireStatsEnabled()
+{
+    static const bool enabled = !!getenv("JSC_CLASSA_FIRE_STATS");
+    return enabled;
+}
+
+static bool bhFireLogEnabled()
+{
+    static const bool enabled = !!getenv("JSC_CLASSA_FIRE_LOG");
+    return enabled;
+}
+
+static void bhDumpFireStats()
+{
+    double spanMs = s_bhLastFireMs.load() - s_bhFirstFireMs.load();
+    dataLogLn("BUGHUNT-CLASSA-STATS stopFires=", s_bhStopClassAFires.load(),
+        " inlineFires=", s_bhInlineClassAFires.load(),
+        " drainedEntries=", s_bhDrainedFireEntries.load(),
+        " spanMs=", spanMs);
+}
+
+static void bhNoteFire(bool inlineFire, WatchpointSet* set, const FireDetail& detail)
+{
+    if (!bhFireStatsEnabled() && !bhFireLogEnabled()) [[likely]]
+        return;
+    double nowMs = MonotonicTime::now().secondsSinceEpoch().milliseconds();
+    double expected = 0;
+    s_bhFirstFireMs.compare_exchange_strong(expected, nowMs);
+    s_bhLastFireMs.store(nowMs);
+    if (inlineFire)
+        s_bhInlineClassAFires.fetch_add(1, std::memory_order_relaxed);
+    else
+        s_bhStopClassAFires.fetch_add(1, std::memory_order_relaxed);
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] { std::atexit(bhDumpFireStats); });
+    if (bhFireLogEnabled()) {
+        dataLog("BUGHUNT-FIRE ", inlineFire ? "inline" : "stop", " set=", RawPointer(set), " state=", set->state(), " detail=[");
+        detail.dump(WTF::dataFile());
+        dataLogLn("]");
+    }
+}
+
 void WatchpointSet::drainClassAFireQueue()
 {
     // Runs world-stopped, inside a stopTheWorldAndRun closure.
@@ -252,6 +307,7 @@ void WatchpointSet::drainClassAFireQueue()
         // Step (3): re-check after the stop (I11) — a fire coalesced earlier in
         // this drain (or a previous winner's drain) may already have
         // invalidated this set; fires are idempotent.
+        s_bhDrainedFireEntries.fetch_add(1, std::memory_order_relaxed); // BUGHUNT (always-on counter; read only when env-gated dump runs).
         if (entry->set->state() == IsWatched) {
             // Step (4): the existing fire body, world stopped. Step (5):
             // jettisons performed by the fired Watchpoints (e.g.
@@ -293,13 +349,16 @@ void WatchpointSet::fireAllUnderClassAStop(VM& vm, const FireDetail& detail)
         // see the stop window even when no jettison (with its own R1.h scope)
         // is reached. Nests freely under an outer scope/stop.
         JSThreadsSafepoint::AlreadyStoppedWorldWitnessScope witnessScope(vm);
-        if (state() == IsWatched) // I11.
+        if (state() == IsWatched) { // I11.
+            bhNoteFire(true, this, detail); // BUGHUNT
             fireAllNow(vm, detail);
+        }
         return;
     }
 
     // Step (2): request the stop (lock-free callers only; see the audit note
     // above). Enqueue first so a concurrent winner can coalesce this fire.
+    bhNoteFire(false, this, detail); // BUGHUNT
     PendingClassAFire pending { this, &detail, &vm };
     {
         Locker locker { s_classAFireQueueLock };
