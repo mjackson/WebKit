@@ -943,12 +943,9 @@ all earlier stages' re-run green.
   the rev-7/8 deltas ONLY — rev 9 log list; the rev-9 deltas
   are COVERED by rev 10's clean directed pass, ruling recorded
   in the rev 11 log) — CGS1 + CGS2 supersessions recorded
-  both sides; §13.5 gates: all 4 CLOSED owner-side
-  2026-06-10 (ungil r33-r35, nativeaffinity r9-r11;
-  acyclicity+anchors+caps independently verified; C1
-  unblocked. Carried to C0: the two [r34] code items —
-  Heap.cpp:5586 watchdog ctor nullptr, JSThreadsSafepoint
-  :445-451 no-requestStart bracket); size-cap
+  both sides; §13.5 gates: 4/4 CLOSED owner-side
+  06-10 (ungil r33-35, na r9-11; verified; C1 unblocked;
+  C0 carries the two [r34] code items); size-cap
   check; rev history updated.
 
 Done = every CG-I has a test/assert (§12); flags-off bench +
