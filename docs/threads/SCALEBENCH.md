@@ -1,8 +1,25 @@
 # SCALEBENCH — scalability of a big threaded program (JS threads vs Go vs Java)
 
-Date: 2026-06-10. Author: scalebench run phase (Tools/threads/scalebench/SPEC.md §5).
-Results JSON: `Tools/threads/scalebench/results.json` (valid: true).
-Raw tables: `Tools/threads/scalebench/RESULTS.md`. Per-run artifacts: `Tools/threads/scalebench/out/`.
+Two runs of the same frozen benchmark on the same host:
+
+- **Run 1** (2026-06-10, pre-fix tree): §0–§8 below, kept verbatim as the
+  historical record. Its two release blockers have since landed (GC
+  under-marking fix `25375a997f4f`; STW-watchdog fire-under-lock fix
+  `6b298a4fdd99`).
+- **Run 2** (2026-06-10, fixed tree, rebuilt Release jsc
+  sha256 `b5c3a009d514…`): §9–§14 — re-run with the run-1 js quarantine
+  accommodations REMOVED from `run.sh` (js cells count for real), plus the
+  BEFORE/AFTER accounting of what the two fixes bought and the remaining
+  ceilings.
+
+Results JSON: `Tools/threads/scalebench/results.json` — now two sections,
+`run1` and `run2` (run-1 copy also at `results-run1.json`; run-2 raw tables
+`RESULTS.md`, run-1 at `RESULTS-run1.md`; per-run artifacts `out/` for run 2,
+`out-run1/` for run 1).
+
+---
+
+# RUN 1 (historical record — pre-fix tree)
 
 This document answers the question asked on the threads PR: **how does
 scalability hold up on big programs that use the threads** — not
@@ -420,4 +437,285 @@ WebKitBuild/Release/bin/jsc --useJSThreads=1 --useThreadGIL=0 --useVMLite=1 \
 # Parallel-self, GIL-off:
 SCALING_CELL_TIMEOUT_SECS=1800 Tools/threads/scaling-gate.sh \
   --threads "1 2 4 8" Tools/threads/scalebench/out/jsc-giloff
+```
+
+---
+
+# RUN 2 (2026-06-10, fixed tree)
+
+## 9. Setup, provenance, protocol
+
+- Same host as run 1 (64 vCPU = 32 physical Sapphire Rapids x 2 SMT, 247 GB),
+  same toolchains (go1.24.13, Corretto 21.0.10), same pinned flag set, same
+  frozen SPEC/N_BASE (28000) and seed.
+- Release jsc rebuilt AFTER both fixes landed: `ninja jsc` reported no work
+  to do against the fixed tree; binary mtime 2026-06-10 17:02:33Z, sha256
+  `b5c3a009d5142da68002104669896779c6ac3ab95ce11312c1d0119e2b5b7ab0`
+  (recorded in `jsc-build-id.txt` and results.json). No binary swap occurred
+  during this batch (single session, machine owned exclusively).
+- Fix presence verified behaviorally before the matrix:
+  `js/repro-bigint-shared-ingest.js` at W=4 — **5/5 clean** (was ~100%
+  corrupt); richards-like N=4 (scale 1/16, `-e` injection) — **5/5 clean,
+  no watchdog abort** (was ~1/3 SIGABRT).
+- Quiet host: 1-min loadavg 0.57 at start (no wait needed); no orphaned
+  jsc/fuzzer processes found (checked; none to kill, unlike run 1). Runner
+  gate delay 0 s, settle delay 585 s (all own-decay allowance), settle
+  excess 0 s — no external-interference disclosure triggered.
+- Accommodation removal: the run-1 `JS_SHARED_HEAP_BUG` smoke tolerance and
+  the js W>=2 `--expect-tuple` checksum quarantine were deleted from
+  `run.sh`. One new, narrower mechanism was added in their place: the
+  preflight smoke retries a CRASHED leg up to 3 attempts (any language;
+  motivated by the §11 residual's ~8% smoke-rate — a 10% coin flip should
+  not abort a multi-hour batch in preflight). Checksum comparison is never
+  relaxed, matrix cells never retry, and every crash is logged. The js W=4
+  smoke leg passed on attempt 1 in the recorded batch.
+
+## 10. Run-2 big-program results
+
+Checksums across **all 113 successful runs** (warmups included; full go/java
+matrix, js W=1 complete, every surviving js W in {2,4,8} run):
+`A=b3e65a6855b9bdeb, postings=4158957, A2=39c33392b2a4c5b2, B=c4bdd580f85ee058, C=af028188d7a56a96`
+— bit-identical across all three languages and both runs (same tuple as
+run 1). All six smoke legs (3 languages x W in {1,4}) matched. Zero
+silently-wrong checksums; batch `valid: true`, `exceptions: []`.
+
+### Total wall time (medians of 5; speedup vs same language W=1)
+
+| W | js ms | js speedup | js ok/5 | go ms | go speedup | java ms | java speedup |
+|---|---|---|---|---|---|---|---|
+| 1 | 33373 | 1.00x | 5/5 | 1737 | 1.00x | 1893 | 1.00x |
+| 2 | 41913 | 0.80x | 4/5 | 1068 | 1.63x | 1303 | 1.45x |
+| 4 | (47.0–47.4 s, 2 survivors) | ~0.71x | 2/5 | 701 | 2.48x | 1041 | 1.82x |
+| 8 | (45.0–46.0 s, 2 survivors) | ~0.73x | 2/5 | 512 | 3.39x | 977 | 1.94x |
+| 16 | FAILED 5/5 | — | 0/5 | 401 | 4.34x | 931 | 2.03x |
+| 32 | FAILED 5/5 | — | 0/5 | 360 | 4.82x | 976 | 1.94x |
+| 48 | FAILED 5/5 | — | 0/5 | 370 | 4.70x | 1092 | 1.73x |
+| 64 | FAILED 5/5 | — | 0/5 | 357 | 4.87x | 1153 | 1.64x |
+
+js W in {4,8} cells have 2/5 surviving reps — below the 3 needed for a
+median, so results.json records them failed-with-null-medians; the surviving
+raw runs (correct checksums) are quoted above as ranges. go/java: 80/80
+clean, shapes within noise of run 1.
+
+### js phase medians (surviving runs)
+
+| cell | A ingest ms | B query ms | C analytics ms | RSS MB | cpu_util |
+|---|---|---|---|---|---|
+| W=1 (5/5) | 18680 | 5591 | 138 | 11898 | 1.16 |
+| W=2 (4/5) | 22607 (0.83x) | 6167 (0.91x) | 545 (0.25x) | 14389 | 0.72 |
+| W=4 (2 raw) | 29127–30019 | 6216–7467 | 615–656 | ~13000 | — |
+| W=8 (2 raw) | 26621–26775 | 7584–8668 | 648–702 | ~12885 | — |
+
+### js failure detail (run 2: 31 failed runs of 144 total js incl. warmup)
+
+Exit 133 = SIGTRAP (libpas `pas_deallocation_did_fail` /
+RELEASE_ASSERT-class), 134 = SIGABRT, 139 = SIGSEGV:
+
+| W | outcomes (warmup + 5 reps) |
+|---|---|
+| 1 | 6/6 OK |
+| 2 | 5 OK, 1x SIGABRT |
+| 4 | 2 OK, 2x 133, 1x 134, 1x 139 |
+| 8 | 3 OK, 3x 133 |
+| 16 | 1 OK (warmup), 3x 133, 2x 134 |
+| 32 | 3x 133, 3x 134 |
+| 48 | 6x 133 |
+| 64 | 3x 133, 2x 134, 1x 139 |
+
+Every failed run died loudly; the checksum gate over the surviving
+population is fully intact.
+
+## 11. BEFORE/AFTER — what the two fixes bought
+
+### Fix 1: GC under-marking (`25375a997f4f`)
+
+| metric | run 1 (before) | run 2 (after) |
+|---|---|---|
+| `repro-bigint-shared-ingest.js` W=4 | ~100% corrupt | 5/5 clean, deterministic output |
+| js W=2 big-program | 41/42 multi-thread js runs died; 1 survivor | **4/5 complete with bit-identical checksums** |
+| js W=4/W=8 | 0 survivors | 2/5 survivors each, correct checksums |
+| js W>=16 | 0 survivors | 0 survivors (different bug — below) |
+| silent wrong checksums | 0 | 0 |
+
+The headline: **JS completion at W=2 is real now** — the under-marking
+corruption that killed essentially every multi-thread big-program run is
+gone (its dedicated repro is deterministic-clean), and the engine completes
+the full shared-write-heavy workload at W=2 with correct results most of
+the time. What remains at W>=4 is a DIFFERENT, residual bug (§11.3).
+
+**Cost side (new finding):** run-2 js W=1 is **+37% slower** than run-1 js
+W=1 (33.4 s vs 24.3 s) and peak RSS went **421 MB -> 11.9 GB (28x)** on the
+identical workload. The quiet-host flag-tax measurement (§13.3) attributes
+both entirely to `--useSharedGCHeap=1`. The under-marking fix appears to
+have bought correctness partly by severe over-retention/under-collection of
+the shared heap. Speedups within run 2 are computed against run 2's own
+(slower) W=1 baseline, so the js scaling numbers are not flattered by this.
+
+### Fix 2: STW watchdog fire-under-lock (`6b298a4fdd99`)
+
+| metric | run 1 (before) | run 2 (after) |
+|---|---|---|
+| richards-like N=4 (scale 1/16) 5x | ~1/3 watchdog SIGABRT | 5/5 clean |
+| richards/string-heavy gate cells | intermittent watchdog SIGABRT (~1/3); gate aborted on first attempt | **0 watchdog aborts across the entire suite** (all 60 cells completed) |
+| richards-like speedup(2/4/8) | 0.14/0.19/0.23x (best-shown, partial) | 0.15/0.19/0.24x (clean medians of 3) |
+
+The fix bought **abort-free liveness**, not throughput: richards' negative
+scaling is unchanged. That matches the watchdog hunt's own perf finding
+(docs/threads/STW-WATCHDOG-CLOSURE.md): the fire-rate data REFUTED the
+run-1 "Class-A watchpoint storm" frequency hypothesis — at the config where
+T(2) ~ 14x T(1), all 54 Class-A/§A.3 stop windows total **1.6 ms** of a
+48.8 s wall (~0.003%), and the stop-fire count is constant (~36/run,
+warmup-phase one-shots) regardless of N and scale. Whatever serializes
+richards GIL-off, it is not stop frequency or stop latency; that residue is
+chartered to TTL-rebias/de-jank (§13.2).
+
+### 11.3 NEW P0: residual shared-heap corruption crash (distinct from both fixed bugs)
+
+Run 2's surviving blocker, found at js W=4 smoke in preflight and
+characterized standalone (all on the fixed binary):
+
+- **Rate**: ~8% of smoke-size W=4 runs (5/61); at full size it kills 1/5
+  W=2, 3/5 W=4/8, and 5/5 W>=16 runs (exposure scales with work x threads).
+- **GC-INDEPENDENT** — still fires with `--useGC=0` (3/20). This is NOT the
+  under-marking class run 1 hit (that one was 0/4 with `--useGC=0`), and
+  not a recurrence of the fixed bug (whose repro stays 5/5 clean).
+- **Shared-heap-specific** — `--useSharedGCHeap=0` (other flags kept):
+  0/20.
+- **Always loud**: SIGTRAP (libpas "Large heap did not find object" on a
+  garbage `StringImpl::deref`), SIGABRT, or SIGSEGV. Zero wrong checksums
+  in 113 successful runs — the §5.5 gate never saw a silent lie.
+- **Signature families** (cores preserved in
+  `Tools/threads/scalebench/out/p0-cores/`): (a) LLInt `op_call_varargs` ->
+  `setupVarargsFrame`/`JSCellButterfly::copyToArguments` reading a corrupt
+  arguments array — the only varargs site in the benchmark is the spread
+  `String.fromCharCode(...codes)` at js/bench.js:216 on a THREAD-LOCAL
+  array; (b) null-structure cell in `JSObject::toPrimitive`; (c) garbage
+  `StringImpl` pointer deref'd into a libpas panic; (d) garbage pc in JIT
+  frame. All consistent with cross-thread corruption of freshly-allocated
+  cells/strings in the shared heap, on the allocator/string path rather
+  than the collector (it fires with GC off).
+
+This is a P0 release blocker. It needs the bughunter treatment
+(hypothesis-driven; the smoke-size repro is
+`SCALEBENCH_SMOKE=1 jsc <pinned flags> bench.js -- 4 smoke`, ~8%/run,
+~7.6 s/run, so a 50-run campaign is ~6 minutes).
+
+## 12. Run-2 parallel-self suite (GIL-off, report mode)
+
+Same command as run 1 (`scaling-gate.sh --threads "1 2 4 8"` through the
+pinned-flag wrapper; medians of 3; cell timeout 1800 s). This time the gate
+ran to completion in one pass — no watchdog aborts, no manual cells. The
+wrapper makes the gate's own serial-identity row self-vs-self (ignore it);
+the genuine tax is §13.3.
+
+| workload | T(1) ms (run1 -> run2) | speedup(2) | speedup(4) (run1) | speedup(8) (run1) | floors |
+|---|---|---|---|---|---|
+| map-heavy | 2278 -> 2711 | 1.19x | 1.32x (1.11) | 1.28x (1.13) | 2.8/4.5 VIOLATION |
+| raytrace-like | 10227 -> 10617 | 0.71x | 0.66x (0.67) | 0.61x (0.65) | 2.8/4.5 VIOLATION |
+| richards-like | 3621 -> 3626 | 0.15x | 0.19x (0.19) | 0.24x (0.23) | 2.8/4.5 VIOLATION |
+| splay-like | 3544 -> 3853 | 1.20x | 1.53x (1.47) | 1.54x (1.59) | 2.0/3.0 VIOLATION |
+| string-heavy | 2730 -> 3686 | 1.57x | 1.32x (1.15) | 1.33x (1.14) | 2.8/4.5 VIOLATION |
+
+lock-fairness smoke: ok (ratioW 1.23, no starvation).
+
+Reading: modest, real improvements on the allocation/atom-churn workloads
+(map-heavy +0.15-0.19, string-heavy +0.17-0.19 at N>=4 — and string-heavy
+no longer dies), no change on the two negative-scaling workloads
+(richards, raytrace), and every workload still violates its floor. The
+T(1) inflations (map +19%, string +35%, splay +9%) are the §13.3 shared-heap
+tax moving, which also means the run-2 speedup ratios are computed against
+slower baselines — the absolute T(N) picture is no better than the ratios
+suggest.
+
+## 13. Honest remaining-ceilings analysis
+
+Ranked by what they cost today:
+
+1. **The §11.3 residual corruption crash (P0, correctness).** Caps the
+   big-program matrix at W~8 for JS and would cap any real shared-heap
+   program the same way. GC-independent, shared-heap-allocator/string
+   shaped, loud, with a fast repro. Until it is fixed, every other ceiling
+   below is academic above W=8.
+
+2. **GC serialization — pending SPEC-congc implementation.** Unchanged from
+   run 1 and still the dominant scalability wall for every allocation-heavy
+   workload: collections are stop-the-world with parallel marking; N
+   mutators allocate N x faster, every cycle stops all N. map-heavy at
+   1.28-1.32x and splay-like at 1.53-1.54x against floors of 2.8-4.5/2.0-3.0
+   are exactly this. SPEC-congc (concurrent marking for N mutators) is
+   designed, frozen-spec'd, and unimplemented; note it did NOT converge in
+   its 6 review rounds and needs an ungil-style finalize before
+   implementation. richards-like's 0.15-0.24x is NOT explained by stop
+   frequency — the watchdog hunt's fire-rate log
+   (`Tools/threads/bughunt/stw-watchdog/firelog-n4.txt`, summarized in
+   STW-WATCHDOG-CLOSURE.md) measured ~36 constant warmup one-shot fires
+   per run and 1.6 ms total stop time against a 14x slowdown, refuting the
+   run-1 storm hypothesis. The richards residue (mid-run samples show
+   threads executing JIT code, yet 2 threads take 14x one thread's wall) is
+   chartered to **TTL-rebias/de-jank**; until that lands, OO-dispatch-heavy
+   code must be assumed to scale NEGATIVELY.
+
+3. **The single-thread shared-heap tax — now measured and attributed, no
+   longer "undiagnosed", but WORSE.** Run 1 measured +61% on a noisy host
+   and called it undiagnosed. Run 2, quiet host, map-heavy T(1), medians
+   of 5: flag-off 1373 ms -> GIL-on 1467 ms (+6.8%) -> pinned GIL-off
+   2710 ms (**+97% vs flag-off**). Attribution by single-flag ablation:
+   pinned-minus-`useSharedGCHeap` runs at GIL-on speed (1465 ms);
+   pinned-minus-`useSharedAtomStringTable` is unchanged (2715 ms). RSS
+   tells the same story on identical work: 3.72 GB (pinned) vs 155 MB
+   (minus sharedGCHeap) vs 152 MB (GIL-on) — and the big-program W=1 cell
+   went 421 MB (run 1) -> 11.9 GB (run 2). So the tax IS the shared-GC-heap
+   configuration, and the under-marking fix made it materially worse
+   (+61% noisy -> +97% quiet; the run-1 vs run-2 W=1 delta of +37% on the
+   identical big-program cell is the same effect measured cleanly). The
+   mechanism inside useSharedGCHeap (retention policy vs collection
+   scheduling vs allocator path) is the next diagnosis step — plausibly the
+   same work item as making SPEC-congc's collector actually collect under
+   N mutators. The GIL-on +6.8% still violates the 5% identity tolerance
+   on this workload (run 1 saw +15.3% noisy) and lands with the parked
+   transition-bench adjudication (AB17f item-6 protocol).
+
+4. **Java-shaped plateau is the benchmark's own ceiling, not JSC's.** Go
+   tops out at 4.87x and Java at ~2x on 32 physical cores by design
+   (Zipf-hot shard locks, shared merge phase). The JS target, once 1-3 are
+   fixed, is the ~2-5x band — not 64x.
+
+Bottom line, run 2: **both landed fixes did what they claimed** — the
+under-marking corruption is gone (js W=2 completes with bit-identical
+checksums; its repro is deterministic-clean) and the watchdog no longer
+kills richards/string-heavy (0 aborts in the full suite). But the tree
+still does not have a shippable scalability story: a NEW GC-independent
+shared-heap crash gates everything above W~8 (P0, fast repro in hand), no
+workload in either suite comes near its scaling floor (best: splay 1.54x
+at 8 threads; richards still 0.24x), and the shared-heap mode now costs
++97% single-thread and ~28x RSS — a price that, per the §0 criterion, no
+big program would accept today.
+
+## 14. Run-2 reproduction
+
+```
+# Big-program matrix (writes results.json run2-equivalent + RESULTS.md):
+Tools/threads/scalebench/run.sh
+
+# Residual P0 repro (~8%/run at smoke size, ~7.6 s/run):
+cd Tools/threads/scalebench && SCALEBENCH_SMOKE=1 \
+  ../../../WebKitBuild/Release/bin/jsc --useJSThreads=1 --useThreadGIL=0 \
+  --useVMLite=1 --useSharedAtomStringTable=1 --useSharedGCHeap=1 \
+  --useThreadGILOffUnsafe=1 bench.js -- 4 smoke
+
+# Fixed-bug regression checks (must stay clean):
+WebKitBuild/Release/bin/jsc <pinned flags> \
+  Tools/threads/scalebench/js/repro-bigint-shared-ingest.js   # 5x
+WebKitBuild/Release/bin/jsc <pinned flags> \
+  -e "globalThis.SCALING_THREADS=4; globalThis.SCALING_WORK_SCALE=0.0625;" \
+  JSTests/threads/scaling/richards-like.js                    # 5x
+
+# Parallel-self, GIL-off:
+SCALING_CELL_TIMEOUT_SECS=1800 Tools/threads/scaling-gate.sh \
+  --threads "1 2 4 8" Tools/threads/scalebench/out/jsc-giloff
+
+# Single-thread tax + attribution (quiet host):
+jsc [no flags | --useJSThreads=1 | pinned set | pinned minus one flag] \
+  -e "globalThis.SCALING_THREADS=1; globalThis.SCALING_WORK_SCALE=1;" \
+  JSTests/threads/scaling/map-heavy.js
 ```

@@ -140,18 +140,12 @@ bench_cmd() {
 # 100%-failed JS cells. Any recurrence must abort here, in preflight.
 SMOKE_WS=(1 4)
 
-# 2026-06-10 engine-bug accommodation: the js W=4 smoke leg is EXPECTED to
-# fail while the shared-GC-heap corruption (js/repro-bigint-shared-ingest.js)
-# is open — confirmed GC-dependent under-marking (0/4 corrupt with --useGC=0,
-# 4/4 with GC on; --sweepSynchronously=1 turns the aliasing into immediate
-# crashes => live cells are being swept). Instead of dying (which blocks the
-# ENTIRE matrix including the sound go/java cells and js W in {1,2}), record
-# the bug and run the matrix: js W>=4 cells fail per SPEC §6 (failed:true,
-# null medians), and any silently-WRONG js W>=2 checksum is quarantined at
-# record time (scalebench_lib.py --expect-tuple) so the §5.5 gate stays
-# meaningful over the sound population. go/java and the js W=1 baseline keep
-# the hard abort.
-JS_SHARED_HEAP_BUG=0
+# 2026-06-10 run 2: the shared-GC-heap under-marking bug that forced the
+# run-1 js W>=2 quarantine (JS_SHARED_HEAP_BUG accommodation) is FIXED
+# (commit 25375a997f4f; repro-bigint-shared-ingest.js 5x clean at W=4 on the
+# rebuilt binary). The accommodation is REMOVED: js cells at every W are
+# subject to the same hard smoke/checksum aborts as go/java. If corruption
+# recurs, the batch aborts loudly — that is a P0 finding, by design.
 
 smoke() {
     log "smoke: W in {${SMOKE_WS[*]}} SCALEBENCH_SMOKE=1 across all three languages"
@@ -160,14 +154,25 @@ smoke() {
     for lang in "${LANGS[@]}"; do
         bench_cmd "${lang}" "${w}" smoke
         out="${OUT_DIR}/smoke-${lang}-w${w}.out"
-        if ! SCALEBENCH_SMOKE=1 "${BENCH_CMD[@]}" >"${out}" 2>"${OUT_DIR}/smoke-${lang}-w${w}.err"; then
-            if [[ "${lang}" == js && "${w}" -ge 4 ]]; then
-                JS_SHARED_HEAP_BUG=1
-                log "smoke js W=${w}: FAILED — known shared-GC-heap corruption (js/repro-bigint-shared-ingest.js)"
-                log "  proceeding: js W>=4 cells will be recorded as failed (SPEC §6); js W>=2 checksums quarantined"
-                continue
+        # Run-2 P0 finding: a RESIDUAL shared-heap crash (distinct from the
+        # fixed under-marking bug: GC-INDEPENDENT — still fires with
+        # --useGC=0 — and gone with --useSharedGCHeap=0; signature family:
+        # LLInt op_call_varargs copyToArguments on a corrupt arguments array
+        # / null-structure toPrimitive / garbage StringImpl deref in libpas)
+        # kills ~8-15% of js W=4 smoke runs. The smoke leg therefore RETRIES
+        # a crashed run up to 3 attempts (any language — go/java never need
+        # it) and logs every crash; the checksum comparison below is never
+        # relaxed. Matrix cells do NOT retry: crashes are recorded failed
+        # per SPEC §6 and count against js for real.
+        local attempt ok=0
+        for attempt in 1 2 3; do
+            if SCALEBENCH_SMOKE=1 "${BENCH_CMD[@]}" >"${out}" 2>"${OUT_DIR}/smoke-${lang}-w${w}.err"; then
+                ok=1; break
             fi
-            die "smoke run failed for ${lang} W=${w} (see ${OUT_DIR}/smoke-${lang}-w${w}.err)"
+            log "smoke ${lang} W=${w}: attempt ${attempt} CRASHED (see ${OUT_DIR}/smoke-${lang}-w${w}.err) — P0 residual if js"
+        done
+        if [[ "${ok}" != 1 ]]; then
+            die "smoke run failed for ${lang} W=${w} on 3 attempts (see ${OUT_DIR}/smoke-${lang}-w${w}.err)"
         fi
         tup="$(python3 - "${out}" <<'PYEOF'
 import json, sys
@@ -187,11 +192,6 @@ PYEOF
         if [[ -z "${ref}" ]]; then
             ref="${tup}"
         elif [[ "${tup}" != "${ref}" ]]; then
-            if [[ "${lang}" == js && "${w}" -ge 4 ]]; then
-                JS_SHARED_HEAP_BUG=1
-                log "smoke js W=${w}: SILENT CHECKSUM MISMATCH — known shared-GC-heap corruption; same accommodation as a failed leg"
-                continue
-            fi
             die "SMOKE CHECKSUM MISMATCH: ${lang} W=${w} disagrees with ${LANGS[0]} W=${SMOKE_WS[0]} — fix the implementations before any measured run"
         fi
     done
@@ -274,18 +274,12 @@ run_cell() {
         log "run ${tag}: FAILED (exit ${rc}) — recorded per SPEC §6"
     fi
 
-    # Engine-bug quarantine (see JS_SHARED_HEAP_BUG above): js runs at W>=2
-    # with a wrong checksum tuple are recorded as failed (named reason)
-    # instead of tripping the batch-wide abort below. js W=1 (the speedup
-    # baseline) and go/java keep the §5.5 hard abort.
-    local extra=()
-    if [[ "${JS_SHARED_HEAP_BUG}" == 1 && "${lang}" == js && "${w}" -ge 2 && -n "${REF_TUPLE}" ]]; then
-        extra=(--expect-tuple "${REF_TUPLE}")
-    fi
+    # Run 2: no quarantine — every language at every W is subject to the
+    # same §5.5 hard abort below (the run-1 js accommodation is removed).
     tup="$(python3 "${HELPER}" record \
         --lang "${lang}" --threads "${w}" --rep "${rep}" \
         --exit-code "${rc}" --stdout "${out}" --time "${tim}" \
-        --runs "${RUNS_JSONL}" "${extra[@]}")"
+        --runs "${RUNS_JSONL}")"
 
     # Fail-fast checksum cross-validation: any successful run disagreeing
     # with the first one invalidates the batch — stop burning hours now.
@@ -331,9 +325,6 @@ run_matrix() {
 
 write_meta() {
     local exceptions='[]'
-    if [[ "${JS_SHARED_HEAP_BUG}" == 1 ]]; then
-        exceptions='["js: OPEN ENGINE BUG (not a flag exception): shared-GC-heap corruption under the pinned GIL-off flag set at W>=4 — GC-dependent under-marking; live cells swept and re-allocated (repro: js/repro-bigint-shared-ingest.js, 0/4 corrupt with --useGC=0, 4/4 with GC on). js W>=4 cells are recorded as failed per SPEC §6; js W>=2 runs with wrong checksums are quarantined as failed instead of aborting the batch. go/java cells and the js W=1 baseline are unaffected."]'
-    fi
     jq -n \
         --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --argjson cores "$(nproc)" \
@@ -360,8 +351,8 @@ write_meta() {
 main() {
     mkdir -p "${OUT_DIR}"
     : >"${RUNS_JSONL}"
-    # js W>=4 cells are expected to crash while the shared-heap bug is open;
-    # a W=64 core is multi-GB and serializes the batch — don't write cores.
+    # A crashed W=64 cell's core is multi-GB and serializes the batch —
+    # don't write cores (any crash still aborts/records loudly).
     ulimit -c 0 2>/dev/null || true
 
     log "=== preflight ==="
