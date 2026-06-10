@@ -943,17 +943,12 @@ all earlier stages' re-run green.
   the rev-7/8 deltas ONLY — rev 9 log list; the rev-9 deltas
   are COVERED by rev 10's clean directed pass, ruling recorded
   in the rev 11 log) — CGS1 + CGS2 supersessions recorded
-  both sides; §13.5 gates closed (STATUS UPDATE post-rev-12:
-  all 4 CLOSED owner-side 2026-06-10 — SPEC-ungil r33-r35
-  (LK.9c/9d + U20 ext; §A.3 rule-5 ship-gate/fan-in; HBT4
-  re-entry) + SPEC-nativeaffinity r9-r11 (BL1.8 NL-drop +
-  reacquire re-pin + item-7 assert); independently verified
-  (merged-table acyclicity, anchors, caps). C1 formally
-  unblocked. CARRIED OBLIGATIONS to implementation: the two
-  [r34] this-side items are NOT yet in code — Heap.cpp:5586
-  watchdog ctor still passes nullptr, JSThreadsSafepoint.cpp
-  :445-451 jettison bracket still uses the no-requestStart
-  ctor — land with congc C0); size-cap
+  both sides; §13.5 gates: all 4 CLOSED owner-side
+  2026-06-10 (ungil r33-r35, nativeaffinity r9-r11;
+  acyclicity+anchors+caps independently verified; C1
+  unblocked. Carried to C0: the two [r34] code items —
+  Heap.cpp:5586 watchdog ctor nullptr, JSThreadsSafepoint
+  :445-451 no-requestStart bracket); size-cap
   check; rev history updated.
 
 Done = every CG-I has a test/assert (§12); flags-off bench +
