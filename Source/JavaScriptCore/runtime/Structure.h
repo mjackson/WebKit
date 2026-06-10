@@ -1057,18 +1057,47 @@ public:
 // into setBitFieldConcurrently (StructureInlines.h) so the flag-off path stays
 // the pre-threads plain RMW behind a single predicted-false byte test, per the
 // project rule (cf. the ab17c flag-off-bench-first precedent).
-// ITEM-2 STATUS (V5b transition-heavy-constructor, +3.05%/+3.23% quiet-host):
-// still OPEN — that regression was measured on a binary that ALREADY contains
-// this outlining, so the outlining is not the fix. Remaining suspect: the
-// per-setter Options::useJSThreads() load + branch repeated between adjacent
-// setters in the transition-install clusters (Structure::add, both arms of
-// addOrReplacePropertyWithoutTransition, pin), which blocks clang from
-// coalescing adjacent m_bitField RMWs into one load/modify/store — but do NOT
-// edit on that theory alone: per review, first run the ITEM-2 perf protocol
-// (perf record -e cycles on a high-iteration local copy of
-// JSTests/threads/bench/transition-heavy-constructor.js, diffed against a
-// pre-ab17d Release jsc) to pin where the cycles actually live, then gate any
-// fix on two consecutive bench-gate runs plus V3/V6 re-runs.
+// ITEM-2 STATUS (V5b transition-heavy-constructor): per-setter-load theory
+// REFUTED by the ITEM-2 perf protocol (2026-06-10, perf record -e cycles +
+// jitdump on the gated workload, flag-off, env scrubbed): in the 50 measured
+// iterations the bench never executes the transition-install clusters
+// (transitions run only in the 20 discarded warmup iterations, then
+// addPropertyTransitionToExistingStructure caching + the allocation profile
+// retire them) — FTL object allocation sinking materializes the 12-property
+// object as ONE inline-capacity allocation (butterfly == 0, no transition, no
+// butterfly (re)allocation), 79% of cycles sit inside the 480-byte FTL
+// make/run bodies, and Structure.cpp/JSObjectInlines.h/ConcurrentButterfly.h
+// symbols are below the 0.05% sampling floor (warmup only). The same binary
+// also produced a 51.9ms run vs the 54.918ms baseline (per-process bimodal
+// 52 vs 56-59 modes; eden-GC cadence deterministic at ~30 collections/run),
+// which argues against — though a single fast-mode run cannot strictly
+// exclude — an unconditional 2-3% per-op tax on this path. Do NOT add
+// coalescing-rescue edits to these setters for V5b. Residual median shift is
+// owned by the eden-GC/allocator bookkeeping C++ (~12%: didConsumeFreeList,
+// specializedSweep, GCActivityCallback::didAllocate,
+// EdenGCActivityCallback::deathRate/gcTimeSlice, runNotRunningPhase,
+// findBlockForAllocation) plus per-process code/data placement; see the V5b
+// item record for the heap-side audit list. Heap-side follow-up is
+// measure-first: perf-diff against a pre-threads reference built at the
+// baseline.json commit, and reconcile with the TSAN-TRIAGE.md family-26
+// "codegen-identical on x86/arm64" ruling before blaming any atomicization.
+// Any re-shape on the family-21/26 surfaces must keep flag-on codegen
+// atomically identical — only the flag-off arm may revert, and only to the
+// exact pre-threads upstream shape (flag-off IS the upstream configuration);
+// family 26 (BlockDirectoryBits word RMW / FastBitReference writer) is
+// rule-1-ineligible (real N-mutator race) and permanently ineligible for
+// TSAN_ENABLED-only treatment, and the BlockDirectory next-directory-link
+// release/acquire pair must remain flag-on (sole publication HB to concurrent
+// directory-list walkers; flag-off-only relaxation is the ceiling). Any
+// heap-side reshape gates per charter: two consecutive quiet-host bench-gate
+// runs + V3/V6 re-runs. GATE-COVERAGE GAP: with sinking eliding the
+// transition chain from the measured region, the SPEC invariant that
+// owner-thread transitions (valid transitionThreadLocal/writeThreadLocal
+// watchpoints) proceed with no locking or CAS at pre-threads speed is
+// currently enforced by no serial bench — a follow-up round should add a
+// sinking-defeating companion bench (escape the constructed object so
+// MaterializeNewObject cannot elide the transition chain) with its own
+// recorded baseline, WITHOUT editing the gated bench (protocol-pinned).
 // Readers are relaxed atomic loads unconditionally — identical MOV/LDR
 // codegen — so TSAN sees the reader side paired with the CAS writers. Note:
 // flag-off this intentionally mixes a plain non-atomic writer RMW with

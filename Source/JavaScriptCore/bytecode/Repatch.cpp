@@ -156,6 +156,18 @@ CodePtr<JSEntryPtrTag> jsToWasmICCodePtr(CodeSpecializationKind kind, JSObject* 
 
 static void linkPolymorphicCallImpl(VM& vm, JSCell* owner, CallFrame* callFrame, CallLinkInfo& callLinkInfo, CallVariant newVariant)
 {
+    // Precondition-11 loser path: gilOff we run under
+    // s_callLinkSerializationLock (taken in linkPolymorphicCall), but a
+    // racing slow-path entrant may have already moved this site to Virtual
+    // while we waited on the lock. Virtual is terminal, and its m_callee
+    // slot holds the raw always-call sentinel (polymorphicCalleeMask), so
+    // the callee() read below would hand a non-cell word (0x1) to the
+    // WriteBarrier cell validation. Same lost-the-race bail shape as
+    // linkMonomorphicCall: the winner's virtual link stands, and the
+    // current call was dispatched independently of the IC, so just return.
+    if (vm.gilOff() && callLinkInfo.mode() == CallLinkInfo::Mode::Virtual) [[unlikely]]
+        return;
+
     if (!newVariant || Options::forceICFailure()) {
         callLinkInfo.setVirtualCall(vm);
         return;
@@ -245,7 +257,24 @@ static void linkPolymorphicCallImpl(VM& vm, JSCell* owner, CallFrame* callFrame,
 
         CodePtr<JSEntryPtrTag> codePtr;
         if (variant.executable()) {
-            ASSERT(variant.executable()->hasJITCodeForCall());
+            // gilOff, ScriptExecutable::installCode retracts the
+            // m_jitCodeForCall mirror FIRST (retract-first store order,
+            // runtime/ScriptExecutable.cpp) under a lock domain that
+            // s_callLinkSerializationLock does not cover, so the mirror read
+            // in hasJITCodeForCall() can be transiently null even though the
+            // variant genuinely has code. The per-variant CodeBlock snapshot
+            // taken above is the authoritative witness — the value path below
+            // already derives the entrypoint through it (ANNEX CBI item 3,
+            // AB17c F4). So under gilOff, assert the witness each downstream
+            // deref actually relies on: the snapshot's jitCode() for script
+            // executables (codeBlock non-null — non-host variants with a null
+            // snapshot already bailed to setVirtualCall above), and the
+            // mirror for hosts, which publish m_jitCodeForCall once at
+            // construction and never retract, so the mirror check stays
+            // race-free and meaningful for them.
+            ASSERT(vm.gilOff()
+                ? (codeBlock ? !!codeBlock->jitCode() : variant.executable()->hasJITCodeForCall())
+                : variant.executable()->hasJITCodeForCall());
 
             codePtr = jsToWasmICCodePtr(callLinkInfo.specializationKind(), variant.function());
             if (!codePtr) {

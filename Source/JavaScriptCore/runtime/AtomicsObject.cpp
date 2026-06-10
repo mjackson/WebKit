@@ -42,6 +42,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+// Defined in ArrayBuffer.cpp (GIL-off detached-flag side table, SPEC-ungil
+// annex N6 arm 1); declared locally until ArrayBuffer.h lands the
+// detached-flag member (recorded U-T13 gap).
+bool isArrayBufferDetachedGILOff(ArrayBuffer*);
+
 STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(AtomicsObject);
 
 #define FOR_EACH_ATOMICS_FUNC(macro)                                    \
@@ -162,6 +167,23 @@ static uint64_t validateAtomicAccess(JSGlobalObject* globalObject, VM& vm, JSArr
     }
 
     if (accessIndex >= length) {
+        if (useJSThreadsEnabled()) [[unlikely]] {
+            // SPEC-ungil annex N6 arm 1: DETACH sets the side-table flag, then
+            // publishes length=0 (seq_cst); the view's vector is jettisoned only
+            // later, so a racing length-tracking view can observe length 0 while
+            // isDetached() still reads false. No sequential interleaving yields
+            // RangeError here for an index the live buffer covers — a detach
+            // observed via its length publish must surface as the detached
+            // TypeError. The flag-before-length ordering makes this re-check
+            // race-correct. Gated on threads mode: threads-off, a detach during
+            // accessIndexValue.toIndex (user valueOf) must keep the spec-mandated
+            // RangeError (ValidateAtomicAccess snapshots length before ToIndex).
+            if (typedArrayView->isDetached()
+                || (isWastefulTypedArray(typedArrayView->mode()) && isArrayBufferDetachedGILOff(typedArrayView->existingBufferInButterfly()))) {
+                throwTypeError(globalObject, scope, typedArrayBufferHasBeenDetachedErrorMessage);
+                return 0;
+            }
+        }
         throwRangeError(globalObject, scope, "Access index out of bounds for atomic access."_s);
         return 0;
     }

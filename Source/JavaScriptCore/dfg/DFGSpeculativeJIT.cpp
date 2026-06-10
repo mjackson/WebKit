@@ -14271,6 +14271,12 @@ void SpeculativeJIT::compilePutInternalField(Node* node)
     GPRReg baseGPR = base.gpr();
     JSValueRegs valueRegs = value.jsValueRegs();
 
+    // SPEC-ungil §N.5 (r15 F1): gilOffProcess, internal-field stores are
+    // store-RELEASE in every tier — the suspend-state store is the generator
+    // resume-claim UNCLAIM and must publish the preceding frame saves to a
+    // rival claimant's acquire CAS. Compile-time keyed: zero flag-off delta.
+    if (VM::isGILOffProcess()) [[unlikely]]
+        storeFence();
     storeValue(valueRegs, Address(baseGPR, JSInternalFieldObjectImpl<>::offsetOfInternalField(node->internalFieldIndex())));
     noResult(node);
 }

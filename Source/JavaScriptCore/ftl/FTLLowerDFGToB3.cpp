@@ -13939,6 +13939,16 @@ IGNORE_CLANG_WARNINGS_END
 
     void compilePutInternalField()
     {
+        // SPEC-ungil §N.5 (r15 F1): gilOffProcess, internal-field stores are
+        // store-RELEASE in every tier — the suspend-state store is the
+        // generator resume-claim UNCLAIM and must publish the preceding
+        // frame saves to a rival claimant's acquire CAS. The B3 fence is
+        // both the compiler barrier (B3/Air must not move the frame-save
+        // stores — disjoint abstract heaps — past this store) and the
+        // hardware store-store fence (write-only fence: dmb ishst on arm64,
+        // nothing on x86). Compile-time keyed: zero flag-off delta.
+        if (VM::isGILOffProcess()) [[unlikely]]
+            m_out.fence(&m_heaps.root, nullptr);
         m_out.store64(
             lowJSValue(m_node->child2()),
             lowCell(m_node->child1()),
@@ -14766,6 +14776,24 @@ IGNORE_CLANG_WARNINGS_END
         }
 
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.8 (Task 7): flag-on, direct calls are data
+            // ICs whose fast path materializes the DirectCallLinkInfo* (then
+            // the CallLinkRecord*) into BaselineJITRegisters::Call::
+            // callLinkInfoGPR BEFORE the callee/argument values are consumed
+            // (emitDirectFastPath / emitDirectTailCallFastPath) — for tail
+            // calls, before the CallFrameShuffler reads the argument
+            // recoveries. B3 must therefore never assign the SomeRegister
+            // callee or a WarmAny argument to that register: without this
+            // clobber, an argument landing in callLinkInfoGPR is silently
+            // replaced with the link-info pointer (observed as generator
+            // resume-state corruption via DirectTailCall flag-on, and wild
+            // jumps GIL-off). Mirrors compileTailCall's clobberEarly of the
+            // same register for the non-direct data-IC tail path. Flag-off
+            // direct calls are UseDataIC::No and emit no register traffic
+            // before the shuffle, so no constraint is needed there.
+            patchpoint->clobberEarly(RegisterSet { BaselineJITRegisters::Call::callLinkInfoGPR });
+        }
         if (!isTail) {
             patchpoint->clobberLate(RegisterSet::registersToSaveForJSCall(RegisterSet::allScalarRegisters()));
             patchpoint->resultConstraints = { ValueRep::reg(GPRInfo::returnValueGPR) };
@@ -14869,6 +14897,21 @@ IGNORE_CLANG_WARNINGS_END
                     callLinkInfo->setCallType(CallLinkInfo::DirectTailCall);
                     if (numAllocatedArgs > numPassedArgs)
                         callLinkInfo->setMaxArgumentCountIncludingThis(numAllocatedArgs);
+
+                    if (directCallUseDataIC == CallLinkInfo::UseDataIC::Yes) {
+                        // The data-IC direct tail fast path holds the
+                        // CallLinkRecord* in callLinkInfoGPR ACROSS
+                        // prepareForTailCall: the post-shuffle
+                        // codeBlockToTransfer store and the target farJump
+                        // both read through it. Tell the shuffler the
+                        // register is live so it is preserved (exactly as
+                        // compileTailCall does for the non-direct data-IC
+                        // tail path); without this the shuffler may use it
+                        // as a temporary, and the farJump dispatches through
+                        // a corrupted record pointer (GIL-off wild-jump
+                        // signature).
+                        shuffleData.registers[BaselineJITRegisters::Call::callLinkInfoGPR] = ValueRecovery::inGPR(BaselineJITRegisters::Call::callLinkInfoGPR, DataFormatJS);
+                    }
 
                     CCallHelpers::Label mainPath = jit.label();
                     jit.store32(

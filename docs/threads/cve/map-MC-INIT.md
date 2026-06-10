@@ -254,6 +254,27 @@ globals on the shared JSGlobalObject (error subclasses, Intl classes); asserts e
 thread gets a working, *identical* materialization (one winner, no default/null leak,
 no crash on the initializing state).
 
+**§K.3 CORE LANDED 2026-06-10 (CVE close-out round).** The MC-SAFE S4 liveness
+fixes (shared GCs now actually complete instead of wedging) stretched the
+init window across GC pauses and made the foreign-null hole fire at ~27% in
+`mc-init-cloned-arguments-specials.js` (SEGV: `constructObjectFromPropertyDescriptor`
+consumed a null `accessorPropertyDescriptorObjectStructure()` — a foreign
+first-toucher landing on the initializingTag got the recursion-null). Landed
+in `runtime/LazyPropertyInlines.h::callFunc` per §K.3 + LZ1:
+- claim = acquire CAS on the tag word; OWNER recorded in a leaf-locked side
+  table (r16 F2 side-table option);
+- OWNER re-entry returns null (landed recursion contract), extended to LZ1.2
+  cross-thread ownership cycles via the bounded owner-of -> waits-on chain
+  walk (waiter edges published before the first park quantum, LZ1.1);
+- FOREIGN threads wait park-capably in 1ms quanta with heap access RELEASED
+  (re-acquire = the §A.3.2b/F8-gated AHA, which polls both stop families —
+  the r6 F2 three-way-deadlock rule);
+- LZ1.3 abandonment: scope-exit restores the pre-claim word if the
+  initializer did not publish, erases the owner record, notifyAll.
+GIL-on / flag-off reduce to the landed recursion-null contract (foreign arms
+unreachable). The U26 arms (deliberate recursion, crossed cycles, owner
+termination, forced-GC-during-winner) remain owed to the ungil workstream.
+
 ## 8. Rope resolution / atomization — NEEDS-TEST (ruling not landed)
 
 A JSRopeString resolves by writing the flat `String` and flipping the fiber0/flags

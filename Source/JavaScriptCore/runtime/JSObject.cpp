@@ -890,6 +890,20 @@ static ALWAYS_INLINE void updatePublicLengthAfterDenseStoreConcurrent(uint64_t w
 bool JSObject::trySetIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v, ArrayProfile* arrayProfile)
 {
     ASSERT(Options::useJSThreads());
+    // §4.8/I35 (cve fix): classify the MODE before loading the WORD, with a
+    // load-load fence between them. The §4.8 materializer publishes
+    // {writable header, fresh word} as one seq_cst DCAS (PA flavor: the word
+    // CAS precedes the new header bytes), so a WRITABLE mode observed here
+    // guarantees the fenced word load below is NOT the superseded CoW word.
+    // The old order (word first, indexingMode() read at the switch) let a
+    // racing materialization pair the STALE CoW word with the fresh writable
+    // mode: the dense branches then stored straight into the shared
+    // JSImmutableButterfly payload (sibling-visible mutation; I35/I21,
+    // mc-lock-cow-materialize-race pass-1 oracle).
+    IndexingType mode = indexingMode();
+    if (isCopyOnWrite(mode)) [[unlikely]]
+        return false; // §4.8 materialization belongs to the caller's generic path (putByIndex / convertFromCopyOnWrite).
+    WTF::loadLoadFence();
     uint64_t word = taggedButterflyWord();
     // §3 F1 (review round 1; Task 7's ensureSharedWriteBit is landed): a
     // foreign write to an SW=0 FLAT word must fire writeThreadLocal and flip
@@ -905,12 +919,13 @@ bool JSObject::trySetIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v, Array
     // the butterfly. Segmented and SW=1 words need no flip (I3/I4).
     if ((word & butterflyPointerMask) && !isSegmentedButterfly(word)
         && !butterflySharedWrite(word) && butterflyWriterIsForeign(word) // incl. §9.6 forceButterflySWBit
-        && !isCopyOnWrite(indexingMode())
-        && (hasInt32(indexingType()) || hasDouble(indexingType()) || hasContiguous(indexingType()))) [[unlikely]] {
+        && (hasInt32(mode) || hasDouble(mode) || hasContiguous(mode))) [[unlikely]] {
         ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+        mode = indexingMode(); // A racing STW relabel may advance the shape while we are parked in the stop; CoW cannot reappear (monotone exit, §4.8).
+        WTF::loadLoadFence(); // Same mode-before-word ordering as above.
         word = taggedButterflyWord(); // Re-dispatch on the fresh tag (SW=1 flat or segmented now).
     }
-    switch (indexingMode()) {
+    switch (mode) {
     case ALL_BLANK_INDEXING_TYPES:
         return trySetIndexQuicklyForTypedArrayConcurrent(this, i, v, arrayProfile); // §3.10: relaxed length read + element store
     case ALL_UNDECIDED_INDEXING_TYPES:
@@ -1002,7 +1017,12 @@ bool JSObject::trySetIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v, Array
         // generic path (§4.6 cell-locked, Task 8).
         return false;
     default:
-        RELEASE_ASSERT(isCopyOnWrite(indexingMode()));
+        // CoW modes returned false before the word load (mode saved and
+        // classified up top; switch is on the saved mode), and every non-CoW
+        // indexing mode is enumerated above — this leg is unreachable. Do NOT
+        // re-read indexingMode() here: a fresh read would be a stale-state
+        // TOCTOU re-check that is guaranteed false after the early return.
+        RELEASE_ASSERT_NOT_REACHED();
         return false;
     }
 }
@@ -3390,7 +3410,17 @@ void JSObject::relabelIndexingShapeConcurrent(VM& vm, TransitionKind transition)
     ASSERT(Options::useJSThreads());
     ASSERT(!isCopyOnWrite(indexingMode())); // Callers materialize first (ensureWritable / §4.8).
     auto* object = static_cast<JSObjectWithButterfly*>(this);
-    DeferGC deferGC(vm);
+    // DeferGCForAWhile, not DeferGC: this relabel runs under callers that are
+    // themselves inside an ObjectInitializationScope no-GC region
+    // (initializeIndex -> setIndexQuicklyToUndecided -> convertUndecidedTo*),
+    // and ~DeferGC's decrementDeferralDepthAndGCIfNeeded() would COLLECT at
+    // function exit while AssertNoGC is still in effect (Heap.cpp
+    // collectIfNecessaryOrDefer assertion). DeferGCForAWhile conducts the
+    // deferral past this scope; the deferred collection runs at the caller's
+    // next natural GC point. Allocation coverage is unchanged
+    // (Structure::nonPropertyTransition + the loop's transient allocations
+    // stay deferred).
+    DeferGCForAWhile deferGC(vm);
 
     while (true) {
         StructureID oldStructureID = this->structureID(); // RAW bits (M5).
@@ -3622,10 +3652,14 @@ void JSObject::convertInt32ForValue(VM& vm, JSValue value)
 
 void JSObject::convertFromCopyOnWrite(VM& vm)
 {
-    ASSERT(isCopyOnWrite(indexingMode()));
-    ASSERT(structure()->indexingMode() == indexingMode());
-
 #if USE(JSVALUE64)
+    // The flag-on route must precede the single-threaded asserts below: a
+    // racing §4.8 materializer can legally win between the caller's CoW check
+    // and this call (TOCTOU), making both asserts stale-state reads that
+    // abort a legal racy program (mc-lock-cow-materialize-race).
+    // materializeCopyOnWriteButterflyConcurrent re-verifies under the cell
+    // lock and no-ops if the object already left the CoW regime.
+    //
     // SPEC-objectmodel §4.8/I35 (review round 3): flag-on, the OWNER's
     // materialization must go through the same cell-locked serialization
     // point as the foreign §4.8 route. The plain nuke + CAS publication below
@@ -3644,6 +3678,9 @@ void JSObject::convertFromCopyOnWrite(VM& vm)
         return;
     }
 #endif
+
+    ASSERT(isCopyOnWrite(indexingMode()));
+    ASSERT(structure()->indexingMode() == indexingMode());
 
     const bool hasIndexingHeader = true;
     Butterfly* oldButterfly = this->butterfly();
@@ -3706,6 +3743,21 @@ ContiguousJSValues JSObject::tryMakeWritableInt32Slow(VM& vm)
 
     if (isCopyOnWrite(indexingMode())) {
         if (leastUpperBoundOfIndexingTypes(indexingType() & IndexingShapeMask, Int32Shape) == Int32Shape) {
+#if USE(JSVALUE64)
+            // SPEC-objectmodel §4.8/I35 (map-MC-LOCK.md S4): flag-on the
+            // cell-locked materializer's WINNER may be a foreign thread, and
+            // the shape may have advanced before our re-read; re-dispatch on
+            // the fresh tagged word instead of asserting the stale classify
+            // or dereferencing flat storage as our own. This re-dispatch is
+            // sound because convertFromCopyOnWrite flag-on routes through the
+            // materializer driver, whose seq_cst structureID observation of
+            // the winner's DCAS/I36 publication synchronizes-with it before
+            // we return here.
+            if (Options::useJSThreads()) [[unlikely]] {
+                convertFromCopyOnWrite(vm);
+                return tryMakeWritableInt32(vm);
+            }
+#endif
             ASSERT(hasInt32(indexingMode()));
             convertFromCopyOnWrite(vm);
             return this->butterfly()->contiguousInt32();
@@ -3729,7 +3781,30 @@ ContiguousJSValues JSObject::tryMakeWritableInt32Slow(VM& vm)
     case ALL_CONTIGUOUS_INDEXING_TYPES:
     case ALL_ARRAY_STORAGE_INDEXING_TYPES:
         return ContiguousJSValues();
-        
+
+    case ALL_INT32_INDEXING_TYPES:
+#if USE(JSVALUE64)
+        // §4.8/I35 loser re-dispatch (map-MC-LOCK.md S4): the inline classify
+        // observed CopyOnWriteArrayWithInt32, but a rival completed the
+        // cell-locked materialization before our second indexingMode fetch.
+        // The now-flat Int32 butterfly is exactly what the caller asked for;
+        // a trap is not a legal-program outcome here. Re-dispatch is only
+        // sound AFTER an acquiring observation of the winner's DCAS/I36
+        // publication: CoW-ness is not recoverable from the relaxed
+        // tagged-word load alone (CoW words are plain flat SW=0 words), so we
+        // route through the materializer driver, which no-ops via seq_cst
+        // structureID/word loads when the object already left the CoW regime,
+        // returning with the synchronizes-with edge to whichever materializer
+        // won. Flag-off this state is unreachable (single mutator) and stays
+        // a CRASH().
+        if (Options::useJSThreads()) [[unlikely]] {
+            materializeCopyOnWriteButterflyConcurrent(vm, static_cast<JSObjectWithButterfly*>(this));
+            return tryMakeWritableInt32(vm);
+        }
+#endif
+        CRASH();
+        return ContiguousJSValues();
+
     default:
         CRASH();
         return ContiguousJSValues();
@@ -3744,6 +3819,18 @@ ContiguousDoubles JSObject::tryMakeWritableDoubleSlow(VM& vm)
     if (isCopyOnWrite(indexingMode())) {
         if (leastUpperBoundOfIndexingTypes(indexingType() & IndexingShapeMask, DoubleShape) == DoubleShape) {
             convertFromCopyOnWrite(vm);
+#if USE(JSVALUE64)
+            // §4.8/I35: see tryMakeWritableInt32Slow. Re-dispatch covers both
+            // the foreign-winner word and the CoW-Int32 source (the inline
+            // helper falls back here with a fresh non-CoW classify, landing
+            // in the ALL_INT32 arm -> convertInt32ToDouble as today). The
+            // flag-on convertFromCopyOnWrite above returned only after a
+            // seq_cst observation of the winner's publication, so the inline
+            // helper's relaxed word load is coherence-bound to the published
+            // word.
+            if (Options::useJSThreads()) [[unlikely]]
+                return tryMakeWritableDouble(vm);
+#endif
             if (hasDouble(indexingMode()))
                 return this->butterfly()->contiguousDouble();
             ASSERT(hasInt32(indexingMode()));
@@ -3769,7 +3856,23 @@ ContiguousDoubles JSObject::tryMakeWritableDoubleSlow(VM& vm)
     case ALL_CONTIGUOUS_INDEXING_TYPES:
     case ALL_ARRAY_STORAGE_INDEXING_TYPES:
         return ContiguousDoubles();
-        
+
+    case ALL_DOUBLE_INDEXING_TYPES:
+#if USE(JSVALUE64)
+        // §4.8/I35 loser re-dispatch (map-MC-LOCK.md S4): rival completed
+        // CopyOnWriteArrayWithDouble -> ArrayWithDouble between the inline
+        // classify and our re-read. Acquire the winner's publication via the
+        // seq_cst materializer driver (no-op once non-CoW) before
+        // re-dispatching — see the ALL_INT32 arm in tryMakeWritableInt32Slow.
+        // Flag-off unreachable; stays a CRASH().
+        if (Options::useJSThreads()) [[unlikely]] {
+            materializeCopyOnWriteButterflyConcurrent(vm, static_cast<JSObjectWithButterfly*>(this));
+            return tryMakeWritableDouble(vm);
+        }
+#endif
+        CRASH();
+        return ContiguousDoubles();
+
     default:
         CRASH();
         return ContiguousDoubles();
@@ -3783,6 +3886,11 @@ ContiguousJSValues JSObject::tryMakeWritableContiguousSlow(VM& vm)
     if (isCopyOnWrite(indexingMode())) {
         if (leastUpperBoundOfIndexingTypes(indexingType() & IndexingShapeMask, ContiguousShape) == ContiguousShape) {
             convertFromCopyOnWrite(vm);
+#if USE(JSVALUE64)
+            // §4.8/I35: see tryMakeWritableInt32Slow.
+            if (Options::useJSThreads()) [[unlikely]]
+                return tryMakeWritableContiguous(vm);
+#endif
             if (hasContiguous(indexingMode()))
                 return this->butterfly()->contiguous();
             ASSERT(hasInt32(indexingMode()) || hasDouble(indexingMode()));
@@ -3807,10 +3915,26 @@ ContiguousJSValues JSObject::tryMakeWritableContiguousSlow(VM& vm)
         
     case ALL_DOUBLE_INDEXING_TYPES:
         return convertDoubleToContiguous(vm);
-        
+
     case ALL_ARRAY_STORAGE_INDEXING_TYPES:
         return ContiguousJSValues();
-        
+
+    case ALL_CONTIGUOUS_INDEXING_TYPES:
+#if USE(JSVALUE64)
+        // §4.8/I35 loser re-dispatch (map-MC-LOCK.md S4): rival completed
+        // CopyOnWriteArrayWithContiguous -> ArrayWithContiguous between the
+        // inline classify and our re-read. Acquire the winner's publication
+        // via the seq_cst materializer driver (no-op once non-CoW) before
+        // re-dispatching — see the ALL_INT32 arm in tryMakeWritableInt32Slow.
+        // Flag-off unreachable; stays a CRASH().
+        if (Options::useJSThreads()) [[unlikely]] {
+            materializeCopyOnWriteButterflyConcurrent(vm, static_cast<JSObjectWithButterfly*>(this));
+            return tryMakeWritableContiguous(vm);
+        }
+#endif
+        CRASH();
+        return ContiguousJSValues();
+
     default:
         CRASH();
         return ContiguousJSValues();
@@ -3851,7 +3975,23 @@ ArrayStorage* JSObject::ensureArrayStorageSlow(VM& vm)
         ASSERT(!indexingShouldBeSparse());
         ASSERT(!needsSlowPutIndexing());
         return convertContiguousToArrayStorage(vm);
-        
+
+    case ALL_ARRAY_STORAGE_INDEXING_TYPES:
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            // GIL-off: a racing AS install can land between the caller's
+            // shape check and this dispatch, and createArrayStorageConcurrent's
+            // loser leg (the hasIndexedProperties re-entry in
+            // createArrayStorageConcurrent) re-enters here BY DESIGN when an
+            // AS-flavor racer won. The storage already exists; AS never
+            // segments (I31), so the flat accessor is the same read the
+            // inline ensureArrayStorage fast path performs.
+            return butterfly()->arrayStorage();
+        }
+#endif
+        RELEASE_ASSERT_NOT_REACHED(); // Flag-off: the inline ensureArrayStorage fast path filters AS before the slow call.
+        return nullptr;
+
     default:
         RELEASE_ASSERT_NOT_REACHED();
         return nullptr;
@@ -3928,7 +4068,17 @@ void JSObject::switchToSlowPutArrayStorage(VM& vm)
         setStructure(vm, newStructure);
         break;
     }
-        
+
+    case NonArrayWithSlowPutArrayStorage:
+    case ArrayWithSlowPutArrayStorage:
+        // Already SlowPut: idempotent no-op. GIL-off, every caller's
+        // "if (!hasSlowPutArrayStorage(indexingType())) switchToSlowPut..."
+        // guard is a TOCTOU — two racing converters (e.g. two Thread.restrict
+        // calls on one shared object, or restrict racing a haveABadTime
+        // SlowPut conversion) can both pass the guard, and the loser used to
+        // land in the default: CRASH() below. The loser must no-op.
+        break;
+
     default:
         CRASH();
         break;
@@ -5436,8 +5586,97 @@ bool JSObject::defineOwnIndexedProperty(JSGlobalObject* globalObject, unsigned i
     SparseArrayValueMap::AddResult result = ([&] {
 #if USE(JSVALUE64)
         if (Options::useJSThreads()) [[unlikely]] {
-            Locker locker { cellLock() };
-            return addToMap();
+            // MC-REENT S3c residual close-out (cve-reent-sparse-map-null): a
+            // foreign racer can clear m_sparseMap in our decision-to-lock
+            // window — the map->vector consolidation arms of
+            // putByIndexBeyondVectorLengthWithoutAttributes /
+            // putDirectIndexBeyondVectorLengthWithArrayStorage read
+            // map->sparseMode() UNLOCKED at their density checks; a read that
+            // beat ensure...'s setSparseMode walks into the locked
+            // consolidation block and deallocateSparseIndexMap clears the map
+            // AFTER we committed to the sparse path (an AS-COPY republication
+            // that drops the header pointer is the same observable). A null
+            // map under this lock is therefore a lost decision, not a broken
+            // invariant: re-derive by installing a fresh sparse-mode map —
+            // allocate OUTSIDE the lock (GC allocation, O1), install-if-absent
+            // under it (putDirectIndexForAtomicsMissingAdd's pendingMap
+            // discipline) — then let the heal loop below re-absorb whatever
+            // the consolidation left in the vector. setSparseMode is flipped
+            // BEFORE publication, while the map is still private: sparseMode
+            // is read UNLOCKED at the consolidation density checks, so a map
+            // published non-sparse opens a window for a foreign putter to
+            // pass its density check against the fresh map and later flatten
+            // the descriptor we are about to install via getNonSparseMode.
+            // The consolidation blocks now also re-validate map identity +
+            // !sparseMode under their cellLock, so no consolidator can clear
+            // a sparse-mode map installed by a committed definer.
+            SparseArrayValueMap* pendingMap = nullptr; // GC-visible via conservative stack scan.
+            while (true) {
+                {
+                    Locker locker { cellLock() };
+                    ArrayStorage* storage = this->butterfly()->arrayStorage();
+                    SparseArrayValueMap* lockedMap = storage->m_sparseMap.get();
+                    // GIL-on the GIL is never released inside this C++ op, so
+                    // the map installed by ensure... above must still be here.
+                    ASSERT(lockedMap || !Options::useThreadGIL());
+                    if (!lockedMap && pendingMap) [[unlikely]] {
+                        // Flip sparseMode while still private (see above),
+                        // then publish. We ARE the define path: ensure...
+                        // already chose dictionary indexing; sparseMode also
+                        // makes the heal loop below migrate the consolidated
+                        // vector back, so the racer's values are absorbed,
+                        // never shadowed.
+                        pendingMap->setSparseMode();
+                        storage->m_sparseMap.set(vm, this, pendingMap);
+                        lockedMap = pendingMap;
+                        pendingMap = nullptr;
+                    }
+                    if (lockedMap) [[likely]] {
+                        // MC-REENT S3c close-out: re-establish the sparse-mode invariant
+                        // (vectorLength == 0, all values in the map) under this cellLock
+                        // BEFORE the add. GIL-off, a racing attribute-0 indexed add
+                        // (Atomics.store's helper, or a plain put) can grow and/or fill
+                        // the vector in the window between this object's
+                        // createArrayStorage and the allocateSparseIndexMap/setSparseMode
+                        // pair (at decision time there was no map at all) — GIL-on the
+                        // mode flip and the vector state are atomic, so this state is
+                        // unreachable. Left in place it is heap corruption in both
+                        // directions: the AS lookup is "if (i < vectorLength) vector
+                        // ELSE IF (map)", so a non-empty vector slot SHADOWS the
+                        // descriptor we are about to publish, and an empty grown vector
+                        // makes every map entry below vectorLength UNREADABLE. Migration
+                        // mirrors enterDictionaryIndexingModeWhenArrayStorageAlreadyExists'
+                        // locked loop (map->add fastMallocs only — O1-wrappable, same as
+                        // the call below); it runs BEFORE the add so the AddResult
+                        // iterator can never dangle across a heal-induced rehash
+                        // (AB18-G). A migrated value at OUR index then surfaces through
+                        // !isNewEntry as the current {value, attrs 0} property and takes
+                        // the reconfiguration path — exactly the store-then-define
+                        // linearization the GIL-off Atomics protocol pins.
+                        if (lockedMap->sparseMode() && storage->vectorLength()) [[unlikely]] {
+                            unsigned usedVectorLength = std::min(storage->length(), storage->vectorLength());
+                            for (unsigned j = 0; j < usedVectorLength; ++j) {
+                                JSValue strayValue = storage->m_vector[j].get();
+                                if (!strayValue)
+                                    continue;
+                                auto strayResult = lockedMap->add(this, j);
+                                if (strayResult.isNewEntry)
+                                    strayResult.iterator->value.forceSet(vm, lockedMap, strayValue, 0);
+                                // !isNewEntry: the map entry was published through the
+                                // locked map protocol AFTER the stray fill — it wins;
+                                // the stray value is the older, absorbed write.
+                                storage->m_vector[j].clear();
+                            }
+                            storage->m_numValuesInVector = 0;
+                            storage->setVectorLength(0);
+                        }
+                        map = lockedMap;
+                        return map->add(this, index);
+                    }
+                }
+                // Null map, nothing staged: allocate outside the lock and retry.
+                pendingMap = SparseArrayValueMap::create(vm);
+            }
         }
 #endif
         return addToMap();
@@ -5907,29 +6146,47 @@ bool JSObject::putByIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* glob
     if (Options::useJSThreads()) [[unlikely]] {
         // Map -> vector copy + final store, in one locked window (I31; no GC
         // allocation inside: barriered stores + fastMalloc frees only).
-        Locker locker { cellLock() };
-        storage = arrayStorage();
-        storage->m_numValuesInVector = numValuesInArray;
-        WriteBarrier<Unknown>* vector = storage->m_vector;
-        // AB18-G: locked iteration — an unlocked begin()/end() walk races a
-        // putEntry-internal rehash. The functor does barriered stores only
-        // (no JS, no GC allocation), per the forEachEntry contract. A racing
-        // putEntry can insert an arbitrarily large key mid-window, so skip
-        // keys beyond the vector bound instead of writing through them;
-        // skipped keys stay in the orphaned map and are recovered by the
-        // racer's stillInstalled re-run.
-        unsigned vectorLength = storage->vectorLength();
-        map->forEachEntry([&](uint64_t key, const SparseArrayEntry& entry) {
-            if (key >= vectorLength) [[unlikely]]
-                return;
-            vector[static_cast<unsigned>(key)].set(vm, this, entry.getNonSparseMode());
-        });
-        deallocateSparseIndexMap();
-        WriteBarrier<Unknown>& valueSlot = vector[i];
-        if (!valueSlot)
-            ++storage->m_numValuesInVector;
-        valueSlot.set(vm, this, value);
-        return true;
+        {
+            Locker locker { cellLock() };
+            storage = arrayStorage();
+            // I21 (cve-reent-sparse-map-null, producer side): our sparseMode
+            // and identity reads above were UNLOCKED and are now stale-able —
+            // increaseVectorLength can block arbitrarily (GC allocation), so
+            // the decision window is unbounded. Re-validate under the lock
+            // that the map we are about to consolidate is still the installed
+            // map and is still non-sparse: a committed definer may have
+            // flipped sparseMode (enterDictionaryIndexingMode...) or
+            // reinstalled a fresh sparse-mode map after a racer's
+            // consolidation cleared ours. Consolidating a stale map would
+            // copy orphaned entries over live state and deallocate the
+            // definer's map — a silent lost define / attribute strip. On
+            // divergence, drop the lock and re-run against fresh state (same
+            // recovery as the stillInstalled arms above).
+            if (storage->m_sparseMap.get() == map && !map->sparseMode()) [[likely]] {
+                storage->m_numValuesInVector = numValuesInArray;
+                WriteBarrier<Unknown>* vector = storage->m_vector;
+                // AB18-G: locked iteration — an unlocked begin()/end() walk races a
+                // putEntry-internal rehash. The functor does barriered stores only
+                // (no JS, no GC allocation), per the forEachEntry contract. A racing
+                // putEntry can insert an arbitrarily large key mid-window, so skip
+                // keys beyond the vector bound instead of writing through them;
+                // skipped keys stay in the orphaned map and are recovered by the
+                // racer's stillInstalled re-run.
+                unsigned vectorLength = storage->vectorLength();
+                map->forEachEntry([&](uint64_t key, const SparseArrayEntry& entry) {
+                    if (key >= vectorLength) [[unlikely]]
+                        return;
+                    vector[static_cast<unsigned>(key)].set(vm, this, entry.getNonSparseMode());
+                });
+                deallocateSparseIndexMap();
+                WriteBarrier<Unknown>& valueSlot = vector[i];
+                if (!valueSlot)
+                    ++storage->m_numValuesInVector;
+                valueSlot.set(vm, this, value);
+                return true;
+            }
+        }
+        RELEASE_AND_RETURN(scope, putByIndexInline(globalObject, i, value, shouldThrow));
     }
 #endif
 
@@ -6189,29 +6446,41 @@ bool JSObject::putDirectIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* 
 #if USE(JSVALUE64)
     if (Options::useJSThreads()) [[unlikely]] {
         // Map -> vector copy + final store, in one locked window (I31).
-        Locker locker { cellLock() };
-        storage = arrayStorage();
-        storage->m_numValuesInVector = numValuesInArray;
-        WriteBarrier<Unknown>* vector = storage->m_vector;
-        // AB18-G: locked iteration — an unlocked begin()/end() walk races a
-        // putEntry-internal rehash. The functor does barriered stores only
-        // (no JS, no GC allocation), per the forEachEntry contract. A racing
-        // putEntry can insert an arbitrarily large key mid-window, so skip
-        // keys beyond the vector bound instead of writing through them;
-        // skipped keys stay in the orphaned map and are recovered by the
-        // racer's stillInstalled re-run.
-        unsigned vectorLength = storage->vectorLength();
-        map->forEachEntry([&](uint64_t key, const SparseArrayEntry& entry) {
-            if (key >= vectorLength) [[unlikely]]
-                return;
-            vector[static_cast<unsigned>(key)].set(vm, this, entry.getNonSparseMode());
-        });
-        deallocateSparseIndexMap();
-        WriteBarrier<Unknown>& valueSlot = vector[i];
-        if (!valueSlot)
-            ++storage->m_numValuesInVector;
-        valueSlot.set(vm, this, value);
-        return true;
+        {
+            Locker locker { cellLock() };
+            storage = arrayStorage();
+            // I21 (cve-reent-sparse-map-null, producer side): same locked
+            // re-validation as putByIndexBeyondVectorLengthWithoutAttributes'
+            // consolidation block — the sparseMode/identity reads above were
+            // unlocked and the window through increaseVectorLength is
+            // unbounded. Never consolidate (and never deallocate) a map that
+            // is no longer the installed map or that a committed definer has
+            // flipped to sparseMode; bail to the fresh-state re-run instead.
+            if (storage->m_sparseMap.get() == map && !map->sparseMode()) [[likely]] {
+                storage->m_numValuesInVector = numValuesInArray;
+                WriteBarrier<Unknown>* vector = storage->m_vector;
+                // AB18-G: locked iteration — an unlocked begin()/end() walk races a
+                // putEntry-internal rehash. The functor does barriered stores only
+                // (no JS, no GC allocation), per the forEachEntry contract. A racing
+                // putEntry can insert an arbitrarily large key mid-window, so skip
+                // keys beyond the vector bound instead of writing through them;
+                // skipped keys stay in the orphaned map and are recovered by the
+                // racer's stillInstalled re-run.
+                unsigned vectorLength = storage->vectorLength();
+                map->forEachEntry([&](uint64_t key, const SparseArrayEntry& entry) {
+                    if (key >= vectorLength) [[unlikely]]
+                        return;
+                    vector[static_cast<unsigned>(key)].set(vm, this, entry.getNonSparseMode());
+                });
+                deallocateSparseIndexMap();
+                WriteBarrier<Unknown>& valueSlot = vector[i];
+                if (!valueSlot)
+                    ++storage->m_numValuesInVector;
+                valueSlot.set(vm, this, value);
+                return true;
+            }
+        }
+        RELEASE_AND_RETURN(scope, putDirectIndex(globalObject, i, value, attributes, mode));
     }
 #endif
 
@@ -6523,6 +6792,23 @@ bool JSObject::increaseVectorLength(VM& vm, unsigned newLength)
         // sites re-read arrayStorage() under the cell lock before storing, so
         // returning success here is safe.
         return true;
+    }
+    if (Options::useJSThreads()) [[unlikely]] {
+        // MC-REENT S3c close-out: refuse to grow a SPARSE-MODE storage's
+        // vector. Sparse mode pins vectorLength == 0 (enterDictionary
+        // empties the vector), and the AS lookup is "if (i < vectorLength)
+        // vector ELSE IF (map)" — a vector grown over sparse entries makes
+        // every map entry below the new vectorLength UNREADABLE (and a
+        // later in-vector fill SHADOWS its descriptor). Every GIL-on caller
+        // checks sparseMode() before calling (the check and the grow are
+        // atomic under the GIL); GIL-off the mode can flip between a
+        // caller's unlocked decision and this locked body, so the refusal
+        // must live here, under the same cellLock the mode-flipping path
+        // (enterDictionaryIndexingModeWhenArrayStorageAlreadyExists /
+        // defineOwnIndexedProperty's locked add) holds. Callers take their
+        // sparse-map leg on false.
+        if (SparseArrayValueMap* lockedMap = storage->m_sparseMap.get(); lockedMap && lockedMap->sparseMode())
+            return false;
     }
 #endif
 

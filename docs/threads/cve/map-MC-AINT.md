@@ -171,7 +171,12 @@ poll across a Class-A fire resumes into the patched exit, never across
 jettisoned elided code. mc-aint-poll-resume-stale-elided.js: 20/20 + 40/40
 GIL-off full-tier runs, zero oracle hits. GIL-on disposition (2026-06-10):
 the test PREMISE-SKIPs (runner-recognized `THREADS-PREMISE-SKIP:` marker)
-via a behavioral cooperative-GIL probe — its progress assertions
+via a MODE-DERIVED gate — since 2026-06-10 it reads `$vm.useThreadGIL()`
+(the post-U0-validation effective mode; `--useDollarVM=1` in the header)
+instead of the original behavioral spawn-and-spin probe, which decided
+"cooperative GIL" from a 2s no-progress deadline and could therefore
+misfire on a saturated host, silently premise-skipping the exact GIL-off
+lane that pins this closure. Its progress assertions
 (checks/foreignRounds > 0) assert cross-thread progress against a
 never-blocking main driver, which SPEC-api Deviation 9 (cooperative-only
 preemption; 5.2 blocking primitives are the only yield points) explicitly

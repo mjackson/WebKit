@@ -37,6 +37,7 @@
 #include <wtf/PageBlock.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/ThreadSanitizerSupport.h>
+#include <wtf/Vector.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -391,7 +392,15 @@ public:
 
     JS_EXPORT_PRIVATE bool areMarksStale();
     bool areMarksStale(HeapVersion markingVersion);
-    
+
+    // SharedGC "Wlr" core marking constraint (Heap.cpp): consistent
+    // header-locked snapshot of this block's window-witnessed unmarked cells.
+    // Appends candidates to the vector; the caller must append them to the
+    // visitor only AFTER this returns (appendJSCellOrAuxiliary can re-enter
+    // this block's header lock via aboutToMark). See the read-protocol and
+    // soundness-lemma comment at the definition (MarkedBlock.cpp).
+    void sharedGCWindowWitnessSnapshot(HeapVersion markingVersion, Vector<HeapCell*>& candidates);
+
     Dependency aboutToMark(HeapVersion markingVersion, HeapCell*);
         
 #if ASSERT_ENABLED

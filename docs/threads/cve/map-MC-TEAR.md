@@ -217,6 +217,18 @@ PA races, b2 stay-flat vs SW flip), `JSTests/threads/races/transition-vs-read.js
 - **Verdict: susceptible-suspected (unlanded §N.5) + needs-test** ->
   `JSTests/threads/cve/mc-tear-generator-resume.js` (the spec's own amplifier shape:
   ping-pong next() round-tripping a counter through frame state).
+- **STATUS UPDATE (post-landing review round): §N.5 PARTIAL.** Landed: sync-generator
+  + iterator-helper resume-claim (owner-token CAS host hooks), the yield-side unclaim
+  relocation (now fail-closed, and extended to async-function/async-generator/module
+  bodies via the generatorRegister()-based validation), AND the r15 F1 release half —
+  gilOffProcess, `op_put_internal_field` is store-RELEASE in ALL tiers (store-store
+  fence before the field store: LLInt64/Baseline/DFG/FTL), so the relocated unclaim
+  actually publishes the frame saves on arm64. OPEN (recorded deferral, history
+  "§N.5 LANDED SHAPE" entry): the ASYNC GENERATOR resume-head claim —
+  `AsyncGeneratorPrototype.js` still does the plain check-then-store + plain queue
+  mutations; owed an async clone of mc-prim-generator-resume-claim before that arm
+  can close. arm64/TSAN verification of the fence pairing also still owed
+  (SPEC-ungil-audit-N7.md:239).
 
 ## S7. DateInstance GregorianDateTime cache
 

@@ -1,13 +1,17 @@
 //@ requireOptions("--useJSThreads=1")
 // MC-PRIM susceptibility test (docs/threads/cve/map-MC-PRIM.md, surface P5).
 //
-// Trusted-primitive invariant bypass: SPEC-ungil §N.5 makes generator /
-// async-function resume a single-word claim CAS (SuspendedX -> Running via
-// @atomicInternalFieldClaim) and then keeps every interior internal-field
-// store PLAIN and tier-inlined WHILE CLAIMED - the plain stores are the
-// least-checked stores in the resume path, and they trust exactly one
-// construction-time invariant: at-most-one-resumer, established by the claim
-// CAS. CVE-2012-0507's shape applies if ANY resume/return/throw/inspection
+// Trusted-primitive invariant bypass: SPEC-ungil §N.5 makes SYNC generator
+// and iterator-helper resume a single-word claim CAS (SuspendedX -> owner
+// token via @claimGeneratorResume; landed shape, SPEC-ungil-history "§N.5
+// LANDED SHAPE") and then keeps every interior internal-field store PLAIN
+// and tier-inlined WHILE CLAIMED - the plain stores are the least-checked
+// stores in the resume path, and they trust exactly one construction-time
+// invariant: at-most-one-resumer, established by the claim CAS. NOTE: the
+// ASYNC generator / async-function resume-head claim is NOT landed (recorded
+// §N.5 deferral); that open arm is pinned by
+// mc-prim-async-generator-resume-claim.js ([EXPECTED-FAIL GIL-off]), not by
+// this test. CVE-2012-0507's shape applies if ANY resume/return/throw/inspection
 // path writes generator state without going through the claim (annex N7
 // lists the claim+publish sites; the implementation must consume that table
 // verbatim). Two threads that both believe they hold the claim interleave

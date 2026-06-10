@@ -4140,6 +4140,23 @@ JSC_DEFINE_HOST_FUNCTION(functionUseFTLJIT, (JSGlobalObject*, CallFrame*))
     return JSValue::encode(jsBoolean(Options::useFTLJIT()));
 }
 
+// Returns the EFFECTIVE threads-GIL mode (the post-U0-validation value of
+// Options::useThreadGIL(): with only --useJSThreads=1 the U0 activation
+// checklist forces the GIL back ON unless useVMLite,
+// useSharedAtomStringTable, useSharedGCHeap AND useThreadGILOffUnsafe are
+// all enabled, so this reflects the serialization mode the VM actually
+// runs under, not the raw command line). Mode-derived premise probe for
+// the threads corpus: behavioral cooperative-GIL detection (spawn a
+// thread, watch for progress against a spinning main thread under a
+// deadline) can misfire on a saturated host and silently premise-skip a
+// GIL-off lane (JSTests/threads/cve/mc-aint-poll-resume-stale-elided.js).
+// Usage: $vm.useThreadGIL()
+JSC_DEFINE_HOST_FUNCTION(functionUseThreadGIL, (JSGlobalObject*, CallFrame*))
+{
+    DollarVMAssertScope assertScope;
+    return JSValue::encode(jsBoolean(Options::useThreadGIL()));
+}
+
 // Returns true if Gigacage is enabled.
 // Usage: $vm.isGigacageEnabled()
 JSC_DEFINE_HOST_FUNCTION(functionIsGigacageEnabled, (JSGlobalObject*, CallFrame*))
@@ -4608,6 +4625,7 @@ void JSDollarVM::finishCreation(VM& vm)
     addFunction(vm, alwaysAllow, "useJIT"_s, functionUseJIT, 0);
     addFunction(vm, alwaysAllow, "useDFGJIT"_s, functionUseDFGJIT, 0);
     addFunction(vm, alwaysAllow, "useFTLJIT"_s, functionUseFTLJIT, 0);
+    addFunction(vm, alwaysAllow, "useThreadGIL"_s, functionUseThreadGIL, 0);
     addFunction(vm, alwaysAllow, "isGigacageEnabled"_s, functionIsGigacageEnabled, 0);
 
     addFunction(vm, allowIfNotFuzz, "toCacheableDictionary"_s, functionToCacheableDictionary, 1);

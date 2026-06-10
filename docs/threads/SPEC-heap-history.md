@@ -1067,3 +1067,22 @@ arbitration are VM-granular. jit Task-13's integration gate now labels which con
 validates; api §2 records the charter as a hard GIL-removal precondition. Deviation 4/7
 disclosures (sync GC, single-MSPL) stand as the phase-1 contract; api §2 re-scopes the
 composed deliverable accordingly.
+
+### 25. Round-7 amendment: I12 redefined around the window-witness root set (Wlr made normative)
+The previous I12 clause "∪ each client's `m_currentBlock` cells" was strictly NARROWER than
+the load-bearing mechanism the tree depends on: the §10 under-marking corruption cohort
+lives in free-list-consumed blocks and precise allocations, not in `m_currentBlock` alone
+(EVIDENCE.md §10 Experiment B, §11-§12). An implementation satisfying the old I12 literally
+would still corrupt. I12 now defines the conducted-cycle root set as scan-roots ∪ the
+window-witness set — (a) version-current NA cells of ALL stopped blocks, (b) all cells of
+directory-allocated blocks, (c) NA precise allocations — closed under tracing inside the
+marking fixpoint as the "Wlr" core marking constraint, with mark-without-trace explicitly
+forbidden (the i03 zombie-dictionary-Structure regression proved it unsound: a retained but
+untraced Structure stayed findable in the transition WeakGCHashTable with a swept
+PropertyTable). The L1/L2 publication/initialization lemmas (round-6 F2 documentation debt)
+and the over-retention semantics (eden-sticky marks; full-collection whole-consumed-block
+retention; ≤ 2-full-collection float) are absorbed as normative. The header-lock witness
+read protocol (round-7 F1; MarkedBlock::sharedGCWindowWitnessSnapshot) is required: the
+prior lock-free reads raced aboutToMarkSlow's clear/fold/version writes. Gate note: the
+Wlr gate keys on sticky ISS (NOT gilOff) — ruled correct, the window hole is a property of
+shared conduction (round-7 F5, EVIDENCE.md §14).

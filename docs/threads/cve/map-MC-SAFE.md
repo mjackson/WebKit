@@ -204,6 +204,42 @@ Plus a docs/code action item (not a test): either wire
 re-point the watchdog message, so the next park-site author has one true
 rule to follow.
 
+**CLOSED 2026-06-10 (CVE close-out round).** The test found THREE real
+composition bugs, all landed:
+1. **Mid-finalize GC sweeps the claimed plan's CodeBlocks (UAF).** GIL-off,
+   `DFG::Plan::finalize`'s contended `GILOffCompilationLocker` parks via
+   `parkSitePollAndParkForStopTheWorld` (access-released), but the plan was
+   already OUT of `JITWorklist::m_plans` (AB18-R1-A claim) — a
+   sibling-conducted shared GC then swept `m_codeBlock`/`alternative` under
+   the finalizing mutator (`CodeBlock::replacement` RELEASE_ASSERT /
+   null-`alternative()` SEGV in `compilationDidComplete`). Fix (AB18-R1-B):
+   the claim table is now `JITWorklist::m_finalizingPlans`
+   (key -> RefPtr<JITPlan>), walked UNCONDITIONALLY by
+   `iterateCodeBlocksForGC` (`JITPlan::iterateCodeBlocksForFinalizeRoots`)
+   and by `visitWeakReferences` — the claim itself is the root.
+2. **AHA revert legs lost the §10.4 barrier wakeup.** The §A.3-word and
+   Mode-machine revert legs in `GCClient::Heap::acquireHeapAccess` flipped
+   HasAccess->NoAccess WITHOUT the GSP-conditional `m_gcBarrierCondition`
+   notify that RHA performs; a GC conductor that had sampled the client
+   HasAccess slept forever in the untimed barrier wait holding GCL, and a
+   queued Class-A requester watchdogged at 30s in the `JSThreadsStopScope`
+   tryLock-poll. Fix: both legs now mirror RHA's notify (Heap.cpp).
+3. **GC stop fan lacked the S2 re-fire.** §10.4's barrier loop never
+   re-fired the stop request, so under the §A.2.1 single-trap-word alias a
+   sibling whose bit was consumed by the FIRST latching thread ran JS (or
+   spun in a compile-lock tryLock loop) holding access forever — the
+   ic-publish-reset-loops "OM transition stop" watchdog and the 100s pure
+   hangs. Fix: `Heap::conductSharedCollection` step 4 re-fires
+   `VMManager::requestStopAll(StopReason::GC)` per non-converged sample
+   (GBL dropped for the call — m_worldLock ranks above GBL) and waits in
+   1ms quanta, mirroring the §A.3 conductor's re-fire
+   (VMManager.cpp:583-594). RETIRED with that one when per-lite trap words
+   land.
+Pinned bar after the fixes: 20/20 sequential + 20/20 amplified + 240/240
+under 24-way load GIL-off Release; 3/3 GIL-on; Debug/ASAN green under the
+S2a-prescribed lane options (`detect_stack_use_after_return=0`, lanes pin
+`detect_leaks=0`).
+
 ---
 
 ## S5. Conductor vs exiting thread (handshake-vs-exiting-thread analog)

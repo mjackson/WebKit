@@ -8690,3 +8690,123 @@ record carries the coordination note.
   with no flag-off observable delta.
 - Body measured 49999/50000 bytes post-edit; this history file
   uncapped.
+
+## §N.5 LANDED SHAPE — supersession + deferral record (CVE-close review round, 2026-06-10)
+
+Both-sides record for the generator resume-claim landing (MC-TEAR S6 /
+MC-PRIM P5 closure rows), required because the landed code renegotiated
+frozen BINDING text without a history entry (the r17 F6 process failure;
+this entry is the remedy).
+
+### (1) Lowering-shape supersession (r11 F4 / r17 F5 vs landed)
+
+- RULED (r11 F4, SPEC-ungil-history.md:1816-1845; r17 F5, :3332-3370;
+  SPEC-ungil.md §N.5 "emitted UNCONDITIONALLY all modes; LOWERING
+  mode-keyed"): twin intrinsics @atomicInternalFieldClaim/Publish in ONE
+  uniform bytecode shape for all modes; LLInt/Baseline branch on the
+  JSCConfig gilOffProcess byte at LOWERING time (gilOff arm MAY be a host
+  op in v1); DFG/FTL lower AtomicInternalFieldClaim/Publish NODES to an
+  inline seq_cst strongCAS / release store.
+- LANDED: mode-keyed EMISSION — a @gilOffProcess jsBoolean CONSTANT in the
+  UnlinkedCodeBlock constant pool (BytecodeIntrinsicRegistry.cpp), builtins
+  branch on it; @claimGeneratorResume/@publishGeneratorResume are link-time-
+  constant HOST FUNCTIONS reached as ordinary calls in EVERY tier (no DFG/FTL
+  nodes, no inline CAS); BytecodeGeneratorification emits a different
+  generator-body stream (relocated unclaim) when gilOff.
+- DISPOSITION: ACCEPTED for v1 with conditions. Flag-off identity holds (the
+  constant-false branch keeps GIL-on/flag-off on the landed inline sequence
+  and the landed bytecode order verbatim). The gilOff host-call cost is
+  recorded-not-gated (§B.5); the r17 F5 intrinsic+node form is the NAMED PERF
+  CONTINGENCY if the gilOff-arm cost matters. Mode-keyed bytecode is sound
+  ONLY with cache partitioning — condition (2) below. Golden gates: no
+  re-baseline needed (flag-off bytecode unchanged, unlike the r11 F4 uniform
+  shape which required one).
+- CONDITION (2), LANDED THIS ROUND: the disk bytecode cache version now
+  mixes the gilOffProcess derivation (JSCBytecodeCacheVersion.cpp
+  mixInGILOffProcessDerivation), so a cache built in one mode can never
+  replay into a process in the other mode (a flag-off cache replayed GIL-off
+  would have silently disabled the entire §N.5 protection).
+
+### (2) r15 F1 release-store obligation — DISCHARGED this round
+
+The landed relocation alone made the unclaim last in PROGRAM order only;
+r15 F1 (UNGIL-HANDOUT §N.5: "Running->SuspendedX and Running->Completed
+MUST be release stores ... in ALL tiers") was not satisfied (plain
+op_put_internal_field in every tier; arm64 store-store reorder + DFG/FTL
+disjoint-abstract-heap motion = the torn-frame hazard verbatim). NOW:
+gilOffProcess, op_put_internal_field performs a store-store fence before
+the field store in ALL tiers — LLInt64 (config-byte branch + memfence,
+GILOFF_TLS targets; non-TLS 64-bit fail-stops pre-bytecode), Baseline +
+DFG (compile-time-keyed storeFence()), FTL (B3 write-empty fence = compiler
+barrier + dmb ishst/nothing). Running->Completed was already the
+publishGeneratorResume acq_rel CAS. Flag-off delta: zero in the JITs, one
+byte-test branch in LLInt (accepted delta-(a) class). The relocation also
+FAILS CLOSED now (RELEASE_ASSERT instead of silently keeping the pre-save
+order) and its base-register validation uses
+BytecodeGenerator::generatorRegister(), extending the reorder to
+wrapper-less async functions (generator in a LOCAL VAR — previously
+silently skipped), async generator bodies, and module bodies.
+STILL OWED: arm64 + TSAN verification rung for
+mc-prim-generator-resume-claim/mc-tear-generator-resume
+(SPEC-ungil-audit-N7.md:239 acceptance note).
+
+### (3) Annex N7 R7 coverage — PARTIAL; async-generator deferral
+
+N7 R7 marks JSGenerator, JSAsyncGenerator AND async-function frames COVERED
+§N.5. Landed claim sites: GeneratorPrototype.js + JSIteratorHelperPrototype.js
+only. AsyncGeneratorPrototype.js's resume head is still the plain
+check-then-store (:37/:78/:83) with plain queue-field writers, reachable
+synchronously from any thread holding the cell — two racing agen.next()
+calls remain two simultaneous owners. R7 is therefore PARTIAL until either
+(a) the claim/publish shape lands on the async resume heads, or (b) an
+owner-affinity ConcurrentAccessError ruling narrows R7. Owed gating
+artifact: an async-generator clone of mc-prim-generator-resume-claim.js.
+Async-FUNCTION frames: resume is promise-job-driven (§E.1b thread
+confinement) + the yield-side ordering above; the claim question is
+narrower and rides the same deferral. Tracking rows updated:
+CVE-AUDIT-STATUS.md item 3 + MC-TEAR table row; map-MC-TEAR.md S6;
+map-MC-PRIM.md fix-queue item 2.
+
+### §N.5 review-round amendments (2026-06-10, post-close verification round)
+
+1. **Owed gating artifact DELIVERED:** the async-generator clone of
+   mc-prim-generator-resume-claim.js now exists —
+   JSTests/threads/cve/mc-prim-async-generator-resume-claim.js, registered
+   [EXPECTED-FAIL GIL-off] in CVE-AUDIT-STATUS.md TO-EXECUTE. Observed
+   GIL-off: SEGV 3/3 (two threads racing agen.next() through drained
+   microtask queues — the unclaimed AsyncGeneratorPrototype.js resume head
+   is memory-unsafe, not merely a logic race). Green GIL-on. The R7 PARTIAL
+   deferral in entry (3) above is now mechanically pinned; it flips to
+   passing only when closure (a) claim/publish on the async heads (incl.
+   the JSMicrotask.cpp setState cluster) or (b) the owner-affinity CAE
+   ruling lands.
+2. **Claim-leak guard LANDED (new finding, fixed):** the §N.5 claim and the
+   protected region were not coextensive — an engine-raised exception
+   between a successful @claimGeneratorResume and entry into
+   @generatorResume's try (deterministic: stack-overflow RangeError from
+   @generatorResume's prologue check, reachable by resuming at depth) left
+   the owner token in the State field forever; every later claim on every
+   thread read canonical Executing — a permanent, attacker-triggerable
+   cross-thread bricking of a shared generator, and a divergence from
+   GIL-on/flag-off (which stays resumable). Fix: publish-on-throw wrappers
+   around the @generatorResume call in ALL claiming callers
+   (GeneratorPrototype.js next/return/throw,
+   JSIteratorHelperPrototype.js next/return), behind @gilOffProcess
+   (flag-off bytecode unchanged). Idempotent by construction: publish CAS
+   ourToken->Completed cannot clear a rival's token and no-ops after
+   @generatorResume's own catch/epilogue published. Gating test:
+   JSTests/threads/cve/mc-prim-generator-claim-leak-stack-overflow.js.
+   Recorded residuals: the fail-safe CLOSES the generator where vanilla
+   would leave it resumable (benign divergence); a stack overflow inside
+   the catch's publish call itself can still leak in pathological depths.
+3. **Test-banner correction:** mc-prim-generator-resume-claim.js's banner
+   claimed §N.5 covers "generator / async-function resume" via
+   @atomicInternalFieldClaim — corrected to the landed shape (sync
+   generators + iterator helpers via @claimGeneratorResume; async arm open
+   and pinned by the clone test).
+4. **Generator-family verification bar corrected:** the family-1 "20/20
+   full tiers" numbers were default-threshold-only; tier-forced runs hit
+   the (now fixed) FTL data-IC direct-call register clobber in both modes
+   — see SPEC-jit-history.md §21 and CVE-AUDIT-STATUS.md (2026-06-10
+   closure round, item 2 correction). Post-fix the family is green at
+   default AND forced thresholds.

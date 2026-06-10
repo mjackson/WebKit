@@ -51,36 +51,40 @@ struct Config {
 
     static void disableFreezingForTesting() { g_wtfConfig.disableFreezingForTesting(); }
     JS_EXPORT_PRIVATE static void NODELETE enableRestrictedOptions();
-    static void finalize()
+    // UNGIL SPEC-ungil sec.A.1.3 level (i) latch (AB17g item 2, F1; closes
+    // AB-1, U-T3 obligation 9b): derive the gilOffProcess byte from the
+    // finalized Options exactly once. Callable from two sites: (1) the VM
+    // ctor strictly BEFORE the m_gilOff designation (runtime/VM.cpp) — the
+    // F1 ordering that lets VM::gilOffWithProcessGate() be a single
+    // read-only-page byte test — and (2) Config::finalize() below (spent
+    // call_once => no-op there). The store happens strictly BEFORE
+    // WTF::Config::finalize() freezes the Config page (a second store --
+    // even same-value -- would fault on the read-only page, hence the
+    // call_once; threads returning from the call_once have a happens-before
+    // edge to the store, and the freeze happens after it inside WTF's own
+    // call_once, so no thread can reach the store post-freeze).
+    // Reader-side visibility premise: every reader of this byte — the LLInt
+    // asm dispatch arms AND every C++ gilOffWithProcessGate() caller — runs
+    // on a thread whose VM*/VMLite reached it through a synchronized
+    // publication (thread spawn, JSLock, registry lock) that happens-after
+    // the first VM ctor's latch; a thread reading the byte without such a
+    // chain would already be racing the whole VM. A refactor that lets
+    // LLInt run before/outside VM entry breaks this visibility contract.
+    // Ordering contract: the first call happens after Options::finalize()
+    // (the JSC callers are the VM ctor's pre-designation latch and
+    // Config::finalize(), both of which run strictly after
+    // InitializeThreading's Options::finalize()), asserted below. The
+    // derivation MUST stay identical to VM::isGILOffProcess()
+    // (runtime/VM.cpp) and to the notifyOptionsChanged() RELEASE_ASSERT
+    // latch (runtime/Options.cpp), which forbids the derivation from
+    // flipping after options finalization.
+    static void latchGILOffProcess()
     {
-        // UNGIL SPEC-ungil sec.A.1.3 level (i) latch (closes AB-1, U-T3
-        // obligation 9b): derive the LLInt gilOffProcess byte from the
-        // finalized Options exactly once, BEFORE WTF::Config::finalize()
-        // freezes the Config page (a second store -- even same-value --
-        // would fault on the read-only page, hence the call_once; threads
-        // returning from the call_once have a happens-before edge to the
-        // store, and the freeze happens after it inside WTF's own
-        // call_once, so no thread can reach the store post-freeze).
-        // Reader-side visibility premise: every LLInt reader of this byte
-        // runs on a thread whose VM*/VMLite reached it through a
-        // synchronized publication (thread spawn, JSLock, registry lock)
-        // that happens-after the first VM ctor's Config::finalize(); a
-        // thread reading the byte without such a chain would already be
-        // racing the whole VM. A refactor that lets LLInt run
-        // before/outside VM entry breaks this visibility contract.
-        // Ordering contract: the first call happens after
-        // Options::finalize() (the only JSC caller is the VM ctor,
-        // runtime/VM.cpp ~693, which runs strictly after
-        // InitializeThreading's Options::finalize()), asserted below. The
-        // derivation MUST stay identical to VM::isGILOffProcess()
-        // (runtime/VM.cpp) and to the notifyOptionsChanged()
-        // RELEASE_ASSERT latch (runtime/Options.cpp), which forbids the
-        // derivation from flipping after options finalization.
         static std::once_flag s_gilOffProcessLatchOnce;
         std::call_once(s_gilOffProcessLatchOnce, [] {
             Config& config = singleton();
-            // Intentionally fail-stops embedders that call
-            // JSC::Config::finalize() before Options::finalize().
+            // Intentionally fail-stops callers that run before
+            // Options::finalize().
             RELEASE_ASSERT(config.options.isFinalized);
             bool gilOffProcess = config.options.useJSThreads
                 && !config.options.useThreadGIL
@@ -96,6 +100,14 @@ struct Config {
                 config.gilOffProcess = 1;
             }
         });
+    }
+
+    static void finalize()
+    {
+        // Latch is normally already spent (the VM ctor latches before its
+        // m_gilOff designation); kept here so embedder/direct callers of
+        // Config::finalize() still latch before the freeze.
+        latchGILOffProcess();
         WTF::Config::finalize();
     }
 
@@ -168,14 +180,16 @@ struct Config {
     // winner writes it from the VM ctor" sketch — that store races
     // Config::finalize() freezing the page; even a same-value store faults
     // once the page is read-only): OPTION-derived and latched exactly once
-    // at Config finalization, derivation-identical to VM::isGILOffProcess()
-    // (see the contract comment beside it in runtime/VM.cpp). The latch
-    // lives in Config::finalize() above: derived once under a call_once,
-    // strictly before WTF::Config::finalize() freezes the page. Flag-off
-    // and GIL-on processes derive 0, so every LLInt discriminator keeps
-    // VM-block storage authoritative there (pure flag-off shape).
+    // via latchGILOffProcess() above (call_once), derivation-identical to
+    // VM::isGILOffProcess() (see the contract comment beside it in
+    // runtime/VM.cpp). The latch runs in the VM ctor strictly BEFORE the
+    // m_gilOff designation (AB17g item 2, F1) and again — as a spent no-op
+    // — from Config::finalize(), strictly before WTF::Config::finalize()
+    // freezes the page. Flag-off and GIL-on processes derive 0, so every
+    // LLInt discriminator keeps VM-block storage authoritative there (pure
+    // flag-off shape).
     uint8_t gilOffProcess;
-#define JSC_CONFIG_HAS_GILOFF_PROCESS_BYTE 1 // consumed by llint/LowLevelInterpreter*.asm; written only by the Config::finalize() latch above
+#define JSC_CONFIG_HAS_GILOFF_PROCESS_BYTE 1 // consumed by llint/LowLevelInterpreter*.asm; written only by the latchGILOffProcess() call_once above
 
     using ShellTimeoutCheckCallback = void (*)(VM&);
     ShellTimeoutCheckCallback JSC_CONFIG_METHOD(shellTimeoutCheckCallback);

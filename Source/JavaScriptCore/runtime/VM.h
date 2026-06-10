@@ -636,47 +636,71 @@ public:
     // the mutator's own non-atomic service writes cannot false-share with
     // itself. The change is justified on the weaker ground of a layout
     // trade, NOT a static op-count reduction (AB17e correction: the earlier
-    // "strictly cost-reducing" wording was wrong) — flag-off this predicate
-    // executes TWO predicted-false byte tests where raw gilOff() executed
-    // ONE this-relative member load+branch; what it buys is that the loads
-    // hit the frozen read-only Config page instead of a VM line that can
-    // carry concurrently-mutated state. The second (useJSThreads fallback)
-    // test exists only for the pre-latch first-VM-ctor window and can be
-    // dropped if a later round latches gilOffProcess before the m_gilOff
-    // designation; the coherence-miss mechanism IS real in flag-on
-    // configurations that have remote writers (GIL'd useJSThreads watchdog /
-    // stop requests), which is also why the word is now line-isolated by
-    // padding (see m_entryScopeServicesPadBefore/After). Do not cite this
-    // comment as evidence the flag-off regression class is closed; the bench
-    // gate adjudicates that (Tools/threads/bench-gate.sh, AB17c F1 ledger
+    // "strictly cost-reducing" wording was wrong) — what it buys is that the
+    // load hits the frozen read-only Config page instead of a VM line that
+    // can carry concurrently-mutated state. As of AB17g item 2 (F1) the
+    // gilOffProcess byte is latched in the VM ctor strictly BEFORE the
+    // m_gilOff designation (Config::latchGILOffProcess(), VM.cpp), so the
+    // former useJSThreads fallback term has been DROPPED: flag-off this
+    // predicate is a SINGLE predicted-false byte test on the Config page.
+    // The remaining gilOffWithProcessGate() callers are the C++ Group-3
+    // accessors (exception checks, frame tracers, soft-stack-limit paths)
+    // plus CodeBlock/ScriptExecutable/RegExp/JITOperations paths; the
+    // bench-hot Heap::allocationClientForCurrentThread site is NOT one of
+    // them — FIX-V5B-F1 already gates it on a single
+    // options.useJSThreads byte test (heap/Heap.h). The coherence-miss
+    // mechanism IS real in flag-on configurations that have remote writers
+    // (GIL'd useJSThreads watchdog / stop requests), which is also why the
+    // word is now line-isolated by padding (see
+    // m_entryScopeServicesPadBefore/After). Do not cite this comment as
+    // evidence the flag-off regression class is closed; the bench gate
+    // adjudicates that (Tools/threads/bench-gate.sh, AB17c F1 ledger
     // entry).
     //
     // Equivalence invariant (MUST hold in every reachable state): this
-    // predicate returns exactly m_gilOff. Proof obligations:
-    //  - g_jscConfig.gilOffProcess == 1 or options.useJSThreads == 1: we
-    //    return m_gilOff verbatim.
-    //  - both bytes 0: m_gilOff == 0 is forced, because m_gilOff is set only
-    //    under VM::isGILOffProcess() (VM.cpp), whose conjunction REQUIRES
-    //    Options::useJSThreads() — finalized (immutable) strictly before any
-    //    VM ctor, and the same storage byte read here.
-    // The options.useJSThreads fallback term is what keeps the gate correct
-    // in a GIL-off process during the first-VM-ctor window BEFORE
-    // Config::finalize() latches gilOffProcess (VM.cpp ~693): the ctor's own
-    // JSLockHolder (VM.cpp ~455) installs a same-VM carrier lite via
-    // JSLock::didAcquireLock's raw gilOff() path, so a process-byte-only
-    // gate would diverge from the legacy predicate there. With the fallback,
-    // that window reads m_gilOff exactly like the legacy code. Flag-off pays
-    // two not-taken byte tests on the read-only Config page and never loads
-    // m_gilOff. If a later round latches gilOffProcess before the m_gilOff
-    // designation in the VM ctor, the fallback term can be dropped.
+    // predicate returns exactly m_gilOff.
+    // Invariant: gilOffProcess == 0 implies m_gilOff == 0 in every reachable
+    // state on every thread. Proof obligations:
+    //  - g_jscConfig.gilOffProcess == 1: we return m_gilOff verbatim.
+    //  - g_jscConfig.gilOffProcess == 0: m_gilOff == 0 is forced, because
+    //    m_gilOff's SOLE write site (VM ctor designation, VM.cpp) runs
+    //    strictly AFTER Config::latchGILOffProcess() in the same ctor, and
+    //    that latch sets the byte whenever VM::isGILOffProcess() holds —
+    //    the derivations are identical (contract comment in VM.cpp).
+    // Reader enumeration (every class of thread that can evaluate this
+    // predicate, and the happens-before edge that orders its byte read
+    // after the latch store):
+    //  (i) The constructing thread itself — including the ctor's own
+    //      JSLockHolder, formerly the only window the dropped fallback term
+    //      covered: the latch is sequenced-before the designation and
+    //      sequenced-before every later ctor statement; program order
+    //      closes the window outright.
+    //  (ii) Concurrent embedder threads constructing OTHER VMs: each such
+    //      ctor calls Config::latchGILOffProcess() before its first gate
+    //      evaluation; std::call_once's return edge synchronizes-with the
+    //      winning store, so the byte read is ordered after the store.
+    //  (iii) Thread()-spawned mutators: pthread_create alone is NOT a
+    //      sufficient HB statement here — the edge is the COMPOSITION of
+    //      the spawn-handshake publication of the VM*/VMLite with the
+    //      ctor-completion edge of the VM being entered: the spawned thread
+    //      obtained its VM through a publication that happens-after the
+    //      ctor completed, hence after the latch.
+    //  (iv) Helper/registry readers (VMLiteRegistry walkers under the
+    //      registry lock, JSLock acquirers, worklist/compiler threads via
+    //      queue publication): each holds a VM* obtained through a lock or
+    //      queue publication edge that happens-after ctor completion, hence
+    //      after the latch.
+    // In all four cases the byte is write-once strictly-before-any-VM-
+    // publication and never written again (call_once + page freeze), so the
+    // plain load is race-free.
     ALWAYS_INLINE bool gilOffWithProcessGate() const
     {
+        // Single predicted-false byte test on the frozen read-only Config
+        // page (F1: this is the hot flag-off cost; see invariant comment
+        // above). gilOffProcess is latched in the VM ctor strictly BEFORE
+        // any m_gilOff designation (VM.cpp), so gilOffProcess==0 implies
+        // m_gilOff==0 in every reachable state on every thread.
         if (g_jscConfig.gilOffProcess) [[unlikely]]
-            return m_gilOff;
-        // Pre-latch window of a GIL-off process; derivation-consistent with
-        // VM::isGILOffProcess() (useJSThreads is a necessary term of its
-        // conjunction; see the contract comment beside it in VM.cpp).
-        if (g_jscConfig.options.useJSThreads) [[unlikely]]
             return m_gilOff;
         return false;
     }

@@ -408,7 +408,19 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     // keeps m_gilOff=0 and the GIL-on single-migrating-client protocol; U0b
     // spawn-refusal keeps its clientSet()<=1, so the HeapClientSet::add
     // trigger never runs for it.
+    // AB17g item 2 (F1): latch the Config gilOffProcess byte BEFORE the
+    // m_gilOff designation below, so gilOffWithProcessGate()'s process-byte
+    // test alone is sufficient in every reachable state (the VM.h fallback
+    // term is dropped). Options are finalized strictly before any VM ctor
+    // (InitializeThreading), so the latch's isFinalized assert cannot fire
+    // here. The Config::finalize() call later in this ctor is unchanged:
+    // its latch call is a spent-call_once no-op, and the forceFencedBarrier
+    // options store just before it keeps its required position BEFORE the
+    // WTF::Config::finalize() freeze (M8/GT#7).
+    Config::latchGILOffProcess();
     if (VM::isGILOffProcess()) [[unlikely]] {
+        // AB17g amendment (d): designation must never precede the latch.
+        ASSERT(g_jscConfig.gilOffProcess);
         if (heap.tryDesignateStickySharedServer()) {
             m_gilOff = true;
             // AB17c F4: re-stamp the HandleSet's cached §F.3 mode byte. The
@@ -2903,12 +2915,14 @@ NativeExecutable* VM::promiseAnySlowRejectFunctionExecutableSlow()
 bool VM::isGILOffProcess()
 {
     // UNGIL §A.1.3 level (i) / §0 U0c: OPTION-derived; the JSCConfig
-    // gilOffProcess byte (LLInt's copy, beside the M4a slot — NOT YET
-    // LANDED; OPEN U-T3 obligation, INTEGRATE-ungil.md 9b: JSCConfig.h is
-    // outside this slice's writable set; latched at Config finalization)
-    // MUST stay derivation-identical to this conjunction. U0 option
-    // validation refuses GIL-off without the trio (forced useThreadGIL=1),
-    // so the extra terms are belt-and-suspenders.
+    // gilOffProcess byte (LLInt's copy, beside the M4a slot — LANDED,
+    // closing U-T3 obligation 9b; as of AB17g item 2 it is latched in the
+    // VM ctor strictly BEFORE the m_gilOff designation, via
+    // Config::latchGILOffProcess()) MUST stay derivation-identical to this
+    // conjunction and to the notifyOptionsChanged() RELEASE_ASSERT latch
+    // (runtime/Options.cpp). U0 option validation refuses GIL-off without
+    // the trio (forced useThreadGIL=1), so the extra terms are
+    // belt-and-suspenders.
     return Options::useJSThreads() && !Options::useThreadGIL()
         && Options::useVMLite() && Options::useSharedAtomStringTable() && Options::useSharedGCHeap();
 }

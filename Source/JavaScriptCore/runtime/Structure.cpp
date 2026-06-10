@@ -66,7 +66,12 @@ void Structure::checkOffsetConsistency(PropertyTable* propertyTable, const Detai
     // off-by-N here is a legal transient, not corruption. Mutation sites
     // still self-check under m_lock via Structure::add/remove's
     // checkConsistency(); only the dictionary's unlocked spot-checks are
-    // skipped. Flag-off: unchanged (I22).
+    // skipped. NOTE (CVE-DBG-2): unlocked NON-dictionary spot-checks are
+    // skipped one level up, in the no-arg checkOffsetConsistency() wrapper —
+    // flag-on GIL-off, this template is now reached only from under m_lock
+    // (checkConsistency) or with a thread-local table
+    // (materializePropertyTable), where the dictionary condition below is the
+    // only remaining legal-transient case. Flag-off: unchanged (I22).
     if (Options::useJSThreads() && isDictionary()) [[unlikely]]
         return;
 
@@ -2863,6 +2868,33 @@ void dumpTransitionKind(PrintStream& out, TransitionKind kind)
 
 void Structure::checkOffsetConsistency() const
 {
+    // CVE-DBG-2: every caller of this no-arg entry is an UNLOCKED spot-check
+    // (the transition-planning paths in this file). Flag-on GIL-off, a
+    // foreign thread can be rehashing/stealing the published PropertyTable
+    // under ITS locks while we read {maxOffset, table} with none:
+    // PropertyTable::rehash resets m_keyCount to 0 (concurrentRelaxedStore,
+    // PropertyTable.h §3.25 relaxed-reader family) before reinserting, so
+    // propertyStorageSize() legally reads 0 against a settled maxOffset.
+    // Off-by-N (or N-to-0) here is a sanctioned transient under
+    // SPEC-objectmodel L6(ii) (published-table mutation serialized under the
+    // owning structure's m_lock) + the OM C4 staleness model — never
+    // checker-grade cross-word coherence for lock-free readers.
+    //
+    // NOTE: this is NOT a Debug-only assert. This wrapper compiles in
+    // Release and UNREACHABLE_FOR_PLATFORM is RELEASE_ASSERT_NOT_REACHED, so
+    // the same race could spuriously abort Release GIL-off; skipping here
+    // intentionally retires that release tripwire on the unlocked spot-check
+    // paths for the GIL-off lane only. GIL-on (single mutator) keeps it: the
+    // check is race-free there. A known cost: spot-checks of freshly created
+    // THREAD-PRIVATE transition targets are skipped too, even though they
+    // were race-free; mutation sites stay strict via
+    // Structure::checkConsistency() below, which holds m_lock and calls the
+    // two-arg checker directly, and materializePropertyTable likewise checks
+    // its thread-local table via the two-arg form. Flag-off:
+    // behavior-identical (one predicted-false branch, same convention as the
+    // existing carve-out in the two-arg template above).
+    if (Options::useJSThreads() && !Options::useThreadGIL()) [[unlikely]]
+        return;
     if (auto* propertyTable = propertyTableOrNull())
         checkOffsetConsistency(propertyTable, [] { });
     else
@@ -2872,7 +2904,16 @@ void Structure::checkOffsetConsistency() const
 #if ASSERT_ENABLED
 void Structure::checkConsistency()
 {
-    checkOffsetConsistency();
+    // Mutation-site self-check: every caller holds m_lock
+    // (Structure::add/remove/attributeChange in StructureInlines.h), so the
+    // {maxOffset, table} pair is coherent. Bypass the no-arg wrapper above —
+    // its flag-on skip is for UNLOCKED spot-checks only — and run the strict
+    // two-arg checker. (The template's dictionary carve-out still applies,
+    // unchanged.)
+    if (auto* propertyTable = propertyTableOrNull())
+        checkOffsetConsistency(propertyTable, [] { });
+    else
+        ASSERT(!isPinnedPropertyTable());
 }
 #endif
 

@@ -224,11 +224,19 @@ if (typeof SharedArrayBuffer === "function") {
             try {
                 gsab.grow(target);
             } catch (e) {
-                // A racing larger grow makes this a shrink request: TypeError
-                // is the only legal failure (never a RangeError from skewed
-                // page arithmetic at an in-range target).
-                if (!(e instanceof TypeError))
+                // A racing larger grow makes this a shrink request. Per
+                // ECMA-262 SharedArrayBuffer.prototype.grow ("If
+                // newByteLength < currentByteLength or newByteLength >
+                // O.[[ArrayBufferMaxByteLength]], throw a RangeError
+                // exception") the legal failure is a RangeError — and it is
+                // legal ONLY when the length is already at/above the target
+                // (byteLength is monotone, so that condition still holds at
+                // observation time). A RangeError with byteLength < target
+                // would be the skewed-arithmetic failure this phase hunts.
+                if (!(e instanceof RangeError))
                     throw e;
+                if (gsab.byteLength < target)
+                    throw new Error("p3 GSAB in-range grow(" + target + ") threw RangeError with byteLength " + gsab.byteLength);
             }
             const len = gsab.byteLength;
             if (len < last)
@@ -245,7 +253,7 @@ if (typeof SharedArrayBuffer === "function") {
     shouldBe(gsab.byteLength, MAX, "p3 final GSAB length");
     const u8 = new Uint8Array(gsab);
     shouldBe(u8[MAX - 1], 0, "p3 GSAB last byte zero");
-    shouldThrow(TypeError, () => gsab.grow(MAX - PAGE)); // shrink request: rejected before arithmetic
+    shouldThrow(RangeError, () => gsab.grow(MAX - PAGE)); // shrink request: rejected before arithmetic (ECMA-262 grow step: RangeError)
     shouldBe(gsab.byteLength, MAX, "p3 GSAB length unchanged after rejected shrink");
 }
 

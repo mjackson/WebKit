@@ -1855,6 +1855,12 @@ void JIT::emit_op_put_internal_field(const JSInstruction* currentInstruction)
     static_assert(noOverlap(regT2, jsRegT10));
     emitGetVirtualRegisterPayload(base, regT2);
     emitGetVirtualRegister(value, jsRegT10);
+    // SPEC-ungil §N.5 (r15 F1): gilOffProcess, internal-field stores are
+    // store-RELEASE in every tier — the suspend-state store is the generator
+    // resume-claim UNCLAIM and must publish the preceding frame saves to a
+    // rival claimant's acquire CAS. Compile-time keyed: zero flag-off delta.
+    if (VM::isGILOffProcess()) [[unlikely]]
+        storeFence();
     storeValue(jsRegT10, Address(regT2, JSInternalFieldObjectImpl<>::offsetOfInternalField(index)));
     emitWriteBarrier(base, value, ShouldFilterValue);
 }

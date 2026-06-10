@@ -27,6 +27,7 @@
 #include "BlockDirectory.h"
 
 #include "BlockDirectoryInlines.h"
+#include "FreeList.h"
 #include "Heap.h"
 #include "HeapInlines.h"
 #include "MarkedSpaceInlines.h"
@@ -253,10 +254,14 @@ void BlockDirectory::stopAllocating()
     // stopAllocatingForGood below.
     {
         Locker locker { m_localAllocatorsLock };
+        if (Options::validateFreeListStructure()) [[unlikely]]
+            FreeList::setStructureValidationContext("dirflush"); // Conductor step-5 flush provenance.
         m_localAllocators.forEach(
             [&] (LocalAllocator* allocator) {
                 allocator->stopAllocating();
             });
+        if (Options::validateFreeListStructure()) [[unlikely]]
+            FreeList::setStructureValidationContext("other");
     }
 
 #if ASSERT_ENABLED
@@ -301,10 +306,14 @@ void BlockDirectory::stopAllocatingForGood()
     // SharedGC (review round 2): locked traversal — see stopAllocating().
     // One critical section covers the per-allocator stop AND the unlink.
     Locker locker { m_localAllocatorsLock };
+    if (Options::validateFreeListStructure()) [[unlikely]]
+        FreeList::setStructureValidationContext("dirSAFG");
     m_localAllocators.forEach(
         [&] (LocalAllocator* allocator) {
             allocator->stopAllocatingForGood();
         });
+    if (Options::validateFreeListStructure()) [[unlikely]]
+        FreeList::setStructureValidationContext("other");
 
     while (!m_localAllocators.isEmpty())
         m_localAllocators.begin()->remove();
@@ -463,11 +472,14 @@ void BlockDirectory::sweep()
 
 void BlockDirectory::shrink()
 {
-    // SharedGC (T8 audit): reached via MarkedSpace::shrink() — from
-    // Heap::sweepSynchronously (under MSPL once shared) or conductor-side
-    // while stopped. Block frees here unlink WeakSets from the active lists
-    // (§5.2(2)) and mutate MarkedSpace::m_blocks; both are covered by the
-    // caller's MSPL/WSAC context. The scans below hold the BVL.
+    // SharedGC (T8 audit, MC-SAFE S4): reached via MarkedSpace::shrink() —
+    // world-stopped only once shared (Heap::sweepSynchronously gates its
+    // shrink leg on worldIsStoppedForAllClients(); MarkedSpace::shrink
+    // asserts it). Block frees here unlink WeakSets from the active lists
+    // (§5.2(2)), mutate MarkedSpace::m_blocks, and physically free the
+    // block — the last is only safe with no concurrently-running sibling
+    // mutators (SPEC-heap §11 world-stopped reclamation; I5/I16
+    // deviation-4 precedent). The scans below hold the BVL.
     // We need to be careful of a weird race where while we are sweeping a block
     // the concurrent sweeper comes along and takes the inUse bit for a block
     // in the same bit vector word as we're currently scanning. If we did't

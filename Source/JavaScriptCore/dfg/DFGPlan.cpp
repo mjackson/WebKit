@@ -731,6 +731,19 @@ bool Plan::iterateCodeBlocksForGC(AbstractSlotVisitor& visitor, NOESCAPE const F
     return true;
 }
 
+void Plan::iterateCodeBlocksForFinalizeRoots(NOESCAPE const Function<void(CodeBlock*)>& func)
+{
+    // Unconditional finalize-claim roots (UNGIL AB18-R1-B, see JITPlan.h):
+    // finalize() touches the compiled CodeBlock, its baseline alternative
+    // (compilationDidComplete -> setOptimizationThresholdBasedOnCompilationResult)
+    // and the profiled DFG block after park points that admit a sibling
+    // shared GC.
+    Base::iterateCodeBlocksForFinalizeRoots(func);
+    func(m_codeBlock->alternative());
+    if (m_profiledDFGCodeBlock)
+        func(m_profiledDFGCodeBlock);
+}
+
 bool Plan::checkLivenessAndVisitChildren(AbstractSlotVisitor& visitor)
 {
     if (!Base::checkLivenessAndVisitChildren(visitor))

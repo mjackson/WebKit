@@ -146,24 +146,43 @@ precise D3/D7/non-extensible TypeError. Corpus:
 Verdict: **immune-by-construction** (publication-coupled re-validation; OM
 I21/I37 govern the underlying transition).
 
-S3c — GIL-off INDEXED add (`ThreadAtomics.cpp:432-442`): **KNOWN RESIDUAL
-(OPEN)**, recorded at `docs/threads/INTEGRATE-ungil.md:297-303`. The indexed
-Missing add stays on generic `putDirectIndex` verbatim: validated
-{Missing, extensible}, then an unconditional put. A racing indexed
-`defineProperty` (accessor or non-writable) forces a sparse-map/SlowPutAS
-conversion that `putDirectIndex` cannot be made conditional on without new OM
-machinery — the put can clobber the freshly defined accessor/non-writable
-element (an object state no sequential interleaving of `Atomics.store` and
-`defineProperty` can produce, violating THREAD.md's indistinguishable-heap
-requirement), and the conversion itself races the put's shape dispatch
-(MC-GROW-adjacent on the AS conversion path, OM §4.6/I31 territory).
-Verdict: **susceptible-suspected** (mechanism precisely the graduated
-MC-REENT→MC-DF shape this class predicts; already on U-T14's close-audit
-list) — **needs-test**:
-`JSTests/threads/cve/mc-reent-store-missing-indexed-define-race.js`
-(amplifier-ready; deterministic-on-outcome: every legal linearization leaves
-the defineProperty result in place, so a surviving plain data value after a
-successful define is a violation regardless of interleaving).
+S3c — GIL-off INDEXED add: **CLOSED (fix landed; test green)**. The former
+KNOWN RESIDUAL (unconditional `putDirectIndex` on the indexed Missing arm,
+INTEGRATE-ungil U-T10 item 3) is replaced by
+`JSObject::putDirectIndexForAtomicsMissingAdd` (ThreadAtomics.cpp), the
+indexed twin of the named conditional add: a shape-dispatched loop whose
+sparse terminal is a conditional `map->add` + locked value publish in ONE
+object-cellLock window (the same lock `defineOwnIndexedProperty` holds around
+its `map->add`); `!isNewEntry` = lost race => the store body RESTARTS and the
+fresh probe throws the precise D3/D7 TypeError. CVE-suite close-out added three
+mutually reinforcing pieces (the amplifier found two distinct windows):
+(1) the AS in-vector fill arm re-checks, under the object cellLock, that no
+sparse map governs the index (sparseMode or an existing entry at i) before
+writing the vector slot — an existing entry is a lost race (restart
+reclassifies), sparse-mode-without-entry falls through to the map
+conditional-add (returning lost-race there would livelock: the re-probe
+still answers Missing on that settled state);
+(2) `increaseVectorLength` refuses sparse-mode storage under its cellLock —
+GIL-on every caller checks `sparseMode()` atomically before growing, GIL-off
+the mode can flip between the caller's unlocked decision and the locked
+body, and a vector grown over sparse entries makes every map entry below
+vectorLength UNREADABLE (the AS lookup is "if (i < vectorLength) vector ELSE
+IF (map)") while a later in-vector fill SHADOWS its descriptor;
+(3) `defineOwnIndexedProperty`'s locked add window re-establishes the
+sparse-mode invariant (vectorLength == 0, strays migrated into the map)
+before the add — the blank-receiver arm of
+`ensureArrayStorageExistsAndEnterDictionaryIndexingMode` publishes
+`createArrayStorage(0,0)` BEFORE the map/sparseMode pair, and a racing
+attribute-0 add that grew/filled the vector in that map-less window is
+otherwise an unreachable-GIL-on heap state in both shadow directions; a
+migrated value at the defined index surfaces as the current {value, attrs 0}
+property and takes the reconfiguration path (store-then-define
+linearization). Narrowed residual recorded in the
+helper's header comment: a racing `preventExtensions` can still be overtaken
+within one lock-internal interval (extra plain property, never a descriptor
+clobber — the same state pre-fork code produced).
+Test: `JSTests/threads/cve/mc-reent-store-missing-indexed-define-race.js`
+(40/40 GIL-off Release, 3/3 GIL-on at close-out).
 
 ## S4. Lock.hold / asyncHold / Condition.asyncWait: hold consumption by user fn
 
@@ -279,7 +298,7 @@ the site must sit on a §2-dispatching path.
 | S2 | Reentrant receivers in the atomic step | immune-by-construction | D3 Proxy/GlobalProxy gate; SPEC-ungil ANNEX C1; OM I34 provenance |
 | S3a | store Missing-arm, GIL-on | immune-by-construction (GIL-on only) | SPEC-api §4.5; no callout in window |
 | S3b | store Missing-arm, GIL-off NAMED | immune-by-construction | putDirectForAtomicsMissingAdd publication-coupled re-validation (U-T10 item 3); OM I21/I37 |
-| S3c | store Missing-arm, GIL-off INDEXED | susceptible-suspected + needs-test | KNOWN RESIDUAL, INTEGRATE-ungil.md:297-303; OM §4.6/I31 adjacent |
+| S3c | store Missing-arm, GIL-off INDEXED | closed (fix landed: putDirectIndexForAtomicsMissingAdd + in-vector map-governance gate) | OM §4.6/I31; one-cellLock add+publish window |
 | S4 | hold/asyncHold/asyncWait hold consumption | immune-by-construction | SPEC-api 4.2/4.3(a)/5.3, I23; epilogue guard + consume CAS |
 | S5 | Constructor prototype get() | immune-by-construction | callout-before-privileged-state ordering (ThreadObject.cpp:351-357); I17 |
 | S6 | Thread.restrict window | immune-by-construction | no callout; Dev 8/11 lazy-slot rule |

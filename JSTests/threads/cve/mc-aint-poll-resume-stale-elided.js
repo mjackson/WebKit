@@ -1,11 +1,12 @@
-//@ requireOptions("--useJSThreads=1")
+//@ requireOptions("--useJSThreads=1", "--useVMLite=1", "--useSharedAtomStringTable=1", "--useSharedGCHeap=1", "--useThreadGILOffUnsafe=1", "--useDollarVM=1")
 // MC-AINT S4 (docs/threads/cve/map-MC-AINT.md): parked-at-poll resume across
-// a Class-A fire — SPEC-jit I21(b) is specified but UNIMPLEMENTED in the
-// tree (DFGByteCodeParser.cpp:7039 emits CheckTraps WITHOUT an invalidation
-// point when usePollingTraps is forced; compileCheckTraps in DFG/FTL lowers
-// a plain poll; CheckTraps clobbers only InternalState so the
-// InvalidationPointInjectionPhase places nothing after it; and
-// operationHandleTraps returns straight to the post-poll PC).
+// a Class-A fire — SPEC-jit I21(b). At authoring time I21(b) was specified
+// but UNIMPLEMENTED (DFGByteCodeParser.cpp emitted CheckTraps WITHOUT an
+// invalidation point when usePollingTraps is forced); it has since LANDED
+// (handleCheckTraps now emits ExitOK + InvalidationPoint after every
+// flag-on CheckTraps — see the AB-10 closure banner in-function and the
+// CLOSED 2026-06-10 entry in map-MC-AINT.md S4), so this test is the
+// standing I21(b) regression test.
 //
 // Mechanism (the async-interruption-at-an-unsafe-point shape, with the
 // cooperative stop itself as the interruption): GIL-off, a Class-A
@@ -40,8 +41,58 @@
 // closing the window by construction.
 load("../harness.js", "caller relative");
 
+// ---- GIL-mode gate (SPEC-api Deviation 9) ----
+// Under the phase-1 GIL, preemption is COOPERATIVE-ONLY: the 5.2 blocking
+// primitives are the only yield points (SPEC-api Deviation 9; G23/G24 —
+// harness.js:47-50 records the same rule for waitUntil). Every loop in this
+// test spins or runs hot WITHOUT a blocking primitive by design (the hot
+// elided read loop IS the probed surface; inserting parks would gut the
+// poll-resume window the oracle exists to catch). GIL-on that means the
+// main driver legitimately starves the readers/foreign threads — zero
+// progress is the DOCUMENTED scheduling model, not a defect — so the
+// progress assertions below (checks > 0, foreignRounds > 0) assert
+// something Deviation 9 does not promise. And per the header, the probed
+// window itself does not exist GIL-on (the sole mutator runs fires inline
+// and is never parked at a poll across one). So: read the EFFECTIVE GIL
+// mode from $vm.useThreadGIL() (the post-U0-validation option value — the
+// serialization mode the VM actually runs under) and premise-skip GIL-on.
+// MODE-DERIVED, not behavioral: the previous probe here (spawn a thread,
+// watch for progress against a spinning main thread within a 2s deadline)
+// could misfire on a saturated host — a GIL-off run whose probe thread
+// missed the window would silently premise-skip the exact test that pins
+// the AB-10/I21(b) closure, converting a GIL-off lane into a vacuous
+// skip with no failure surfaced. $vm is guaranteed by the requireOptions
+// header (--useDollarVM=1).
+{
+    if ($vm.useThreadGIL()) {
+        print("THREADS-PREMISE-SKIP: cooperative phase-1 GIL enabled"
+            + " ($vm.useThreadGIL() === true, post-U0-validation effective"
+            + " mode; SPEC-api Deviation 9); the I21(b) poll-resume window"
+            + " this test probes is closed by construction GIL-on and the"
+            + " test's spin loops cannot make cross-thread progress under"
+            + " cooperative-only scheduling.");
+        quit();
+    }
+}
+
 const READERS = 3;
-const ROUNDS = 200;
+// ROUNDS halved 200 -> 100 (2026-06-10, cve-aint-timeout-budget): the
+// I21(b) mechanism is CLOSED (map-MC-AINT.md S4, 20/20 + 40/40 runs); at
+// 200 rounds the Debug GIL-off build PASSes semantically but takes ~143s
+// wall on a quiet 64-core host (measured 2026-06-10), past the pinned 120s
+// harness budget (Tools/threads/run-tests.sh TEST_TIMEOUT_SECS), so the
+// gate red was rc=124, not an oracle hit. Per rule 1 the WINDOW is
+// untouched: READS_PER_ROUND, the owner 20000-rewrite churn loop, and the
+// 24-add foreign growth are unchanged — only the number of independent
+// per-round trials is reduced. At ROUNDS=100 the measured wall time is
+// ~72s under the same conditions. Do NOT raise the pinned timeout instead
+// (it is the hang-class detector for the rest of the suite); if a loaded
+// host still margins out, drop to ROUNDS = 80 with the window unchanged.
+// Note: no option-level kill-check exists for this sentinel —
+// --forceUnlinkedDFG=1 re-induces bare CheckTraps but suppresses the TTL
+// elision itself, making the oracle vacuous; re-validating detection power
+// requires a deliberate I21(b) revert.
+const ROUNDS = 100;
 const READS_PER_ROUND = 50000;
 
 const ALPHA_BASE = 1000000; // owner-phase o.alpha values

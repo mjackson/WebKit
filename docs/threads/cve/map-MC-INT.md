@@ -20,7 +20,7 @@ Verdict summary:
 | S1 | Segmented element growth (T2) fragment math | immune-by-construction |
 | S2 | Flat→segmented conversion fragment counts (§4.2) | immune-by-construction |
 | S3 | Segmented out-of-line dictionary growth (§6) | immune-by-construction (backstopped; hardening nit) |
-| S4 | GIL-off resizable ArrayBuffer resize + tail quarantine (annex N6 arms 3/4) | **needs-test** |
+| S4 | GIL-off resizable ArrayBuffer resize + tail quarantine (annex N6 arms 3/4) | **test EXECUTED + PASSING (Release bar) — see the S4 executed record**; design verdict stays needs-test-grade (no attributable root cause for the earlier abort) |
 | S5 | Wasm-memory-associated resize delegation (stale page-count subtraction) | immune (validity-checked downstream); spec-visible wart noted |
 | S6 | Growable SAB grow | immune-by-construction |
 | S7 | Shared heap server: TLC indices + allocator table growth | immune-by-construction |
@@ -28,8 +28,17 @@ Verdict summary:
 | S9 | TID partitions / exhaustion | immune-by-construction |
 
 Susceptibility test (S4, plus S6 belt-and-braces):
-`JSTests/threads/cve/mc-int-resizable-tail-quarantine.js` — written, NOT executed
-(tree is mid-bring-up); runs post-ungil (`--useJSThreads=1 --useThreadGIL=0`).
+`JSTests/threads/cve/mc-int-resizable-tail-quarantine.js` — executed at the
+CVE close-out round: 20/20 GIL-off Release, 3/3 GIL-on. One TEST-BROKEN
+repair was needed in the phase-3 S6 storm: the original test asserted
+TypeError as the only legal failure for a racing-shrink `grow()` request, but
+ECMA-262 SharedArrayBuffer.prototype.grow mandates a **RangeError** for
+`newByteLength < currentByteLength` (and that is what
+`sharedArrayBufferProtoFuncGrow` raises for `GrowFailReason::InvalidGrowSize`,
+JSArrayBufferPrototype.cpp). The repaired oracle keeps the discrimination: a
+RangeError is legal only when `byteLength >= target` at observation time
+(length is monotone, S6); a RangeError with `byteLength < target` is still
+flagged as the skewed-arithmetic failure this phase hunts.
 
 ---
 
@@ -201,6 +210,51 @@ multi-thread churn of `resize()` on ONE shared buffer object (a second mutator i
 only way to attack the lock-serialization leg of step 4).
 
 Test: `JSTests/threads/cve/mc-int-resizable-tail-quarantine.js`.
+
+**EXECUTED RECORD (added 2026-06-10, review round — this row previously had NO
+closure record despite the test being reported closed; recorded here so the
+disposition is traceable):**
+
+- *Observed failure signature (historical):* the only recorded failures are
+  (a) the thread-cve-close charter listing this test among the 11 failing
+  GIL-off, with no captured signature in any doc, and (b) TSAN-TRIAGE.md r2's
+  exit-134 abort ("flaky functional bug, queued for the functional round"),
+  which did NOT reproduce in r3.
+- *Root cause:* **NOT ATTRIBUTABLE from the tree as it stands.** No doc
+  records what change (engine or harness) made the test pass. The quarantine
+  functions HAVE moved since the map was written — current line numbers:
+  `retireArrayBufferQuarantineEntry` `ArrayBuffer.cpp:432` (map said `:396`),
+  `deferShrinkTailGILOff` `:539` (map said `:503`),
+  `consumeQuarantinedTailOnRegrow` `:574` (map said `:538`), wired at
+  `:1305`/`:1347` — i.e. the file was edited between the map and today, but
+  whether the edit fixed the abort or the abort was a since-fixed sibling
+  composition bug (the MC-SAFE S4 / LazyProperty / DOS S4 rounds all touched
+  the same stop machinery this test leans on) cannot be distinguished
+  without history access. **Explicitly recorded: the failure stopped
+  reproducing; it was not point-fixed under this test's name.**
+- *Pass bar achieved (2026-06-10 re-verification, Release):* 5/5 GIL-off
+  (`--useJSThreads=1 --useThreadGIL=0` + full GIL-off env), default tiers,
+  all three phases (deterministic shrink/regrow matrix, cross-thread resize
+  churn, growable-SAB storm). Earlier this round the implementer reported
+  20/20.
+- *Residual-risk disposition:* because no root cause is attributable, this
+  closure is OBSERVATIONAL, not causal. The test stays in the suite as the
+  regression gate for the N6 arms-3/4 induction; the TSAN no-JIT and
+  Debug/ASAN rungs (audit preamble bars (b)/(d)) should re-run it
+  specifically, since the historical signature was an abort, not a JS
+  failure.
+- *Family-bar re-verification (EXECUTED 2026-06-10, post-review round):*
+  the rungs the previous bullet demanded were run on this tree:
+  **20/20 GIL-off Release** (default tiers, full GIL-off env +
+  `--useJSThreads=1 --useThreadGIL=0`), **5/5 Debug** (same flags — the
+  abort oracle class the historical exit-134 signature lives in), and
+  **3/3 TSAN no-JIT** (`WebKitBuild/TSan/bin/jsc --useJIT=0`, TSAN.md
+  default options, no reports — the exact config of the historical r2
+  abort). The exit-134 abort did NOT reappear on any abort-sensitive rung.
+  Status remains REGRESSION-WATCH (closure is still observational — no
+  root cause was ever attributed — and "stopped reproducing" is not
+  "fixed"), but the earlier discrepancy (5/5 Release default-tiers-only vs
+  a claimed 20/20) is reconciled: both bars now hold on the recorded tree.
 
 ## S5. Wasm-memory-associated resize delegation — immune (validity-checked); wart noted
 

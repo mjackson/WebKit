@@ -1,772 +1,925 @@
-# EVIDENCE PACK — spawned-thread-butterfly-stress silent value corruption (GIL-off full JIT)
+# EVIDENCE PACK — shared-GC-heap UNDER-MARKING corruption (GIL-off, scalebench ingest)
 
-Date: 2026-06-09. Binary under test: `WebKitBuild/Debug/bin/jsc` built
-2026-06-08 18:27 UTC (includes the working-tree `runtime/VM.cpp` modification,
-mtime 06:55 — binary postdates it). Pinned flags:
+Date: 2026-06-10. Binary under test: `WebKitBuild/Release/bin/jsc`, mtime
+2026-06-10 08:12 UTC. Host: 64-core Linux, quiet (loadavg < 4 at start).
+Pinned GIL-off flags (every run below unless noted):
 `--useJSThreads=1 --useThreadGIL=0 --useVMLite=1 --useSharedAtomStringTable=1
---useSharedGCHeap=1 --useThreadGILOffUnsafe=1 --useDollarVM=1
---randomYieldPeriod=64 --randomYieldSeed=<seed>` (RaceAmplifier maxSleepUs=100
-unless noted). Facts only; no fixes, no hypotheses beyond what data forces.
-
-## 0. Headline result of this run
-
-The silent corruption did NOT reproduce on the current binary in ~2,560
-fresh runs across 13 configurations (details §3) — including an exact
-replication of the seed set, worker layout, and 6-way load shape that
-produced the two known failures on 2026-06-08 evening (same binary).
-The only current-binary corruption evidence remains the two 2026-06-08 logs
-(§1). Everything any hypothesis must explain is therefore: (a) the decoded
-semantics of those two failures (which are sharp), (b) the layout facts
-(§2), and (c) the non-reproduction envelope (§3), which bounds the failure
-rate at my load shapes to < ~1/2560 even though the 06-08 round saw ~2/240.
-The discriminating variable between 06-08 and today is host load shape
-(unknown co-running workloads then), NOT the binary or seeds.
-
-## 1. Corruption semantics (decoded)
-
-Value encoding (test source): `value = tid*1000000 + serial*1000 + p` for
-property `"p"+p`, p in [0,24). Each `p*` property is written EXACTLY ONCE,
-inside `buildOne()`, BEFORE the object is published into the shared registry.
-Nothing ever rewrites them. **"Stale by 9 writes" is impossible** — there is
-only one write per slot, ever. The corruption is a WRONG-SLOT (or
-wrong-offset) read.
-
-Current-binary failures (both 2026-06-08, plain `Tools/threads/load6.sh`,
-default SEED_BASE=1000, Debug jsc of 18:27):
-
-| seed | log | got | decoded | want | decoded | meaning |
-|---|---|---|---|---|---|---|
-| 3012 | `/tmp/load6-logs/FAIL-rc3-w2-r12-s3012.log` (18:56) | 1003008 | tid=1 serial=3 p=8 | 1003017 | tid=1 serial=3 p=17 | read of `p17` returned `p8`'s value |
-| 6014 | `/tmp/load6-logs-2/FAIL-rc3-w5-r14-s6014.log` (19:07) | 2023017 | tid=2 serial=23 p=17 | 2023008 | tid=2 serial=23 p=8 | read of `p8` returned `p17`'s value |
-
-Sharp properties of this pair:
-- SAME-OBJECT cross-property reads (tid and serial match got↔want in both).
-  Not cross-object, not cross-thread values, not type confusion (both
-  well-formed Int32 values of sibling properties).
-- Both involve EXACTLY the pair {p8, p17}, once in each direction — a
-  swap-shaped signature (Δ = 9 property slots both ways), not a
-  one-directional staleness shift.
-- Both faulted in `checkOne` (test line 52, the named-property compare)
-  called from `threadBody` line 86 — the FOREIGN-read loop
-  (`checksum += checkOne(theirs[i])`): the failing reader does NOT own the
-  object. The read form is `o["p" + p]` — get_by_val with a freshly
-  rope-concatenated, atom-resolved string key.
-- The owner of the corrupted object is a spawned thread in both cases
-  (tid 1 and tid 2), read by some other thread.
-- The object's structure WAS being transitioned concurrently by its owner
-  during the failure window (`late*` adds, one per round), but its butterfly
-  is NEVER reallocated during the concurrent phase (capacity proof in §2).
-
-Historical context (PRE-current-binary logs, June 7 – June 8 morning,
-`/tmp/sb.*`, `/tmp/item2/*`, ~38 distinct "named property corrupt" failures):
-the old signature space was much broader — cross-object, cross-tid, and
-serial-field corruption (e.g. `got 1004000 want 4000`, `got 2005007 want
-10019`). Those binaries predate the 2026-06-08 shared-cache /
-VAMP-offset-swap / F3 fixes. On the current binary only the narrow
-{p8,p17} same-object swap signature has ever been observed. (Do not mix the
-two corpora when reasoning about the current bug.)
-
-## 2. Object layout (measured with $vm.dumpCell, flag-off AND pinned GIL-off flags — identical)
-
-`buildOne` object `{tid, serial, p0..p23, indexed}`:
-- inlineCapacity = 4 → inline: `tid`(off 0), `serial`(off 1), `p0`(off 2), `p1`(off 3).
-- Out-of-line: `p2`..`p23` at OOL indices 0..21, `indexed` at OOL index 22.
-- Final butterfly propertyCapacity = 32, preCapacity 0. Adding a `late*`
-  property does NOT move the butterfly (verified: same base/butterfly
-  pointer after the transition). OOL usage peaks ≈25 (< 32) for the whole
-  test, so during the entire concurrent phase a published registry object's
-  butterfly is never reallocated for property growth; only its StructureID
-  changes (owner `late*` transitions) and the butterfly word's high tag bits
-  (GIL-off tagged word observed: `0x4000_7e82fb250a08`).
-- p8 = OOL index 6; p17 = OOL index 15. Δ = 9 slots = 72 bytes. OOL slots
-  grow DOWNWARD from the butterfly pointer, so p8's slot address is 72 bytes
-  ABOVE p17's.
-- PropertyOffsets: p8 = firstOutOfLineOffset+6, p17 = firstOutOfLineOffset+15.
-
-Constraint on any explanation: the two slots live in the same once-written,
-never-moved 32-slot OOL block. A wrong value therefore requires the READER
-side to have used the other property's offset (off by exactly ±9 OOL slots)
-— wrong offset from a (structure, uid)→offset mapping, an IC stub, a
-megamorphic cache entry, a property-table lookup, or a butterfly-derived
-pointer displaced ±72 bytes. Plain memory staleness of the slot itself
-cannot produce these values.
-
-Related same-family hard datum (older binary, 2026-06-08 morning,
-`/tmp/load6-logs2/FAIL-rc134-w5-r11-s12011.log`): Debug assert
-"Detected offset inconsistency: numberOfSlotsForMaxOffset doesn't match
-totalSize!" — `transitionOffset=68 maxOffset=68 m_inlineCapacity=3
-numberOfSlotsForMaxOffset=8 totalSize=9 inlineOverflowAccordingToTotalSize=6
-numberOfOutOfLineSlotsForMaxOffset=5`: a Structure observed with its
-property-table size and maxOffset views disagreeing by one slot. Direct
-evidence (albeit pre-fix binary) that structure/property-table publication
-was observable torn in this tree's lineage.
-
-## 3. Reproduction campaign (current binary, 2026-06-09)
-
-Test files: original test, plus `Tools/threads/bughunt/repro.js`
-(instrumented copy — identical oracle; on mismatch dumps got/want decode,
-re-reads via three access forms, all 24 siblings, indexed lane, ownKeys,
-indexingMode, $vm.dumpCell, and a 5ms-later re-read) and
-`Tools/threads/bughunt/repro-loop.js` (5 outer reps per process, fresh
-registries per rep, hot JIT). Campaign driver:
-`Tools/threads/bughunt/load6x.sh` (load6.sh + EXTRA_FLAGS support).
-Background "corpus load" during most campaigns: 6 looping jsc workers over
-ic-publish-reset-loops, shared-arraystorage-stress, transition-vs-write,
-transition-vs-read, i03-i37-same-shape-add-storm, i03-t5-racing-growers
-(`/tmp/corpusload.sh`).
-
-| config | runs | corruption | other failures |
-|---|---|---|---|
-| 4× load6 concurrently (24 jsc procs), original test, seeds 1000–9019 | 480 | 0 | 0 |
-| Exact replication ×4: plain load6, repro.js, SEED_BASE=1000 (includes the historically failing seeds 3012, 6014), + corpus load | 480 | 0 | 0 |
-| Seed 3012 solo, quiet-ish host | 10 | 0 | 0 |
-| Seed 3012 solo, `taskset -c 0,1` | 10 | 0 | 0 |
-| repro-loop.js (5 reps/proc), seeds 31000+ | ~60×5 reps | 0 | 1× GC mark-stack assert (below); 5× rc124 timeout during stress-ng window |
-| maxSleepUs=1000 (A) | 90 | 0 | 0 |
-| period=64 dup (B) | 90 | 0 | 0 |
-| period=16 + maxSleepUs=500 (B2) | 90 | 0 | 0 |
-| all workers pinned to cores 0–7 (D) | 90 | 0 | 0 |
-| --collectContinuously=1 (E) | 60 | n/a | 60/60 instant `ASSERTION FAILED: m_requests.isEmpty() \|\| (m_worldState.load() & mutatorHasConnBit)` Heap.cpp:1654 — collectContinuously is structurally incompatible with GIL-off; NOT usable as an amplifier |
-| --forceRAMSize=100MB (F) | 60 | 0 | 2× STW-watchdog 30s (stress-ng window) |
-| baseline (G) + --forceRAMSize=60MB (H) under `stress-ng --cpu 24 --vm 8` | ~120 | 0 | 3× STW-watchdog 30s (JSThreadsSafepoint.cpp:476/494, "CodeBlock jettison" requester, one lite `hasHeapAccess=true` non-quiescent) — known ab17b/ab17c family, fires under extreme host starvation; pollutes campaigns, so extreme oversubscription is NOT a usable amplifier either |
-| --useFTLJIT=0 (N1) | 90 | 0 | 0 |
-| --useDFGJIT=0 (N2: LLInt+baseline only) | 90 | 0 | 0 |
-| --forceSegmentedButterflies=1 (N3) | 90 | 0 | 0 |
-| --verifyConcurrentButterfly=1 (N4) | 90 | 0 | 0 — the verifier never tripped |
-| baseline loop, ORIGINAL test, plain load6 + corpus load, rounds 7–9 (seeds 70000/80000/90000 bases) | 360 | 0 | 18× rc124 (120s timeouts in round 8, coinciding with a host load-average spike to ~870 from co-tenant workloads) |
-
-§3.1 TOTALS (current binary, this run): ≈2,560 completed runs across 13
-configurations, ZERO occurrences of the silent value corruption. Tier
-narrowing is therefore UNANSWERED by direct evidence (no config — including
-the pinned full-JIT baseline — fired); what the narrowing campaigns DO
-establish at the ~90-run level is that none of no-FTL, no-DFG,
-forceSegmentedButterflies, verifyConcurrentButterfly makes the bug EASIER to
-hit, and the concurrent-butterfly tag-decode/flatness verifier finds nothing
-wrong on this workload at this sample size.
-
-Determinism answer (item 1 of the brief): failing seeds do NOT fail
-deterministically. Seed 3012: 0/10 solo, 0/10 under taskset-2-cores, 0/~8
-exact-replication re-runs under 6-way load. The failure is a function of
-host-load timing, not of the seed's yield schedule alone. The RaceAmplifier
-seed does not capture enough of the schedule to make this bug replayable.
-
-## 4. Side findings (real, but NOT the chartered bug)
-
-1. **GC mark-stack race (crash, current binary)**:
-   `/tmp/bh-loop/FAIL-rc134-w2-r4-s33004.log` — Debug assert
-   `result == m_segments.head()->m_top++` in
-   `GCSegmentedArray<const JSCell*>::postIncTop()`
-   (GCSegmentedArrayInlines.h:145), i.e. two threads pushing/popping one
-   mark stack concurrently, seed 33004, repro-loop.js under corpus load.
-   First time this signature is on record per /tmp history. Symbolized
-   (llvm-symbolizer) — the full chain is:
-   `JSC::trySegmentedTransition` (ConcurrentButterfly.cpp:1357)
-   → `JSObject::tryPutDirectTransitionConcurrent` (JSObjectInlines.h:938)
-   → `VM::writeBarrier` → `Heap::writeBarrierSlowPath`
-   → `Heap::addToRememberedSet` (Heap.cpp:1481)
-   → `MarkStackArray::append` → `GCSegmentedArray::postIncTop` assert.
-   I.e. during concurrent GC, TWO MUTATORS executing concurrent property-add
-   transitions append to the SHARED mutator mark stack (remembered set)
-   without mutual exclusion. This is exactly the code path the test's
-   `late*`/`fromSlot*` concurrent writes exercise. Recorded as fact; whether
-   it relates to the silent corruption is undetermined (this failure mode is
-   a crash/assert, and remembered-set corruption affects liveness, not
-   property offsets).
-2. **STW watchdog under extreme starvation**: see table (F/G/H). Known
-   family; the participant dump shows a single lite with
-   `hasHeapAccess=true` blocking a CodeBlock-jettison stop for >30s wall
-   under a 4×-oversubscribed host. Distinguish from genuine wedges before
-   acting on these under load campaigns.
-3. `--collectContinuously=1` asserts immediately GIL-off (table row E) —
-   worth a flag-validation guard eventually.
-
-## 5. rr record-replay
-
-NOT AVAILABLE on this host:
-- no `rr` in AL2023 dnf repos;
-- upstream rr-5.9.0 rpm has unresolvable deps here (needs glibc-32bit pieces
-  and `libcapnp.so.0.10.3` — no capnproto package in AL2023);
-- EC2 PMU is only partially exposed: `perf stat -e r5101c4` (retired
-  conditional branches, rr's required counter) warns
-  "bits 16,20,22 of config not supported by kernel" — rr would most likely
-  refuse or be unreliable even if built from source.
-Not pursued further. (Also note: rr serializes to one core; this bug needs
-real parallelism + load, so even chaos mode would be a long shot.)
-
-## 6. Hard facts any hypothesis must explain
-
-1. **Wrong-offset, not stale-data**: each `p*` slot is written exactly once,
-   pre-publication; the butterfly is never reallocated nor the slots
-   rewritten during the race window. Yet a foreign reader got the value of
-   the OTHER property of the SAME object, with the {p8,p17} pair hit in BOTH
-   directions (Δ = ±9 OOL slots / ±72 bytes / PropertyOffset ±9).
-2. **Reader-side, by-val, foreign**: both failures are `o["p"+p]` get_by_val
-   reads in `checkOne` on the foreign-read path (`theirs[i]`), with the key
-   a freshly concatenated rope resolved through the SHARED atom-string
-   table; the same checkOne also reads the owner's objects all test long
-   without tripping.
-3. **Concurrent owner activity is structure transitions only**: during the
-   window the owner adds `late<round>` properties (new Structure, same
-   butterfly) to one own object per round, and all threads write the common
-   `shared` object's `fromSlot*` properties. No butterfly moves.
-4. **It is rare and load-shaped**: 2/240 on 2026-06-08 evening vs 0/~2400
-   on the same binary, same seeds, same harness on 2026-06-09 under every
-   load shape tried (including exact replication, 8-core pinning, 2-core
-   taskset, period/sleep variations, small-heap GC pressure). Whatever
-   window exists, the RaceAmplifier's instrumented sites + seed do not
-   control it; the discriminator is external host-scheduling state.
-5. **The value pair is exact and clean**: got/want are both valid Int32
-   sibling values — no torn JSValue, no boxed/unboxed confusion, no tag
-   garbage. A 5ms-later re-read result is unknown for the historic failures
-   (the instrumented repro will answer HEALED vs STILL-WRONG when it next
-   fires — `Tools/threads/bughunt/repro.js` is in place for the next
-   campaign).
-6. **Lineage**: the pre-fix binaries showed a much broader corruption space
-   (cross-object/cross-tid); after the 06-08 fix round only the same-object
-   {p8,p17} swap shape has been seen. The landed fixes narrowed, not
-   eliminated, the wrong-offset read family.
-
-## 7. Minimal reproducing config (best known)
-
-NOT currently reproducible on demand. Best-known historical config:
-Debug jsc (2026-06-08 18:27 build), plain `Tools/threads/load6.sh`
-(6 workers, SEED_BASE=1000, period=64, maxSleepUs=100) on the original test,
-on a host with substantial UNRELATED concurrent load (exact co-load on
-2026-06-08 evening unknown) — observed ~2/240 there; 0/~2400 since.
-Recommended next instrument: run `Tools/threads/bughunt/repro.js` as the
-standing campaign test (identical oracle, rich state dump at mismatch +
-HEALED/STILL-WRONG probe) so the NEXT natural occurrence pins down
-persistence, sibling state, structureID and butterfly at the moment of
-corruption.
-
-## 8. Artifacts
-
-- `Tools/threads/bughunt/repro.js` — instrumented copy (oracle unchanged;
-  rich dump + HEALED probe at mismatch).
-- `Tools/threads/bughunt/repro-loop.js` — 5-rep hot-JIT variant.
-- `Tools/threads/bughunt/load6x.sh` — load6 with EXTRA_FLAGS support.
-- `Tools/threads/bughunt/logs/` — preserved copies of the key failure logs:
-  the two corruption hits (s3012, s6014), the torn-Structure assert
-  (s12011, older binary), the new GC mark-stack assert (s33004, current
-  binary), the collectContinuously incompatibility, and a representative
-  STW-watchdog overload log (s53002).
-- Campaign log dirs (volatile, /tmp): load6-c1..4, bh-exact-1..4, bh-A/B/B2,
-  bh-D/E/F/G/H, bh-N1..N4, bh-loop, bh-base-7..9, det3012.
-
-## 9. EXPERIMENTER round 1 (2026-06-09): GR1-remset-lost-append-premature-reclaim
-
-Verdict in one line: the MECHANISM is real, on-demand reproducible, and the
-one-line fix is validated — but the mechanism is UNREACHABLE in the failing
-workload (the original test performs ZERO GCs, measured solo and under the
-06-08 loaded shape, including the historic failing seeds), so GR1 is REFUTED
-as the cause of the chartered {p8,p17} silent corruption. The unwired
-`setMultiProducerAccess()` remains a confirmed must-fix defect regardless.
-
-### 9.1 Instrumentation (all reverted; forward patches kept)
-
-Scratch build on top of the current tree (Debug):
-- `Heap::addToRememberedSet` (Heap.cpp:1480, the ONLY physical append site to
-  `m_mutatorMarkStack`): concurrent-entry detector (atomic in-append counter),
-  per-append size-delta check, relaxed shadow append counter.
-- Drain-side shadow check `appends - drained == size()` at
-  `MarkStackMergingConstraint::executeImplImpl` (world stopped) and the
-  full-GC `clear()`; per-process SUMMARY (appends/overlaps/anomalies/shadow
-  mismatches/gcVersion/allocThisCycle/maxEdenSize) at Heap teardown
-  (`--destroy-vm`).
-- ConcatKey vehicle check (request 2B): on every flag-on
-  `ConcatKeyAtomStringCache::getOrInsert` cache HIT, re-derive the expected
-  concatenation from the three fibers and RELEASE_ASSERT on mismatch.
-Patches: `gr1/heap-detector-plus-fix.patch`, `gr1/msmc-detector.patch`,
-`gr1/concatkey-detector.patch`. Tree restored to pristine and rebuilt after
-the experiments (final smoke: s3012 PASS).
-
-### 9.2 Mechanism arm: lost/corrupted appends reproduce ON DEMAND
-
-New amplifier `gr1/barrier-storm.js` (owner-only stores of young cells into
-2048 old objects per thread x 5 threads, eden pressure, run with
-`--forceRAMSize=8388608` + pinned GIL-off flags): maximizes concurrent
-`addToRememberedSet` traffic. NOTE: a first variant doing FOREIGN writes to
-shared old objects wedged the STW watchdog (Class-A WatchpointSet fire,
-JSThreadsSafepoint.cpp:494) at any heap size — known overload family,
-avoided by owner-only writes.
-
-Unpatched binary, 50 runs (seeds 4001-4050, ~3 s each):
-- 50/50 CRASH on `ASSERTION FAILED: result == m_segments.head()->m_top++`
-  (GCSegmentedArrayInlines.h:145, postIncTop) — the EXACT s33004 signature,
-  now deterministic instead of 1-in-hundreds.
-- 49/50 runs logged OVERLAP (two threads inside the remset append at once).
-- 42/50 runs logged per-append size anomalies BEFORE crashing: delta=2 (784x,
-  interleave), delta=510/511/1019/1020 (66x — exactly +-1/+-2 segments;
-  s_segmentCapacity is ~510 for 4 KB blocks => racing `expand()` segment-list
-  pushes), and ONE delta=0 (a thread observed its OWN append not reflected:
-  a lost m_top increment in vivo).
-- 2/50 runs survived to a merge drain and tripped SHADOW-MISMATCH:
-  `appends=10245 drained=0 actual-size=11248` and `appends=10246
-  actual-size=10744` — the stack's bookkept size diverges from the number of
-  real appends by ~+-2 segments (both inflation = drains would read
-  stale/garbage slot contents as remembered cells, and the loss direction
-  GR1 needs). In a Release build all of this is SILENT.
-Logs: `gr1/logs/storm-unpatched-*`.
-
-### 9.3 Fix arm: wiring the dormant lock kills the whole failure class
-
-One-line candidate fix (as predicted by the hypothesis): in Heap's
-constructor, `if (Options::useJSThreads()) m_mutatorMarkStack->
-setMultiProducerAccess();` (MarkStack.h:53 lock plumbing was fully written
-and had ZERO callers — confirmed dead code before this).
-
-Patched binary, same 50 storm seeds: 50/50 PASS, 0 asserts, 0 shadow
-mismatches across 1,912,411 appends with ~100k contended entries (overlaps
-still logged in 50/50 runs — contention is constant; the lock makes it safe).
-Residual size-delta anomalies (delta 2..140, two -507) are artifacts of the
-DETECTOR's own unlocked before/after `size()` reads (size() is a non-atomic
-two-field read: m_top + 510*(nSegments-1)); the authoritative invariant
-appends==drained held EXACTLY in every run. Butterfly stress + repro-loop
-also pass on the fix arm.
-
-### 9.4 Linkage arm: the failing workload NEVER GCs — GR1 cannot have done it
-
-GR1's corruption story REQUIRES an eden collection inside the
-silenced-barrier window (premature reclaim + slot recycling). Measured on
-the instrumented binary, original `spawned-thread-butterfly-stress.js`,
-pinned flags:
-- Solo, seeds 1000/2001/3012(!!)/6014(!!)/9999/12345: gcVersion=0,
-  appends=0 every time.
-- Under the 06-08 shape (gr1 variant of load6, 6 workers, SEED_BASE=1000,
-  stress-ng --cpu 96 co-tenant on the 64-core host): 34 valid runs, ALL
-  gcVersion=0, appends=0, zero detector events of any kind.
-- Why it never GCs: total allocation is 11.27-11.31 MB per run (measured
-  spread across seeds AND under load: +-0.2%) against maxEdenSize=33.55 MB —
-  the run ends at ~34% of the first-GC threshold. Allocation is
-  workload-determined; host load cannot triple it. No GC => no remembered
-  set, no eden sweep, no reclaim => no GR1 corruption path. (GC activity
-  timers were never observed to fire in this shell config either.)
-- The ConcatKey vehicle check (9.1) stayed silent in every storm/campaign
-  run; it remains armed in the patch file for any future natural hit.
-
-By contrast repro-loop.js (5 reps) does GC (gcVersion=1+, ~180 appends/run):
-this is exactly why s33004 (the postIncTop assert) was caught on repro-loop
-under corpus load — the side-finding-1 crash family belongs to the
-barrier-during-GC population, which the ORIGINAL test is not a member of.
-
-### 9.5 Disposition
-
-- GR1 as THE chartered bug: REFUTED (necessary precondition — a GC during
-  the run — does not occur in this workload; measured including the two
-  historic failing seeds).
-- GR1 as a defect: CONFIRMED with an on-demand reproducer
-  (`gr1/barrier-storm.js` + `--forceRAMSize=8388608`, 50/50) and a validated
-  one-line fix (wire `setMultiProducerAccess()` on `m_mutatorMarkStack` —
-  and audit the other shared `MarkStackArray`s) that must land regardless of
-  the chartered bug's verdict. Hand the fix through the normal
-  propose -> 2-reviewer -> implement flow.
-- Side artifact (pre-existing, not the bug): `--destroy-vm` GIL-off teardown
-  intermittently asserts `currentThreadIsHoldingAPILock()` (VM.cpp:1044)
-  AFTER PASS — 2/18 in one loaded slice
-  (`gr1/logs/destroyvm-teardown-assert-artifact.log`). Only affects the
-  instrumented SUMMARY harness; excluded from stats.
-
-## 10. EXPERIMENTER round 2 (2026-06-09): TP2 / GR2-r2 / SK2 — ROOT CAUSE FOUND
-
-One-line verdict: **TP2-keyatomcache-return-reload-swap is CONFIRMED as the
-chartered bug**, with an on-demand reproducer, an in-vivo smoking-gun
-detector trip causally paired with the exact historical corruption signature,
-and a validated fix-shape (snapshot return). GR2-r2 (storage exonerated) and
-SK2 (test sound / outcome illegal) are both CONFIRMED by the same data.
-
-### 10.1 Instrumentation (all reverted; diffs kept)
-
-Single scratch edit to `Source/JavaScriptCore/runtime/KeyAtomStringCacheInlines.h`
-(`Tools/threads/bughunt/tp2/armA-instrumentation.patch`, `armB-instrumentation.patch`):
-- one-shot log of the 512-bucket index of "p8"/"p17" (collision check);
-- after the hash+equal verification SUCCEEDS, a GIL-off-gated spin (ARM A:
-  2000 volatile iters on every hit; ARM A': 30000 iters gated to 2-3-char
-  'p'-keys) to widen the verify->return window;
-- explicit re-load of the slot after the spin, with a `KEYATOM-RACE` dataLog
-  whenever the reload differs from the verified pointer;
-- ARM A/A' return the RELOAD (faithful to the stock `return slot;` — the
-  Debug build is -O0, CMAKE_CXX_FLAGS_DEBUG="-g", so every mention of `slot`
-  is a distinct memory load: TP2 confirmIf(1) holds statically);
-- ARM B returns the VERIFIED snapshot (the deferred V7 Race C fix shape),
-  spin and detector unchanged.
-Tree restored to pristine afterward and rebuilt; final smoke s3012 PASS.
-
-### 10.2 Collision arithmetic verified in vivo
-
-First run, both keys logged once:
-`KEYATOM-IDX p8 hash=15955301 idx=357` / `KEYATOM-IDX p17 hash=14316901 idx=357`
-(0xF37565 / 0xDA7565 — identical low 16 bits, both -> slot 357 of 512),
-exactly as TP2 computed offline. No other p-pair ever appeared in any race
-line across all arms.
-
-### 10.3 ARM A / A' — corruption reproduced ON DEMAND with the smoking gun
-
-All runs SOLO (no external load), pinned GIL-off flags, original test:
-| arm | window | runs | corruptions | detector trips |
-|---|---|---|---|---|
-| A (2000-iter spin, all hits) | ~12 | 1 | 2 (1 harmful, 1 benign same-content) |
-| A' (30000-iter spin, p-keys) | 10 | 1 | 2 (both harmful) |
-
-The two corruption runs (preserved: `logs/TP2-armA-CORRUPT-s12000.log`,
-`/tmp/tp2-armA2/CORRUPT-r1-s21001.log`):
-- s12000: `KEYATOM-RACE idx=357 requested=p17 verified=p17 reloaded=p8`
-  + `named property corrupt: got 2000008 want 2000017` in the SAME run,
-  thrown from checkOne via the foreign-read frame (test line 86) — the
-  byte-identical historical signature (same-object {p8,p17}, foreign reader).
-- s21001: two trips `requested=p17 verified=p17 reloaded=p8`,
-  corruption `got 23008 want 23017` (tid=0 serial=23).
-Natural rate was ~1/120 under 6-way load and 0/2560 solo; the widened window
-fires ~1/10 SOLO — orders-of-magnitude amplification as predicted.
-
-### 10.4 GR2 arm — storage intact at the instant of corruption
-
-`repro.js` loop under the ARM A' binary: hit at s40011
-(preserved: `logs/TP2-GR2-repro-MISMATCH-s40011.log`):
-- `KEYATOM-RACE idx=357 requested=p17 verified=p17 reloaded=p8` immediately
-  followed by `MISMATCH prop=p17 got=3030008 want=3030017`;
-- same-form re-read, Reflect.get, and GOPD all return 3030017 (correct);
-- ALL 24 sibling named props correct; indexed lane correct; ownKeys correct;
-- $vm.dumpCell: butterfly base/propertyCapacity 32 intact, slot contents
-  correct (p17's slot holds 3030017);
-- after-5ms re-read: HEALED.
-This is GR2-r2's exact confirm condition: the wrong VALUE was manufactured in
-the KEY-PRODUCTION lane (wrong atom returned for the right characters), not
-in butterfly storage, growth, relocation, or offset resolution. The §6
-"wrong-offset" framing in this pack is hereby corrected: the offset WAS
-right — for the WRONG uid.
-
-### 10.5 ARM B — snapshot return kills it with the window still hot
-
-Same widened window + detector, `return verified;` instead of the reload:
-36 runs (3x12, including every seed that corrupted under A/A': 12000, 21001,
-40000-base repro.js) — **0 corruptions, 0 other failures**, while the
-detector tripped TWICE with the harmful shape
-`idx=357 requested=p8 verified=p8 reloaded=p17` (the MIRROR direction,
-matching historic s6014). I.e. the race window was entered and would have
-swapped under the stock return; the snapshot return neutralized it. Both
-historic directions (p17->p8 and p8->p17) have now been observed in vivo.
-
-### 10.6 SK2 — test soundness chain (static)
-
-- GIL-off Atomics on plain objects dispatch via `vm.gilOff()`
-  (ThreadAtomics.cpp:594/613/653/691) to the concurrent probe +
-  `JSObject::atomicSlotReadModifyWrite` (ConcurrentButterfly.cpp:2907),
-  whose slot accesses are seq_cst loads/CAS (atomicSlotLockFreeLoop,
-  ConcurrentButterfly.cpp:2855/2897; lockedUndefinedArm seq_cst). The
-  `ready.count` rendezvous therefore establishes happens-before from every
-  thread's buildOne writes to every post-barrier foreign read.
-- Each p-slot is written exactly once pre-publication; butterfly never moves
-  (§2); decode is forced (base ≡ 0 mod 1000).
-- And now demonstrated dynamically: the "got p8's value for p17" outcome is
-  produced by an engine defect (cross-lite cache race returning the wrong
-  atom), not by any legal racy-but-correct execution. The test is sound; the
-  outcome is illegal; a fix is required (no test-side waiver).
-
-### 10.7 Mechanism summary + fix gate
-
-`KeyAtomStringCache::make` (KeyAtomStringCacheInlines.h:49-59): `slot` is a
-reference into the shared per-VM 512-entry array; the value is verified by
-hash+equal, then `return slot;` RE-LOADS the cell, which a colliding-key miss
-on another lite can overwrite between the two — returning a fully valid atom
-string for the OTHER key. Downstream lookup is then a perfectly correct read
-of the wrong property. Explains every §6 hard fact: same-object sibling pair
-{p8,p17} both directions (unique 512-bucket collision among the test's keys),
-tier-independence (C++ slow path shared by all tiers), no-crash/no-ASAN
-(all values live and well-formed), GIL-on immunity and load-shaping (needs a
-preemption inside a ~few-instruction C++ window with no RaceAmplifier site),
-survival of the ConcatKey/NumericStrings/MegamorphicCache fixes (different
-cache), and storage-verifier silence (object model innocent).
-
-FIX TO PROPOSE (normal propose -> 2-reviewer -> implement flow; NOT landed
-here): the KeyAtomStringCache.h:35-52 deferred "UNGIL V7 Race C" change —
-`std::array<Atomic<JSString*>, capacity>`, make() loads the slot ONCE
-(consume/acquire), null-checks BOTH the cached pointer and
-`tryGetValueImpl()` (the stock code derefs a possibly-null impl — a rope
-JSString stored by a racing lite would crash), verifies the LOCAL, returns
-the LOCAL, publishes with release store; clear() relaxed-stores nullptr.
-CRITICAL REVIEW POINT (this round's evidence): the fix MUST return the
-verified snapshot — an atomic-slot conversion that still `return slot;`
-re-loads would keep the bug while silencing TSAN.
-
-### 10.8 Artifacts
-
-- `tp2/armA-instrumentation.patch`, `tp2/armB-instrumentation.patch`,
-  `tp2/KeyAtomStringCacheInlines.h.orig`, `tp2/run-arm.sh`, `tp2/NOTES.md`,
-  `tp2/armB-note.md`
-- `logs/TP2-armA-CORRUPT-s12000.log` (trip + corruption, same run)
-- `logs/TP2-GR2-repro-MISMATCH-s40011.log` (trip + full intact-storage dump)
-- volatile: /tmp/tp2-armA*, /tmp/tp2-armA2, /tmp/tp2-gr2, /tmp/tp2-armB1..3
-
-## 11. EXPERIMENTER round 3 (2026-06-09): differential gate — fix-completeness CONFIRMED, transition lane CLOSED, prior "failed verification" explained
-
-Hypotheses under test: `TP-r3-keyatom-snapshot-fix-is-complete-transition-lane-exonerated`,
-`TP-r3-no-transition-protocol-carrier-exists`, `GR3-A-fix-landed-verification-gate-artifact`.
-
-### 11.1 Instrumentation (scratch; diff preserved at `r3/r3-instrumentation.patch`, REVERTED after)
-
-On TOP of the landed snapshot-return fix (`KeyAtomStringCache.h` Atomic slots,
-`KeyAtomStringCacheInlines.h` verified-snapshot return):
-- one-shot provenance canary `KEYATOM-SNAPSHOT-FIX-ACTIVE regressArm=<bool>`
-  on first GIL-off `make()` hit — every counted log self-certifies its binary;
-- ARM-B'-style widened window: after hash+equal verification succeeds, a
-  30000-iter spin gated to 2-3-char 'p' keys, then a RE-LOAD of the slot,
-  logging `KEYATOM-RACE idx=... requested=... verified=... reloaded=...` when
-  the reload differs from the verified snapshot;
-- env `KEYATOM_REGRESS=1` arm: on a detected divergence, RETURN THE RELOAD —
-  i.e. byte-faithful restoration of the pre-fix `return slot;` semantics in
-  exactly (and only) the harmful case. Default arm returns the verified
-  snapshot (shipped semantics);
-- `Structure::getConcurrently` canary (Structure.cpp ~:2088): under the same
-  held table lock, RE-probe `table->get(uid)` and
-  `RELEASE_ASSERT(offset2 == offset && attributes2 == entryAttributes)` —
-  any torn/mid-rehash/unstable offset answer in the transition/table lane
-  would abort the run with rc 134.
-
-Builds: Debug, instrumented binary 07:01 UTC (canary present, `strings`-verified);
-clean post-revert binary 07:26 UTC (canary string absent, `strings`-verified).
-NOTE on lab hygiene: a sibling session ran part of the campaign on the same
-instrumented tree (its results below, log-attributed by the per-run canary)
-and reverted the instrumentation + rebuilt at 07:24-07:26 mid-flight; runs
-that hit the relink window failed rc=126 ("Permission denied", binary being
-rewritten) and are EXCLUDED; every counted run carries (or provably lacks)
-the in-log canary, so binary provenance is unambiguous per run.
-
-### 11.2 ARM-FIXED — shipped semantics, window held hot: 0/30, with the window provably ENTERED 9 times
-
-All solo, pinned GIL-off flags, `--randomYieldPeriod=64`, butterfly-stress:
-
-| batch | seeds | runs | corruptions | harmful KEYATOM-RACE trips |
-|---|---|---|---|---|
-| /tmp/r3-fixed-12000 | 12000-12011 | 12 | 0 | 7 (4x p17->p8 + 3x p8->p17, runs s12001/s12004/s12006/s12009) |
-| /tmp/r3-fixed-21000 | 21000-21011 | 12 | 0 | 1 (p17->p8, s21005) |
-| /tmp/r3-fixed-a | 12000-12003 | 4 | 0 | 1 (p17->p8, s12000) |
-| /tmp/r3-fixed-b r0, -c r0 | 21000, 3000 | 2 | 0 | 0 |
-| **total** | | **30** | **0** | **9 (both historic directions)** |
-
-Plus repro.js (rich-dump oracle): 4 instrumented runs s40000-40003, 0 MISMATCH
-(+8 clean-binary runs s40004-40011, 0 MISMATCH).
-The detector trips prove the verify->return race window is still physically
-entered on the shipped code — and the snapshot return makes it harmless.
-
-### 11.3 ARM-REGRESS — pre-fix reload-return restored: corruption ON DEMAND, causally paired
-
-`KEYATOM_REGRESS=1`, same binary, same seeds, same flags (5 instrumented runs):
-
-| seed | result |
+--useSharedGCHeap=1 --useThreadGILOffUnsafe=1`.
+Facts only; no fixes; no hypotheses beyond what the data forces.
+
+Prior bughunt artifacts (the 2026-06-09 butterfly-stress wrong-value pack —
+the source of the 1003008/1003017 decode, which belongs to THAT bug, not this
+one) are archived untouched in `prev-butterfly-stress-20260609/`.
+
+Artifacts in this directory:
+- `campaign.sh` — failure-rate harness (`JSC=... ./campaign.sh <runs> <script> [flags]`)
+- `repro.js` — instrumented copy of the original test (rich dumps at mismatch, §3)
+- `min2.js` — minimized repro (§2.3)
+- `min.js` — synthetic candidate that does NOT reproduce (negative control, §2.4)
+- `rr-traces/rr-ingest-corrupt-tglx` — packed rr recording of a corrupt run (§5)
+
+## 1. Reproduction and failure rates
+
+Test: `Tools/threads/scalebench/js/repro-bigint-shared-ingest.js`
+(header narrowing by the bench-run agent confirmed where retested).
+Pass = `OK postings=296555` (deterministic). Fail = `CORRUPT bad=N`
+(`BAD LIST` = parallel-array length divergence, `BAD ELEM` = wrong
+value/type) or crash.
+
+| config | result |
 |---|---|
-| 12000 | `KEYATOM-RACE idx=357 requested=p17 verified=p17 reloaded=p8` + `named property corrupt: got 4018008 want 4018017` — SAME RUN (preserved: `logs/R3-ARMREGRESS-CORRUPT-s12000.log`) |
-| 12001 | trip (p17->p8) + `named property corrupt: got 3014008 want 3014017` — SAME RUN (preserved: `logs/R3-ARMREGRESS-CORRUPT-s12001.log`) |
-| 12002 | no trip, PASS |
-| 12003 | 1 trip, PASS (divergence consumed off the checked-read path) |
-| 21000 | no trip, PASS |
+| W=4 (as written), pinned flags | **CORRUPT 13/13** (bad=2..12; aggregated over §1+§4 baselines) |
+| W=3 | CORRUPT 4/4 |
+| W=2 (1 spawned + main) | **CORRUPT 4/8 (50%)** — TWO mutators suffice |
+| W=4, N_BASE=500 | OK 4/4 (too few collections; churn-scaled, see §2) |
+| GIL-on control (`--useJSThreads=1` only) | OK 3/3 |
+| `--useSharedGCHeap=0` (other 5 flags kept) | OK 3/3 |
+| `--useGC=0` | OK (prior narrowing, header; not retested) |
 
-2/5 corrupt under reload-return vs 0/30 under snapshot-return on the SAME
-binary, seeds, and load shape (Fisher exact p ~= 0.017; against the combined
-30 + round-2 ARM-B 36 = 66 zero-corruption snapshot-return runs, far
-stronger). The ONLY code difference between the arms is which pointer
-`make()` returns after verification. This is the complete differential the
-round-2 pack called for: the in-tree fix closes the chartered bug with the
-window held hot, independent of host load.
+Crash modes seen during campaigns (same bug, harder landing):
+- `std::array<unsigned long, 16>::operator[]` libstdc++ hardening assert →
+  SIGABRT (under `--sweepSynchronously=1`).
+- SIGSEGV during the single-threaded END-OF-RUN verification walk
+  (instrumented run 2, §3; also `--useJIT=0` run 5 and variant-C runs).
 
-### 11.4 Transition/offset lane: canary armed in all 39 instrumented runs, SILENT — including inside both corruption runs
+## 2. Minimization
 
-The getConcurrently double-probe RELEASE_ASSERT never fired in any run
-(no rc 134, no assertion text in any log) — including the two ARM-REGRESS
-corruption runs, where the wrong value was being manufactured AT THAT MOMENT
-in the key lane. Combined with §10.4 (storage/offset intact at the instant of
-corruption) this closes the transition-publication lane: there is no
-structure/butterfly mispairing mechanism on this workload (add-only `late*`
-transitions keep p8/p17 offsets invariant across the whole chain), and the
-locked uid-pointer-compared table probe returns stable answers under
-concurrent transition load. `TP-r3-no-transition-protocol-carrier-exists`
-is CONFIRMED; the lane is retired.
+### 2.1 What is NOT required (deletion variants of the original)
+| variant | change | result |
+|---|---|---|
+| B `repro-B-nostrings.js` | no genDocText/join/regex-split/toLowerCase — tokens produced directly as terms | CORRUPT 4/4 → **string churn not required** |
+| C `repro-C-nolocalmap.js` | no per-doc `tf` Map — every token pushed directly under the Lock | CORRUPT 1 + CRASH 3 of 4 → **local Map not required** (and more lock traffic crashes harder) |
+| A `repro-A-numberprng.js` | Number PRNG; BigInt only in per-doc seed mix | **CORRUPT 1/4** → **BigInt not required — it is a rate amplifier.** (The header's "Number PRNG OK 3/3" was a sampling artifact.) |
 
-### 11.5 GR3-A — the prior "implemented-but-verification-failed" status was a gate artifact
+### 2.2 Thread/iteration floor
+- 2 mutators (main + 1 Thread) corrupt at ~50% per run (§1).
+- N_BASE=500 is clean at W=4 → a minimum number of shared-heap collections
+  during the churn is needed; rate scales with total allocation, not docs/thread.
 
-Direct inspection of the failed verification round's own logs:
-- `/tmp/load6-fix.log`: 240/240 PASS on the fixed binary;
-- `/tmp/corpus-giloff.log` / `-giloff2` / `-gilon`: contain ZERO
-  `named property corrupt` lines. The 4 corpus-giloff fails are
-  `heap-client-churn` (ASSERT deferralContext...), `heap-iss-revert`
-  (ASSERT ++spins < 1<<24), `heap-epoch-reclaim` (rc 3) and
-  `objectmodel/i03-single-threaded-no-change` (rc 3, premise-self-check) —
-  all under ambient `JSC_*` env pollution that the harness itself flags
-  (`/tmp/races-1.log` WARNING block). None is the chartered signature.
-The verification rung failed for unrelated reasons and was misattributed;
-no second carrier was ever in evidence. With the provenance canary now part
-of the documented method (any future campaign on an instrumented binary
-self-certifies), the stale-binary ambiguity class is closed going forward.
+### 2.3 Minimized repro: `min2.js`
+No strings, no regex, no fnv, no per-doc Map; integer term keys; kept: BigInt
+splitmix64 churn (knob `CHURNX`, default 8 extra PRNG steps/token), shared
+`Map` of `{docIds:[], tfs:[]}` appended under `Lock`, Atomics work counter.
+Verifier checks `tfs[i] === docIds[i]+1`.
+- T4 (default CHURNX=8): **CORRUPT 4/5**; with CHURNX=0: CORRUPT 1/5.
+- T2: OK 5/5 (min2's churn is below the original's; use the original for W=2).
 
-### 11.6 Post-revert clean-tree smoke
+### 2.4 Negative control: `min.js`
+A from-scratch synthetic (tight BigInt churn + shared pushes every 16 iters,
+16 shards) does NOT reproduce (8/8 OK). The original's per-token Lock.hold
+cadence + posting-object/array birth rate matters; low-rate shared appends
+against long-lived arrays do not trigger it.
 
-Tree restored to landed-fix-only state (KeyAtomStringCacheInlines.h reverted
-07:24, Structure.cpp canary reverted 07:25, jsc relinked 07:26; binary
-contains no KEYATOM strings). Historic failing seeds s3012, s6014, s12000:
-all PASS. Natural-rate clean-binary runs this round (regress-b r4-r11 with
-the env arm a no-op, repro r4-r11, smokes): 0 corruptions.
+## 3. Corruption semantics (instrumented `repro.js`, `--useDollarVM=1`)
 
-### 11.7 Verdict
+Value encoding in the test: `docIds[i]` ∈ [0,2000) (doc number), `tfs[i]` ∈
+[1,~20] (term count). Both arrays are appended back-to-back under ONE
+`Lock.hold`. Posting objects `{docIds, tfs}` are born on whichever thread
+first sees the term and immediately published into the shard Map under the
+Lock. 3 instrumented runs: bad=9, SEGV-during-verify, bad=10.
 
-- `TP-r3-keyatom-snapshot-fix-is-complete-transition-lane-exonerated`: CONFIRMED.
-- `TP-r3-no-transition-protocol-carrier-exists`: CONFIRMED (lane retired).
-- `GR3-A-fix-landed-verification-gate-artifact`: CONFIRMED (misattribution
-  branch demonstrated from the gate's own logs; fix efficacy proven by the
-  §11.2/§11.3 differential, which does not depend on natural reproduction).
-No refuteIf condition of any hypothesis was observed: no corruption ever
-occurred on snapshot-return semantics; both corruptions occurred under
-restored reload semantics with a causally-paired detector trip; no
-non-colliding-bucket pair ever appeared; the offset-lane assert never fired.
-The chartered bug is the TP2 KeyAtomStringCache race, the landed fix is
-complete on the evidence, and the hunt for additional carriers of THIS
-signature can stand down (standing soak: keep repro.js in the load6 rotation;
-any future hit dumps HEALED/STILL-WRONG state and would reopen).
+Observed shapes (full dumps in `inst-run{1,2,3}.log (copied here)`):
 
-### 11.8 Artifacts
+1. **Length divergence both directions** between two arrays appended under one
+   lock: `docIds.len=4 tfs.len=9`, `=2/6`, `=16/10`, `=12/11` … and absurd
+   lengths with `undefined` holes past a sane prefix: `docIds.len=675` (7 real
+   elements then undefined), `len=1000`, `len=1727`. The public length word is
+   garbage relative to real contents.
+2. **Foreign JSValues inside `ArrayWithInt32` butterflies** — read back via
+   generic get_by_val without crashing:
+   - `docIds = [string:tcako, 1]`, `[string:tcysr, 1]`, `[string:tvlo, 1,
+     1491, 1801]`, `[string:tcrth, object:[object Object]]` — a **(term
+     string, count) pair image**, i.e. exactly the byte pattern of another
+     thread's freshly built term→count storage (the per-doc `tf` Map / shard
+     Map machinery), sitting inside this array's storage.
+   - tf counts (`1`) interleaved into docIds: `[1, 1299, 1]`.
+   - doc-id-magnitude numbers inside `tfs`: `tfs[5]=1681` (docIds[5]=1590),
+     `tfs[5]=1299` — a neighbor structure's doc id in the counts array.
+3. **Cell headers are never corrupted.** In every dump the posting object's
+   Structure is the correct `{docIds:0, tfs:1}` and both arrays still have the
+   correct Array structure (`StructureID 16788736, ArrayWithInt32`). Only
+   butterfly CONTENTS + length are wrong. (One SEGV'd dump printed a posting
+   object with `butterfly (nil)` mid-verification before the crash.)
+4. **End-of-run butterfly aliasing scan: 0 aliases** across 116,706 live
+   posting arrays (tagged-butterfly base compare via `$vm.value`). The
+   aliasing window is transient; by program end the foreign owner is gone or
+   moved. (Map backing stores are not butterflies and are invisible to this
+   scan — and the foreign data observed IS Map-shaped.)
+5. Victims are overwhelmingly SMALL, recently grown lists (len 2–16): young
+   butterflies, repeatedly reallocated by `push` growth.
 
-- `r3/r3-instrumentation.patch`, `r3/run-r3.sh`
-- `logs/R3-ARMREGRESS-CORRUPT-s12000.log`, `logs/R3-ARMREGRESS-CORRUPT-s12001.log`,
-  `logs/R3-ARMFIXED-TRIP-NOCORRUPT-s12000.log`
-- volatile: /tmp/r3-fixed-{12000,21000,a,b,c}, /tmp/r3-fixed-repro,
-  /tmp/r3-regress-{a,b}, /tmp/r3-clean-smoke-*.log, /tmp/r3-campaign.log
+## 4. Machine-state narrowing (flag matrix, original repro, W=4)
 
-## 12. EXPERIMENTER round 4 (2026-06-09): closure verification — soak, full-corpus collision table, on-demand differential re-certification
+| flags added | result | what it carves away |
+|---|---|---|
+| `--useJIT=0` | CORRUPT 4/5 + SEGV 1/5 | **Tier-independent — pure LLInt corrupts.** Not a JIT-tier read/barrier-omission bug. |
+| `--useFTLJIT=0` | CORRUPT 3/3 | (subsumed by useJIT=0) |
+| `--useDFGJIT=0` | CORRUPT 3/3 | (subsumed) |
+| `--forceSegmentedButterflies=1` | CORRUPT 3/3 | Not specific to flat-butterfly publication; segmented path equally affected |
+| `--verifyConcurrentButterfly=1` | CORRUPT 3/3, **verifier never trips** | Tag/flatness invariants (I2/I3) hold throughout; the corruption is in storage contents, not the concurrent-butterfly word |
+| `--verifyGC=1` | CORRUPT 3/3, **no assert** | The GC verifier does not see the under-marking |
+| `--sweepSynchronously=1` | CORRUPT 4/5 + SIGABRT 1/5 (libstdc++ `std::array<,16>` index assert) | Live cells ARE being swept: forcing immediate sweep converts silent aliasing into immediate crashes (confirms prior narrowing) |
+| `--collectContinuously=1` | CORRUPT 3/3 | More collections ≠ different outcome |
+| Prior narrowing (header, accepted): `--numberOfGCMarkers=1`, `--useGenerationalGC=0`, `--useConcurrentGC=0` all still corrupt; Debug and TSan builds mask. | | Not marking parallelism; not remembered sets; not concurrent-marking races; STW-protocol/root-coverage territory |
 
-Survivors this round all assert the same negative: the KeyAtomStringCache
-verify-then-reload race (TP2) is the SOLE carrier, the landed snapshot-return
-fix is complete, and the transition/grow/JIT lanes carry nothing
-(`TP-r4-lane-closed-no-residual-transition-carrier`,
-`GR4-grow-relocate-lane-closed-no-residual-carrier`,
-`jit-r4-angle-closed-keyatom-is-sole-carrier`,
-`jit-r4-residual-baked-wrong-uid-ic-audited-out`). Round 4 ran the three
-cheapest observations that could still separate them from a hidden second
-carrier: (a) binary provenance certification, (b) the full-corpus 512-bucket
-collision table (the one prediction nobody had actually computed for ALL keys),
-(c) the standing soak under a recreated 06-08-shape co-tenant load, plus an
-on-demand re-run of the §11.3 causal differential on a fresh rebuild.
+Instrumentation gap (minor but real): `--logGC=1` prints NOTHING under the
+pinned GIL-off flags (works GIL-on). The shared-heap collection path bypasses
+(or never sees) the logGC dataLog — collections cannot currently be counted
+from the log.
 
-### 12.1 Provenance (clean binary)
+## 5. rr record-replay: WORKING, corrupt run captured
 
-`WebKitBuild/Debug/bin/jsc` mtime 2026-06-09 07:26 postdates the §11.6 source
-reverts (KeyAtomStringCacheInlines.h 07:24, Structure.cpp 07:25); `strings`
-shows 0 occurrences of any KEYATOM instrumentation marker; source contains the
-snapshot-return fix (single acquire load, verified snapshot returned,
-KeyAtomStringCacheInlines.h:53-70) and `WTF::Atomic<JSString*>` slots
-(KeyAtomStringCache.h:56, capacity 512). This clean binary was copied to
-/tmp/jsc-clean-r4 and used unmodified for the entire soak.
-Note: the r3 revert left the four instrumentation #includes (Options.h,
-<atomic>, <stdlib.h>, DataLog.h) in KeyAtomStringCacheInlines.h — harmless,
-but it makes `patch r3-instrumentation.patch` report hunk 1 as
-already-applied; round 4 hand-applied the logic hunks instead (identical
-code, see r4/ notes).
+`/usr/bin/rr` (5.9.0) was broken (missing `libcapnp.so.0.10.3`). Fixed by
+building cap'n proto 0.10.3 from source into `/usr/local/lib` plus soname
+symlinks (`libcapnp.so.0.10.3 -> libcapnp-0.10.3.so`, same for libkj).
+**rr requires `LD_LIBRARY_PATH=/usr/local/lib`** (its RUNPATH does not cover
+/usr/local/lib and ldconfig does not index the symlink names).
+`perf_event_paranoid=1` — recording works unprivileged.
 
-### 12.2 Full-corpus collision table (offline, engine-faithful)
+- `rr record --chaos` of the original repro at W=4 captured `CORRUPT bad=1`
+  (BAD LIST tglx) on the FIRST attempt, 7.7s wall.
+- `rr replay -a` reproduces the identical output deterministically.
+- Recording packed (binary embedded, 375MB) and archived at
+  **`Tools/threads/bughunt/rr-traces/rr-ingest-corrupt-tglx`**; replay from the
+  archive path verified. Usage:
+  `LD_LIBRARY_PATH=/usr/local/lib rr replay Tools/threads/bughunt/rr-traces/rr-ingest-corrupt-tglx`
+- Rate under rr-chaos (serialized to one core) is much lower than native
+  (~1–2/7 observed), but one good recording is enough.
 
-New artifact `r4/hashdump.cpp` compiles against the build's own WTF headers
-(clang++-21, RapidHash via StringHasher::computeHashAndMaskTop8Bits — the
-exact HashTranslatorCharBuffer path) and dumps hash + bucket(=hash%512) for
-every key the workload resolves through KeyAtomStringCache:
-p0..p23, late0..late59, fromSlot0..4, tid, serial, indexed, count, hits.
-Cross-validation: p8=0x00f37565, p17=0x00da7565, both bucket 357 — bit-exact
-match with the in-vivo §10.2 KEYATOM-IDX log lines.
+## 6. Minimal reproducing config + hard facts
 
-Result (`r4/hashdump.out`): 9 colliding buckets total.
-- {p8,p17} @357 is the UNIQUE p-vs-p collision — the only pair where BOTH
-  keys are oracle-checked and hot (resolved thousands of times per run by
-  checkOne). This is exactly why the natural signature was always p8/p17,
-  in both directions.
-- Cross-family collisions exist and are a REFINEMENT of §10.2's "unique
-  collision among the test's keys" wording: {p3,late45}@172, {p15,late57}@353,
-  {late19,late47}@32, {late0,late38}@214, {late37,late51,fromSlot3}@406,
-  {late7,late44}@426, {late1,late29}@469, {late15,late54}@475. Each late*/
-  fromSlot* key is resolved only ~once per thread per run, so the pre-fix
-  window probability for these pairs was negligible — consistent with zero
-  observed non-p8/p17 signatures.
-- Sharpened future discriminator: a corruption involving any key pair NOT in
-  this table cannot be a KeyAtomStringCache bucket race and would prove a
-  second carrier immediately.
+**Minimal config:** Release jsc, pinned 6 GIL-off flags, 2 mutators (main + 1
+`Thread`), heavy young allocation churn interleaved with Lock-protected
+appends to shared posting arrays, enough total allocation to force several
+shared-heap collections (N_BASE=2000 ≈ 100%@W4, 50%@W2; N_BASE=500 clean).
+Most convenient: original repro at W=4 (≈100%), or `min2.js` at T4 (~80%).
 
-### 12.3 Standing soak — 240/240 clean on the snapshot-return binary under co-tenant load
+**Hard facts any hypothesis must explain:**
 
-Two batches of `load6x.sh` (6 workers x 20 runs) on `repro.js` (rich-dump
-oracle), clean binary /tmp/jsc-clean-r4 (certified §12.1), full pinned GIL-off
-flags + race amplifier, fresh seeds 60000+/70000+:
-- Batch 1 under `stress-ng --cpu 96` (1.5x the 64 cores, the closest replica
-  of the 2026-06-08 oversubscribed host shape; load avg >60): 120 runs,
-  0 failures.
-- Batch 2 with the instrumented differential arms + a full ninja jsc rebuild
-  as co-tenant load: 120 runs, 0 failures.
-Total this round: 240/240 clean — meeting the >=240-run exposure bar of
-`TP-r4-lane-closed-no-residual-transition-carrier` with zero
-`named property corrupt`, zero BAD, zero nonzero-rc. Cumulative
-snapshot-return record now ~2800+ natural-rate runs with 0 corruptions.
+1. **Requires only: shared GC heap + ≥2 mutators + GC cycles.** Goes away with
+   `--useSharedGCHeap=0`, `--useGC=0`, or GIL-on. W=2 corrupts at 50%.
+2. **Tier-independent** (pure-LLInt corrupts) and **GC-mode-independent**
+   (1 marker, no generational, no concurrent GC, collectContinuously — all
+   corrupt). Whatever is missed is missed by the STW collection itself:
+   root coverage / N-mutator handshake, not a marking-parallelism or
+   barrier-tier race.
+3. **Live cells are swept**: `--sweepSynchronously=1` converts silent
+   corruption into immediate SIGABRT/SEGV; lazy sweep normally delays reuse
+   long enough to make it silent. A wild-store hypothesis does not predict
+   sweep-timing sensitivity.
+4. **Victims are butterflies, not cells**: every corrupted array still has a
+   valid Structure/cell header; contents are another thread's freshly
+   allocated (term-string, count) data; lengths are garbage; aliasing is
+   transient (0 end-of-run aliases among 116k arrays). The missed object is
+   young, small, and was just grown by `push` (butterfly reallocation) or just
+   born and published under a Lock by another thread.
+5. **All existing verifiers are blind**: verifyGC, verifyConcurrentButterfly
+   never trip; Debug and TSan builds mask the bug entirely (timing). Only
+   Release + real parallel churn shows it.
+6. **Rate scales with allocation churn, not with any specific type**: BigInt
+   PRNG is an amplifier (~4x vs Number PRNG at W=4), strings/regex/Map are
+   each removable; total-allocation floor exists (N=500 clean).
 
-### 12.4 Differential re-certification on a FRESH rebuild — and an environment-sensitivity finding
+## 7. EXPERIMENTER round 1 (shared-ingest under-marking): SBA-1 "untraced cell / dead butterfly" — REFUTED, with new mechanism evidence
 
-The r3 instrumentation (provenance canary + widened verify->return window +
-KEYATOM-RACE detector + env-gated KEYATOM_REGRESS reload-return) was
-re-applied and jsc rebuilt from scratch (so this also re-certifies the §11.3
-result is not an artifact of one particular binary).
+Hypothesis SBA-1: a JSObject cell that survives a conducted cycle ONLY via
+block-granular liveness (version-current newlyAllocated stamped by the step-5
+flush, or the directory allocated bit) is never traced, so its BUTTERFLY gets
+no mark and is swept while the cell survives.
 
-Phase A — under the stress-ng 96-way oversubscription (both arms, 5 runs
-each, seeds 12000-12004): 0 corruptions AND 0 window entries in 10 runs.
-The oversubscription deschedules the lites together and the few-instruction
-window never gets a cross-thread overwrite. This is a real finding: extreme
-CPU oversubscription SUPPRESSES the race rather than amplifying it, which is
-consistent with the bug's historically capricious natural rate (~2/240 on one
-evening, 0/~2400 since) — the window needs true parallelism plus unlucky
-preemption, not just load.
+Instrumentation (diff + logs + backtraces archived in
+`Tools/threads/bughunt/round2-sba1/`; Heap.cpp reverted after, Release jsc
+rebuilt and re-verified corrupt): an end-of-cycle walk in `Heap::endMarking()`
+(before `m_objectSpace.endMarking()`), shared-server only, env-gated
+(`JSC_BUGHUNT_PAIRSCAN` log / `JSC_BUGHUNT_RESCUE` causal probe), over every
+JSCell-kind block with version-current newlyAllocated bits or the directory
+allocated bit: classify each cell (marked / NA / ALLOC / dead), and for every
+JSObject with a non-null butterfly check the butterfly cell's liveness in its
+own block (`cellAlign` base; blocks-set membership filter).
 
-Phase B — stress-ng killed, r3-like host (soak batch 2 as background load),
-15 runs per arm, seeds 12000-12014, SAME binary:
-- ARM-REGRESS (KEYATOM_REGRESS=1): 4/15 `named property corrupt`
-  (s12002 got 4029008 want 4029017; s12006 got 11008 want 11017; s12010 got
-  3000008 want 3000017; s12013 got 4019008 want 4019017). Every corrupt log
-  contains EXACTLY ONE KEYATOM-RACE line, all
-  `idx=357 requested=p17 verified=p17 reloaded=p8` — 1:1 causal pairing,
-  signature bit-identical to the chartered s3012 failure (p8 value returned
-  for p17, delta 9).
-- ARM-FIXED (shipped snapshot semantics): 0/15 corruptions with the window
-  provably ENTERED twice, including one harmful-direction trip
-  `requested=p8 verified=p8 reloaded=p17` (s12000) — the exact schedule that
-  corrupts pre-fix — plus one same-content atom-instance swap.
-4/15 vs 0/15 on the same seeds/binary/host (one-sided Fisher p≈0.05 alone;
-combined with §11.3's 2/5 vs 0/66 the causal case is overwhelming).
+**Result 1 — the claimed survival channel does not exist structurally.**
+`MarkedSpace::endMarking()` (MarkedSpace.cpp:544) retires the newlyAllocated
+version UNCONDITIONALLY every cycle, and `BlockDirectory::endMarking()`
+(BlockDirectory.cpp:347) does `allocatedBits().clearAll()`. So block-granular
+liveness does NOT outlive a conducted cycle: post-cycle sweep liveness is
+version-current MARK bits only. There is no state in which "the cell survives
+the sweep via newlyAllocated while its butterfly dies" — both live by marks or
+both are sweepable.
 
-### 12.5 Lane checks riding along
+**Result 2 — zero pairs under the hypothesis's own semantics.** 3 corrupt
+runs (repro.js W=4, pinned flags + --useDollarVM=1), 14 cycles each,
+~437k sweep-live-unmarked candidate cells per cycle: pairs with butterfly
+having NO liveness bit at all (mark/NA/alloc) at end of marking: **0**.
 
-The Structure::getConcurrently locked double-probe RELEASE_ASSERT was armed
-in all 30 instrumented Phase-A/B runs, including inside all four corruption
-runs: never fired. $-free corroboration of §11.4 — the offset lane returned
-stable, correct answers at the instant the wrong value was manufactured in
-the key lane. No non-{p8,p17} pair, no STILL-WRONG, no torn JSValue, no
-butterfly movement appeared anywhere in round 4 (340 runs total).
+**Result 3 — refined (sweep-time) semantics show only noise, no correlation.**
+Treating "butterfly dead" as !version-current-marked (correct post-retirement
+semantics): ~560 capped PAIR lines/run (NA+ALLOC garbage objects whose dead
+butterflies are benign) and ~1/cycle MB-PAIR (a single persistent startup
+object, same cell every cycle, type=36, plus a burst at the final verification
+cycle). Address correlation of ALL logged pair cells/butterflies against the
+corrupted posting objects/arrays in the same runs' $vm dumps: **0 overlap**
+in 5/5 corrupt runs.
 
-### 12.6 Round-4 verdict + tree state
+**Result 4 — causal rescue probe: corruption SURVIVES total rescue.** With
+`JSC_BUGHUNT_RESCUE=1` every endMarking-enumerable unmarked cell
+(NA or ALLOC leg, ~780-900k cells/cycle) was force-marked
+(testAndSetMarked + PossiblyBlack + noteMarked) and every such object's
+butterfly mark-bit set too — i.e. NOTHING enumerable as recently-allocated at
+the end of any conducted cycle could be swept. The run (under gdb pacing)
+STILL corrupts with the identical shape: `CORRUPT bad=2`, parallel-array
+length divergence, foreign (term,count) images in ArrayWithInt32 butterflies,
+and a posting object with `butterfly (nil)`. Per SBA-1's own refuteIf and the
+generalized family: the victim does NOT lose its life at the
+endMarking-enumerable-cell boundary. **REFUTED.**
 
-- `TP-r4-lane-closed-no-residual-transition-carrier`: CONFIRMED (240/240
-  soak at the prescribed exposure; double-probe canary silent in-vivo; no
-  refuteIf event).
-- `GR4-grow-relocate-lane-closed-no-residual-carrier`: CONFIRMED (same soak;
-  differential re-ran and DID corrupt under KEYATOM_REGRESS=1, defeating its
-  own refuteIf clause; no storage/offset displacement ever observed).
-- `jit-r4-angle-closed-keyatom-is-sole-carrier`: CONFIRMED (differential
-  re-certified on a fresh rebuild; §12.2 collision table proves {p8,p17} is
-  the unique hot p-vs-p bucket pair, exactly predicting the signature; any
-  future non-table pair = second carrier by construction).
-- `jit-r4-residual-baked-wrong-uid-ic-audited-out`: CONFIRMED-CONSISTENT
-  (0/340 corruptions on snapshot semantics this round; no IC-shaped residual
-  surfaced; nothing contradicted the audit).
-Tree restored to landed-fix-only state: both r4 instrumentation edits
-reverted, jsc relinked, `strings` shows 0 KEYATOM markers, historic seeds
-s3012/s6014/s12000 PASS on the final clean binary. THE BUG IS CLOSED for
-this hunt; the standing soak (repro.js in the load6 rotation) remains the
-reopen tripwire, with §12.2's collision table as the instant
-second-carrier discriminator.
+**Result 5 (new, redirects the hunt) — the freelist walked by the step-5
+flush is garbage; same site fires WILD.** Native rescue runs aborted 8/8
+immediately after cycle 1 with the known libstdc++
+`std::array<unsigned long, 16>` index assert (hard-fact-3 signature). Core
+backtrace (bt-rescue-stopAllocating-conductor.txt):
 
-### 12.7 Artifacts
+    BitSet<1024>::clear(n=140238877012016)            <- n is a POINTER value
+    MarkedBlock::clearNewlyAllocated
+    MarkedBlock::Handle::stopAllocating  freeList.forEach  (MarkedBlock.cpp:252-258)
+    LocalAllocator::stopAllocating (LocalAllocator.cpp:127)
+    BlockDirectory::stopAllocating  m_localAllocators forEach   <- CONDUCTOR step-5 flush
 
-- `r4/hashdump.cpp`, `r4/hashdump.out`, `r4/NOTES.md`
-- `logs/R4-ARMREGRESS-CORRUPT-s12002.log`, `logs/R4-ARMREGRESS-CORRUPT-s12006.log`,
-  `logs/R4-ARMFIXED-TRIP-NOCORRUPT-s12000.log`
-- volatile: /tmp/r4-soak-{1,2}, /tmp/r4-regress{,2}, /tmp/r4-fixed{,2},
-  /tmp/jsc-clean-r4, /tmp/r4-stress.log
+The "free cell" pointer resolves to LocalAllocator+0xb0 — inside the
+LocalAllocator/FreeList object itself, i.e. the FreeList interval/next chain
+read by the flusher is torn or stale. The SAME assert fires in a fully
+UNINSTRUMENTED wild run (--sweepSynchronously=1, no env vars, 1/13 runs;
+bt-wild-stopAllocatingForGood-teardown.txt) at the same
+`MarkedBlock::Handle::stopAllocating` freelist walk, reached from the OTHER
+flush path: `GCClient::Heap::~Heap -> lastChanceToFinalize ->
+GCThreadLocalCache::stopAllocatingForGood -> LocalAllocator::stopAllocatingForGood`
+— a spawned thread's client-heap TEARDOWN walking its own allocator's
+freelist and finding pointer-shaped garbage.
+
+Why this matters for the corruption: `stopAllocating` first stamps EVERY cell
+of the current block newlyAllocated, then walks the freelist and
+**clears newlyAllocated for each "free" cell** (MarkedBlock.cpp:258). If the
+FreeList state it reads is stale relative to the owning thread's bump
+allocations (or the allocator is double-stopped / concurrently torn down),
+the flusher clears the NA bit of cells the owner ALREADY handed out — silently
+stripping the only liveness bit of just-allocated, not-yet-published cells
+(in-block stale pointers: silent under-marking, the observed aliasing; torn
+interval/next pointers: the std::array assert / crashes). This is consistent
+with every hard fact in §6 and squarely in the suspect space items
+"GCThreadLocalCache handoff at collection start" and "EXIT1/teardown
+interaction" — NOT in the marking-roots space. Next round should attack the
+LocalAllocator stop/teardown synchronization: who guarantees the owner thread
+is quiescent and its freelist writes visible when (a) the conductor's step-5
+`BlockDirectory::stopAllocating` and (b) `stopAllocatingForGood` teardown walk
+`m_freeList`, and what prevents a stop racing a client teardown.
+
+## 8. EXPERIMENTER round 2 (shared-ingest under-marking): TD-R2-2 "teardown crash is a downstream detector" — CONFIRMED; teardown/EXIT1 angle CLOSED; new construction-time freelist evidence
+
+Hypothesis TD-R2-2: every teardown-vs-root-enumeration window is closed in the
+current tree; the wild `stopAllocatingForGood` abort (§7 Result 5,
+bt-wild-stopAllocatingForGood-teardown.txt) is the dying thread DETECTING
+freelist state scribbled mid-run by the primary bug, not causing it.
+Artifacts: `Tools/threads/bughunt/round2-td2/` (instrumentation diffs +
+campaign logs); `Tools/threads/bughunt/repro-noteardown.js`. All
+instrumentation REVERTED after; Release jsc rebuilt from the clean tree and
+re-verified corrupt (2/2, bad=12/8).
+
+**Experiment A — zero-teardown repro: corruption does NOT need any teardown.**
+`repro-noteardown.js` = the original repro with workers that NEVER exit before
+verification: after ingest they bump a counter and park in property
+`Atomics.wait`; main runs the FULL verification walk while all 3 spawned lites
+are Live (zero `~GCClient::Heap` / `tearDownSpawnedThreadForExit` /
+`stopAllocatingForGood` executions), and only then releases/joins.
+Result: **CORRUPT 12/12** (bad=4..14, vs 3..7 for the original 3/3 baseline the
+same day, same binary) and all runs then print JOINED. Corruption rate is
+comparable-or-higher with zero teardowns. This replaces the unverifiable TD2
+citation: the teardown angle is bounded out by construction.
+
+**Experiment B — 3-point env-gated FreeList sanity check.** `BUGHUNT_FLCHECK=1`
+(diffs in round2-td2/): structural validation (current interval + linked
+intervals: in-payload, cellSize-aligned, sane decoded lengths, no OOB decode)
+at (a) `LocalAllocator::stopAllocating` entry == `MarkedBlock::Handle::
+stopAllocating` entry (sole caller), context-tagged per flush path
+(`dirflush` = conductor BlockDirectory::stopAllocating, `tlcflush` = per-client
+step-5, `tlcSAFG` = teardown GCThreadLocalCache::stopAllocatingForGood,
+`SAFG-other`); (b) `tryAllocateIn` return ("refill", i.e. immediately after
+`block->sweep(&m_freeList)` built the freelist and one cell was taken);
+(c) covered by the `tlcSAFG` tag at (a). Checks are hot: ~1.2k stopAllocating
++ ~30.6k refill validations per run (per-run summary line).
+
+- Silent mode (pinned flags, 6 corrupt runs) and most sweepSync runs:
+  **0 structural failures in 23/26 corrupt runs** — the silent aliasing
+  corruption happens with structurally SANE freelists everywhere; structural
+  tearing is the rare loud variant, not the common path.
+- `--sweepSynchronously=1`, 20 runs: 3 runs hit structural failures, and in
+  **all 3 the FIRST failure is site (b) refill, ctx=other, on a Live mutator
+  mid-run** — i.e. the freelist is ALREADY GARBAGE the moment sweep
+  constructs it, long before any flush or teardown touches it:
+  - RUN 11: seq=0 refill (tid 3729484, cellSize=112, decoded intervalEnd =
+    blockStart + ~4GB garbage length) -> seq=1 SAME allocator/block at
+    stopAllocating ctx=**dirflush** -> then the known libstdc++
+    `std::array<unsigned long,16>` abort (hard-fact-3 signature). Full §7
+    Result 5 chain reproduced with the detector ORDER instrumented:
+    refill-corruption first, conductor flush second, abort last.
+  - RUN 15: seq=0 refill ctx=other -> seq=1 SAME allocator/block at
+    stopAllocating ctx=**tlcSAFG** (teardown). The teardown walk fails only
+    AFTER the same allocator already failed mid-run: the §7 Result 5 wild
+    teardown abort is positively identified as a downstream detector.
+  - RUN 12: seq=0 refill ctx=other `nextInterval` misaligned — and the SAME
+    block with the SAME bad freelist image is then re-validated-bad by a
+    SECOND LocalAllocator on a DIFFERENT thread (alloc 0x..11d200/tid 3729661,
+    then alloc 0x..0e0f00/tid 3729658, 3 repeats): one MarkedBlock feeding
+    two clients' allocators with identical garbage.
+- refuteIf condition (first failure at (c) on a Teardown lite with (a)/(b)
+  clean earlier in the run): **never observed**. TD-R2-2 CONFIRMED; the
+  EXIT1/teardown angle is closed — later rounds should stop mining it.
+
+**New mechanism evidence (redirects §7 Result 5's "stale freelist read by the
+flusher" framing):** the corruption is present at freelist CONSTRUCTION, not
+introduced by the flush. In every loud run the freelist coming OUT of
+`MarkedBlock::Handle::sweep` is already structurally bad at the owner's own
+first use: decoded interval lengths of ~4GB and misaligned next-interval
+pointers mean the FreeCell link words IN THE BLOCK PAYLOAD are torn/scribbled
+relative to the secret sweep just installed — i.e. another thread wrote into
+(or re-swept) the block concurrently. RUN 12's geometry is pointed: block
+payload base 0x..130, bad interval at +0x40 with cellSize=48 — +0x40 is a
+valid cell boundary for a 64-byte size class, not 48 — and two allocators
+walked the same freelisted block. Together with RUN 11 (cellSize 112) this
+smells like ONE MarkedBlock simultaneously owned/swept under two views
+(duplicate hand-out: empty-block steal (I8) / canAllocate-vs-inUse directory
+bits / re-sweep of an in-use block after under-marking judged it empty), which
+would directly produce every §6 hard fact: another thread's fresh (term,count)
+cells materializing inside a live array's butterfly, garbage lengths, live
+cells swept (sweepSync aborts), and silent runs whenever the second view's
+writes happen to be in-bounds and well-formed. Next round: instrument block
+identity/state at hand-out (sweep entry: assert !isFreeListed and not
+currently owned; directory inUse/canAllocate/empty bit coherence under BVL;
+steal path vs owner's in-flight allocation).
+
+## 9. EXPERIMENTER round 3 (shared-ingest under-marking): RC-R3-2 closure CONFIRMED; duplicate-handout REDIRECT REFUTED; teardown stays closed; surviving lane = intra-window freelist-payload scribble / dual allocation from ONE legal hand-out
+
+Artifacts: `Tools/threads/bughunt/round3-dup/` (instrumentation diffs
+MarkedBlock-duptrap-prov.diff, LocalAllocator-duptrap.diff, Heap-prov.diff;
+provenance logs prov{1,2,4}.log.gz + provout{1,2,4}.log; correlator
+correlate.py + corr{1,2,4}.txt; flc9-refill-failure.log). ALL instrumentation
+REVERTED after; clean Release jsc rebuilt and re-verified corrupt (2/2).
+
+**Experiment A — duplicate-handout trap (RC-R3-2 experimentRequest 1):
+ZERO traps in 23/23 corrupt runs. The dual-freelist-epoch mechanism is
+REFUTED.** Env-gated (BUGHUNT_DUPTRAP=1) cross-thread single-ownership
+registry: a global lock+map registers every `MarkedBlock::Handle::sweep`
+with a non-null FreeList target and unregisters at stopAllocating /
+didConsumeFreeList / unsweepWithNoNewlyAllocated; ANY sweep (to-freelist,
+SweepOnly, steal `sweep(nullptr)`, conductor, teardown) of a block currently
+registered traps with a full dump (both owners' tids, directory bits,
+versions). Because the registry forces a happens-before on every check, it
+catches dual hand-outs even where the existing plain-bool
+`m_isFreeListed` FATAL would read stale. Plus the RUN-12 geometry check at
+tryAllocateIn (blockCellSize == directory cellSize && block->directory() ==
+m_directory). Hook liveness verified by gdb breakpoint (sweepEntry hit from
+tryAllocateIn). Results, repro.js W=4 pinned flags:
+- `--sweepSynchronously=1`: 13 runs, all corrupt/crash, 0 traps, 0 geometry
+  failures.
+- silent mode: 10 runs (7 CORRUPT bad=2..9, 3 segv), 0 traps, 0 geometry
+  failures.
+Per the request's own refute clause (zero dual-ownership across 10+ corrupt
+runs), the "same block freelisted by two allocators / re-swept while
+freelisted / cross-size-class handout" mechanism is OUT. Every block hand-out
+in a corrupt run is exclusive and geometrically coherent.
+
+**Experiment B — victim provenance (RC-R3-2 experimentRequest 2 /
+confirmIf): victims NEVER lose version-current liveness; the missed-root
+closure holds, and so does its "post-marking" framing — but at BLOCK
+granularity nothing illegal happens either.** Env-gated (BUGHUNT_PROV=1)
+recorder: at every Heap::endMarking (before the NA-version retire) a snapshot
+of EVERY MarkedBlock's per-atom version-current mark + NA bitmaps; plus a log
+of every Handle::sweep with its (toFreeList, EmptyMode, MarksMode, NAMode,
+tid, ctx) tuple; one shared seq counter orders both streams. 3 corrupt
+silent-mode runs (bad=8/7/5), offline-correlated against the $vm victim
+addresses (posting-object cells + the corrupted arrays' tagged-butterfly-word
+low-48 spine pointers; tag layout per SPEC-objectmodel §9.5):
+- 100 distinct victim addresses, 1196 victim-block snapshots: every victim is
+  version-current MARKED at every completed endMarking from its first-live
+  cycle through the end of the run (949 live snapshots; the 247 dead ones are
+  all strict PREFIXES — cycles before the block/cell first existed; zero
+  mid-life liveness gaps).
+- Zero "suspicious" sweeps of victim blocks: no victim block is ever swept
+  to-freelist with EmptyMode=IsEmpty or MarksMode=MarksStale after its victim
+  became live. All post-live hand-outs are NotEmpty/MarksNotStale (mark-
+  respecting).
+- The Heap.cpp:1218 snapshot RELEASE_ASSERT again never fired.
+So: no missed root, AND no block-granular mark-discarding re-sweep of the
+victims. The aliasing is fully established while both "owners" keep their
+cells continuously marked — i.e. the DUAL ALLOCATION happens inside a single
+legal hand-out window, after which both owners trace the same storage
+forever. Round 4 should stop mining endMarking-time liveness entirely.
+
+**Experiment C — standing guard for the teardown closure (FLCHECK-hot loud
+leg): first failure is refill on a Live mutator, never tlcSAFG. Teardown
+stays CLOSED.** 10 runs `--validateFreeListStructure=1 --sweepSynchronously=1`
+(no other instrumentation): 7 corrupt (rc=3), 2 segv, 1 structural abort
+(run 9) whose FIRST and only failure is `site=refill ctx=other` mid-run —
+the round-2 pattern, satisfying the standing confirmation; the reopen
+condition (tlcSAFG-first) was again never observed. Run 9's failure record
+REPRODUCES ROUND-2 RUN 12'S GEOMETRY EXACTLY (flc9-refill-failure.log):
+block payload [0x...130, 0x...c000), cellSize=48, originalSize=16032 (whole-
+payload, i.e. the freelist came from an IsEmpty quick sweep), and the torn
+nextInterval decodes to payloadBase+0x40 — a 64-byte boundary in a 48-byte
+block. With Experiment A having excluded any second sweep/hand-out of such a
+block, the 64B-strided scribbler CANNOT be another allocator's freelist
+epoch: it is a thread writing 64B-strided data through a pointer it already
+holds into the same payload the owner's freshly-built whole-payload freelist
+covers — i.e. dual ownership of cells WITHIN one hand-out (overlapping
+allocations off a torn/scribbled freelist, or a stale storage pointer from a
+previous window whose liveness was discarded before the IsEmpty sweep).
+
+**Open observation for round 4 (recorded, not adjudicated):** the provenance
+logs show ~330-400 IsEmpty/MarksStale to-freelist hand-outs per run of blocks
+whose LAST endMarking snapshot had naPop>0 (e.g. 33-48 version-current NA
+cells, markPop=0, mostly right after cycle 1). If the NA-version retire makes
+those cells legitimately dead, this is benign; if any of them was a
+stack-only-reachable live cell (e.g. a spawned thread's local tf-Map backing
+store — exactly the foreign data observed in the aliased butterflies), the
+IsEmpty hand-out is the liveness discard. Discriminating NA-retire semantics
+vs stack-reachability for these specific blocks is the cheapest next
+experiment, alongside auditing who can still hold a raw pointer into a block
+between its NA-bearing endMarking and its IsEmpty re-hand-out
+(stopAllocating's NA-clear from a stale freelist remains the §7 Result 5
+suspect that produces exactly this state).
+
+## 10. EXPERIMENTER round 4 (shared-ingest under-marking): kind-agnostic sound rescue STOPS the corruption (0/20) — missed live object CONFIRMED to be an NA-cohort Auxiliary cell; stage-2 word intersection EXONERATES the conservative scan path entirely (neither coverage nor acceptance): the missing liveness edge is HEAP-INTERNAL
+
+Artifacts: `Tools/threads/bughunt/round4-rescue/` (instrumentation snippets
+Heap-rescue2-instrumentation.txt + stage2-instrumentation.txt; baseline3.log,
+rescue20.log, full{1..8}.log). ALL instrumentation REVERTED after; clean
+Release jsc rebuilt and re-verified corrupt (3/3: bad=5, bad=5, 1 segv).
+
+**Experiment A — TLC-R4-2 confirmIf, kind-agnostic sound rescue: 0/20 vs
+3/3 baseline.** Env-gated (BUGHUNT_RESCUE2=1) walk at `Heap::endMarking`
+(shared-server block, BEFORE `m_objectSpace.endMarking()` retires the NA
+version and `BlockDirectory::endMarking` clears allocated bits), over EVERY
+block of EVERY cell kind (the round-1 rescue's `cellKind() != JSCell` filter
+dropped): every cell that is sweep-live without a version-current mark (leg
+NA = version-current newlyAllocated; leg ALLOC = directory allocated bit) is
+marked through the REAL path — `Heap::testAndSetMarked(markingVersion, cell)`
+(does `aboutToMark` version repair + `setIsMarkingNotEmpty` when stale),
+`cellContainer().noteMarked()`, plus an explicit
+`setIsMarkingNotEmpty(handle, true)` under the bitvector lock per touched
+block so the IsEmpty empty-judge can never rehand the whole payload. No
+tracing. Same-day baseline (same tree, env off): corrupt/crash 3/3.
+Rescue ON, repro.js W=4 pinned flags: **OK 20/20** (deterministic
+postings=296555 every run). Probe liveness verified per cycle:
+rescuedAux ~21-31k, rescuedJSCellIH ~380-790, rescuedJSCell ~730-880k,
+NA-leg ~6-10k, ~13 Eden cycles/run. Per TLC-R4-2's own confirmIf:
+**the missed live object lives in the NA-cohort blocks, and the round-1
+"rescue refutation" of the missed-liveness family is formally INVALID — its
+JSCell-only filter excluded exactly the cells that matter.** Round-1's
+rescue (all JSCell-kind cells + their butterflies) did NOT stop the bug
+(§7 Result 4); adding the Auxiliary/JSCellWithIndexingHeader kinds stops it
+cold => the corruption-carrying under-marked cell is an AUX-kind cell (Map
+backing / butterfly storage) that is NOT the butterfly of any unmarked
+scanned JSObject. NA-only blocks (naPop>0, markPop=0 — the §9 open
+observation) appear every cycle: ~28-61/cycle, kinds 0 and 2, the kind-2
+ones dominated by cellSize=432 and 32 Auxiliary blocks with naPop up to
+~500 — sized exactly like the foreign (term,count) Map-store images found
+inside victim butterflies.
+
+**Experiment B — stage-2 bisect, (a) scan-coverage vs (b) acceptance-gate:
+NEITHER. Zero contact between the conservative scan and the rescued cohort,
+at every granularity, pre- and post-filter.** Same binary, recorders armed
+with the rescue (3 runs, 39 cycles, all OK):
+- accepted-roots intersection: `inSnapshot=0` for all ~900k rescues/cycle
+  (structurally forced: `SlotVisitor::appendJSCellOrAuxiliary` MARKS every
+  accepted root unconditionally, so an unmarked cell can never be an
+  accepted root — the round-4 request's "present-but-unmarked = acceptance
+  miss" outcome is impossible in this tree; recorded for future rounds);
+- gate rejections (every candidate that reached `isLiveCell` and failed,
+  recorded inside `genericAddPointer::tryPointer`): only 0-10 words/cycle
+  total (162 over 39 cycles), and **rescuedNARejected=0** — no rescued NA
+  cell was ever scanned-and-rejected;
+- RAW scanned words (every word `genericAddPointer` saw, recorded at entry
+  PRE bloom-filter/blocks-set, ~700 distinct/cycle, 27,555 total),
+  intersected against the FULL [cell, cell+cellSize) range of every NA-leg
+  rescue: **rescuedNAScanned=0 across 335,463 NA rescues**, and per-block
+  scanHits=0 on all 312 NA-only-block records (naPop total 50,915).
+No thread's copied stack/register image contained ANY pointer into ANY
+byte of ANY rescued NA cell, in any cycle, ever. The MachineStackMarker
+coverage lane, the TinyBloomFilter/MarkedBlockSet publication lane, and the
+isLiveCell acceptance lane are ALL exonerated for the cohort: the scan never
+saw these addresses because they are not stack-held at stop time.
+
+**Adjudication.** TLC-R4-2's location claim is CONFIRMED (NA-cohort aux
+cells; rescue is causally sufficient) but its MECHANISM (conservative-scan
+miss of a stack-held cohort) is REFUTED by Experiment B. The only liveness
+path left for a live-but-unmarked NA aux cell whose address is in no scanned
+word is a HEAP-INTERNAL edge: an owner object (round-3 §9 proved victims/
+owners stay version-current MARKED through every cycle) holds the only
+pointer to freshly-allocated aux storage, and the conducted cycle never
+traced that edge. That is exactly the shape of a BARRIER/VISIT-ORDERING
+race: owner visited early in the cycle, mutator (pre-stop) installs a new
+butterfly/Map buffer pointer, the store-barrier that should re-shade the
+owner is lost or the re-visit never traces the new buffer; the buffer
+survives cycle N only via NA, the NA retire at endMarking N discards it,
+and the §9 IsEmpty whole-payload rehand-out hands the still-referenced
+storage to another thread. Full-GC repro (--useGenerationalGC=0) means this
+is not remembered-set-specific: it is the in-cycle dirtying path. ROUND 5
+TARGET: GIL-off write-barrier coverage for aux-pointer installs
+(JSObject::setButterfly / Map-buffer publish) against the §10.4 stop
+protocol — who guarantees a mutator's barrier buffer/dirty state crossing
+the stop boundary is drained into the conducted cycle for ALL N lites (the
+per-lite mutator scribble/dirty queue handoff), and whether barrier
+fast-path state (mutatorShouldBeFenced / barrier threshold) is per-carrier
+rather than per-lite under useVMLite=1.
+
+## 11. FIX LANDED (round 4 rescue, productionized): shared-server window-liveness retention in Heap::endMarking()
+
+Approved fix (2 reviewer approvals) implemented in
+`Source/JavaScriptCore/heap/Heap.cpp`: the verified round-4 probe
+(`round4-rescue/Heap-rescue2-instrumentation.txt`) stripped of env gate,
+counters, snapshot intersection, and logging. Inside `Heap::endMarking()`,
+gated on `isSharedServer()`, strictly AFTER `assertMarkStacksEmpty()` and
+strictly BEFORE `m_objectSpace.endMarking()` (same conductor thread, same
+stop window): every cell whose only liveness witnesses are the §10 window
+witnesses (version-current newlyAllocated stamp from the step-5 flush, or
+the block's directory allocated bit) is converted to a version-current mark
+via the real mark path (`Heap::testAndSetMarked` → aboutToMark version
+repair + atomic mark; `cellContainer().noteMarked()`; PossiblyBlack for
+JSCell kinds) and the block gets `setIsMarkingNotEmpty` under the bitvector
+lock — making the §9 IsEmpty whole-payload rehand-out of a window-live
+block impossible. Kind-agnostic (Auxiliary / JSCellWithIndexingHeader
+included, per §10). Flag-off and GIL-on cycles are byte-identical (pass
+unreachable when `!isSharedServer()`). Cost: bounded one-cycle floating
+garbage.
+
+Verification (Release, pinned 6 GIL-off flags, 2026-06-10):
+- `repro-bigint-shared-ingest.js` W=4 x20: **OK 20/20**, deterministic
+  postings=296555 (pre-fix baseline §1: CORRUPT 13/13).
+- Loud leg `--sweepSynchronously=1` x10: **OK 10/10** (pre-fix: SIGABRT
+  libstdc++ hardening assert).
+- `repro.js` (instrumented, `--useDollarVM=1`) x20: **OK 20/20**,
+  postings=296555. `min2.js` x20: **OK 20/20**, postings=298601.
+- 240 runs of the ingest repro under 6-way self-load (6 workers x 40):
+  **0/240 failures**.
+- races/ suite x5 GIL-off: 7 passed / 0 failed, all 5 runs.
+- GIL-on corpus: 95 passed / 0 failed / 2 skipped.
+- Flag-off smoke (5 stress tests): 5/5 PASS.
+
+### VERIFICATION FAILURE — corpus regression introduced by this fix
+
+Full GIL-off corpus (pinned ambient env): **93 passed / 1 FAILED / 3
+skipped**. The failure is `JSTests/threads/objectmodel/
+i03-quarantine-readd-across-gc.js` — **DETERMINISTIC (10/10)**, "expected 64
+but got 2" at the dictionary-leg `Object.keys(o).length` check, always
+breaking at round 4. Confirmed CAUSED by the retention pass (compiling the
+pass out -> 3/3 PASS on the same tree; pass in -> 0/10).
+
+Diagnosis (env-gated leg/subspace bisect, since stripped):
+- NA leg alone reproduces the regression; alloc leg alone does not (but
+  alloc-only does NOT fix the ingest corruption: 5/5 crash; na-only leaves
+  1/5 corrupt — both legs are needed for the §10 fix, as the probe found).
+- Excluding ONLY `structureSpace` blocks from the retention pass fixes the
+  regression: quarantine test 5/5 PASS (incl. full-test x3), ingest repro
+  **20/20 OK**, full GIL-off corpus **94 passed / 0 failed / 3 skipped**.
+- Excluding only `PropertyTable` makes it WORSE (readback of `o.d0` fails in
+  round 1): a retained zombie Structure whose live window-created
+  PropertyTable is NOT retained is adopted with a swept table.
+- Mechanism: the pass marks dead window-witnessed Structures WITHOUT
+  tracing. Weak-table pruning (`pruneStaleEntriesFromWeakGCHashTables`,
+  transition WeakGCHashTables) runs AFTER `Heap::endMarking()` and keys on
+  mark bits, so the marked-dead dictionary Structures from earlier rounds'
+  delete-churn stay FINDABLE in the transition tables; a later same-shape
+  re-add transition ADOPTS the zombie, whose property table is a stale
+  snapshot — Object.keys enumerates the zombie's 2-entry table while
+  butterfly offsets still read correctly. This is a structure-identity
+  RESURRECTION hazard, distinct from (and additional to) the three tracked
+  residuals: mark-without-trace is unsound for any cell type registered in
+  a mark-keyed weak registry whose values are later looked up and adopted.
+
+Candidate amendment for the next review round (validated, NOT landed —
+deviates from the approved diff): skip `handle->subspace() ==
+structureSpace` blocks in the retention pass. Empirically structures'
+publish edges are witnessed by normal tracing (this test passes pre-fix,
+and §9 showed owners/victims stay marked); the §10 corruption carriers are
+Auxiliary cells. With the exclusion: ingest 20/20 OK, GIL-off corpus 94/0,
+quarantine 5/5. Alternative narrower-shotgun variants that also passed both
+locally (10x/5x): skip all JSCell-kind blocks ("aux+IH only"), or skip all
+`needsDestruction()` blocks — both reopen more of the theoretical hole than
+the structureSpace exclusion and are not preferred.
+
+### Residuals tracked per reviewer amendment (none block this fix)
+
+1. **PreciseAllocation gap** — `MarkedSpace::endMarking()` also clears
+   precise-allocation newlyAllocated witnesses; the retention pass only
+   walks `forEachBlock`. A window-allocated PRECISE cell (large Map
+   storage/butterfly, > largeCutoff) with the same no-root profile would
+   still be freed. Needs equivalent precise retention or a proof that the
+   cohort cannot be precise.
+2. **Retained cells are marked but NOT traced** — an old, non-window object
+   whose only reference sits inside an unpublished window cell is still
+   under-marked. The ROUND 5 hunt for the unwitnessed heap-internal edge
+   (owner-visit vs aux-pointer publish, §10 adjudication) must continue;
+   this fix restores I4/I5 at the only point the witnesses are destroyed
+   and stays correct regardless of which publish path is the unwitnessed
+   one.
+3. **One-cycle retention** — if the owning thread re-parks inside the same
+   short publish window across the NEXT cycle, all witnesses (mark, NA,
+   allocBit) are stale and the chain recurs; astronomically narrower, but
+   only the root-cause fix closes it provably.
+
+Minor (documented in-code): on the allocBit leg the pass deliberately marks
+free/never-allocated cells too — an allocated block has no FreeList, so no
+per-cell liveness judge exists; narrowing it would reintroduce the hole.
+
+## 12. REDESIGN LANDED (round 5): TRACE-ON-RETAIN — window-liveness retention moved INTO the marking fixpoint as the "Wlr" core marking constraint; i03 zombie-Structure regression closed WITHOUT a structureSpace carve-out; residual 1 (precise allocations) and residual 2 (mark-without-trace) both closed
+
+Implemented in `Source/JavaScriptCore/heap/Heap.cpp`: the §11 endMarking()
+bit-only retention pass is REMOVED; the same witness scan (NA leg + allocBit
+leg, kind-agnostic, identical predicates) now runs as core marking
+constraint `"Wlr" / "Window Liveness Retention"` (addCoreConstraints, after
+"Cs"), gated `isSharedServer()`, SlotVisitor executor only, once per
+`m_phaseVersion` (the witness set is fixed at stop time: no mutator runs and
+conductor allocation is forbidden in the stop window, so one scan appends
+every unmarked witness cell). Each witness cell goes through
+`SlotVisitor::appendJSCellOrAuxiliary` — the REAL conservative-root path:
+mark + trace — so the retained set is CLOSED UNDER TRACING; weak-set ("Ws")
+and output ("O") constraints re-converge over the retained cells via the
+normal `executeConvergence` loop. Explicit `setIsMarkingNotEmpty` under the
+bitvector lock per appended block is kept (appendJSCellOrAuxiliary only sets
+it via aboutToMarkSlow when marks were stale; eden cycles need the explicit
+form). NEW precise-allocation leg: `isNewlyAllocated() && !isMarked()`
+precise cells are appended too (closes §11 residual 1 — MarkedSpace::
+endMarking retires that witness identically).
+
+Why (a) trace-on-retain and not (b) retain-and-prune or (c) narrower
+witness set: bit-only retention is unsound in BOTH remaining directions —
+untraced retained cells carry dangling interior pointers if a parked
+thread's unpublished edge really does reach them (§11 residual 2), and
+every mark-keyed weak registry can resurrect an inconsistent zombie (the
+i03 transition-table adoption). (b) patches only the weak-table symptom and
+institutionalizes marked-cells-with-swept-children. (c) is infeasible: §10
+Experiment B proved the cohort's liveness witness is a heap-internal
+UNPUBLISHED edge — no enumeration of parked-thread state can compute it.
+With tracing, a weak-table-findable retained Structure is exactly a stock
+"dead-but-unpruned between GCs" transition-cache hit: fully consistent,
+semantically legal adoption — no structureSpace exclusion needed, so the
+§10 hole stays closed for Structure-shaped window cells too. allocBit-leg
+traceability: an allocated block's free list was FULLY consumed
+(didConsumeFreeList), so every cell slot was handed out this mutator window
+and holds a constructed object — the same property stock conservative
+scanning relies on when it accepts any cell-aligned pointer into an
+allocated block.
+
+Verification (Release, pinned 6 GIL-off flags, 2026-06-10, all on the same
+rebuilt jsc):
+- `repro-bigint-shared-ingest.js` W=4 x20: OK 20/20, postings=296555.
+- `min2.js` x20: OK 20/20.
+- `--sweepSynchronously=1` ingest leg x10: OK 10/10.
+- 240 ingest runs under 6-way self-load (6 workers x 40, rotating
+  --randomYieldSeed, marker-checked OK postings=296555): 0/240 failures.
+- `objectmodel/i03-quarantine-readd-across-gc.js` x20: PASS 20/20
+  (was DETERMINISTIC 10/10 FAIL under the §11 bit-only pass).
+- Full GIL-off corpus: 94 passed / 0 failed / 3 skipped.
+- races/ x5 GIL-off: 7 passed / 0 failed, all 5 runs.
+- GIL-on corpus: 95 passed / 0 failed / 2 skipped.
+- Flag-off identity smoke (5 stress tests, --useJSThreads=false vs
+  default, rc+output identical): 5/5.
+
+Residuals after this round: §11 residual 1 CLOSED (precise leg); §11
+residual 2 CLOSED (retained set closed under tracing). Residual 3
+(one-cycle retention across a re-parked window) REMAINS, unchanged — only
+the round-5 root-cause hunt (unwitnessed aux-pointer publish edge / barrier
+coverage across the §10.4 stop boundary) closes it provably; that hunt
+must continue. The permanent FreeList validator (round 2) stays in.
+
+## 13. ROUND-6 ADVERSARIAL ADJUDICATION of the §12 trace-on-retain ("Wlr") fix — four external findings verified against the tree (2026-06-10)
+
+### F1 (blocker claim): "witness set is not provably a superset of what the
+### lost-edge mechanism can miss — OLD (non-window) targets exist" — ACCEPTED
+### as a residual-3 RECLASSIFICATION (no code defect in Wlr itself)
+
+Verified: Wlr's three legs (version-current NA, directory allocBit, precise
+NA) are all strictly "allocated since the last GC" witnesses; the code
+contains no leg that could retain an OLD cell whose only reference sits in a
+lost/invisible edge from an already-marked owner. The §10 adjudication
+("heap-internal lost edge, in-cycle dirtying path") does NOT prove the
+missed target is always window-allocated; the counter-scenario (mutator
+relocates the only reference to an OLD cell across the stop boundary, the
+same visibility defect hides the install) is consistent with all collected
+evidence. Residual 3 is therefore RECLASSIFIED: from "astronomically
+narrower (re-parked same window)" to "MECHANISM-DEPENDENT, UNBOUNDED until
+the round-5 root cause lands" — the fix is empirically sufficient for every
+observed repro but is proven complete only for the window cohort
+(SPEC-heap I4/I5 restored by construction for window-witnessed cells ONLY).
+The §10.4 stop-protocol fence/dirty-drain audit (ROUND 5 TARGET) remains
+the only provable closure and GATES final sign-off of the corruption class.
+
+Detector (F1 suggested fix #2): a NEW sampling detector is NOT needed —
+`--verifyGC=1` is already exactly the requested lost-edge detector:
+`Heap::verifyGC()` re-runs the entire constraint set synchronously on a
+VerifierSlotVisitor at END of marking over CURRENT memory (so an edge
+installed pre-park but missed by the racing conducted trace IS visible to
+the re-walk per lemma L1) and `RELEASE_ASSERT`s every verifier-live cell is
+real-marked — a non-window recurrence traps at the guilty cycle. The
+verifier mirror of Wlr is deliberately a no-op, so real-marks ⊇
+verifier-marks and Wlr itself cannot false-positive the check. Run result
+on this tree recorded below. RECOMMENDATION: keep a periodic
+`--verifyGC=1` leg in the GIL-off battery until the round-5 hunt closes.
+
+### F2 (major claim): "trace-on-retain dereferences unwitnessed cells; the
+### required cross-thread visibility fence is unproven/missing" — REFUTED as
+### missing-fence, ACCEPTED as missing documentation
+
+The fence exists and was verified in-tree:
+- L1 (publication): `GCClient::Heap::releaseHeapAccess()` (Heap.cpp) does a
+  seq_cst `m_accessState.exchange(noAccessState)` with the in-code contract
+  "RHA: seq_cst exchange -> NoAccess publishes all prior heap writes to the
+  conductor (F6)"; `conductSharedCollection()`'s §10.4 access barrier
+  seq_cst-loads every client's `m_accessState` under GBL and proceeds only
+  when ALL are NoAccess. Every pre-park store therefore happens-before
+  conductor constraint execution. Parallel marker helpers are woken through
+  `m_markingMutex`/`m_markingConditionVariable` (release/acquire), extending
+  the chain. No mutation overlaps conducted marking: marking runs strictly
+  inside WSAC and access re-acquisition blocks on the stop (F8).
+- L2 (no park mid-initialization): initialization runs entirely under heap
+  access; access release happens only at park brackets / poll sites, never
+  inside allocation/initialization paths, and the barrier waits for
+  NoAccess on every client. Same structural property the stock conservative
+  scan relies on for cells of allocated blocks.
+Both lemmas are now cited in the Wlr comment block (Heap.cpp). Residual
+documentation debt: SPEC-heap should absorb L1/L2 via the frozen-spec
+amendment process (history file + adversarial loop) — NOT edited here.
+
+### F3 (major claim): "over-retention is much broader than the documented
+### one-extra-cycle" — ACCEPTED; comment corrected
+
+Verified by code reading: in a FULL collection `areMarksStale()` disables
+the `isMarkedRaw` skip, so the allocBit leg retains EVERY cell (including
+now-dead prior-cycle survivors) of every window-consumed block; under
+generational GC Wlr marks are sticky until the next full collection. The
+Heap.cpp cost comment is corrected accordingly (eden-sticky + full-GC
+survivor retention; up to two full collections, not one cycle). The
+stale-mark-skip narrowing (skip cells whose STALE mark bit is set in a
+full collection — survivors, not window cells; conservative once any cell
+in the block adopts the new version) is RECORDED here as a candidate that
+must get its own adversarial round + full repro battery before landing —
+prior narrowings (NA leg, JSCell-only) reintroduced the hole. Peak-RSS /
+full-GC-reclamation quantification deferred to the bench gate, which is
+only valid after the F4 strip (below).
+
+### F4 (major claim): "temporary diagnostics still in tree invalidate bench
+### numbers" — ACCEPTED (gate-sequencing, not correctness)
+
+Confirmed in tree: (1) `sharedGCStackRootSnapshot()` full conservative-root
+copy in gatherStackRoots (~Heap.cpp:1082), (2) the endMarking() snapshot
+re-walk with RELEASE_ASSERTs (~:1217-1260), (3) the
+`g_sharedGCConservativeRootAuditHook` seam (~:1036) — all
+isSharedServer()-gated (flag-off identity preserved) and all marked
+FIXME(fix-shared-heap-corruption)/(fix-shared-heap-ring-liveness-5).
+HARD PRECONDITION recorded: strip all of them before ANY bench/SCALEBENCH
+number is measured for the >1% gate, and the post-strip run must be a FULL
+verify (the diagnostics are currently the only under-marking re-check
+besides --verifyGC), not a smoke. The permanent FreeList validator
+(round 2) is NOT part of the strip.
+
+### Round-6 verification (Release, pinned 6 GIL-off flags, rebuilt tree)
+
+Same rebuilt Release jsc (comment-only Heap.cpp amendments; ninja-verified):
+- `repro-bigint-shared-ingest.js` W=4 x20: OK 20/20, postings=296555
+  (3 launcher-side rc=126 "Permission denied" exec artifacts re-run clean;
+  zero engine failures).
+- `--sweepSynchronously=1` ingest leg x10: OK 10/10, postings=296555.
+- `objectmodel/i03-quarantine-readd-across-gc.js` x10: PASS 10/10 (rc=0,
+  zero error lines; the test prints nothing on success).
+- DETECTOR leg (`--verifyGC=1`, ingest repro) x3: OK 3/3 — the GC verifier
+  runs under isSharedServer() and its end-of-marking re-walk found NO
+  verifier-live cell unmarked by the real fixpoint; this is the F1
+  lost-edge detector and should stay in the GIL-off battery until the
+  round-5 root-cause hunt closes residual 3.
+
+## 14. ROUND-7 ADVERSARIAL ADJUDICATION of the Wlr constraint — seven external findings verified against the tree (2026-06-10)
+
+### R7-F1 (major): "Wlr reads the mark/NA version protocol lock-free, racing
+### concurrent aboutToMarkSlow" — ACCEPTED; FIXED in code
+Verified by code read: the Wlr loop hoisted `areMarksStale(markingVersion)`
+once per block and used `isMarkedRaw(cell)` / `isNewlyAllocatedStale()` /
+`isNewlyAllocated(cell)` with no header lock and no Dependency, while
+parallel marker helpers concurrently run `MarkedBlock::aboutToMarkSlow`
+(clearAll of marks, setAndClear fold into NA + m_newlyAllocatedVersion bump,
+storeStoreFence, version store — all under `header().m_lock`). That is
+TSAN-dirty (against the TSAN-zero gate) and weak-memory-fragile, sound only
+via the previously UNSTATED lemma: a window-witnessed cell has stale mark
+bit == 0 (free-listed cells are unmarked) and its NA bit is stamped pre-stop
+(L1) and never cleared during marking. FIX: new
+`MarkedBlock::sharedGCWindowWitnessSnapshot()` takes the per-block witness
+snapshot under the SAME header lock aboutToMarkSlow holds (lock order
+header > bitvector, matching aboutToMarkSlow; allocBit read under the
+bitvector lock); the constraint appends candidates only after the lock is
+dropped (appendJSCellOrAuxiliary can retake it via aboutToMark). The lemma
+is now written at the definition. CONSTRAINT recorded: the §13
+stale-mark-skip narrowing MUST NOT land without this lock protocol and this
+lemma — under the old racy reads, narrowing + concurrent clearAll =
+nondeterministic under-retention (the original corruption class reopened
+silently).
+
+### R7-F2 (major): "Wlr-retained dead closure inflates bytesVisited ->
+### heap-limit growth -> bigger windows -> bigger retained set (pacing
+### feedback loop)" — ACCEPTED AS RISK; gates added, no code change
+Verified: retained cells are traced through the normal visitor, so
+m_totalBytesVisited (updateObjectCounts) counts them and drives
+updateAllocationLimits proportional sizing; on N-mutator allocation-heavy
+workloads the full-collection allocBit leg makes this self-reinforcing
+(converges only because witnesses retire at endMarking; steady-state factor
+unquantified). HARD GATES added to sign-off (on the post-strip Release
+tree): peak-RSS and post-full-GC heap-size on the ingest repro AND the
+SCALEBENCH parallel-self suite (N>=4 mutators) vs the pre-Wlr baseline —
+the >1% wall-time gate alone does NOT cover this. The suggested pacing
+exclusion (count Wlr-retained window-witnessed bytes like extraMemory
+rather than visited live bytes) is RECORDED as a candidate needing its own
+adversarial round; not landed blind.
+
+### R7-F3 (major): "world-stopped precondition is debug-only at the point of
+### use" — ACCEPTED; FIXED in code
+Verified: only `ASSERT(worldIsStoppedForAllClients())` guarded entry
+(compiled out in Release — the configuration all pinned verifies run), and
+checkConn's Mutator arm deliberately tolerates mutatorHasConnBit WITHOUT
+WSAC, so enforcement was indirect. Promoted to
+`RELEASE_ASSERT(worldIsStoppedForAllClients())` — one load per phase
+version. Audit note: every isSharedServer() collection routes through
+conductSharedCollection (which RELEASE_ASSERTs and sets WSAC); the
+RELEASE_ASSERT at the point of use is defense-in-depth for any path that
+would violate that routing.
+
+### R7-F4 (major): "SPEC-heap I12 no longer describes the landed liveness
+### mechanism" — ACCEPTED; spec amended
+Verified: old I12 said "each client's m_currentBlock cells" — strictly
+narrower than the load-bearing witness set; a literal implementation would
+still corrupt (§10 cohort lives in consumed blocks + precise allocations).
+I12 rewritten (window-witness set, closed-under-tracing,
+mark-without-trace forbidden, L1/L2, header-lock read protocol,
+over-retention semantics normative); SPEC-heap-history.md §25 records the
+amendment. Milestone commit blocks on this amendment, not just test green.
+
+### R7-F5 (major): "gate is isSharedServer(), not gilOff — runs under GIL-ON
+### shared-heap configs" — VERIFIED AS DESCRIBED; ADJUDICATED option 1
+### (ruling recorded, gate kept broad)
+Verified: HeapClientSet::add() fires noteSharedServerSticky() whenever
+size>1 && useSharedGCHeap, with no gilOff condition. RULING: once ISS,
+every collection runs the same §10 conducted stop protocol (stopAllocating
+NA stamping, witness retirement in endMarking) regardless of GIL — the
+window-witness hole is a property of shared conduction, not of gilOff, so
+GIL-on shared-heap runs NEED the retention for the same reason; the broad
+gate is also the conservative direction (retains more, never less), and
+flag-off identity is preserved (ISS unreachable without useSharedGCHeap;
+§12 identity smoke 5/5). Ruling mirrored in the Wlr gate comment
+(Heap.cpp). Optional follow-up (not gating): a GIL-on shared-mode windowed
+under-marking canary.
+
+### R7-F6 (major): "over-retention unquantified; bench gate structurally
+### unmeasurable while diagnostics remain" — ACCEPTED (extends §13 F4; no
+### change this round)
+Confirmed still in tree: sharedGCStackRootSnapshot copy, the endMarking
+O(roots) re-walk + RELEASE_ASSERTs, g_sharedGCConservativeRootAuditHook.
+DELIBERATELY not stripped this round: they are (with --verifyGC) the only
+under-marking re-checks until the round-5 §10.4 stop-protocol audit closes
+residual 3. Gate sequence reaffirmed and extended: (1) strip all
+FIXME(fix-shared-heap-corruption)/(fix-shared-heap-ring-liveness-5)
+instrumentation (permanent FreeList validator stays), (2) full verify on
+the stripped tree (corpus + repro battery + --verifyGC leg), (3) measure
+wall-time AND peak-RSS / full-GC-reclamation / pause on the stripped
+Release build, including a worst-case all-blocks-consumed eden+full
+workload (R7-F2 gates). Pause-bound note verified: Wlr executes once per
+m_phaseVersion; re-executions after phase transitions append nothing
+(marks monotone); the unbounded dimension is retention, not pause.
+
+### R7-F7 (major): "closure claim must stay scoped; pin --verifyGC leg
+### before the strip" — ACCEPTED
+Residual 3 remains MECHANISM-DEPENDENT, UNBOUNDED (per §13 F1
+reclassification): Wlr provably closes the window cohort only; the
+non-window lost-edge counter-scenario is consistent with all evidence.
+PINNED: the GIL-off battery (campaign.sh runs) must include a periodic
+`--verifyGC=1` leg — recorded here as a hard precondition of the
+diagnostics strip (the strip must NOT remove the last lost-edge detector).
+Status/PR language stays "window-cohort fix + empirical closure", NOT
+"root cause fixed". The round-5 §10.4 fence/dirty-drain audit remains the
+only path to declaring the corruption class closed.
+
+### Round-7 changes landed
+- MarkedBlock.h/.cpp: `sharedGCWindowWitnessSnapshot()` (header-locked
+  witness snapshot; protocol + lemma comment).
+- Heap.cpp Wlr: snapshot/append split; RELEASE_ASSERT(WSAC); gate-ruling
+  comment.
+- SPEC-heap.md I12 + SPEC-heap-history.md §25.
+Verification on the rebuilt Release tree recorded below.
+
+### Round-7 verification (Release, pinned 6 GIL-off flags, rebuilt tree)
+Rebuilt Release jsc (ninja, clean link) with the round-7 code changes
+(header-locked witness snapshot + RELEASE_ASSERT(WSAC)):
+- `repro-bigint-shared-ingest.js` W=4 x20: OK 20/20, postings=296555.
+- `--sweepSynchronously=1` ingest leg x10: OK 10/10, postings=296555.
+- `objectmodel/i03-quarantine-readd-across-gc.js` x13 (10 campaign + 3
+  direct): PASS 13/13 — rc=0, zero non-benign output lines every run (the
+  test prints nothing on success; campaign.sh's `^OK` grep misclassifies
+  silent-success tests as "corrupt", which is a HARNESS artifact — the only
+  stdout/stderr line is the benign GIL-off "disabling useWasm" notice).
+- DETECTOR leg (`--verifyGC=1`, ingest repro) x3: OK 3/3 — end-of-marking
+  verifier re-walk found no verifier-live cell unmarked by the real
+  fixpoint with the locked snapshot protocol in place.

@@ -8,12 +8,36 @@
 #   JSTests/threads/objectmodel/*.js                   (objectmodel)
 #   JSTests/threads/vmstate/*.js                       (vmstate N6)
 #   JSTests/threads/jit/**/*.js                        (jit)
+# With --cve, the corpus is INSTEAD the CVE susceptibility suite
+# (JSTests/threads/cve/*.js, thread-cve-audit/-close) — the mechanical form
+# of the audit's "literal CVE suite run": same directive handling, plus the
+# threadsExpectFail directive below. The cve suite is not part of the
+# default corpus because its [EXPECTED-FAIL] rows pin OPEN audit rulings
+# (they fail GIL-off by design until the ruled fix lands).
 #
 # Header directives understood (subset of run-jsc-stress-tests):
 #   //@ skip                       skip the file
 #   //@ requireOptions("a", ...)   append args to every run of the file
 #   //@ runDefault("a", ...)       one run per directive with exactly those
 #                                  args (ta-path-unchanged.js runs both ways)
+#   //@ threadsExpectFail("gilOff")
+#                                  the test pins an OPEN, already-ruled
+#                                  audit deferral: under an EFFECTIVE
+#                                  GIL-off configuration (decided by
+#                                  probing $vm.useThreadGIL() with the
+#                                  run's exact option set + ambient env —
+#                                  the post-U0-validation mode, never a
+#                                  guess from flag spelling) the verdict is
+#                                  INVERTED: nonzero exit = XFAIL (counted
+#                                  separately, not a suite failure); exit 0
+#                                  = XPASS = suite FAILURE (either the
+#                                  ruled fix landed — flip the annotation —
+#                                  or the pinned failure went latent and
+#                                  must be investigated, not celebrated).
+#                                  GIL-on (or mode unknown) the test runs
+#                                  normally. Annotate ONLY tests whose
+#                                  GIL-off failure is deterministic; a
+#                                  flaky race pin would flap XFAIL/XPASS.
 # blocking-gate.js additionally gets --can-block-is-false appended (annex
 # T2: "runner appends it"; the threads.yaml stanza does the same at INT).
 #
@@ -30,10 +54,13 @@
 # (API-I14's SPEC-mandated deferral to INT 9.2-6 is reported explicitly).
 #
 # Usage:
-#   Tools/threads/run-tests.sh [--filter=SUBSTR] [--amplify] [--list]
+#   Tools/threads/run-tests.sh [--filter=SUBSTR] [--amplify] [--list] [--cve]
 #   Tools/threads/run-tests.sh --gates
 #
 # Options:
+#   --cve             Run the CVE susceptibility suite (JSTests/threads/cve)
+#                     INSTEAD of the default corpus, honoring
+#                     threadsExpectFail. Composable with --filter/--amplify.
 #   --filter=SUBSTR   Only run tests whose repo-relative path contains SUBSTR.
 #   --amplify         Wrap every run in Tools/threads/amplify.sh (race
 #                     amplification); if amplify.sh is missing, warn once and
@@ -81,6 +108,7 @@ FILTER=""
 AMPLIFY=0
 LIST=0
 GATES=0
+CVE=0
 
 die() { echo "run-tests: error: $*" >&2; exit 2; }
 
@@ -97,12 +125,13 @@ for arg in "$@"; do
         --amplify)  AMPLIFY=1 ;;
         --list)     LIST=1 ;;
         --gates)    GATES=1 ;;
+        --cve)      CVE=1 ;;
         -h|--help)  print_help; exit 0 ;;
         *)          die "unknown argument: $arg" ;;
     esac
 done
 
-if [[ "$GATES" -eq 1 && ( -n "$FILTER" || "$AMPLIFY" -eq 1 || "$LIST" -eq 1 ) ]]; then
+if [[ "$GATES" -eq 1 && ( -n "$FILTER" || "$AMPLIFY" -eq 1 || "$LIST" -eq 1 || "$CVE" -eq 1 ) ]]; then
     die "--gates must be the sole option"
 fi
 
@@ -238,15 +267,25 @@ fi
 # ========================== end --gates mode ==========================
 
 # ---- collect the corpus (SPEC-api §8 globs; foreign dirs only when present) ----
+# --cve swaps in the CVE susceptibility suite (thread-cve-audit/-close): it
+# is a separate lane, not part of the default corpus, because its
+# [EXPECTED-FAIL] rows (threadsExpectFail) pin OPEN audit rulings and fail
+# GIL-off by design until the ruled fix lands.
 FILES=()
-for f in "$JT"/api/*.js "$JT"/atomics/*.js "$JT"/races/*.js \
-         "$JT"/heap-*.js "$JT"/objectmodel/*.js "$JT"/vmstate/*.js; do
-    [[ -e "$f" ]] && FILES+=("$f")
-done
-if [[ -d "$JT/jit" ]]; then
-    while IFS= read -r f; do
-        FILES+=("$f")
-    done < <(find "$JT/jit" -name '*.js' -type f 2>/dev/null | sort)
+if [[ "$CVE" -eq 1 ]]; then
+    for f in "$JT"/cve/*.js; do
+        [[ -e "$f" ]] && FILES+=("$f")
+    done
+else
+    for f in "$JT"/api/*.js "$JT"/atomics/*.js "$JT"/races/*.js \
+             "$JT"/heap-*.js "$JT"/objectmodel/*.js "$JT"/vmstate/*.js; do
+        [[ -e "$f" ]] && FILES+=("$f")
+    done
+    if [[ -d "$JT/jit" ]]; then
+        while IFS= read -r f; do
+            FILES+=("$f")
+        done < <(find "$JT/jit" -name '*.js' -type f 2>/dev/null | sort)
+    fi
 fi
 [[ ${#FILES[@]} -gt 0 ]] || die "no tests found under $JT"
 
@@ -298,6 +337,7 @@ plan_runs() {
 WARNED_NO_AMPLIFY=0
 PASS=0
 FAIL=0
+XFAIL=0
 SKIPPED=0
 PLANNED_RUNS=0
 PROBE_SKIPS=0
@@ -374,6 +414,56 @@ probe_options() { # $1 = space-joined args ("" => trivially supported)
     return 0
 }
 
+# ---- threadsExpectFail("gilOff") support (cve suite) ----
+# Header scan: 0 (true) iff the file's leading //@ block carries the
+# directive. Same block-termination rule as plan_runs.
+file_expectfail_giloff() { # $1 = file
+    local line
+    while IFS= read -r line; do
+        [[ "$line" == "//@"* ]] || return 1
+        [[ "$line" == '//@ threadsExpectFail("gilOff")'* ]] && return 0
+    done < "$1"
+    return 1
+}
+
+# GIL-mode probe: decides whether a run's EFFECTIVE configuration is
+# GIL-off by asking the build itself — $vm.useThreadGIL() returns the
+# post-U0-validation option value under the run's exact argv + ambient
+# JSC_* env — never by re-implementing the U0 activation checklist from
+# flag spellings here (env JSC_useThreadGIL=false without the four enable
+# flags is forced back ON by U0, and a spelling-based guess would invert
+# the verdict of a GIL-ON run). Cached per option set. Result "on", "off",
+# or "unknown"; unknown (probe died, $vm unavailable, stray output) falls
+# back to running the test NORMALLY — fail-loud: a pinned expected-fail
+# then surfaces as an ordinary FAIL, never as a silent inversion.
+GIL_PROBED_OPTSETS=()
+GIL_PROBED_RESULTS=()
+GIL_MODE=""
+probe_gil_mode() { # $1 = space-joined args
+    local key="$1"
+    local i
+    for i in ${GIL_PROBED_OPTSETS[@]+"${!GIL_PROBED_OPTSETS[@]}"}; do
+        if [[ "${GIL_PROBED_OPTSETS[$i]}" == "$key" ]]; then
+            GIL_MODE="${GIL_PROBED_RESULTS[$i]}"
+            return 0
+        fi
+    done
+    local probe_args=()
+    [[ -n "$key" ]] && read -r -a probe_args <<<"$key"
+    local out
+    out="$(${TIMEOUT_WRAP[@]+"${TIMEOUT_WRAP[@]}"} "$JSC" ${probe_args[@]+"${probe_args[@]}"} --useDollarVM=1 \
+        -e 'print("THREADS-GIL-MODE:" + ($vm.useThreadGIL() ? "on" : "off"))' 2>/dev/null \
+        | grep '^THREADS-GIL-MODE:' || true)"
+    case "$out" in
+        "THREADS-GIL-MODE:on")  GIL_MODE=on ;;
+        "THREADS-GIL-MODE:off") GIL_MODE=off ;;
+        *)                      GIL_MODE=unknown ;;
+    esac
+    GIL_PROBED_OPTSETS+=("$key")
+    GIL_PROBED_RESULTS+=("$GIL_MODE")
+    return 0
+}
+
 # Per-test timeout: threaded tests hang by failure mode (lost wakeup, GIL
 # hand-off livelock, deadlocked safepoint), so an unbounded run blocks the
 # whole harness. timeout(1) kills the process group; a timeout is a FAIL.
@@ -418,6 +508,11 @@ for file in "${FILES[@]}"; do
         continue
     fi
 
+    FILE_XFAIL_GILOFF=0
+    if file_expectfail_giloff "$file"; then
+        FILE_XFAIL_GILOFF=1
+    fi
+
     runindex=0
     while IFS= read -r runspec; do
         if [[ "$runspec" == "<skip>" ]]; then
@@ -454,6 +549,14 @@ for file in "${FILES[@]}"; do
             continue
             ;;
         esac
+        # threadsExpectFail("gilOff"): invert the verdict ONLY when the
+        # run's EFFECTIVE mode is GIL-off ($vm.useThreadGIL() probe — mode
+        # "unknown" runs normally, fail-loud).
+        RUN_XFAIL=0
+        if [[ "$FILE_XFAIL_GILOFF" -eq 1 ]]; then
+            probe_gil_mode "${args[*]:-}"
+            [[ "$GIL_MODE" == "off" ]] && RUN_XFAIL=1
+        fi
         if run_one "$file" ${args[@]+"${args[@]}"}; then
             # A test whose option-default premise is inverted by ambient
             # configuration (JSC_* env, warned about above) self-reports
@@ -464,16 +567,25 @@ for file in "${FILES[@]}"; do
                 SKIPPED=$((SKIPPED + 1))
                 echo "SKIP $label (premise inverted by ambient configuration; ambient JSC_* env: ${AMBIENT_JSC_ENV:-none detected})"
                 sed 's/^/     | /' "$TMP_OUT"
+            elif [[ "$RUN_XFAIL" -eq 1 ]]; then
+                FAIL=$((FAIL + 1))
+                FAILED_TESTS+=("$label [XPASS — expected-fail test passed GIL-off]")
+                echo "FAIL $label (XPASS: threadsExpectFail(\"gilOff\") test PASSED under an effective GIL-off configuration — either the ruled fix landed (flip the annotation and the audit-status row) or the pinned failure went latent and must be investigated, not celebrated)"
             else
                 PASS=$((PASS + 1))
                 echo "PASS $label"
             fi
         else
             status=$?
-            FAIL=$((FAIL + 1))
-            FAILED_TESTS+=("$label")
-            echo "FAIL $label (exit $status)"
-            sed 's/^/     | /' "$TMP_OUT"
+            if [[ "$RUN_XFAIL" -eq 1 ]]; then
+                XFAIL=$((XFAIL + 1))
+                echo "XFAIL $label (exit $status — expected GIL-off failure pinning an OPEN audit ruling; this row flips to PASS, and the annotation must be removed, when the ruled fix lands)"
+            else
+                FAIL=$((FAIL + 1))
+                FAILED_TESTS+=("$label")
+                echo "FAIL $label (exit $status)"
+                sed 's/^/     | /' "$TMP_OUT"
+            fi
         fi
     done < <(plan_runs "$file")
 done
@@ -490,35 +602,47 @@ fi
 # applies the 9.2-6 hooks ("INT gate via 9.2-6; //@ skipped until then"), so
 # the deferral is reported visibly on every run instead of counting as
 # silently-green coverage.
+# The grep is an API-corpus (§8) contract; the --cve lane runs a different
+# suite entirely, so the grep is skipped there (it would either pass
+# vacuously off files this lane never ran, or fail spuriously in a tree
+# without the api corpus).
 COVERAGE_FILES=()
 SKIPPED_COVERAGE_FILES=()
-for f in "$JT"/api/*.js "$JT"/atomics/*.js "$JT"/races/*.js; do
-    [[ -e "$f" ]] || continue
-    if grep -qs '^//@ skip' "$f"; then
-        SKIPPED_COVERAGE_FILES+=("$f")
-    else
-        COVERAGE_FILES+=("$f")
-    fi
-done
+if [[ "$CVE" -eq 0 ]]; then
+    for f in "$JT"/api/*.js "$JT"/atomics/*.js "$JT"/races/*.js; do
+        [[ -e "$f" ]] || continue
+        if grep -qs '^//@ skip' "$f"; then
+            SKIPPED_COVERAGE_FILES+=("$f")
+        else
+            COVERAGE_FILES+=("$f")
+        fi
+    done
+fi
 MISSING=()
-for i in $(seq 1 24); do
-    if grep -qsE "API-I$i([^0-9]|\$)" ${COVERAGE_FILES[@]+"${COVERAGE_FILES[@]}"} /dev/null; then
-        continue
-    fi
-    if [[ ${#SKIPPED_COVERAGE_FILES[@]} -gt 0 ]] \
-        && grep -qsE "API-I$i([^0-9]|\$)" "${SKIPPED_COVERAGE_FILES[@]}" /dev/null; then
-        if [[ "$i" -eq 14 ]]; then
-            echo "run-tests: note: API-I14 coverage deferred to INT 9.2-6 (sole citation, api/thread-restrict.js, is //@ skip'ped per SPEC-api I14)"
+if [[ "$CVE" -eq 0 ]]; then
+    for i in $(seq 1 24); do
+        if grep -qsE "API-I$i([^0-9]|\$)" ${COVERAGE_FILES[@]+"${COVERAGE_FILES[@]}"} /dev/null; then
             continue
         fi
-        MISSING+=("API-I$i(only-in-skipped-files)")
-    else
-        MISSING+=("API-I$i")
-    fi
-done
+        if [[ ${#SKIPPED_COVERAGE_FILES[@]} -gt 0 ]] \
+            && grep -qsE "API-I$i([^0-9]|\$)" "${SKIPPED_COVERAGE_FILES[@]}" /dev/null; then
+            if [[ "$i" -eq 14 ]]; then
+                echo "run-tests: note: API-I14 coverage deferred to INT 9.2-6 (sole citation, api/thread-restrict.js, is //@ skip'ped per SPEC-api I14)"
+                continue
+            fi
+            MISSING+=("API-I$i(only-in-skipped-files)")
+        else
+            MISSING+=("API-I$i")
+        fi
+    done
+fi
 
 echo
-echo "run-tests: $PASS passed, $FAIL failed, $SKIPPED skipped"
+if [[ "$XFAIL" -gt 0 ]]; then
+    echo "run-tests: $PASS passed, $FAIL failed, $XFAIL expected-fail (XFAIL — open audit rulings pinned), $SKIPPED skipped"
+else
+    echo "run-tests: $PASS passed, $FAIL failed, $SKIPPED skipped"
+fi
 if [[ ${#MISSING[@]} -gt 0 ]]; then
     echo "run-tests: COVERAGE FAIL — uncited invariants: ${MISSING[*]}"
 fi

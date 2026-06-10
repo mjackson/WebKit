@@ -141,6 +141,13 @@ def cmd_record(args):
             rec["failed"] = True
             rec["fail_reason"] = "threads field %r != requested W %r" % (
                 bench.get("threads"), args.threads)
+        elif (getattr(args, "expect_tuple", None)
+                and checksum_tuple(rec) != args.expect_tuple):
+            rec["failed"] = True
+            rec["fail_reason"] = (
+                "checksum mismatch vs batch reference — quarantined: known "
+                "shared-GC-heap corruption under GIL-off at W>=4 "
+                "(js/repro-bigint-shared-ingest.js)")
 
     with open(args.runs, "a") as f:
         f.write(json.dumps(rec, sort_keys=True) + "\n")
@@ -431,6 +438,12 @@ def main():
     pr.add_argument("--stdout", required=True)
     pr.add_argument("--time", required=True)
     pr.add_argument("--runs", required=True)
+    # Quarantine hook (2026-06-10, engine-bug accommodation — see run.sh):
+    # if the parsed checksum tuple differs from this reference, record the
+    # run as failed (fail_reason names the known shared-heap bug) instead of
+    # letting run.sh's fail-fast abort the batch. Passed ONLY for js W>=2;
+    # go/java and the js W=1 baseline keep the §5.5 hard abort.
+    pr.add_argument("--expect-tuple", default=None)
 
     pa = sub.add_parser("aggregate")
     pa.add_argument("runs")

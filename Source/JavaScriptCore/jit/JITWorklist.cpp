@@ -40,16 +40,10 @@
 
 namespace JSC {
 
-// UNGIL AB18-R1-A: keys claimed for finalize (removed from m_plans, install not
-// yet complete). Guarded by *m_lock of the global worklist (JITWorklist is a
-// process singleton, see ensureGlobalWorklist). GIL-off only; empty otherwise.
-// This would naturally be a JITWorklist member next to m_plans; it lives here
-// so the change stays within this translation unit.
-static UncheckedKeyHashSet<JITCompilationKey>& finalizingKeys()
-{
-    static NeverDestroyed<UncheckedKeyHashSet<JITCompilationKey>> set;
-    return set.get();
-}
+// UNGIL AB18-R1-A: the finalize-claim table is now the m_finalizingPlans
+// member (see JITWorklist.h) — promoted from the original file-local key set
+// because the GC must walk the claimed plans' CodeBlocks (AB18-R1-B), and the
+// GC iteration templates live in JITWorklistInlines.h.
 
 // UNGIL §A.3.2 client-scoped park pairing (Heap.cpp; same forward-declaration
 // shape as Lookup.cpp / VMManager.cpp).
@@ -211,9 +205,9 @@ CompilationResult JITWorklist::enqueue(Ref<JITPlan> plan)
     // behavior is unchanged.
     // UNGIL AB18-R1-A: a plan disappears from m_plans in removeAllReadyPlansForVM
     // BEFORE its finalize() installs the code, so m_plans alone cannot dedup a racer
-    // that enqueues inside the removal->install window. finalizingKeys() keeps the
+    // that enqueues inside the removal->install window. m_finalizingPlans keeps the
     // key claimed across that window (GIL-off only; invariantly empty otherwise).
-    bool isDuplicate = m_plans.contains(plan->key()) || finalizingKeys().contains(plan->key());
+    bool isDuplicate = m_plans.contains(plan->key()) || m_finalizingPlans.contains(plan->key());
     if (!isDuplicate && plan->vm()->gilOff() && plan->tier() == JITPlan::Tier::Baseline) [[unlikely]] {
         // UNGIL AB18-R1-A: authoritative KEY-LEVEL re-check under *m_lock. Baseline
         // publication is per-UnlinkedCodeBlock (CodeBlock::setupWithUnlinkedBaselineCode,
@@ -319,10 +313,10 @@ auto JITWorklist::completeAllReadyPlansForVM(VM& vm, JITCompilationKey requested
         // finalize() installed (or failed) the code. *m_lock's release/acquire
         // pairing makes the installed code (the per-key unlinked baseline
         // publication and the linked jitType) visible to any enqueue() that
-        // subsequently misses both m_plans and finalizingKeys().
+        // subsequently misses both m_plans and m_finalizingPlans.
         Locker locker { *m_lock };
         for (auto& plan : myReadyPlans)
-            finalizingKeys().remove(plan->key());
+            m_finalizingPlans.remove(plan->key());
     }
     return resultingState;
 }
@@ -449,7 +443,7 @@ void JITWorklist::cancelAllPlansForVM(VM& vm)
         // their claims so the key is not wedged for future compiles.
         Locker locker { *m_lock };
         for (auto& plan : myReadyPlans)
-            finalizingKeys().remove(plan->key());
+            m_finalizingPlans.remove(plan->key());
     }
 }
 
@@ -506,6 +500,17 @@ void JITWorklist::visitWeakReferences(Visitor& visitor)
                 continue;
             entry.value->checkLivenessAndVisitChildren(visitor);
         }
+        // UNGIL AB18-R1-B: also visit the children (mustHandleValues etc.) of
+        // plans claimed for finalize. The liveness gate inside converges: the
+        // unconditional iterateCodeBlocksForFinalizeRoots walk (Jw constraint,
+        // GreyedByMarking) marks the claimed CodeBlock, whose visitChildren
+        // marks its owner executable, satisfying the gate on a later
+        // constraint execution within the same marking fixpoint.
+        for (auto& entry : m_finalizingPlans) {
+            if (entry.value->vm() != vm)
+                continue;
+            entry.value->checkLivenessAndVisitChildren(visitor);
+        }
     }
     // This loop doesn't need locking because:
     // (1) no new threads can be added to m_threads. Hence, it is immutable and needs no locks.
@@ -556,7 +561,7 @@ JITWorklist::State JITWorklist::removeAllReadyPlansForVM(VM& vm, Vector<Ref<JITP
             // the removal->install window. Released by the claiming caller
             // after finalize() completes. GIL-on: single mutator, the window
             // has no observer; set stays empty.
-            finalizingKeys().add(plan->key());
+            m_finalizingPlans.add(plan->key(), plan.ptr());
         }
         myReadyPlans.append(WTF::move(plan));
         return true;
@@ -571,7 +576,7 @@ JITWorklist::State JITWorklist::removeAllReadyPlansForVM(VM& vm, Vector<Ref<JITP
         // observers — they early-return NotKnown on !vm.numberOfActiveJITPlans()
         // before ever taking *m_lock; the enqueue dedup backstop is the actual
         // line of defense for the cross-lite race.
-        if (m_plans.contains(requestedKey) || finalizingKeys().contains(requestedKey))
+        if (m_plans.contains(requestedKey) || m_finalizingPlans.contains(requestedKey))
             return Compiling;
     }
     return NotKnown;

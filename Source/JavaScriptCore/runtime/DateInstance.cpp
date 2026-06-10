@@ -64,9 +64,8 @@ void DateInstance::finishCreation(VM& vm, double time)
     m_internalNumber = timeClip(time);
 }
 
-const GregorianDateTime* DateInstance::calculateGregorianDateTime(DateCache& cache) const
+const GregorianDateTime* DateInstance::calculateGregorianDateTime(DateCache& cache, double milli) const
 {
-    double milli = internalNumber();
     if (std::isnan(milli))
         return nullptr;
 
@@ -86,9 +85,8 @@ const GregorianDateTime* DateInstance::calculateGregorianDateTime(DateCache& cac
     return &m_data->m_cachedGregorianDateTime;
 }
 
-const GregorianDateTime* DateInstance::calculateGregorianDateTimeUTC(DateCache& cache) const
+const GregorianDateTime* DateInstance::calculateGregorianDateTimeUTC(DateCache& cache, double milli) const
 {
-    double milli = internalNumber();
     if (std::isnan(milli))
         return nullptr;
 

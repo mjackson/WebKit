@@ -894,8 +894,16 @@ ALWAYS_INLINE bool JSString::is8Bit() const
 ALWAYS_INLINE unsigned JSString::length() const
 {
     uintptr_t pointer = fiberConcurrently();
-    if (pointer & isRopeInPointer)
-        return uncheckedDowncast<JSRopeString>(this)->length();
+    if (pointer & isRopeInPointer) {
+        // GIL-off (SPEC-ungil §N.2 reader arm): the rope decision comes from
+        // the ONE snapshot above. uncheckedDowncast must not be used here:
+        // its debug is<JSRopeString> check re-reads m_fiber and can observe a
+        // concurrent resolver's convertToNonRope republish (TypeCasts.h
+        // assert). static_cast on the snapshot decision is correct in both
+        // modes: the cell's dynamic type is immutable, and rope length bits
+        // (m_compactFibers) are never overwritten by resolution.
+        return static_cast<const JSRopeString*>(this)->length();
+    }
     return std::bit_cast<StringImpl*>(pointer)->length();
 }
 
@@ -1220,20 +1228,31 @@ inline JSString* tryJSSubstringImpl(VM& vm, JSString* base, unsigned offset, uns
         // For now, let's not allow substrings with a rope base.
         // Resolve non-substring rope bases so we don't have to deal with it.
         // FIXME: Evaluate if this would be worth adding more branches.
-        if (base->isSubstring()) {
-            JSRopeString* baseRope = uncheckedDowncast<JSRopeString>(base);
+        // GIL-off (§N.2 reader arm): one m_fiber snapshot decides
+        // substring / rope / resolved AND supplies fiber0. Re-reading
+        // isRope()/isSubstring()/fiber0() after a concurrent resolver
+        // republishes m_fiber would misread the published StringImpl* as
+        // flag bits and a JSString* fiber; uncheckedDowncast's debug check
+        // re-reads m_fiber the same way. substringBase/substringOffset and
+        // fiber1/fiber2 live in m_compactFibers, which resolution never
+        // clears, so they remain valid reads under the snapshot decision.
+        // GIL-on / flag-off: the snapshot is byte-identical to the direct
+        // reads it replaces (single mutator; m_fiber cannot change here).
+        uintptr_t fiberBits = base->fiberConcurrently();
+        if (fiberBits & JSRopeString::isSubstringInPointer) {
+            JSRopeString* baseRope = static_cast<JSRopeString*>(base);
             ASSERT(!baseRope->substringBase()->isRope());
             return jsSubstringOfResolved(vm, nullptr, baseRope->substringBase(), baseRope->substringOffset() + offset, length);
         }
 
-        if (!base->isRope())
+        if (!(fiberBits & JSString::isRopeInPointer))
             return jsSubstringOfResolved(vm, nullptr, base, offset, length);
 
         if (depth >= maxTraversalDepth)
             return nullptr;
 
-        auto* rope = uncheckedDowncast<JSRopeString>(base);
-        auto* fiber0 = rope->fiber0();
+        auto* rope = static_cast<JSRopeString*>(base);
+        auto* fiber0 = std::bit_cast<JSString*>(fiberBits & JSRopeString::stringMask);
         ASSERT(fiber0);
         if (offset < fiber0->length()) {
             if ((offset + length) <= fiber0->length()) {
@@ -1272,7 +1291,12 @@ inline JSString* jsSubstring(JSGlobalObject* globalObject, VM& vm, JSString* bas
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     if (!result) {
-        uncheckedDowncast<JSRopeString>(base)->resolveRope(globalObject);
+        // §N.2 reader arm: tryJSSubstringImpl returned nullptr only after
+        // observing rope bits, so the cell IS a JSRopeString (dynamic type is
+        // immutable). uncheckedDowncast's debug check re-reads m_fiber and
+        // races a concurrent resolver; resolveRope itself re-snapshots and
+        // treats already-resolved as success.
+        static_cast<JSRopeString*>(base)->resolveRope(globalObject);
         RETURN_IF_EXCEPTION(scope, nullptr);
         return jsSubstringOfResolved(vm, nullptr, base, offset, length);
     }

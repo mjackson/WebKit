@@ -194,7 +194,14 @@ inline JSValue Structure::prototypeForLookup(JSGlobalObject* globalObject) const
 
 inline JSValue Structure::prototypeForLookup(JSGlobalObject* globalObject, JSCell* base) const
 {
-    ASSERT(base->structure() == this);
+    // SINGLE-MUTATOR staleness tripwire, reinterpreted exactly like
+    // storedPrototype(object) (StructureInlinesLight.h): under useJSThreads a
+    // racing foreign transition legitimately re-tags base's structureID while
+    // a reader walks with its SAMPLED structure (SPEC-objectmodel M7/I24).
+    // The body stays sound on the sample: mono-proto reads THIS structure's
+    // immutable m_prototype; poly-proto reads base's inline slot (value
+    // staleness blessed, OM C4). Flag-off: assert unchanged.
+    ASSERT(Options::useJSThreads() || base->structure() == this);
     if (isObject())
         return storedPrototype(asObject(base));
     return prototypeForLookupPrimitiveImpl(globalObject, this);
@@ -202,7 +209,13 @@ inline JSValue Structure::prototypeForLookup(JSGlobalObject* globalObject, JSCel
 
 inline StructureChain* Structure::prototypeChain(VM& vm, JSGlobalObject* globalObject, JSObject* base) const
 {
-    ASSERT(base->structure() == this);
+    // See prototypeForLookup above: sampled-structure readers are legal under
+    // useJSThreads (SPEC-objectmodel M7/I24). The chain is derived from and
+    // cached on the SAMPLED structure — exactly the association its callers
+    // (which hold the sample) want; the cache-slot publication is already
+    // relaxed-atomic against concurrent readers (TSAN §10.9 note below).
+    // Flag-off: assert unchanged.
+    ASSERT(Options::useJSThreads() || base->structure() == this);
     // We cache our prototype chain so our clients can share it.
     if (!isValid(globalObject, m_cachedPrototypeChain.get(), base)) {
         JSValue prototype = prototypeForLookup(globalObject, base);

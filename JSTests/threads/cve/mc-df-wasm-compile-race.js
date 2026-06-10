@@ -1,4 +1,4 @@
-//@ requireOptions("--useJSThreads=1", "--useWebAssembly=1")
+//@ requireOptions("--useJSThreads=1")
 // MC-DF S1 (docs/threads/cve/map-MC-DF.md): the CVE-2017-5116 shape.
 // In Chrome 61, wasm bytes in a SharedArrayBuffer were validated on one read
 // and compiled from another while a Worker rewrote them. Our defense is
@@ -21,6 +21,21 @@
 // EXECUTED POST-UNGIL ONLY. Amplifier-ready (nondeterministic interleaving;
 // deterministic oracle).
 load("../harness.js", "caller relative");
+
+// FIXME(U-T13/MC-LIFE-S6): this premise-skip self-retires when the GIL-off
+// wasm refusal is lifted (relocating-grow stop conduction lands); the guard
+// below then never fires and the test runs at full strength.
+// Wasm is deliberately refused GIL-off (U-T13: 'JSC: disabling useWasm under
+// GIL-off...') until the MC-LIFE S6 stop conduction lands. That refusal is
+// the accepted engine behavior, not a failure of this tripwire: report the
+// runner-recognized premise-skip marker (Tools/threads/run-tests.sh counts
+// it as SKIP, never PASS) and exit 0.
+if (typeof WebAssembly === "undefined") {
+    print("THREADS-PREMISE-SKIP: WebAssembly is unavailable in the effective"
+        + " configuration (deliberate U-T13 GIL-off wasm refusal); this"
+        + " wasm-class tripwire cannot run meaningfully without it.");
+    quit();
+}
 
 // (module (func (export "f") (result i32) i32.const <X>))
 const moduleBytes = new Uint8Array([

@@ -2,6 +2,29 @@
 // implementing Tools/threads/scalebench/js/bench.js (2026-06-10, Release jsc
 // mtime Jun 10 03:06).
 //
+// STATUS 2026-06-10 LATER (scalebench run phase; same Release jsc 03:34,
+// ninja-verified current with the tree): narrowed substantially —
+//   * GC-DEPENDENT: --useGC=0 -> OK 4/4 (zero collections); GC on -> CORRUPT
+//     ~100%. --forceRAMSize up to 64G does not suppress the eden cycles.
+//   * NOT marking-parallelism: --numberOfGCMarkers=1 still corrupts 4/4.
+//   * NOT generational/remembered-set: --useGenerationalGC=0 (full GCs only)
+//     still corrupts 4/4. --useConcurrentGC=0 still corrupts.
+//   * --sweepSynchronously=1 turns the silent aliasing into immediate
+//     crashes/exceptions => LIVE cells are being swept (under-marking during
+//     the STW collection), and lazy sweep normally delays the re-allocation.
+//   * --useSharedGCHeap=0 (other 5 flags kept) -> OK 3/3;
+//     --useSharedAtomStringTable=0 (sharedGCHeap kept) -> still corrupts.
+//   * Corruption shape (diagnostic variant): a posting list's docIds
+//     butterfly ALIASES another thread's local tf-Map storage — term
+//     strings and 1-counts interleaved with real docIds; lengths diverge.
+//     Consistent with: cell allocated by thread T in-flight at the GC
+//     handshake (held only in T's registers/stack) is missed by the
+//     conservative scan / newlyAllocated accounting, swept, and handed to
+//     another thread's allocator.
+//   * Release-only in practice: Debug (03:38, same tree) OK 2/2; TSan jsc
+//     (rebuilt from this tree) OK with 0 reports — timing/instrumentation
+//     mask, so TSAN will not name this one.
+//   * GIL-on (--useJSThreads=1 only) OK 2/2.
 // STATUS 2026-06-10 (Release jsc mtime Jun 10 03:34): still reproduces 3/3
 // (CORRUPT bad=4..10). bench.js at W=4 smoke now segfaults outright (libstdc++
 // std::array<unsigned long, 16> operator[] assertion, core dump) in addition

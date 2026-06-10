@@ -32,12 +32,14 @@
 #include "JSLock.h"
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
+#include "SparseArrayValueMap.h"
 #include "ThreadManager.h"
 #include "ThreadObject.h"
 #include "VMLite.h" // UNGIL §J.3 (U-T11): the spawned park lite is the CURRENT lite (TERM1 rule 4).
 #include <wtf/HashSet.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
+#include <wtf/Scope.h>
 
 namespace JSC {
 
@@ -243,10 +245,11 @@ static void putExistingOwnDataPropertyForAtomics(JSGlobalObject* globalObject, J
 // branch below is unreachable there (U19 oracle; SD4-class deltas are owned
 // by U-T11, not this file's value ops).
 //
-// Store's Missing arm intentionally stays on the generic putDirectMayBeIndex
-// path: a fresh-property ADD is a structure transition, and the OM's locked/
-// E4 transition machinery is its single-publication form - §9.5 accessors
-// only cover EXISTING slots.
+// Store's Missing arm stays on the OM's generic ADD machinery - a fresh-
+// property ADD is a structure/shape transition and §9.5 accessors only cover
+// EXISTING slots - but BOTH legs are conditional adds now
+// (putDirectForAtomicsMissingAdd / putDirectIndexForAtomicsMissingAdd): a
+// lost race restarts the probe instead of clobbering a racer's descriptor.
 
 struct ConcurrentAtomicsProbe {
     OwnPropertyKind kind { OwnPropertyKind::Missing };
@@ -392,6 +395,266 @@ static JSValue atomicsLoadOnPropertyGilOff(JSGlobalObject* globalObject, JSObjec
     }
 }
 
+// ---------------- §C.2 Missing arm, INDEXED conditional add ----------------
+//
+// Receiver gate: the fast-put classes whose attribute-0 indexed adds the
+// loop below models. Replica of JSObject.cpp's TU-private
+// canDoFastPutDirectIndex, with two deliberate deltas:
+//   - NO arguments-type admission (review round 2 (b)): Direct/Scoped
+//     Arguments index their own mapped storage, not the shapes the loop
+//     models; they keep the generic path (today's behavior, no new risk).
+//   - NO inSparseIndexingMode()/CoW exclusion: a sparse-mode receiver's map
+//     is exactly what the conditional add handles (the generic
+//     defineOwnProperty leg it would otherwise take re-opens the descriptor
+//     clobber through defineOwnIndexedProperty's reconfiguration arm), and
+//     CoW words are materialized by the loop itself.
+static bool canUseConditionalIndexedMissingAdd(JSObject* object)
+{
+    return (isJSArray(object) || is<JSFinalObject>(object)) && !TypeInfo::isArgumentsType(object->type());
+}
+
+// U-T10 amend: the INDEXED twin of putDirectForAtomicsMissingAdd - closes the
+// KNOWN RESIDUAL previously recorded at the Missing-arm call site below
+// (INTEGRATE-ungil, U-T10 amend item 3). The old leg called putDirectIndex
+// verbatim; its ArrayStorage terminal (SparseArrayValueMap::putDirect,
+// LikePutDirect) force-sets an EXISTING sparse entry to a plain attributes-0
+// data property, silently clobbering a racing indexed defineProperty's
+// accessor / non-writable descriptor (MC-PRIM P4 / MC-REENT S3c).
+//
+// Contract (same as the named helper): null on success; non-null = LOST RACE
+// - the caller restarts, and the fresh probe re-classifies on settled state
+// (Accessor / non-plain => the precise D3/D7 TypeError; plain data => the
+// value-only Exchange leg). Unlike the named helper this one CAN throw
+// (exotic-receiver generic fallback, conversion/map-allocation OOM), so the
+// caller must RETURN_IF_EXCEPTION before testing the returned error.
+//
+// Publication protocol (review round 1 amendment (c)): the sparse-map
+// conditional add and the value publish run in ONE critical section under
+// the OBJECT's cellLock - the same lock defineOwnIndexedProperty holds
+// around ITS map->add. With add and publish atomic w.r.t. define's add,
+// isNewEntry alone decides the winner:
+//   - we win the add: define's later add returns !isNewEntry and takes its
+//     reconfiguration path against our already-published plain entry -
+//     linearizes as store-then-define. No define-side descriptor write can
+//     interleave between our add and our publish: BOTH putIndexedDescriptor
+//     sites (defineOwnIndexedProperty's new-entry arm and its
+//     reconfiguration arm) are sequenced after define's object-cellLocked
+//     add, which our window excludes;
+//   - define wins the add: our add returns !isNewEntry and we write NOTHING
+//     - the restart's fresh probe sees the settled descriptor and throws the
+//     precise TypeError (or Exchange-legs a plain data racer).
+// Unlocked attribute-0 value writers (putEntry/putDirect reached from plain
+// JS puts, which never carry descriptors on these receiver classes - every
+// descriptor write on a fast-put receiver routes through
+// defineOwnIndexedProperty's object-cellLocked add) can interleave with the
+// publish; absorbing one is a value-only overwrite of a plain attributes-0
+// entry under the MAP's lock and linearizes as their-put-then-our-store.
+// The publish terminal is the map's locked putDirect: it re-checks ReadOnly
+// under the map's cellLock and force-sets the value - on OUR fresh
+// attributes-0 entry (reconfiguration excluded above) that is a plain value
+// publish, never a descriptor change.
+//
+// Loop shape (every arm either finishes, returns lost-race, or makes the
+// shape strictly more settled before re-dispatching - no shape can spin):
+//   1. dense stores via trySetIndexQuickly (flag-on it self-dispatches to
+//      trySetIndexQuicklyConcurrent; AS and Undecided answer false by
+//      design, §Q/I31, so no sparse map is ever consulted here);
+//   2. CoW materializes (§4.8 cell-locked materializer, concurrent-correct
+//      flag-on) and re-dispatches;
+//   3. AS in-vector: locked fill - the same one-locked-window store the
+//      I31-routed in-vector arm of
+//      putDirectIndexBeyondVectorLengthWithArrayStorage uses;
+//   4. AS beyond-vector, no map: dense-enough indexes grow the vector
+//      OUTSIDE the lock and re-dispatch into arm 3; sparse-worthy indexes
+//      (or growth failure) allocate a map OUTSIDE the lock and install it
+//      install-if-absent under the lock (allocateSparseIndexMap
+//      unconditionally REPLACES m_sparseMap, which would orphan a racing
+//      define's whole map - never used here);
+//   5. AS with map: the conditional add + publish described above, then the
+//      same I21 map-identity revalidation as JSObject.cpp's flag-on
+//      map->putDirect sites (a racing map replacement orphans the entry =>
+//      lost race; the restart re-derives and re-stores on the live map);
+//   6. non-AS shapes the quick store rejected (beyond-vector dense, blank
+//      sparse-worthy/slow-put) convert to ArrayStorage and re-dispatch into
+//      arms 3-5. Deliberately NOT putByIndexBeyondVectorLengthWithoutAttributes:
+//      its sparse terminal is putEntry, which CALLS a racing accessor's
+//      setter - wrong for Atomics.store, which must restart and throw. The
+//      AS arm's conditional add is the only sparse terminal this helper
+//      permits. Shape conservatism is deliberate and JS-unobservable: a
+//      beyond-vector Atomics.store add takes ArrayStorage rather than
+//      growing the dense shape (GIL-on/flag-off paths untouched).
+//
+// Known residual (narrowed, recorded): a racing preventExtensions can still
+// be overtaken between the post-add isStructureExtensible re-check and the
+// publish - the named leg closes this exactly via the E4 structureID CAS;
+// the indexed sparse add has no structure CAS to hang the re-check on. The
+// window is one lock-internal interval (was: the whole probe->putDirectIndex
+// span), and the failure mode is an extra plain property on a freshly
+// non-extensible object - the same state the pre-fix code produced, never a
+// descriptor clobber. Mirrors defineOwnIndexedProperty's own post-add
+// re-check discipline.
+ASCIILiteral JSObject::putDirectIndexForAtomicsMissingAdd(JSGlobalObject* globalObject, uint32_t i, JSValue value)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(i <= MAX_ARRAY_INDEX); // parseIndex never yields larger.
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    if (!canUseConditionalIndexedMissingAdd(this)) {
+        // Exotic receivers (typed arrays, StringObject, arguments, ...) keep
+        // today's generic path: their per-class defineOwnProperty runs,
+        // exactly as GIL-on; the sparse-map force-set terminal is not the
+        // shape they reach.
+        putDirectIndex(globalObject, i, value);
+        RETURN_IF_EXCEPTION(scope, ASCIILiteral { });
+        return { };
+    }
+
+    SparseArrayValueMap* pendingMap = nullptr; // GC-visible via conservative stack scan.
+    while (true) {
+        // (1) Plain dense store on a fast flat/segmented word.
+        if (trySetIndexQuickly(vm, i, value))
+            return { };
+
+        if (isCopyOnWrite(indexingMode())) [[unlikely]] {
+            convertFromCopyOnWrite(vm); // §4.8: routes through the cell-locked materializer.
+            continue;
+        }
+
+        IndexingType type = indexingType();
+
+        if (hasAnyArrayStorage(type)) {
+            bool wantGrow = false;
+            {
+                Locker locker { cellLock() };
+                ArrayStorage* storage = arrayStorageOrNull();
+                if (!storage)
+                    continue; // Shape moved before the lock landed: re-dispatch.
+                if (i < storage->vectorLength()) {
+                    // (3) Locked in-vector fill (handles holes; bumps
+                    // m_numValuesInVector and length itself).
+                    //
+                    // Map-governance gate (MC-REENT S3c close-out): the
+                    // in-vector arm must not bypass a sparse map that governs
+                    // this index. A racing indexed define can interleave with
+                    // our arm-(4) vector grow as
+                    //   define: createArrayStorage (no map yet)
+                    //   us:     wantGrow decision (no map) -> unlock ->
+                    //           increaseVectorLength(i+1)
+                    //   define: allocateSparseIndexMap + setSparseMode +
+                    //           cellLocked add(i) + descriptor publish
+                    //   us:     i < vectorLength -> unconditional vector fill
+                    // leaving a non-empty vector slot that SHADOWS the map's
+                    // accessor/non-writable descriptor (OM I31: in sparse
+                    // mode the vector must stay hole-only; a map entry for a
+                    // sub-vectorLength index is define's, never ours). Both
+                    // probes are safe here: define's map->add runs under this
+                    // same object cellLock, and contains() self-locks the
+                    // map's cell lock — the same map-under-object order arm
+                    // (5)'s map->putDirect terminal already uses.
+                    SparseArrayValueMap* governingMap = storage->m_sparseMap.get();
+                    if (governingMap && (governingMap->sparseMode() || governingMap->contains(i))) [[unlikely]] {
+                        if (governingMap->contains(i))
+                            return "lost indexed-add race (existing sparse entry)"_s; // Restart reclassifies on the settled descriptor.
+                        // Sparse mode, no entry for i (reachable stably when
+                        // our arm-(4) grow raced the mode flip): the map is
+                        // the only legal terminal — fall through to arm (5)'s
+                        // conditional add below instead of returning
+                        // lost-race, which would livelock (the re-probe still
+                        // answers Missing on this settled state).
+                    } else {
+                        setIndexQuicklyForArrayStorageIndexingType(vm, i, value);
+                        return { };
+                    }
+                }
+                if (i >= storage->length())
+                    storage->setLength(i + 1); // LikePutDirect semantics: no length-writability gate.
+                SparseArrayValueMap* map = storage->m_sparseMap.get();
+                if (!map) {
+                    if (pendingMap) {
+                        // (4) Install-if-absent under the cell lock.
+                        storage->m_sparseMap.set(vm, this, pendingMap);
+                        map = pendingMap;
+                        pendingMap = nullptr;
+                    } else if (isDenseEnoughForVector(i + 1, storage->m_numValuesInVector)
+                        && !indexIsSufficientlyBeyondLengthForSparseMap(i, storage->vectorLength())) {
+                        wantGrow = true; // increaseVectorLength allocates: outside the lock.
+                    }
+                    // else: fall out to allocate a map outside the lock.
+                }
+                if (map) {
+                    // (5) Conditional sparse add + publish, ONE object-cellLock
+                    // window (see the protocol comment above). map->add only
+                    // fastMallocs (no GC allocation, no JS), so it is
+                    // wrappable under the cell lock (O1) - the exact call
+                    // defineOwnIndexedProperty makes under this same lock.
+                    SparseArrayValueMap::AddResult result = map->add(this, i);
+                    if (!result.isNewEntry)
+                        return "lost indexed-add race (existing sparse entry)"_s; // NEVER write a foreign entry.
+                    if (!isStructureExtensible()) [[unlikely]] {
+                        // Same post-add re-check + remove defineOwnIndexedProperty
+                        // performs; remove by KEY - the AddResult iterator can
+                        // dangle across the map's internal unlock (AB18-G).
+                        map->remove(i);
+                        return "lost indexed-add race (became non-extensible)"_s;
+                    }
+                    bool ok = map->putDirect(globalObject, this, i, value, 0, PutDirectIndexLikePutDirect);
+                    RETURN_IF_EXCEPTION(scope, ASCIILiteral { });
+                    if (!ok) [[unlikely]]
+                        return "lost indexed-publish race"_s; // Entry went ReadOnly/removed under the map lock.
+                    // I21 map-identity revalidation, same discipline as the
+                    // flag-on map->putDirect sites in JSObject.cpp.
+                    ArrayStorage* freshStorage = arrayStorageOrNull();
+                    if (!freshStorage || freshStorage->m_sparseMap.get() != map) [[unlikely]]
+                        return "lost indexed-publish race (sparse map replaced)"_s;
+                    return { };
+                }
+            }
+            if (wantGrow) {
+                // (4) Mirror of putDirectIndexBeyondVectorLengthWithArrayStorage's
+                // !map dense-growth leg: grow outside any lock, re-dispatch -
+                // the next iteration's locked in-vector arm performs the
+                // fill. Growth failure falls to the sparse leg.
+                if (increaseVectorLength(vm, i + 1))
+                    continue;
+            }
+            pendingMap = SparseArrayValueMap::create(vm); // GC allocation: never under the cell lock (I20/O1).
+            continue;
+        }
+
+        if (hasUndecided(type)) {
+            convertUndecidedForValue(vm, value);
+            continue;
+        }
+
+        if (!hasIndexedProperties(type)
+            && !indexingShouldBeSparse() && !needsSlowPutIndexing()
+            && !indexIsSufficientlyBeyondLengthForSparseMap(i, 0) && i < MIN_SPARSE_ARRAY_INDEX) {
+            // Blank, vector-worthy index: dense first install, ordered as the
+            // generic blank arm orders it (N3 loser re-dispatches: a racer
+            // installed first, so the shape moved).
+            if (tryCreateInitialForValueAndSetConcurrent(vm, i, value))
+                return { };
+            continue;
+        }
+
+        // (6) Everything else: take ArrayStorage and re-dispatch into the AS
+        // arm. ensureArrayStorageSlow is the §4.6 stop-routed flag-on
+        // converter and self-handles a racing AS install (loser leg).
+        ArrayStorage* storage = indexingShouldBeSparse()
+            ? ensureArrayStorageExistsAndEnterDictionaryIndexingMode(vm)
+            : ensureArrayStorage(vm);
+        if (!storage) [[unlikely]] {
+            // hijacksIndexingHeader receivers cannot take AS: generic path,
+            // as GIL-on.
+            putDirectIndex(globalObject, i, value);
+            RETURN_IF_EXCEPTION(scope, ASCIILiteral { });
+            return { };
+        }
+        continue;
+    }
+}
+
 static JSValue atomicsStoreOnPropertyGilOff(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue value)
 {
     VM& vm = globalObject->vm();
@@ -430,15 +693,20 @@ static JSValue atomicsStoreOnPropertyGilOff(JSGlobalObject* globalObject, JSObje
                 return { };
             }
             if (std::optional<uint32_t> index = parseIndex(propertyName)) {
-                // Fresh INDEXED element: the generic concurrent add path
-                // (putDirectMayBeIndex's index leg, verbatim). KNOWN RESIDUAL
-                // (recorded in INTEGRATE-ungil, U-T10 amend): a racing
-                // indexed defineProperty (accessor / non-writable) forces a
-                // sparse-map/SlowPutAS conversion that putDirectIndex cannot
-                // be made conditional on; the named TOCTOU fix below does
-                // not cover this leg yet.
-                object->putDirectIndex(globalObject, index.value(), value);
+                // Fresh INDEXED element: conditional add (the indexed twin of
+                // the named leg below) - closes the formerly-recorded KNOWN
+                // RESIDUAL (INTEGRATE-ungil, U-T10 amend item 3). A non-null
+                // error means we LOST a race with a concurrent indexed
+                // define/remove/reshape: restart the probe, which
+                // re-classifies on settled state (accessor / non-writable =>
+                // the precise TypeError above; plain data => the value-only
+                // Exchange leg). Exception checked FIRST: unlike the named
+                // helper, the indexed one can throw (exotic-receiver generic
+                // fallback, conversion/map-allocation OOM).
+                ASCIILiteral error = object->putDirectIndexForAtomicsMissingAdd(globalObject, index.value(), value);
                 RETURN_IF_EXCEPTION(scope, { });
+                if (!error.isNull()) [[unlikely]]
+                    continue;
                 return value;
             }
             // Fresh NAMED data property (writable/enumerable/configurable).
@@ -987,6 +1255,127 @@ static Seconds parseAtomicsTimeout(JSGlobalObject* globalObject, JSValue timeout
     return timeout;
 }
 
+#if USE(JSVALUE64)
+
+// ---------------- §C.3(b) under-listLock SVZ re-validation (U-T11) ----------------
+//
+// SPEC-ungil §C.3 (ANNEX C3 + r9 F1, BINDING): GIL-off, the landed I10
+// lost-wakeup closure ("JSLock held from the step-1 read through the
+// enqueue") is void — the JSLock is a token, not mutual exclusion of
+// mutators — so a foreign store+notify landing between the wait's step-1
+// read and its enqueue is LOST as landed: the notify finds an empty list,
+// the waiter then parks against a value that already mismatches (the
+// cross-engine "Atomics.wait not-equal ordering" exemplar; MC-WAIT S3a,
+// mc-wait-property-wait-lost-wakeup.js). Closure, both normative arms:
+//   (a) the pre-enqueue read routes through the §9.5 atomic load
+//       (atomicsLoadOnProperty's gilOff branch — landed with U-T10),
+//       forcing any CoW/Int32/Double conversion OUTSIDE listLock;
+//   (b) after the enqueue, RE-VALIDATE SVZ(o[k], expected) via the §9.5
+//       load under listLock — the helpers below. Mismatch => dequeue,
+//       "not-equal". Rope re-read or shape-moved (accessor Restart) =>
+//       dequeue too (eats one FIFO notify — the declared I10 class; r7 F3:
+//       leaving the node enqueued would strand a genuine waiter's wakeup),
+//       re-derive OUTSIDE any lock, FRESH enqueue. After a dequeue-and-
+//       restart the waiter is indistinguishable from a first-time arrival.
+//
+// Ordering note: the enqueue runs inside findOrCreateList's listLock
+// section (the closeout lost-waiter fix) and the re-validation RE-TAKES
+// listLock here rather than extending that section. Equivalent for the
+// notifier-orders-through-listLock argument: a store+notify pair ordered
+// before our enqueue had its store made visible to the re-load by the
+// notifier's listLock critical section (its unlock happens-before our
+// lock), and a pair ordered after our enqueue finds the node and flips it.
+//
+// Lock discipline: the §C.3(a) monotonicity lemma makes the under-listLock
+// re-load alloc/STW-free — the step-1 §9.5 load already converted any
+// CoW/Int32/Double word, no transition re-creates those regimes on a
+// §9.5-touched object (OM I34/I35 forward-only shape order), and the
+// AS/dictionary cell-locked arms never allocate (OM I20); api rank 3 ->
+// OM 10a is the sanctioned §LK cross edge. The SVZ comparison itself must
+// not allocate under the lock either: string compares punt to
+// NeedsResolution when either side is an unresolved rope. No explicit
+// resolve step is needed on restart — the restart's step-1
+// sameValueZeroForAtomics resolves both ropes in place outside any lock
+// (so an unchanged slot makes progress next pass; a storm of fresh rope
+// stores is the same bounded-adversarial-progress class as the accessor's
+// Restart). GIL-on (and flag-off) never reaches any of this.
+
+enum class LockedSVZOutcome : uint8_t { Equal, NotEqual, NeedsResolution };
+
+static LockedSVZOutcome sameValueZeroForAtomicsUnderListLock(JSValue a, JSValue b)
+{
+    if (a.isNumber() && b.isNumber()) {
+        double x = a.asNumber();
+        double y = b.asNumber();
+        if (std::isnan(x) && std::isnan(y))
+            return LockedSVZOutcome::Equal;
+        return x == y ? LockedSVZOutcome::Equal : LockedSVZOutcome::NotEqual;
+    }
+    if (a.isString() && b.isString()) {
+        JSString* left = asString(a);
+        JSString* right = asString(b);
+        if (left == right)
+            return LockedSVZOutcome::Equal;
+        if (left->isRope() || right->isRope())
+            return LockedSVZOutcome::NeedsResolution; // Resolution allocates: never under listLock.
+        return WTF::equal(*left->tryGetValueImpl(), *right->tryGetValueImpl()) ? LockedSVZOutcome::Equal : LockedSVZOutcome::NotEqual;
+    }
+    if (a.isString() || b.isString())
+        return LockedSVZOutcome::NotEqual; // SVZ across types is always false.
+    if (a.isBigInt() && b.isBigInt()) {
+        // Alloc-free limb compare (the strictEqualSlowCaseInline bigint arms).
+#if USE(BIGINT32)
+        if (a.isBigInt32() && b.isBigInt32())
+            return a == b ? LockedSVZOutcome::Equal : LockedSVZOutcome::NotEqual;
+        if (a.isBigInt32())
+            return b.asHeapBigInt()->equalsToInt32(a.bigInt32AsInt32()) ? LockedSVZOutcome::Equal : LockedSVZOutcome::NotEqual;
+        if (b.isBigInt32())
+            return a.asHeapBigInt()->equalsToInt32(b.bigInt32AsInt32()) ? LockedSVZOutcome::Equal : LockedSVZOutcome::NotEqual;
+#endif
+        return JSBigInt::equals(a.asHeapBigInt(), b.asHeapBigInt()) ? LockedSVZOutcome::Equal : LockedSVZOutcome::NotEqual;
+    }
+    // undefined/null/booleans/symbols/objects (and any remaining cross-type
+    // pair): SVZ degenerates to encoded-bits identity.
+    return a == b ? LockedSVZOutcome::Equal : LockedSVZOutcome::NotEqual;
+}
+
+enum class PreParkRevalidation : uint8_t { Proceed, NotEqual, Restart };
+
+// Runs under list.listLock with the JSLock held and heap access intact
+// (BEFORE any GILDroppedSection — the §9.5 accessor touches the heap);
+// never allocates (see the banner above). On NotEqual/Restart the waiter is
+// dequeued and flipped in the same critical section (dequeued <=> flipped).
+static PreParkRevalidation revalidateEnqueuedPropertyWaiterUnderListLock(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, const ConcurrentAtomicsProbe& probe, JSValue expected, PropertyWaiterList& list, PropertyWaiter& waiter) WTF_REQUIRES_LOCK(list.listLock)
+{
+    if (waiter.state.load(std::memory_order_acquire) != PropertyWaiter::Waiting) {
+        // A notify consumed the node between findOrCreateList's unlock and
+        // this re-lock: the consumed notify is honored — the caller's normal
+        // Notified epilogue resolves it ("ok" / the in-flight settle).
+        return PreParkRevalidation::Proceed;
+    }
+    AtomicSlotRequest request; // operation = Load
+    AtomicSlotStatus status = AtomicSlotStatus::Restart;
+    JSValue current = dispatchAtomicSlotRequest(globalObject, object, propertyName, probe, request, status);
+    LockedSVZOutcome outcome;
+    if (status != AtomicSlotStatus::Applied) {
+        ASSERT(status == AtomicSlotStatus::Restart);
+        outcome = LockedSVZOutcome::NeedsResolution; // Shape moved vs the probe (I34 provenance): re-derive outside.
+    } else
+        outcome = sameValueZeroForAtomicsUnderListLock(current, expected);
+    if (outcome == LockedSVZOutcome::Equal)
+        return PreParkRevalidation::Proceed;
+    bool removed = list.waiters.removeFirstMatching([&](auto& entry) {
+        return entry.ptr() == &waiter;
+    });
+    ASSERT_UNUSED(removed, removed); // State was Waiting under this lock => still enqueued.
+    // Terminal flip under the same lock; the node is abandoned and never
+    // consulted again (the caller exits "not-equal" or re-enqueues FRESH).
+    waiter.state.store(PropertyWaiter::TimedOut, std::memory_order_release);
+    return outcome == LockedSVZOutcome::NotEqual ? PreParkRevalidation::NotEqual : PreParkRevalidation::Restart;
+}
+
+#endif // USE(JSVALUE64)
+
 JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue expected, JSValue timeoutValue) WTF_IGNORES_THREAD_SAFETY_ANALYSIS // The W1 episode drops/retakes listLock under a live Locker (the WaiterListManager pattern).
 {
     VM& vm = globalObject->vm();
@@ -995,7 +1384,23 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
     Seconds timeout = parseAtomicsTimeout(globalObject, timeoutValue);
     RETURN_IF_EXCEPTION(scope, { });
 
-    // Step 1 (F4): validate + read under the JSLock; no re-read below.
+    // Hoisted out of the §C.3(b) restart loop: a dequeue-and-restart must
+    // never extend the caller's deadline.
+    MonotonicTime deadline = MonotonicTime::timePointFromNow(timeout);
+    auto& table = PropertyWaiterTable::singleton();
+    bool gilOff = vm.gilOff();
+    bool isSpawnedParker = gilOff && ThreadManager::isJSThreadCurrent();
+
+    // §C.3(b) dequeue-and-restart loop. GIL-on runs exactly one iteration
+    // (every continue below is gilOff-gated) — the landed single-pass body,
+    // byte-equivalent.
+    while (true) {
+
+    // Step 1 (F4): validate + read under the JSLock; GIL-off the read routes
+    // through the §9.5 atomic load (§C.3(a)) and is re-validated under the
+    // list lock below (§C.3(b)) — GIL-on, the JSLock held from this read
+    // through the enqueue closes the lost store+notify window (I10) and no
+    // re-read happens.
     JSValue current = atomicsLoadOnProperty(globalObject, object, propertyName);
     RETURN_IF_EXCEPTION(scope, { });
     bool equal = sameValueZeroForAtomics(globalObject, current, expected);
@@ -1014,22 +1419,50 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
     if (!uid)
         return throwTypeError(globalObject, scope, "Atomics.wait: invalid property name"_s), JSValue();
 
-    MonotonicTime deadline = MonotonicTime::timePointFromNow(timeout);
+#if USE(JSVALUE64)
+    // §C.3(b) prologue: take the {offset, structureID} provenance the
+    // under-listLock §9.5 re-load validates (I34). Outside any rank-2/3 lock
+    // (the probe may reify lazy properties / take the cell lock).
+    ConcurrentAtomicsProbe probe;
+    if (gilOff) [[unlikely]] {
+        probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
+        RETURN_IF_EXCEPTION(scope, { });
+        if (probe.restart || probe.kind != OwnPropertyKind::Data) [[unlikely]]
+            continue; // Shape raced past the step-1 read; the fresh step-1 load re-classifies (and throws the precise error if it settled non-plain).
+    }
+#endif
 
     // Step 2 (F4): still under the JSLock — table lock (rank 2), find-or-create
     // + first-waiter Strongs, drop; list lock (rank 3), enqueue Waiting, drop.
-    // JSLock held from the step-1 read through the enqueue closes the lost
-    // store+notify window (I10); no list lock is held across the GIL drop.
-    auto& table = PropertyWaiterTable::singleton();
+    // No list lock is held across the GIL drop.
     Ref<PropertyWaiter> waiter = PropertyWaiter::create(PropertyWaiter::Kind::Sync);
     // Enqueued inside findOrCreateList, under the table lock — see the
     // lost-waiter comment there (closeout review fix).
     Ref<PropertyWaiterList> list = table.findOrCreateList(vm, object, uid, waiter.get());
 
+#if USE(JSVALUE64)
+    if (gilOff) [[unlikely]] {
+        // §C.3(b): re-validate SVZ(o[k], expected) under the list lock, with
+        // heap access still intact (before the GILDroppedSection).
+        PreParkRevalidation revalidation;
+        bool revalidationListEmpty = false;
+        {
+            Locker listLocker { list->listLock };
+            revalidation = revalidateEnqueuedPropertyWaiterUnderListLock(globalObject, object, propertyName, probe, expected, list.get(), waiter.get());
+            revalidationListEmpty = list->waiters.isEmpty();
+        }
+        if (revalidation != PreParkRevalidation::Proceed) [[unlikely]] {
+            if (revalidationListEmpty)
+                table.removeListIfEmpty(object, uid);
+            if (revalidation == PreParkRevalidation::NotEqual)
+                return vm.smallStrings.notEqualString();
+            continue; // Restart: FRESH enqueue after re-deriving outside the lock.
+        }
+    }
+#endif
+
     uint8_t finalState;
     bool listNowEmpty = false;
-    bool gilOff = vm.gilOff();
-    bool isSpawnedParker = gilOff && ThreadManager::isJSThreadCurrent();
     {
         // Steps 3-6: park with the GIL dropped; 10ms quantum to poll for
         // termination requests (VMTraps cannot wake property waiters).
@@ -1117,6 +1550,8 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
         RELEASE_ASSERT_NOT_REACHED();
         return { };
     }
+
+    } // while (true) — §C.3(b) dequeue-and-restart loop.
 }
 
 JSValue atomicsWaitAsyncOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue expected, JSValue timeoutValue)
@@ -1127,35 +1562,93 @@ JSValue atomicsWaitAsyncOnProperty(JSGlobalObject* globalObject, JSObject* objec
     Seconds timeout = parseAtomicsTimeout(globalObject, timeoutValue);
     RETURN_IF_EXCEPTION(scope, { });
 
+    auto& table = PropertyWaiterTable::singleton();
+    bool isAsync = false;
+    JSValue value;
+    JSPromise* promise = nullptr;
+    RefPtr<AsyncTicket> ticket;
+    // Any exit that leaves the registration unobservable (step-1 "not-equal"
+    // on a restart iteration, the §C.3(b) not-equal dequeue, an exception)
+    // retires the ticket so its DWT registration stops rooting the waited-on
+    // cell + promise (MC-DOS S4). isAsync flips true only when the armed
+    // promise is the result.
+    auto ticketRetirer = makeScopeExit([&] {
+        if (!isAsync && ticket)
+            ticket->retireUnsettled();
+    });
+
+    // §C.3(b) dequeue-and-restart loop (see atomicsWaitOnProperty): GIL-on
+    // runs exactly one iteration — the landed single-pass body.
+    while (true) {
+
     JSValue current = atomicsLoadOnProperty(globalObject, object, propertyName);
     RETURN_IF_EXCEPTION(scope, { });
 
-    JSObject* resultObject = constructEmptyObject(globalObject);
-    bool isAsync = false;
-    JSValue value;
-
     bool equal = sameValueZeroForAtomics(globalObject, current, expected);
     RETURN_IF_EXCEPTION(scope, { }); // String comparison can resolve ropes (OOM).
-    if (!equal)
+    if (!equal) {
         value = vm.smallStrings.notEqualString();
-    else if (!timeout)
+        break;
+    }
+    if (!timeout) {
         value = vm.smallStrings.timedOutString();
-    else {
+        break;
+    }
+    {
         UniquedStringImpl* uid = propertyName.uid();
         if (!uid)
             return throwTypeError(globalObject, scope, "Atomics.waitAsync: invalid property name"_s), JSValue();
 
-        isAsync = true;
-        JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
-        Ref<AsyncTicket> ticket = AsyncTicket::create(globalObject, promise, { object });
+#if USE(JSVALUE64)
+        // §C.3(b) prologue (see atomicsWaitOnProperty).
+        ConcurrentAtomicsProbe probe;
+        if (vm.gilOff()) [[unlikely]] {
+            probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
+            RETURN_IF_EXCEPTION(scope, { });
+            if (probe.restart || probe.kind != OwnPropertyKind::Data) [[unlikely]]
+                continue;
+        }
+#endif
 
-        auto& table = PropertyWaiterTable::singleton();
+        // Promise + ticket are created once and reused across restart
+        // iterations (each restart abandons only its waiter NODE; the
+        // registration itself was never observable).
+        if (!promise) {
+            promise = JSPromise::create(vm, globalObject->promiseStructure());
+            ticket = AsyncTicket::create(globalObject, promise, { object });
+        }
         Ref<PropertyWaiter> waiter = PropertyWaiter::create(PropertyWaiter::Kind::Async);
-        waiter->ticket = ticket.ptr();
+        waiter->ticket = ticket;
         // Enqueued inside findOrCreateList, under the table lock — see the
         // lost-waiter comment there (closeout review fix). The ticket must
         // be set BEFORE the enqueue publishes the waiter to notifiers.
         Ref<PropertyWaiterList> list = table.findOrCreateList(vm, object, uid, waiter.get());
+
+#if USE(JSVALUE64)
+        if (vm.gilOff()) [[unlikely]] {
+            // §C.3(b): re-validate under the list lock (see atomicsWaitOnProperty).
+            PreParkRevalidation revalidation;
+            bool revalidationListEmpty = false;
+            {
+                Locker listLocker { list->listLock };
+                revalidation = revalidateEnqueuedPropertyWaiterUnderListLock(globalObject, object, propertyName, probe, expected, list.get(), waiter.get());
+                revalidationListEmpty = list->waiters.isEmpty();
+            }
+            if (revalidation != PreParkRevalidation::Proceed) [[unlikely]] {
+                if (revalidationListEmpty)
+                    table.removeListIfEmpty(object, uid);
+                if (revalidation == PreParkRevalidation::NotEqual) {
+                    // The node was published and revoked while still
+                    // Waiting, both under the list lock: no settler ever
+                    // observed it. Answer synchronously; the scope exit
+                    // retires the ticket.
+                    value = vm.smallStrings.notEqualString();
+                    break;
+                }
+                continue; // Restart: FRESH waiter + enqueue after re-deriving outside the lock.
+            }
+        }
+#endif
 
         if (timeout != Seconds::infinity()) {
             // Arm the timeout on the VM's run loop (SPEC-api 5.6 / G28).
@@ -1207,9 +1700,14 @@ JSValue atomicsWaitAsyncOnProperty(JSGlobalObject* globalObject, JSObject* objec
                 });
             });
         }
+        isAsync = true;
         value = promise;
+        break;
     }
 
+    } // while (true) — §C.3(b) dequeue-and-restart loop.
+
+    JSObject* resultObject = constructEmptyObject(globalObject);
     resultObject->putDirect(vm, vm.propertyNames->async, jsBoolean(isAsync));
     resultObject->putDirect(vm, vm.propertyNames->value, value);
     return resultObject;

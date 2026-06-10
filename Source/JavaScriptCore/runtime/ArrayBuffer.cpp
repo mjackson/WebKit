@@ -42,6 +42,7 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/OSAllocator.h>
 #include <wtf/PageBlock.h>
+#include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/Vector.h>
 
@@ -276,9 +277,14 @@ uint64_t tryMarkArrayBufferDetachedGILOff(ArrayBuffer* buffer)
     return result.iterator->value;
 }
 
+} // anonymous namespace
+
 // The GIL-off detached predicate for this file's writer arms. Pre-stop it is
 // the table flag; post-stop (and GIL-on) the caller's !m_data check covers.
 // Flag-off / GIL-on cost: one relaxed load of a never-incremented counter.
+// Defined at namespace JSC scope (NOT in the anonymous namespace) because
+// AtomicsObject.cpp and JSArrayBufferPrototype.cpp declare and call it
+// cross-TU; the helpers it uses stay internal to this file.
 bool isArrayBufferDetachedGILOff(ArrayBuffer* buffer)
 {
     if (!s_gilOffDetachedPendingCount.load(std::memory_order_acquire))
@@ -287,6 +293,8 @@ bool isArrayBufferDetachedGILOff(ArrayBuffer* buffer)
     Locker locker { table.lock };
     return table.map.contains(buffer);
 }
+
+namespace {
 
 // ~ArrayBuffer hook: a buffer that dies between its detach and the stop must
 // not be touched by the stop-time clear (the entry's quarantined contents are
@@ -1230,90 +1238,129 @@ static Expected<int64_t, GrowFailReason> resizeGILOff(VM& vm, ArrayBuffer& buffe
 {
     int64_t deltaByteLength = 0;
     size_t newlyQuarantinedBytes = 0;
-    {
-        Locker locker { memoryHandle.lock() };
 
-        // detach() publishes its flag + zero length under THIS lock, so this
-        // re-check fully serializes resize-vs-detach: if the flag is visible
-        // we fail before mutating anything (no resurrected nonzero length on
-        // a detached buffer); if it is not, any concurrent detach is ordered
-        // AFTER our publish below and its zero length wins. GIL-on a detached
-        // buffer fails the caller's null-m_memoryHandle check instead, with
-        // the same error.
-        if (isArrayBufferDetachedGILOff(&buffer))
-            return makeUnexpected(GrowFailReason::GrowSharedUnavailable);
+    // §10.4 deadlock avoidance: tryAllocate may conduct a SYNCHRONOUS FULL
+    // COLLECTION (SyncTryToReclaimMemory). GIL-off/shared-heap, collectSync's
+    // access barrier waits for EVERY client to reach NoAccess — but a sibling
+    // mutator blocked on THIS handle lock (a racing resize, or detach, which
+    // publishes under it) parks inside WTF::Lock still holding heap access,
+    // never polls traps, and wedges the barrier into the 30s stop watchdog.
+    // So the handle lock is NEVER held across tryAllocate: physical bytes are
+    // pre-allocated OUTSIDE the lock and the locked section re-validates from
+    // scratch on every iteration (size/detach may have changed while
+    // unlocked). Leftover preallocation is refunded on every exit.
+    size_t preallocatedBytes = 0;
+    auto refundPreallocation = WTF::makeScopeExit([&] {
+        if (preallocatedBytes)
+            BufferMemoryManager::singleton().freePhysicalBytes(preallocatedBytes);
+    });
 
-        // Keep in mind that newByteLength may not be page-size-aligned.
-        if (maxByteLength < newByteLength)
-            return makeUnexpected(GrowFailReason::InvalidGrowSize);
+    for (;;) {
+        size_t bytesNeeded = 0;
+        {
+            Locker locker { memoryHandle.lock() };
 
-        size_t sizeInBytes = WTF::atomicLoad(sizeInBytesSlot, std::memory_order_relaxed);
-        deltaByteLength = static_cast<int64_t>(newByteLength) - static_cast<int64_t>(sizeInBytes);
-#if ENABLE(WEBASSEMBLY)
-        if (Options::useWasmMemoryToBufferAPIs()) {
-            // The wasm isWasmMemory() delta<0 rejection stands (annex N6).
-            if (isWasmMemoryBuffer && (deltaByteLength < 0 || deltaByteLength % PageCount::pageSize))
+            // detach() publishes its flag + zero length under THIS lock, so this
+            // re-check fully serializes resize-vs-detach: if the flag is visible
+            // we fail before mutating anything (no resurrected nonzero length on
+            // a detached buffer); if it is not, any concurrent detach is ordered
+            // AFTER our publish below and its zero length wins. GIL-on a detached
+            // buffer fails the caller's null-m_memoryHandle check instead, with
+            // the same error.
+            if (isArrayBufferDetachedGILOff(&buffer))
+                return makeUnexpected(GrowFailReason::GrowSharedUnavailable);
+
+            // Keep in mind that newByteLength may not be page-size-aligned.
+            if (maxByteLength < newByteLength)
                 return makeUnexpected(GrowFailReason::InvalidGrowSize);
-        }
-#else
-        UNUSED_PARAM(isWasmMemoryBuffer);
-#endif
-        if (!deltaByteLength)
-            return 0;
 
-        auto newPageCount = PageCount::fromBytesWithRoundUp(newByteLength);
-        if (newPageCount.bytes() > MAX_ARRAY_BUFFER_SIZE)
-            return makeUnexpected(GrowFailReason::WouldExceedMaximum);
-
-        size_t desiredSize = newPageCount.bytes();
-        RELEASE_ASSERT(desiredSize <= MAX_ARRAY_BUFFER_SIZE);
-
-        if (deltaByteLength > 0) {
-            // Arm 4 + the arm 3 re-grow rule: consume/cancel overlapping
-            // pending tail entries BEFORE any allocation (tryAllocate below
-            // may conduct a synchronous collection while we hold this handle
-            // lock; the stop hook takes the handle lock to retire tails).
-            consumeQuarantinedTailOnRegrow(vm.heap, memoryHandle, desiredSize);
-
-            if (desiredSize > memoryHandle.size()) {
-                ASSERT(memoryHandle.maximum() >= newPageCount);
-                size_t bytesToAdd = desiredSize - memoryHandle.size();
-                ASSERT(bytesToAdd);
-                ASSERT(roundUpToMultipleOf<PageCount::pageSize>(bytesToAdd) == bytesToAdd);
-                bool allocationSuccess = tryAllocate(&vm,
-                    [&] () -> BufferMemoryResult::Kind {
-                        return BufferMemoryManager::singleton().tryAllocatePhysicalBytes(bytesToAdd);
-                    });
-                if (!allocationSuccess)
-                    return makeUnexpected(GrowFailReason::OutOfMemory);
-
-                void* memory = memoryHandle.memory();
-                RELEASE_ASSERT(memory);
-
-                // The VA was pre-reserved to maxByteLength: commit in place.
-                uint8_t* startAddress = static_cast<uint8_t*>(memory) + memoryHandle.size();
-                dataLogLnIf(ArrayBufferInternal::verbose, "Marking memory's ", RawPointer(memory), " as read+write in range [", RawPointer(startAddress), ", ", RawPointer(startAddress + bytesToAdd), ")");
-                constexpr bool readable = true;
-                constexpr bool writable = true;
-                OSAllocator::protect(startAddress, bytesToAdd, readable, writable);
-                memoryHandle.updateSize(desiredSize);
+            size_t sizeInBytes = WTF::atomicLoad(sizeInBytesSlot, std::memory_order_relaxed);
+            deltaByteLength = static_cast<int64_t>(newByteLength) - static_cast<int64_t>(sizeInBytes);
+#if ENABLE(WEBASSEMBLY)
+            if (Options::useWasmMemoryToBufferAPIs()) {
+                // The wasm isWasmMemory() delta<0 rejection stands (annex N6).
+                if (isWasmMemoryBuffer && (deltaByteLength < 0 || deltaByteLength % PageCount::pageSize))
+                    return makeUnexpected(GrowFailReason::InvalidGrowSize);
             }
-            // else: re-grow within still-committed pages (a pending tail was
-            // consumed/trimmed above) — pages still committed => zeroFill as
-            // landed, below.
+#else
+            UNUSED_PARAM(isWasmMemoryBuffer);
+#endif
+            if (!deltaByteLength)
+                return 0;
 
-            // Commit the new pages, THEN release-publish the larger length.
-            zeroFill(static_cast<uint8_t*>(buffer.data()) + sizeInBytes, newByteLength - sizeInBytes);
-            WTF::atomicStore(sizeInBytesSlot, newByteLength, std::memory_order_release);
-        } else {
-            // Arm 3: defer the tail [desiredSize, handle size) to the next
-            // stop; publish the smaller length seq_cst. Racing readers see
-            // {oldLen, base} (stale-but-safe: tail still committed) or
-            // {newLen, base} (in-bounds).
-            if (desiredSize < memoryHandle.size())
-                newlyQuarantinedBytes = deferShrinkTailGILOff(vm.heap, memoryHandle, desiredSize);
-            WTF::atomicStore(sizeInBytesSlot, newByteLength, std::memory_order_seq_cst);
+            auto newPageCount = PageCount::fromBytesWithRoundUp(newByteLength);
+            if (newPageCount.bytes() > MAX_ARRAY_BUFFER_SIZE)
+                return makeUnexpected(GrowFailReason::WouldExceedMaximum);
+
+            size_t desiredSize = newPageCount.bytes();
+            RELEASE_ASSERT(desiredSize <= MAX_ARRAY_BUFFER_SIZE);
+
+            if (deltaByteLength > 0) {
+                // Arm 4 + the arm 3 re-grow rule: consume/cancel overlapping
+                // pending tail entries BEFORE committing pages (the stop hook
+                // takes the handle lock to retire tails; while we hold the
+                // lock no hook can retire underneath us, and no GC-capable
+                // call runs under this hold — allocation happens unlocked
+                // below).
+                consumeQuarantinedTailOnRegrow(vm.heap, memoryHandle, desiredSize);
+
+                if (desiredSize > memoryHandle.size()) {
+                    ASSERT(memoryHandle.maximum() >= newPageCount);
+                    size_t bytesToAdd = desiredSize - memoryHandle.size();
+                    ASSERT(bytesToAdd);
+                    ASSERT(roundUpToMultipleOf<PageCount::pageSize>(bytesToAdd) == bytesToAdd);
+                    if (preallocatedBytes < bytesToAdd) {
+                        // Not enough pre-allocated: drop the lock, allocate,
+                        // retake and re-validate everything.
+                        bytesNeeded = bytesToAdd;
+                    } else {
+                        void* memory = memoryHandle.memory();
+                        RELEASE_ASSERT(memory);
+
+                        // The VA was pre-reserved to maxByteLength: commit in
+                        // place, consuming the preallocated accounting.
+                        preallocatedBytes -= bytesToAdd;
+                        uint8_t* startAddress = static_cast<uint8_t*>(memory) + memoryHandle.size();
+                        dataLogLnIf(ArrayBufferInternal::verbose, "Marking memory's ", RawPointer(memory), " as read+write in range [", RawPointer(startAddress), ", ", RawPointer(startAddress + bytesToAdd), ")");
+                        constexpr bool readable = true;
+                        constexpr bool writable = true;
+                        OSAllocator::protect(startAddress, bytesToAdd, readable, writable);
+                        memoryHandle.updateSize(desiredSize);
+                    }
+                }
+                // else: re-grow within still-committed pages (a pending tail
+                // was consumed/trimmed above) — pages still committed =>
+                // zeroFill as landed, below.
+
+                if (!bytesNeeded) {
+                    // Commit the new pages, THEN release-publish the larger length.
+                    zeroFill(static_cast<uint8_t*>(buffer.data()) + sizeInBytes, newByteLength - sizeInBytes);
+                    WTF::atomicStore(sizeInBytesSlot, newByteLength, std::memory_order_release);
+                    break;
+                }
+            } else {
+                // Arm 3: defer the tail [desiredSize, handle size) to the next
+                // stop; publish the smaller length seq_cst. Racing readers see
+                // {oldLen, base} (stale-but-safe: tail still committed) or
+                // {newLen, base} (in-bounds).
+                if (desiredSize < memoryHandle.size())
+                    newlyQuarantinedBytes = deferShrinkTailGILOff(vm.heap, memoryHandle, desiredSize);
+                WTF::atomicStore(sizeInBytesSlot, newByteLength, std::memory_order_seq_cst);
+                break;
+            }
         }
+
+        // UNLOCKED: top up the physical-bytes preallocation. May conduct a
+        // synchronous collection — safe here, no handle lock held.
+        ASSERT(bytesNeeded > preallocatedBytes);
+        size_t topUp = bytesNeeded - preallocatedBytes;
+        bool allocationSuccess = tryAllocate(&vm,
+            [&] () -> BufferMemoryResult::Kind {
+                return BufferMemoryManager::singleton().tryAllocatePhysicalBytes(topUp);
+            });
+        if (!allocationSuccess)
+            return makeUnexpected(GrowFailReason::OutOfMemory);
+        preallocatedBytes += topUp;
     }
 
     // Extra-memory accounting outside the handle lock (it may conduct a

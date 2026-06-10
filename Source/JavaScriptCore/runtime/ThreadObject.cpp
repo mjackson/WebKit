@@ -890,10 +890,12 @@ JSC_DEFINE_HOST_FUNCTION(threadFuncRestrict, (JSGlobalObject* globalObject, Call
     //     were excluded above).
     ArrayStorage* arrayStorage = object->ensureArrayStorage(vm);
     ASSERT_UNUSED(arrayStorage, arrayStorage);
-    // (b) SlowPut conversion. The guard is mandatory: switchToSlowPutArrayStorage
-    //     CRASH()es on already-SlowPut shapes (its switch has no SlowPut
-    //     case) — reachable here when restricting after a had-a-bad-time
-    //     array, where (a) no-ops on the existing (SlowPut)ArrayStorage.
+    // (b) SlowPut conversion. switchToSlowPutArrayStorage is idempotent on
+    //     already-SlowPut shapes (JSObject.cpp grew the SlowPut no-op case):
+    //     the guard here is perf-only, NOT correctness — GIL-off, a racing
+    //     restrict (both pass step (0) Affinity::None) or a concurrent
+    //     haveABadTime conversion can flip the shape to SlowPut between this
+    //     check and the call, and the call must then no-op, not CRASH.
     if (!hasSlowPutArrayStorage(object->indexingType()))
         object->switchToSlowPutArrayStorage(vm);
     // (c) Uncacheable dictionary (keeps the indexing mode): the 5.7.3
@@ -911,8 +913,17 @@ JSC_DEFINE_HOST_FUNCTION(threadFuncRestrict, (JSGlobalObject* globalObject, Call
     ASSERT(hasSlowPutArrayStorage(object->indexingType()));
 
     // Owner identity = the restricting thread's Ref<ThreadState>, never a
-    // TID (5.7.2).
-    manager.restrictObject(object, ensureCurrentThreadState().get());
+    // TID (5.7.2). GIL-off, two racing restricts can both pass step (0)
+    // (Affinity::None) — the claim itself is arbitrated under the affinity
+    // lock inside restrictObject, and the loser surfaces the frozen 4.1
+    // re-restrict ConcurrentAccessError (MC-HAND S6). The loser's 5.7.1
+    // conversion sequence above already ran on the winner's object; that is
+    // object-model-safe (M5) and perf-only (the conversions are exactly what
+    // the winner's restrict performs/requires anyway).
+    if (!manager.restrictObject(object, ensureCurrentThreadState().get())) {
+        throwConcurrentAccessError(globalObject, scope, "Thread.restrict called from a non-owning thread"_s);
+        return { };
+    }
     return JSValue::encode(object);
 }
 

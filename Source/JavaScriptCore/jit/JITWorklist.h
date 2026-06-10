@@ -124,6 +124,21 @@ private:
     // compiled?
     UncheckedKeyHashMap<JITCompilationKey, RefPtr<JITPlan>> m_plans;
 
+    // UNGIL AB18-R1-A/B: plans claimed for finalize (removed from m_plans,
+    // install not yet published). Guarded by *m_lock. Two duties:
+    //   (A) enqueue's dedup backstop keeps rejecting duplicate plans for the
+    //       key through the removal->install window (formerly the file-local
+    //       finalizingKeys() set in JITWorklist.cpp);
+    //   (B) GC ROOTS: iterateCodeBlocksForGC / visitWeakReferences walk these
+    //       plans too. GIL-off, Plan::finalize() has park points that release
+    //       heap access (the GILOffCompilationLocker contended spin parks via
+    //       parkSitePollAndParkForStopTheWorld; reallyAdd can fire a Class-A
+    //       stop), so a sibling-conducted shared GC can run while the plan is
+    //       out of m_plans — without this table its CodeBlock/alternative are
+    //       swept under the finalizing mutator (mc-safe-gcwait-vs-classa-stop
+    //       UAF family). GIL-on / flag-off: invariantly empty.
+    UncheckedKeyHashMap<JITCompilationKey, RefPtr<JITPlan>> m_finalizingPlans;
+
     // Used to quickly find which plans have been compiled and are ready to
     // be completed.
     Vector<Ref<JITPlan>, 16> m_readyPlans;

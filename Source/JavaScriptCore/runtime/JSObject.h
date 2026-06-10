@@ -1017,6 +1017,21 @@ public:
     // putExistingOwnDataPropertyForAtomics' hazard cannot occur). Defined in
     // ConcurrentButterfly.cpp (U-T10-owned).
     JS_EXPORT_PRIVATE ASCIILiteral putDirectForAtomicsMissingAdd(VM&, PropertyName, JSValue, PutPropertySlot&);
+    // U-T10 amend (§C.2 Missing arm, INDEXED leg): the indexed twin of the
+    // helper above; closes the KNOWN RESIDUAL recorded in INTEGRATE-ungil
+    // (U-T10 amend item 3). Same contract: null on success; a non-null error
+    // means the add LOST a race with a concurrent indexed define/remove/
+    // reshape — the caller restarts its probe, which re-classifies on
+    // settled state and throws the precise TypeError or takes the value-only
+    // Exchange leg. Never writes a sparse-map entry it did not freshly
+    // create; the conditional add and the value publish share ONE
+    // object-cellLock window, the same lock defineOwnIndexedProperty holds
+    // around its own map->add, so isNewEntry alone decides the winner. CAN
+    // throw (exotic-receiver generic fallback, conversion OOM): callers must
+    // check for an exception before testing the returned error. Defined in
+    // ThreadAtomics.cpp (its only caller; ConcurrentButterfly.cpp is owned
+    // by the object-model workstream).
+    JS_EXPORT_PRIVATE ASCIILiteral putDirectIndexForAtomicsMissingAdd(JSGlobalObject*, uint32_t index, JSValue);
 #endif
 
     JS_EXPORT_PRIVATE bool putDirectNativeIntrinsicGetter(VM&, JSGlobalObject*, Identifier, NativeFunction, Intrinsic, unsigned attributes);

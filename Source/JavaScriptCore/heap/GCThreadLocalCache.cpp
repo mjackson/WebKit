@@ -28,6 +28,7 @@
 
 #include "BlockDirectory.h"
 #include "CompleteSubspace.h"
+#include "FreeList.h"
 #include "Heap.h"
 #include "LocalAllocator.h"
 #include "Options.h"
@@ -223,8 +224,12 @@ void GCThreadLocalCache::stopAllocating()
 {
     // §10 step 5 flush: conductor-side while the world is stopped for all
     // clients (I2 exception), or the owner thread itself.
+    if (Options::validateFreeListStructure()) [[unlikely]]
+        FreeList::setStructureValidationContext("tlcflush"); // Per-client step-5 flush provenance.
     for (LocalAllocator* allocator : m_perDirectory.values())
         allocator->stopAllocating();
+    if (Options::validateFreeListStructure()) [[unlikely]]
+        FreeList::setStructureValidationContext("other");
 }
 
 void GCThreadLocalCache::resumeAllocating()
@@ -259,10 +264,14 @@ void GCThreadLocalCache::stopAllocatingForGood()
     // inUse == false (I9; LocalAllocator::stopAllocating returns the current
     // block via MarkedBlock::Handle::stopAllocating, clearing inUse).
     MutatorSlowPathLocker mutatorSlowPathLocker(m_server);
+    if (Options::validateFreeListStructure()) [[unlikely]]
+        FreeList::setStructureValidationContext("tlcSAFG"); // Teardown flush provenance.
     for (auto& entry : m_perDirectory) {
         entry.value->stopAllocatingForGood();
         entry.key->detachLocalAllocator(*entry.value);
     }
+    if (Options::validateFreeListStructure()) [[unlikely]]
+        FreeList::setStructureValidationContext("other");
 }
 
 } // namespace GCClient

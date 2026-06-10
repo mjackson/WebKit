@@ -37,6 +37,7 @@
 #include "VMThreadContext.h"
 #include "WasmDebugServerUtilities.h"
 #include <atomic>
+#include <wtf/DataLog.h> // V4 watchdog: arbitration-queue breadcrumb.
 #include <wtf/HashMap.h>
 #include <wtf/Locker.h>
 #include <wtf/MonotonicTime.h>
@@ -260,6 +261,7 @@ static Condition s_jsThreadsParkCondition; // NVS tickets + the conductor's pred
 static std::atomic<VM*> s_jsThreadsStopWord { nullptr }; // SB1 stop word; seq_cst accessors below ONLY (U20).
 static std::atomic<WTF::Thread*> s_jsThreadsConductorThread { nullptr }; // §A.3.3 tenure (thread-keyed, not VM-keyed).
 static std::atomic<unsigned> s_jsThreadsWorldStoppedDepth { 0 }; // §J.8 witness: window open AND predicate satisfied.
+static std::atomic<uint64_t> s_jsThreadsCompletedWindowCount { 0 }; // V4 watchdog progress token: bumped once per COMPLETED §A.3 window (resume path). Relaxed: heuristic re-arm input only, never a soundness input.
 static thread_local unsigned t_jsThreadsConductorDepth { 0 }; // R1.h nesting on the conductor thread.
 
 // The gilOff Mode-machine servicing-thread tenure (§A.3.8: the landed
@@ -544,26 +546,71 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         selfClient->releaseHeapAccess();
         releasedAccess = true;
     }
-    // Watchdog budget (review round): requestStart is sampled BEFORE the
-    // arbitration park and the GCL bracket, not just before the predicate
-    // wait — reaching conductor tenure is part of reaching a stopped world,
-    // and both pre-predicate legs were previously unbounded, unwatched
-    // blocks (a wedged conductor or a non-converging shared GC hung every
-    // queued requester silently forever). One 30s budget covers all three
-    // legs end-to-end; long LEGITIMATE queues (a fire storm serializing N
-    // full stop windows) that exceed it are exactly what the watchdog must
-    // distinguish loudly rather than absorb silently.
+    // Watchdog budget (V4-stw-watchdog revision): requestStart is sampled
+    // BEFORE the arbitration park — reaching conductor tenure is part of
+    // reaching a stopped world, and the pre-tenure leg was previously an
+    // unbounded, unwatched block. But the budget is PROGRESS-AWARE, not one
+    // wall-clock window end-to-end: the arbitration leg re-arms whenever
+    // another conductor COMPLETES a window (a legitimate fire-storm queue
+    // serializing N full stop windows is progress, not a wedge), and each
+    // post-tenure leg (GCL bracket; §A.3.2 predicate wait) gets its own
+    // fresh 30s budget. A true wedge completes no windows and makes no
+    // per-leg progress, so it still fail-stops in <= 30s of NO progress —
+    // detection unchanged; only the queue-mistaken-for-wedge false positive
+    // is retired.
     MonotonicTime requestStart = MonotonicTime::now();
+    const MonotonicTime originalRequestStart = requestStart;
     {
         // HBT4 step 2: arbitration. Exactly one requesting THREAD is
         // released as conductor; losers PARK here in bounded 1ms tryLock
         // quanta (watchdog-covered, see above), access-released, then retry
         // the whole sequence as later winners.
+        //
+        // V4-stw-watchdog (transition-vs-write, tier-forced): this tryLock
+        // poll has NO queue position — unlike Lock::lock()'s parked
+        // FIFO/handoff, a sleeping poller can lose every race to
+        // freshly-arriving requesters. Under a Class-A fire storm
+        // (tier-forced thresholds multiply transition fires; jettisoned
+        // code recompiles at warmup 10 and re-arms fresh watched sets) the
+        // job slot is held nearly continuously by a SUCCESSION of live,
+        // completing windows, so a starved loser's single end-to-end budget
+        // expires with the system fully live — the watchdog then fail-stops
+        // and its participant dump prints the CURRENT conductor's AB-21
+        // window access as "NON-QUIESCENT". Distinguish queue from wedge:
+        // a completed window is PROGRESS; re-arm the budget whenever the
+        // completion count advances. A true wedge completes no windows and
+        // still crashes at 30s of no progress, detection unchanged.
+        // Accepted trade: progress-based re-arm makes arbitration
+        // starvation formally unbounded (tryLock has no fairness); wedge
+        // detection, not fairness, is the watchdog's contract — the
+        // breadcrumb below keeps long queues observable.
+        uint64_t observedWindows = s_jsThreadsCompletedWindowCount.load(std::memory_order_relaxed);
+        unsigned loggedQueueBreadcrumbs = 0;
         while (!s_jsThreadsJobSlotLock.tryLock()) {
+            uint64_t windows = s_jsThreadsCompletedWindowCount.load(std::memory_order_relaxed);
+            if (windows != observedWindows) {
+                observedWindows = windows;
+                requestStart = MonotonicTime::now(); // Progress: another conductor completed a window.
+            }
+            // Starvation observability: a re-armed loser can now queue far
+            // past one budget with zero output; log a breadcrumb at 60s and
+            // 120s of TOTAL queueing so a future fairness bug reads as a
+            // loud queue, not a silent harness timeout.
+            Seconds totalQueued = MonotonicTime::now() - originalRequestStart;
+            if ((loggedQueueBreadcrumbs == 0 && totalQueued > Seconds(60)) || (loggedQueueBreadcrumbs == 1 && totalQueued > Seconds(120))) {
+                ++loggedQueueBreadcrumbs;
+                dataLogLn("JSThreads §A.3 arbitration: requester queued ", totalQueued.seconds(), "s total (budget re-armed on window completions; completed-window count now ", observedWindows, ") — live fire-storm queue, not a wedge.");
+            }
             JSThreadsSafepoint::watchdogAssertStopProgress(requestStart, &vm);
             WTF::sleep(Seconds::fromMilliseconds(1));
         }
         Locker arbitration { AdoptLock, s_jsThreadsJobSlotLock };
+        // Per-leg budget: winning tenure IS progress. The GCL bracket and
+        // the §A.3.2 predicate wait each get a fresh 30s window (a wedge in
+        // any single leg still fail-stops in <= 30s of no progress; total
+        // request latency stays bounded by progress, not by one wall-clock
+        // budget that a legitimate fire-storm queue can exhaust).
+        requestStart = MonotonicTime::now();
 
         // HBT4 step 3 (WINNER ONLY) — the LICENSED REORDER of the landed
         // R1.i bracket: the GCL bracket comes strictly AFTER arbitration
@@ -575,6 +622,7 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         // in-progress shared GC (§10C(b)/(e)).
         JSC::Heap& server = vm.clientHeap.server();
         Heap::JSThreadsStopScope stopScope(server, requestStart);
+        requestStart = MonotonicTime::now(); // Per-leg: predicate wait gets its own budget (GCL leg was covered by the value passed into stopScope).
 
         // Fan (§A.2.3 / SB1 item 1): conductor tenure, then the seq_cst stop
         // word, then the per-lite stop bits. Under the U-T2 interim seam the
@@ -591,8 +639,12 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         // registry lock is dropped before every block/yield between samples,
         // and the walk NEVER runs under s_jsThreadsParkLock (leaf discipline,
         // see the lock's comment — the bounded wait absorbs the
-        // check-then-wait lost-wakeup window). requestStart was sampled
-        // before arbitration (see above): one watchdog budget end-to-end.
+        // check-then-wait lost-wakeup window). requestStart was re-sampled
+        // after the GCL bracket (per-leg budget, see the arbitration block
+        // above): this predicate wait has its own fresh 30s window, with NO
+        // progress re-arm — a conductor whose predicate cannot converge
+        // (bucket-iii lock-holding fire, unpolled access-holding native
+        // wait) still fail-stops in <= 30s.
         for (;;) {
             if (allEnteredThreadsAreQuiescent(vm))
                 break;
@@ -664,6 +716,7 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
         s_jsThreadsWorldStoppedDepth.fetch_sub(1, std::memory_order_relaxed);
         jsThreadsStopWordStore(nullptr);
         s_jsThreadsConductorThread.store(nullptr, std::memory_order_seq_cst);
+        s_jsThreadsCompletedWindowCount.fetch_add(1, std::memory_order_relaxed); // V4 watchdog progress token (see the arbitration loop).
         // Retire this window's stop bits (review round): leaving the
         // NeedStopTheWorld trap + entry-scope-service bits set forever would
         // (a) route EVERY later VMEntryScope entry/exit of every thread

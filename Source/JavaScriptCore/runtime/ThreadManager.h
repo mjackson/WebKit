@@ -220,6 +220,18 @@ public:
     // Called with no api rank-1..3 lock held.
     void routeQueuedTaskToMainFallback(DeferredWorkTimer::Task&&);
 
+    // §C.3(b) revoked-registration retirement (U-T11; MC-DOS S4): the
+    // under-listLock SVZ re-validation dequeued this ticket's waiter before
+    // ANY settler could observe it (the node was published and revoked while
+    // its state was still Waiting, both under the list lock), so no settle
+    // task will ever run. Retire the registration synchronously: win the
+    // settle CAS (a racing settle/cancel then no-ops), cancel the pending
+    // DWT work (un-roots target + dependencies from the realm's weak-ticket
+    // visitor; fires the §E.7.4 emptiness wake), and clear the promise
+    // Strong. Must run under the JSLock with no api rank-1..3 lock held;
+    // caller guarantees exclusivity (RELEASE_ASSERTed via the CAS).
+    void retireUnsettled();
+
 private:
     AsyncTicket(VM&, Ref<DeferredWorkTimer::TicketData>&&, Ref<ThreadState>&& registrant, JSObject* extraDependency);
 
@@ -601,7 +613,14 @@ public:
     // Thread.restrict affinity table (SPEC-api 5.7.2).
     enum class Affinity : uint8_t { None, Owner, Foreign };
     Affinity objectAffinity(JSObject*);
-    void restrictObject(JSObject*, ThreadState& owner);
+    // Returns true iff the CALLER is the recorded owner after the call (new
+    // claim, idempotent re-restrict, or stale-entry replacement). False =
+    // another thread's claim won the m_affinityLock race between the
+    // caller's affinity step (0) and this insert — GIL-off the two sections
+    // are not atomic (MC-HAND S6, docs/threads/cve/map-MC-HAND.md), so the
+    // lose arm must surface Foreign for the frozen SPEC-api 4.1
+    // "re-restrict from another thread => ConcurrentAccessError" contract.
+    [[nodiscard]] bool restrictObject(JSObject*, ThreadState& owner);
     // Mandatory 5.7.2 fast path: one relaxed load, zero => no restricted
     // objects anywhere => no lock, no table probe.
     bool anyRestrictedObjects() const { return m_restrictedCount.load(std::memory_order_relaxed); }

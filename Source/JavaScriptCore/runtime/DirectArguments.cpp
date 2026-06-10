@@ -41,7 +41,9 @@ uint32_t DirectArguments::length(JSGlobalObject* globalObject) const
 {
     VM& vm = getVM(globalObject);
     auto scope = DECLARE_THROW_SCOPE(vm);
-    if (m_mappedArguments) [[unlikely]] {
+    // overrodeThings() (not a raw m_mappedArguments test) so a foreign reader
+    // acquires before reading the materialized length property (RESOLVED-3).
+    if (overrodeThings()) [[unlikely]] {
         JSValue value = get(globalObject, vm.propertyNames->length);
         RETURN_IF_EXCEPTION(scope, { });
         RELEASE_AND_RETURN(scope, value.toUInt32(globalObject));
@@ -133,12 +135,31 @@ void DirectArguments::overrideThings(JSGlobalObject* globalObject)
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    RELEASE_ASSERT(!m_mappedArguments);
-    
+    // THREADS (AUD1.N3 RESOLVED-3): GIL-off, a foreign overrideThings() can
+    // win between the caller's unfenced overrideThingsIfNecessary() check and
+    // here — race-tolerate it instead of RELEASE_ASSERTing (losing a
+    // COMPLETED race is fine: the winner's puts plus its release-published
+    // bitmap are exactly what we needed; overrodeThings() supplied the
+    // acquire). GIL-on (including useJSThreads=0) no other mutator can run in
+    // that window, so the old invariant stays enforced verbatim.
+    if (!vm.gilOff())
+        RELEASE_ASSERT(!m_mappedArguments);
+    else if (overrodeThings())
+        return;
+
+    // GIL-off, two threads can both reach here and run these puts
+    // concurrently before the CAS below picks the bitmap winner. That is
+    // deliberate, per the RESOLVED-3 ruling: "the materialize-properties half
+    // follows OM property rules" — same-key concurrent adds are serialized by
+    // the SPEC-objectmodel transition/put protocol (no lost properties), and
+    // every racer computes IDENTICAL values (internalLength() and m_callee
+    // are creation-frozen here; arrayProtoValuesFunction is a per-realm
+    // singleton eagerly initialized under useJSThreads(), see
+    // JSGlobalObject.cpp), so the racing stores are idempotent.
     putDirect(vm, vm.propertyNames->length, jsNumber(internalLength()), static_cast<unsigned>(PropertyAttribute::DontEnum));
     putDirect(vm, vm.propertyNames->callee, m_callee.get(), static_cast<unsigned>(PropertyAttribute::DontEnum));
     putDirect(vm, vm.propertyNames->iteratorSymbol, globalObject->arrayProtoValuesFunction(), static_cast<unsigned>(PropertyAttribute::DontEnum));
-    
+
     void* backingStore = vm.gigacageAuxiliarySpace(m_mappedArguments.kind).allocate(vm, mappedArgumentsSize(), nullptr, AllocationFailureMode::ReturnNull);
     if (!backingStore) [[unlikely]] {
         throwOutOfMemoryError(globalObject, scope);
@@ -149,16 +170,33 @@ void DirectArguments::overrideThings(JSGlobalObject* globalObject)
     // publishing the pointer word — concurrent readers (isMappedArgument on a
     // shared arguments object) take the pointer's address dependency to the
     // bits; relaxed atomic per-bit stores keep the recycled-address races
-    // defined. The fence orders fill before the (relaxed) publication store.
+    // defined. The fence orders fill before the publication store.
     for (unsigned i = internalLength(); i--;)
         WTF::atomicStore(&overrides[i], false, std::memory_order_relaxed);
     WTF::storeStoreFence();
+    if (vm.gilOff()) [[unlikely]] {
+        // RESOLVED-3 CAS-PUBLISH: allocate + fill complete (above), CAS the
+        // pointer in, losers discard. A losing racer's bitmap is unreferenced
+        // gigacage auxiliary memory — the GC reclaims it. The winner runs the
+        // write barrier the plain set() would have run; the loser's
+        // subsequent at(index) accesses re-load the pointer and land in the
+        // winner's bitmap (null -> non-null happens exactly once).
+        static_assert(sizeof(MappedArguments) == sizeof(bool*));
+        bool* prior = WTF::atomicCompareExchangeStrong(std::bit_cast<bool**>(&m_mappedArguments), static_cast<bool*>(nullptr), overrides);
+        if (prior)
+            return;
+        vm.writeBarrier(this);
+        return;
+    }
     m_mappedArguments.set(vm, this, overrides);
 }
 
 void DirectArguments::overrideThingsIfNecessary(JSGlobalObject* globalObject)
 {
-    if (!m_mappedArguments)
+    // overrodeThings() (not a raw m_mappedArguments test) so the
+    // already-overridden path acquires before callers touch the materialized
+    // properties (RESOLVED-3 reader-acquire half).
+    if (!overrodeThings())
         overrideThings(globalObject);
 }
 
@@ -175,7 +213,10 @@ void DirectArguments::unmapArgument(JSGlobalObject* globalObject, unsigned index
 
 void DirectArguments::copyToArguments(JSGlobalObject* globalObject, JSValue* firstElementDest, unsigned offset, unsigned length)
 {
-    if (!m_mappedArguments) {
+    // overrodeThings() (not a raw m_mappedArguments test): the overridden
+    // path reads materialized properties via GenericArgumentsImpl, which are
+    // not address-dependent on the bitmap pointer (RESOLVED-3 acquire).
+    if (!overrodeThings()) {
         unsigned limit = std::min(length + offset, internalLength());
         unsigned i;
         for (i = offset; i < limit; ++i)

@@ -14,8 +14,20 @@
 // TA accesses). Amplifier-ready: the hot reader loop is the torn-pair window.
 load("../harness.js", "caller relative");
 
-if (typeof WebAssembly === "undefined")
-    throw new Error("WebAssembly required for this susceptibility test");
+// FIXME(U-T13/MC-LIFE-S6): this premise-skip self-retires when the GIL-off
+// wasm refusal is lifted (relocating-grow stop conduction lands); the guard
+// below then never fires and the test runs at full strength.
+// Wasm is deliberately refused GIL-off (U-T13: 'JSC: disabling useWasm under
+// GIL-off...') until the N6 arm 4 stop conduction this test targets actually
+// lands. That refusal is the accepted engine behavior, not a failure here:
+// report the runner-recognized premise-skip marker (Tools/threads/run-tests.sh
+// counts it as SKIP, never PASS) and exit 0.
+if (typeof WebAssembly === "undefined") {
+    print("THREADS-PREMISE-SKIP: WebAssembly is unavailable in the effective"
+        + " configuration (deliberate U-T13 GIL-off wasm refusal); this"
+        + " susceptibility test cannot run meaningfully without it.");
+    quit();
+}
 
 const THREADS = 4;
 const PAGE = 64 * 1024;

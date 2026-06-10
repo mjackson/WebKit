@@ -846,9 +846,39 @@ template<typename Adaptor> inline bool JSGenericTypedArrayView<Adaptor>::canSetI
 
 template<typename Adaptor> inline typename Adaptor::Type JSGenericTypedArrayView<Adaptor>::getIndexQuicklyAsNativeValue(size_t i) const
 {
+    // SPEC-ungil annex N6 (torn-pair table): GIL-off, the caller's bounds proof
+    // (canGetIndexQuickly / inBounds at the call site) and this access are two
+    // separate fetches of the view's {length, base} pair; a concurrent
+    // detach/shrink/resize between them is legal. Load the base ONCE and
+    // re-validate against that single snapshot:
+    //  - null base: detach raced. JSArrayBufferView::detachFromArrayBuffer()
+    //    clears the view's m_vector synchronously (N6's quarantine defers the
+    //    unmap of ArrayBuffer::m_data, NOT the view's base word), so we must
+    //    bail rather than dereference nullptr + i. Behave as a bounds-fail and
+    //    return the zero element (within the corpus oracle {sentinel, 0,
+    //    undefined}).
+    //  - non-null base with stale length: the quarantine keeps the old mapping
+    //    committed and sized >= any length the caller could have proven against
+    //    it (N6 stale-but-safe rows), so the relaxed lane load is a legal value
+    //    race. A failing inBounds() re-fetch here is the second-fetch shape N6
+    //    forbids treating as an invariant; we bail conservatively instead of
+    //    asserting.
+    // GIL-on/flag-off keeps the exact assert and identical codegen on the
+    // likely path, preserving the oracle's full assert strength.
+    // FIXME(threads): the cleaner long-term fix is to defer the m_vector
+    // clear/poison in JSArrayBufferView::detachFromArrayBuffer() to the heap
+    // §10 stop (mirroring clearBaseWordAtStop for ArrayBuffer::m_data); that
+    // file is outside this item's scope.
+    const typename Adaptor::Type* vector = typedVector();
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        if (!vector || !inBounds(i)) [[unlikely]]
+            return typename Adaptor::Type();
+        // TSAN-TRIAGE §3.24: relaxed lane load (see typedArrayLaneLoadRelaxed above).
+        return typedArrayLaneLoadRelaxed(vector + i);
+    }
     ASSERT(inBounds(i));
     // TSAN-TRIAGE §3.24: relaxed lane load (see typedArrayLaneLoadRelaxed above).
-    return typedArrayLaneLoadRelaxed(typedVector() + i);
+    return typedArrayLaneLoadRelaxed(vector + i);
 }
 
 template<typename Adaptor> inline JSValue JSGenericTypedArrayView<Adaptor>::getIndexQuickly(size_t i) const
@@ -858,9 +888,29 @@ template<typename Adaptor> inline JSValue JSGenericTypedArrayView<Adaptor>::getI
 
 template<typename Adaptor> inline void JSGenericTypedArrayView<Adaptor>::setIndexQuicklyToNativeValue(size_t i, typename Adaptor::Type value)
 {
+    // SPEC-ungil annex N6 (torn-pair table): same second-fetch shape as
+    // getIndexQuicklyAsNativeValue above. Single base snapshot; GIL-off, bail
+    // on a raced detach (null m_vector — cleared synchronously by
+    // JSArrayBufferView::detachFromArrayBuffer(); the N6 quarantine covers
+    // ArrayBuffer::m_data, not the view's base word) or a raced shrink (stale
+    // index) by dropping the store — a legal lost-value race; re-grow
+    // zeroFills. A non-null base lands in the quarantined (still committed)
+    // mapping, which N6 classifies stale-but-safe. GIL-on/flag-off keeps the
+    // exact assert and identical codegen on the likely path.
+    // FIXME(threads): long-term, defer the m_vector clear in
+    // JSArrayBufferView::detachFromArrayBuffer() to the heap §10 stop
+    // (out of this item's file scope).
+    typename Adaptor::Type* vector = typedVector();
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        if (!vector || !inBounds(i)) [[unlikely]]
+            return;
+        // TSAN-TRIAGE §3.24: relaxed lane store (see typedArrayLaneStoreRelaxed above).
+        typedArrayLaneStoreRelaxed(vector + i, value);
+        return;
+    }
     ASSERT(inBounds(i));
     // TSAN-TRIAGE §3.24: relaxed lane store (see typedArrayLaneStoreRelaxed above).
-    typedArrayLaneStoreRelaxed(typedVector() + i, value);
+    typedArrayLaneStoreRelaxed(vector + i, value);
 }
 
 template<typename Adaptor> inline void JSGenericTypedArrayView<Adaptor>::setIndexQuickly(size_t i, JSValue value)

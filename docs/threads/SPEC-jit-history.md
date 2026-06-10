@@ -369,3 +369,39 @@ product config. R1.c's freeze scope already said this; the gate label closes the
 No jit emission change: IC fast paths bake target structures and never walk transition/
 property tables; table walks happen in runtime slow paths (OM-owned). §5.5 predicates,
 choke points, and E1-E3 unchanged. D8/App-R5 prose deduplicated (annex authoritative).
+
+### 21. Section 5.8 data-IC direct-call register discipline (2026-06-10 review round; REAL BUG, fixed)
+
+The flag-on FTL `compileDirectCallOrConstruct` adopted UseDataIC::Yes (Task 7)
+on the upstream UseDataIC::No patchpoint shape. Upstream never exercises the
+data-IC fast path from FTL direct calls, and the shape lacked two protections
+the non-direct data-IC tail path (`compileTailCall`) already had:
+
+1. No `clobberEarly(BaselineJITRegisters::Call::callLinkInfoGPR)` — B3 could
+   assign the SomeRegister callee or a WarmAny tail argument to regT2, which
+   `emitDirectTailCallFastPath` overwrites with the DirectCallLinkInfo*
+   BEFORE the CallFrameShuffler consumes the argument recoveries. The callee
+   then receives the boxed link-info pointer as an argument. Observed:
+   GeneratorPrototype.js next() FTL-compiled passes the pointer as
+   generatorResume's `state`; the generator body BadType-exits and baseline's
+   switch_imm dispatches the garbage state to the ENTRY path — completed
+   generators silently resurrect from the first yield (GIL-ON, single
+   thread, wrong values, no crash).
+2. No `shuffleData.registers[callLinkInfoGPR]` liveness recovery — the
+   shuffler could clobber the CallLinkRecord* between the record load and the
+   post-shuffle `farJump(Address(callLinkInfoGPR, offsetOfTarget()))`:
+   the GIL-off "FTL-era wild jump into the JIT pool" signature previously
+   misattributed to a §4.4 epoch race (it reproduces with zero threads).
+
+Fix in FTLLowerDFGToB3.cpp mirrors compileTailCall: flag-on early clobber of
+callLinkInfoGPR on direct-call patchpoints (tail and non-tail — the non-tail
+slow path passes calleeGPR to operationLinkDirectCall after the same stomp)
+plus the registers[] recovery on the tail shuffle. DFG was already safe
+(GPRTemporary pins regT2; recovery present). Bisect note: the I21(b)
+handleCheckTraps ExitOK+InvalidationPoint hunk was disabled and rebuilt to
+test causality — NOT causal; it stays as landed. Regression pin:
+JSTests/threads/jit/ftl-direct-tailcall-dataic-arg-clobber.js (tier-forced,
+single-threaded). Rule reaffirmed for section 5.8: any data-IC fast path
+that materializes a pointer into a convention register must declare that
+register to BOTH the register allocator (early clobber) and any frame
+shuffler that runs inside the fast path (liveness recovery).

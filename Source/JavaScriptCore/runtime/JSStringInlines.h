@@ -686,13 +686,15 @@ inline JSString* jsAtomString(JSGlobalObject* globalObject, VM& vm, JSString* st
         return vm.keyAtomStringCache.make(vm, buffer, createFromNonRope);
     }
 
-    JSRopeString* ropeString = uncheckedDowncast<JSRopeString>(string);
-
     // GIL-off: snapshot the fiber word once. Another mutator may publish a
     // resolved impl into m_fiber at any time after the isRope() check above,
     // and re-reading fiber0()/isSubstring()/is8Bit() after that publish would
-    // misread the published StringImpl* as a JSString* and flag bits.
-    uintptr_t fiberBits = ropeString->fiberConcurrently();
+    // misread the published StringImpl* as a JSString* and flag bits. The
+    // snapshot must precede the downcast (§N.2 reader arm): uncheckedDowncast's
+    // debug is<JSRopeString> check re-reads m_fiber and can observe the
+    // republish, so cast on the snapshot decision instead.
+    uintptr_t fiberBits = string->fiberConcurrently();
+    JSRopeString* ropeString = static_cast<JSRopeString*>(string);
     if (vm.gilOff() && !(fiberBits & JSString::isRopeInPointer)) [[unlikely]] {
         // Already resolved by another mutator; take the non-rope path.
         RELEASE_AND_RETURN(scope, jsAtomString(globalObject, vm, string));
@@ -886,7 +888,12 @@ inline JSString* jsSubstringOfResolved(VM& vm, GCDeferralContext* deferralContex
         return vm.smallStrings.emptyString();
 
     if (s->isSubstring()) {
-        JSRopeString* baseRope = uncheckedDowncast<JSRopeString>(s);
+        // §N.2 reader arm: the substring decision came from the snapshot
+        // inside isSubstring(); uncheckedDowncast's debug check re-reads
+        // m_fiber and races a concurrent resolver's republish. The dependent
+        // reads (substringBase/substringOffset) live in m_compactFibers,
+        // which resolution never clears, so they stay valid either way.
+        JSRopeString* baseRope = static_cast<JSRopeString*>(s);
         ASSERT(!baseRope->substringBase()->isRope());
         s = baseRope->substringBase();
         offset += baseRope->substringOffset();
@@ -919,9 +926,18 @@ inline JSString* jsSubstringOfResolved(VM& vm, GCDeferralContext* deferralContex
 template<typename CharacterType>
 void JSString::resolveToBuffer(std::span<CharacterType> destination)
 {
-    if (isRope()) {
-        auto* rope = uncheckedDowncast<JSRopeString>(this);
-        if (rope->isSubstring()) {
+    // GIL-off (SPEC-ungil §N.2 reader arm): one m_fiber snapshot decides
+    // rope/substring AND supplies fiber0. Re-reading isSubstring()/fiber0()
+    // after a concurrent resolver republishes m_fiber would misread the
+    // published StringImpl* as flag bits and a JSString* fiber;
+    // uncheckedDowncast's debug is<JSRopeString> check re-reads m_fiber the
+    // same way. fiber1/fiber2 and the substring base/offset live in
+    // m_compactFibers, which resolution never clears. GIL-on / flag-off:
+    // byte-identical to the direct reads it replaces.
+    uintptr_t fiberBits = fiberConcurrently();
+    if (fiberBits & isRopeInPointer) {
+        auto* rope = static_cast<JSRopeString*>(this);
+        if (fiberBits & JSRopeString::isSubstringInPointer) {
             StringView view = *rope->substringBase()->valueInternal().impl();
             unsigned offset = rope->substringOffset();
             view.substring(offset, rope->length()).getCharacters(destination);
@@ -929,7 +945,8 @@ void JSString::resolveToBuffer(std::span<CharacterType> destination)
         }
 
         uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm().softStackLimitForCurrentThreadSlow());
-        return JSRopeString::resolveToBuffer(rope->fiber0(), rope->fiber1(), rope->fiber2(), destination, stackLimit);
+        auto* fiber0 = std::bit_cast<JSString*>(fiberBits & JSRopeString::stringMask);
+        return JSRopeString::resolveToBuffer(fiber0, rope->fiber1(), rope->fiber2(), destination, stackLimit);
     }
     StringView(valueInternal().impl()).getCharacters(destination);
 }

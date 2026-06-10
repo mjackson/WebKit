@@ -370,6 +370,8 @@ static JSC_DECLARE_HOST_FUNCTION(rejectPromise);
 static JSC_DECLARE_HOST_FUNCTION(fulfillPromise);
 static JSC_DECLARE_HOST_FUNCTION(markPromiseAsHandledHostFunction);
 static JSC_DECLARE_HOST_FUNCTION(isPromiseStatePending);
+static JSC_DECLARE_HOST_FUNCTION(claimGeneratorResume);
+static JSC_DECLARE_HOST_FUNCTION(publishGeneratorResume);
 static JSC_DECLARE_HOST_FUNCTION(resolvePromiseWithFirstResolvingFunctionCallCheck);
 static JSC_DECLARE_HOST_FUNCTION(rejectPromiseWithFirstResolvingFunctionCallCheck);
 static JSC_DECLARE_HOST_FUNCTION(fulfillPromiseWithFirstResolvingFunctionCallCheck);
@@ -949,6 +951,116 @@ JSC_DEFINE_HOST_FUNCTION(isPromiseStatePending, (JSGlobalObject*, CallFrame* cal
 {
     auto* promise = dynamicDowncast<JSPromise>(callFrame->uncheckedArgument(0));
     return JSValue::encode(jsBoolean(promise->status() == JSPromise::Status::Pending));
+}
+
+// SPEC-ungil §N.5 (BINDING; annex N7 row R7): GIL-off resume-claim twin
+// primitives for builtins/GeneratorPrototype.js + JSIteratorHelperPrototype.js
+// (the §N.5 @atomicInternalFieldClaim / @atomicInternalFieldPublish pair,
+// landed as host hooks behind the @gilOffProcess constant branch; flag-off
+// and GIL-on keep the landed inline sequence verbatim).
+//
+// SHAPE NOTE (supersession recorded in SPEC-ungil-history.md, "§N.5 LANDED
+// SHAPE" entry): this is NOT the r17 F5 lowering shape. r17 F5 prescribes
+// uniform bytecode (intrinsics emitted unconditionally in all modes) with
+// the LOWERING keyed at LLInt/Baseline on the JSCConfig gilOffProcess byte
+// and at DFG/FTL via AtomicInternalFieldClaim/Publish NODES lowering to an
+// inline CAS / release store. What landed instead keys the EMISSION (the
+// @gilOffProcess bytecode constant branch) and reaches these host hooks as
+// ordinary calls in every tier. Flag-off identity holds (the constant-false
+// branch keeps GIL-on/flag-off on the landed inline sequence); the gilOff
+// host-call cost is recorded-not-gated (§B.5), with the r17 F5 intrinsic/
+// node form the named perf contingency. Mode-keyed bytecode is sound only
+// because the derivation is process-immutable AND the disk bytecode cache
+// version is partitioned on it (JSCBytecodeCacheVersion.cpp).
+//
+// The landed resume head's check-then-store (read state; throw on Executing;
+// store Executing) is two separate accesses — GIL-off, two threads racing
+// .next() can both pass the check and both resume into one suspended frame
+// (the MC-PRIM P5 / MC-TEAR S6 hit). The ruling makes the whole head ONE
+// claim: a single-word CAS SuspendedX -> ClaimToken on the State internal
+// field. Claim FAILURE dispatches on the RE-READ (no SD): any executing
+// observation is returned as the canonical Executing so the caller throws
+// the existing "Generator is executing" TypeError (§N.5: NOT an SD);
+// Completed is terminal, never claimed, dispatched read-only by the caller.
+//
+// The claim word carries OWNER IDENTITY (a per-thread token < Executing),
+// not the plain Executing sentinel, because the resume epilogue must decide
+// "did MY resume run to completion?" by CASing ITS OWN token -> Completed:
+// after the body unclaims at a yield (the suspend-state store, ordered after
+// the frame save by BytecodeGeneratorification's gilOffProcess reorder), a
+// second thread can immediately claim — a plain "state == Executing" re-read
+// would confuse the rival's claim with our own completion and fabricate a
+// done:true carrying the yielded value (the torn-completion arm of
+// mc-prim-generator-resume-claim).
+//
+// Memory order: the claim's acquire pairs with the previous resumer's frame
+// publication — the release half is real in every tier: gilOffProcess,
+// op_put_internal_field emits a store-store fence before the field store
+// (r15 F1 "UNCLAIM transitions are store-RELEASE in ALL tiers"; LLInt
+// LowLevelInterpreter64.asm, Baseline JITPropertyAccess.cpp, DFG/FTL
+// compilePutInternalField), so the yield-side SuspendedX store publishes the
+// OpPutToScope frame saves on weak-memory targets. The winner therefore
+// reads a fully published frame; at-most-one-claimant then keeps every
+// interior store while claimed plain (§N.5).
+// States and tokens are int32 JSValues — no cell is ever stored, so no write
+// barrier is needed.
+static ALWAYS_INLINE EncodedJSValue generatorClaimTokenForCurrentThread()
+{
+    // Tokens occupy (-inf, Executing): claimGeneratorResume only ever claims
+    // values >= 0 (Init / suspend points), so a foreign token can never be
+    // claimed, and any value <= Executing reads as "executing". WTF::Thread
+    // uids are unique for the process lifetime (never recycled); the 2^30
+    // truncation can only collide two SIMULTANEOUSLY-LIVE threads whose uids
+    // differ by a multiple of 2^30 — over a billion thread creations with
+    // both endpoints alive — accepted (and the collision outcome is the
+    // pre-token done-ambiguity, not a new unsafety class).
+    int32_t token = static_cast<int32_t>(JSGenerator::State::Executing) - 1 - static_cast<int32_t>(Thread::currentSingleton().uid() & 0x3FFFFFFFu);
+    return JSValue::encode(jsNumber(token));
+}
+
+JSC_DEFINE_HOST_FUNCTION(claimGeneratorResume, (JSGlobalObject*, CallFrame* callFrame))
+{
+    // The builtin callers gate on @isGenerator / the iterator-helper
+    // generator field before calling.
+    auto* generator = uncheckedDowncast<JSGenerator>(asObject(callFrame->uncheckedArgument(0)));
+    auto& slot = generator->internalField(static_cast<unsigned>(JSGenerator::Field::State));
+    auto* word = std::bit_cast<Atomic<EncodedJSValue>*>(&slot);
+    static const EncodedJSValue executingBits = JSValue::encode(jsNumber(static_cast<int32_t>(JSGenerator::State::Executing)));
+    static const EncodedJSValue completedBits = JSValue::encode(jsNumber(static_cast<int32_t>(JSGenerator::State::Completed)));
+    const EncodedJSValue tokenBits = generatorClaimTokenForCurrentThread();
+    for (;;) {
+        EncodedJSValue observed = word->load(std::memory_order_acquire);
+        if (observed == completedBits)
+            return observed;
+        // The State field only ever holds int32 jsNumbers (states + tokens).
+        int32_t observedState = JSValue::decode(observed).asInt32();
+        if (observedState <= static_cast<int32_t>(JSGenerator::State::Executing))
+            return executingBits; // Executing or a claim token: report the canonical Executing.
+        // SuspendedX (Init or a suspend point): claim it with our token.
+        // compareExchangeWeak may fail spuriously; re-read and re-dispatch (a
+        // racing claimant may have won — the next iteration bails).
+        if (word->compareExchangeWeak(observed, tokenBits, std::memory_order_acq_rel))
+            return observed;
+    }
+}
+
+// The §N.5 UNCLAIM/publish half for the resume epilogue: CAS
+// ourToken -> Completed. Success means the body never unclaimed (no suspend
+// store overwrote our token), i.e. THIS resume ran the generator to
+// completion (or threw) => done:true. Failure means the body suspended (the
+// yield's post-save state store was the unclaim; the field now holds
+// SuspendedY, a rival's token, or Completed) => done:false for OUR resume.
+// The release on success orders the body's result publication before any
+// later claimant's acquire.
+JSC_DEFINE_HOST_FUNCTION(publishGeneratorResume, (JSGlobalObject*, CallFrame* callFrame))
+{
+    auto* generator = uncheckedDowncast<JSGenerator>(asObject(callFrame->uncheckedArgument(0)));
+    auto& slot = generator->internalField(static_cast<unsigned>(JSGenerator::Field::State));
+    auto* word = std::bit_cast<Atomic<EncodedJSValue>*>(&slot);
+    static const EncodedJSValue completedBits = JSValue::encode(jsNumber(static_cast<int32_t>(JSGenerator::State::Completed)));
+    const EncodedJSValue tokenBits = generatorClaimTokenForCurrentThread();
+    EncodedJSValue witnessed = word->compareExchangeStrong(tokenBits, completedBits, std::memory_order_acq_rel);
+    return JSValue::encode(jsBoolean(witnessed == tokenBits));
 }
 
 JSC_DEFINE_HOST_FUNCTION(resolvePromiseWithFirstResolvingFunctionCallCheck, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -2024,6 +2136,19 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
         putDirectWithoutTransition(vm, Identifier::fromString(vm, "Condition"_s), createConditionProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
         putDirectWithoutTransition(vm, Identifier::fromString(vm, "ThreadLocal"_s), createThreadLocalProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
         putDirectWithoutTransition(vm, Identifier::fromString(vm, "ConcurrentAccessError"_s), createConcurrentAccessErrorProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
+
+        // THREADS (AUD1.N3 / §K.3 LZ1 interim): the ClonedArguments and
+        // DirectArguments slow paths consult these two lazy properties from
+        // ANY thread (strict-callee poison accessor and @@iterator
+        // materialization). Until the park-capable LZ1 waiter lands in
+        // LazyPropertyInlines.h, LazyProperty::get() can return null to a
+        // thread that catches a foreign mutator mid-first-touch — so force
+        // the first touch HERE, on the owning thread, before this global can
+        // escape to a Thread(). Every later get() is then a plain non-null
+        // load (no wait loop, no livelock risk), and the values become
+        // per-realm singletons every racing arguments materializer agrees on.
+        m_arrayProtoValuesFunction.get(this);
+        m_throwTypeErrorArgumentsCalleeGetterSetter.get(this);
     }
 
     if (Options::useExplicitResourceManagement()) {
@@ -2454,6 +2579,12 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::isPromiseStatePending)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, init.owner, 1, "isPromiseStatePending"_s, isPromiseStatePending, ImplementationVisibility::Private));
+        });
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::claimGeneratorResume)].initLater([] (const Initializer<JSCell>& init) {
+            init.set(JSFunction::create(init.vm, init.owner, 1, "claimGeneratorResume"_s, claimGeneratorResume, ImplementationVisibility::Private));
+        });
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::publishGeneratorResume)].initLater([] (const Initializer<JSCell>& init) {
+            init.set(JSFunction::create(init.vm, init.owner, 1, "publishGeneratorResume"_s, publishGeneratorResume, ImplementationVisibility::Private));
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::resolvePromiseWithFirstResolvingFunctionCallCheck)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, init.owner, 2, "resolvePromiseWithFirstResolvingFunctionCallCheck"_s, resolvePromiseWithFirstResolvingFunctionCallCheck, ImplementationVisibility::Private, ResolvePromiseWithFirstResolvingFunctionCallCheckIntrinsic));

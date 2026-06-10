@@ -140,6 +140,19 @@ bench_cmd() {
 # 100%-failed JS cells. Any recurrence must abort here, in preflight.
 SMOKE_WS=(1 4)
 
+# 2026-06-10 engine-bug accommodation: the js W=4 smoke leg is EXPECTED to
+# fail while the shared-GC-heap corruption (js/repro-bigint-shared-ingest.js)
+# is open — confirmed GC-dependent under-marking (0/4 corrupt with --useGC=0,
+# 4/4 with GC on; --sweepSynchronously=1 turns the aliasing into immediate
+# crashes => live cells are being swept). Instead of dying (which blocks the
+# ENTIRE matrix including the sound go/java cells and js W in {1,2}), record
+# the bug and run the matrix: js W>=4 cells fail per SPEC §6 (failed:true,
+# null medians), and any silently-WRONG js W>=2 checksum is quarantined at
+# record time (scalebench_lib.py --expect-tuple) so the §5.5 gate stays
+# meaningful over the sound population. go/java and the js W=1 baseline keep
+# the hard abort.
+JS_SHARED_HEAP_BUG=0
+
 smoke() {
     log "smoke: W in {${SMOKE_WS[*]}} SCALEBENCH_SMOKE=1 across all three languages"
     local lang w ref="" tup out
@@ -148,6 +161,12 @@ smoke() {
         bench_cmd "${lang}" "${w}" smoke
         out="${OUT_DIR}/smoke-${lang}-w${w}.out"
         if ! SCALEBENCH_SMOKE=1 "${BENCH_CMD[@]}" >"${out}" 2>"${OUT_DIR}/smoke-${lang}-w${w}.err"; then
+            if [[ "${lang}" == js && "${w}" -ge 4 ]]; then
+                JS_SHARED_HEAP_BUG=1
+                log "smoke js W=${w}: FAILED — known shared-GC-heap corruption (js/repro-bigint-shared-ingest.js)"
+                log "  proceeding: js W>=4 cells will be recorded as failed (SPEC §6); js W>=2 checksums quarantined"
+                continue
+            fi
             die "smoke run failed for ${lang} W=${w} (see ${OUT_DIR}/smoke-${lang}-w${w}.err)"
         fi
         tup="$(python3 - "${out}" <<'PYEOF'
@@ -168,6 +187,11 @@ PYEOF
         if [[ -z "${ref}" ]]; then
             ref="${tup}"
         elif [[ "${tup}" != "${ref}" ]]; then
+            if [[ "${lang}" == js && "${w}" -ge 4 ]]; then
+                JS_SHARED_HEAP_BUG=1
+                log "smoke js W=${w}: SILENT CHECKSUM MISMATCH — known shared-GC-heap corruption; same accommodation as a failed leg"
+                continue
+            fi
             die "SMOKE CHECKSUM MISMATCH: ${lang} W=${w} disagrees with ${LANGS[0]} W=${SMOKE_WS[0]} — fix the implementations before any measured run"
         fi
     done
@@ -250,10 +274,18 @@ run_cell() {
         log "run ${tag}: FAILED (exit ${rc}) — recorded per SPEC §6"
     fi
 
+    # Engine-bug quarantine (see JS_SHARED_HEAP_BUG above): js runs at W>=2
+    # with a wrong checksum tuple are recorded as failed (named reason)
+    # instead of tripping the batch-wide abort below. js W=1 (the speedup
+    # baseline) and go/java keep the §5.5 hard abort.
+    local extra=()
+    if [[ "${JS_SHARED_HEAP_BUG}" == 1 && "${lang}" == js && "${w}" -ge 2 && -n "${REF_TUPLE}" ]]; then
+        extra=(--expect-tuple "${REF_TUPLE}")
+    fi
     tup="$(python3 "${HELPER}" record \
         --lang "${lang}" --threads "${w}" --rep "${rep}" \
         --exit-code "${rc}" --stdout "${out}" --time "${tim}" \
-        --runs "${RUNS_JSONL}")"
+        --runs "${RUNS_JSONL}" "${extra[@]}")"
 
     # Fail-fast checksum cross-validation: any successful run disagreeing
     # with the first one invalidates the batch — stop burning hours now.
@@ -298,6 +330,10 @@ run_matrix() {
 # ---------------------------------------------------------------------------
 
 write_meta() {
+    local exceptions='[]'
+    if [[ "${JS_SHARED_HEAP_BUG}" == 1 ]]; then
+        exceptions='["js: OPEN ENGINE BUG (not a flag exception): shared-GC-heap corruption under the pinned GIL-off flag set at W>=4 — GC-dependent under-marking; live cells swept and re-allocated (repro: js/repro-bigint-shared-ingest.js, 0/4 corrupt with --useGC=0, 4/4 with GC on). js W>=4 cells are recorded as failed per SPEC §6; js W>=2 runs with wrong checksums are quarantined as failed instead of aborting the batch. go/java cells and the js W=1 baseline are unaffected."]'
+    fi
     jq -n \
         --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --argjson cores "$(nproc)" \
@@ -309,10 +345,11 @@ write_meta() {
         --argjson gate_delay "${GATE_DELAY_TOTAL}" \
         --argjson settle_delay "${SETTLE_DELAY_TOTAL}" \
         --argjson settle_excess "${SETTLE_EXCESS_TOTAL}" \
+        --argjson exceptions "${exceptions}" \
         '{date: $date,
           host: {cores: $cores, kernel: $kernel},
           versions: {jsc: $jsc, go: $go, java: $java},
-          exceptions: [],
+          exceptions: $exceptions,
           constants: {N_BASE: $nbase, V: 65536, K: 128, N_QUERIES: $nbase,
                       seed: "0x5CA1AB1E0BADF00D"},
           gate_delay_s: $gate_delay,
@@ -323,6 +360,9 @@ write_meta() {
 main() {
     mkdir -p "${OUT_DIR}"
     : >"${RUNS_JSONL}"
+    # js W>=4 cells are expected to crash while the shared-heap bug is open;
+    # a W=64 core is multi-GB and serializes the batch — don't write cores.
+    ulimit -c 0 2>/dev/null || true
 
     log "=== preflight ==="
     preflight_tools

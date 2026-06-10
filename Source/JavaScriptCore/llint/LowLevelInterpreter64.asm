@@ -4288,6 +4288,19 @@ llintOp(op_put_internal_field, OpPutInternalField, macro (size, get, dispatch)
     get(m_value, t1)
     loadConstantOrVariable(size, t1, t2)
     getu(size, OpPutInternalField, m_index, t1)
+    # SPEC-ungil N.5 (r15 F1): gilOffProcess, internal-field stores are
+    # store-RELEASE -- the generator/iterator-helper suspend-state store is
+    # the resume-claim UNCLAIM and must publish the preceding frame saves to
+    # a rival claimant's acquire CAS (claimGeneratorResume). One byte test on
+    # the JSCConfig gilOffProcess byte (the accepted delta-(a) shape); the
+    # fence arm is unreachable flag-off/GIL-on. Platforms without GILOFF_TLS
+    # fail-stop on a set gilOffProcess byte before reaching any bytecode.
+    if GILOFF_TLS
+        leap _g_config, t3
+        bbeq JSCConfigOffset + JSC::Config::gilOffProcess[t3], 0, .putInternalFieldNoFence
+        memfence
+    .putInternalFieldNoFence:
+    end
     storeq t2, JSInternalFieldObjectImpl_internalFields[t0, t1, SlotSize]
     writeBarrierOnCellAndValueWithReload(t0, t2, macro() end)
     dispatch()

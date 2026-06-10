@@ -54,6 +54,7 @@ const readers = spawnN(READERS, () => {
     function readF(o) { return o.f; }
     Atomics.add(gate, "started", 1);
     let checks = 0;
+    let passes = 0;
     while (Atomics.load(gate, "stop") === 0) {
         for (let s = 0; s < SLOTS; ++s) {
             const o = Atomics.load(pool, "p" + s);
@@ -68,6 +69,20 @@ const readers = spawnN(READERS, () => {
                 Atomics.add(gate, "bad", 1);
             ++checks;
         }
+        // Phase-1 GIL is COOPERATIVE-ONLY (SPEC-api item 9: "Phase-1 GIL
+        // preemption cooperative-only (G23/G24; yields = 5.2 blocking
+        // primitives only)"): a reader that never blocks never yields, so a
+        // pure spin here starves the sibling readers and main forever GIL-on
+        // (the original shape hung before `started` could even reach
+        // READERS — spec-conformant scheduling, not an engine bug; same
+        // TEST-BROKEN repair as mc-val-multislot-clone / map-MC-VAL.md V8).
+        // The bounded property-path wait parks with the GIL dropped
+        // (harness.js sleepMs rationale); GIL-off it costs ~1ms per 256
+        // passes and does not weaken the V1 oracle (the LLInt fast path is
+        // still the consumer on every check).
+        ++passes;
+        if ((passes & 255) === 0)
+            Atomics.wait(gate, "stop", 0, 1);
     }
     return checks;
 });

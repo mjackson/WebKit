@@ -311,6 +311,8 @@ public:
     inline bool isShared();
     JS_EXPORT_PRIVATE ArrayBuffer* unsharedBuffer();
     inline ArrayBuffer* possiblySharedBuffer();
+    // Public (upstream: protected) for the threads-mode Atomics detach re-check, SPEC-ungil annex N6 arm 1.
+    ArrayBuffer* existingBufferInButterfly();
     JSArrayBuffer* unsharedJSBuffer(JSGlobalObject* globalObject);
     JSArrayBuffer* possiblySharedJSBuffer(JSGlobalObject* globalObject);
     inline RefPtr<ArrayBufferView> unsharedImpl();
@@ -434,8 +436,6 @@ private:
 protected:
     friend class LLIntOffsetsExtractor;
     friend class ArrayBuffer;
-
-    ArrayBuffer* existingBufferInButterfly();
 
     VectorPtr m_vector;
     RacyArrayBufferViewField<size_t> m_length;

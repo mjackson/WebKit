@@ -424,6 +424,59 @@ void MarkedBlock::aboutToMarkSlow(HeapVersion markingVersion, HeapCell* cell)
 #endif
 }
 
+void MarkedBlock::sharedGCWindowWitnessSnapshot(HeapVersion markingVersion, Vector<HeapCell*>& candidates)
+{
+    // SharedGC "Wlr" read protocol (round-7 F1): the Wlr core marking
+    // constraint runs on the conductor while parallel marker helpers
+    // concurrently execute aboutToMarkSlow() above, which under
+    // header().m_lock clears the whole marks bitmap (clearAll), can fold
+    // marks into m_newlyAllocated (setAndClear) AND bump
+    // m_newlyAllocatedVersion mid-marking, then storeStoreFence + version
+    // store. The previous Wlr loop hoisted areMarksStale() once per block
+    // and read isMarkedRaw()/isNewlyAllocatedStale() lock-free and
+    // dependency-free, violating the documented protocol (see the isMarked()
+    // comment in MarkedBlock.h) and racing all of those writes — TSAN-dirty,
+    // and on weak memory models a load-load reorder could pair a current
+    // version with a pre-clear stale marks word. Take the SAME header lock
+    // for the whole per-block snapshot so the witness judgment is one
+    // consistent view; the caller appends the candidates to the visitor only
+    // AFTER this lock is dropped (appendJSCellOrAuxiliary can re-enter this
+    // lock via aboutToMark -> aboutToMarkSlow). Lock order matches
+    // aboutToMarkSlow: header lock outer, directory bitvector lock inner.
+    //
+    // Soundness lemma (previously UNSTATED, load-bearing for the old racy
+    // reads; recorded here because the EVIDENCE.md §13 stale-mark-skip
+    // narrowing candidate depends on it): a window-witnessed cell always has
+    // stale mark bit == 0 — it came off a sweep-built free list and only
+    // unmarked cells are free-listed — and its NA bit is stamped pre-stop
+    // (MarkedBlock::Handle::stopAllocating, happens-before marking per Wlr
+    // lemma L1) and is never CLEARED during marking. Under the lock the
+    // snapshot is correct without the lemma; any future narrowing keyed on
+    // STALE mark bits must keep both this lock protocol and this lemma, or
+    // it silently reopens the under-retention hole.
+    Locker locker { header().m_lock };
+    bool naCurrent = !isNewlyAllocatedStale();
+    BlockDirectory* directory = handle().directory();
+    bool allocBit;
+    {
+        Locker bitLocker { directory->bitvectorLock() };
+        allocBit = directory->isAllocated(&handle());
+    }
+    if (!naCurrent && !allocBit)
+        return;
+    bool marksStale = areMarksStale(markingVersion);
+    handle().forEachCell(
+        [&] (size_t, HeapCell* cell, HeapCell::Kind) -> IterationStatus {
+            if (!marksStale && isMarkedRaw(cell))
+                return IterationStatus::Continue;
+            bool isNA = naCurrent && isNewlyAllocated(cell);
+            if (!isNA && !allocBit)
+                return IterationStatus::Continue; // No window witness: genuinely dead.
+            candidates.append(cell);
+            return IterationStatus::Continue;
+        });
+}
+
 void MarkedBlock::resetAllocated()
 {
     header().m_newlyAllocated.clearAll();

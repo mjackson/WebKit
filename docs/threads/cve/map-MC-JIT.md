@@ -203,6 +203,16 @@ with a stale base, if cross-poll caching is ever re-allowed.
 - `JSTests/threads/cve/mc-jit-delete-reuse-stale-offset.js` — arm (c):
   cross-property aliasing oracle (OM I21) for quarantine-epoch reuse under a
   hoisted structure proof.
+  **OPEN FLAKE (recorded 2026-06-10, review round):** ~1/6 GIL-off Release
+  runs die exit 134 on the 30s STW watchdog ("Pending Class-A fire context:
+  WatchpointSet Class-A fire" — SPEC-jit App. 5.6(c) bucket iii / FIX-2
+  mechanisms (1)/(2)), NOT on this test's aliasing oracle. Same
+  stop-progress signature class mc-aint's record attributes its single
+  flake to, and a live candidate for the unattributed historical GIL-off
+  failures recorded in map-MC-VAL V1/V8 and map-MC-INT S4. Needs
+  stop-progress triage (escaped lock-holding fireAll caller, or a mutator
+  parked in a native wait holding heap access without an access-release
+  bracket/per-quantum poll); a test repair would be the WRONG fix.
 
 ---
 

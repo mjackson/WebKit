@@ -58,6 +58,30 @@ argument given); NEEDS-TEST = targeted susceptibility test written under
 - Test: `JSTests/threads/cve/mc-val-llint-cache-storm.js` (deterministic
   detector — every value encodes its key; `--useJIT=0` pins the LLInt
   consumer; amplifier-ready).
+- Executed at the CVE close-out round: the V1 design verdict HOLDS — no
+  wrong-offset consumption observed at 20/20 GIL-off Release + 20/20
+  amplified + 120/120 under 24-way load + TSAN no-JIT clean + Debug
+  (threaded publish arm confirmed live: `useThreadedLLIntPropertyCaches()`
+  returns `Options::useJSThreads()` on ADDRESS64/LE, LLIntSlowPaths.cpp:124).
+  One TEST-BROKEN repair, GIL-on only: the reader loops spun without any
+  blocking primitive, which phase-1 cooperative-GIL scheduling starves
+  forever (SPEC-api item 9, G23/G24: yields = §5.2 blocking primitives
+  only) — the hang was spec-conformant scheduling, not an engine bug; same
+  repair shape as V8 below (bounded property-path `Atomics.wait` every 256
+  passes).
+- Attribution of the ORIGINAL chartered GIL-off failure (recorded so a
+  future regression of the real cause is not masked by the test repair):
+  the GIL-on starvation repair above cannot explain a GIL-off failure, and
+  no doc captured the GIL-off signature before the repair landed. The two
+  plausible mechanisms are (a) spin-loop oversubscription timing out the
+  harness under load GIL-off (the same unyielding reader loops, pre-repair,
+  oversubscribed cores), and (b) the since-fixed MC-SAFE S4 stop-deadlock
+  family as a cross-family flake (the watchdog signature mc-aint's record
+  attributes its one observed flake to, still reproducing ~1/6 under
+  mc-jit-delete-reuse-stale-offset as of 2026-06-10). NEITHER was captured
+  at the time — this closure's GIL-off leg is therefore attributed
+  OBSERVATIONALLY to the executed bars (20/20 + 20/20 amplified + 120/120
+  under 24-way load + TSAN no-JIT + Debug), not to a point fix.
 
 ### V2. Baseline/handler IC inline state (packed self word + handler chains) — IMMUNE
 
@@ -256,6 +280,24 @@ argument given); NEEDS-TEST = targeted susceptibility test written under
   staleness stays green.
 - Test: `JSTests/threads/cve/mc-val-multislot-clone.js` (foreign
   transition+delete storm vs assign/spread/JSON/for-in; amplifier-ready).
+  Executed at the CVE close-out round: 20/20 GIL-off Release, 3/3 GIL-on —
+  the design verdict holds (no cross-slot confusion observed). One
+  TEST-BROKEN repair: the writer threads originally spun without any
+  blocking primitive, which GIL-on starves every other thread forever —
+  phase-1 GIL preemption is COOPERATIVE-ONLY (SPEC-api item 9, G23/G24:
+  yields = §5.2 blocking primitives only), so the hang was spec-conformant
+  scheduling, not an engine bug. The writers now issue a bounded
+  property-path `Atomics.wait` (GIL-dropping park, harness.js sleepMs
+  rationale) every 256 iterations.
+  Attribution of the ORIGINAL chartered GIL-off failure: as with V1 above,
+  the GIL-on-only starvation repair cannot explain the GIL-off failure that
+  put this test on the charter's 11-failing list, and no pre-repair GIL-off
+  signature was captured. Candidate mechanisms are the same pair recorded
+  in V1 (pre-repair spin-loop oversubscription timeouts under GIL-off load;
+  the since-fixed MC-SAFE S4 stop-deadlock cross-family flake). The GIL-off
+  leg of this closure is OBSERVATIONAL against the 20/20 GIL-off Release
+  bar, not a point fix — a recurrence must be triaged as a possibly-new
+  cause, not assumed to be the repaired hang.
 
 ### V9. Bytecode generated/validated once, consumed by N tiers on N threads — IMMUNE (delegated residue tracked elsewhere)
 

@@ -486,9 +486,14 @@ void MarkedSpace::freeBlock(MarkedBlock::Handle* block)
 
 void MarkedSpace::shrink()
 {
-    // SharedGC (T8): frees empty blocks (registry + weak-set unlinks); MSPL
-    // (Heap::sweepSynchronously) or world-stopped once shared.
-    ASSERT(!heap().isSharedServer() || heap().worldIsStoppedForAllClients() || heap().mutatorSlowPathLock().isHeld());
+    // SharedGC (T8, MC-SAFE S4): frees empty blocks (registry + weak-set
+    // unlinks + physical fastFree of the block). WORLD-STOPPED ONLY once
+    // shared: MSPL is not a sufficient shield because sibling mutators
+    // perform lock-free reads that may transiently touch dead-verdicted
+    // cells (fiberConcurrently et al.); physical reclamation rides the
+    // world-stopped reclaim point (SPEC-heap §11; same world-stopped-only
+    // rule as sweepPreciseAllocations' I5/I16 deviation-4 precedent).
+    ASSERT(!heap().isSharedServer() || heap().worldIsStoppedForAllClients());
     forEachDirectory(
         [&] (BlockDirectory& directory) -> IterationStatus {
             directory.shrink();

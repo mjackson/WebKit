@@ -166,7 +166,7 @@ inline VM& DeferredWorkTimer::TicketData::vm()
     return target()->vm();
 }
 
-inline void DeferredWorkTimer::TicketData::cancel()
+void DeferredWorkTimer::TicketData::cancel()
 {
     dataLogLnIf(DeferredWorkTimerInternal::verbose, "Canceling ticket: ", RawPointer(this));
     m_isCancelled = true;

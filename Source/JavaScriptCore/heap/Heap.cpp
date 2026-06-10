@@ -1259,6 +1259,25 @@ void Heap::endMarking()
         snapshot.shrink(0);
     }
 
+    // SPEC-heap I4/I5 — shared-server window-liveness retention now happens
+    // INSIDE the marking fixpoint, as the "Wlr" core marking constraint (see
+    // addCoreConstraints()), not here. Rationale (EVIDENCE.md §10/§11): the
+    // original endMarking()-time form set mark bits on window-witnessed cells
+    // WITHOUT tracing them, after the fixpoint had closed — sound for sweep
+    // (no IsEmpty rehand-out) but unsound for every consumer that treats a
+    // mark bit as "this cell is a consistent live object": the transition
+    // WeakGCHashTable prune (runs after endMarking, keys on mark bits) kept
+    // marked-dead dictionary Structures FINDABLE while their untraced
+    // PropertyTables were swept, and a same-shape re-add adopted the zombie
+    // with a stale table (objectmodel/i03-quarantine-readd-across-gc.js,
+    // deterministic). Running the same witness scan as a constraint makes
+    // the retained set closed under tracing for free: appended cells are
+    // marked AND traced, weak-set/output constraints re-run on the new marks
+    // via the normal convergence loop, and by the time we get here every
+    // retained cell is a fully consistent member of the mark set. By this
+    // point marking is complete, so the witnesses retired by
+    // m_objectSpace.endMarking() below are no longer load-bearing.
+
     m_objectSpace.endMarking();
     setMutatorShouldBeFenced(Options::forceFencedBarrier());
 }
@@ -1507,8 +1526,9 @@ void Heap::sweepSynchronously()
     // SharedGC (T8/I5b): callers are either the conductor (finalize()'s
     // shouldSweepSynchronously() path, inside the stop window) or an
     // access-holding requester (collectNow(Sync)'s tail) racing other
-    // clients' allocation slow paths. Hold MSPL across the whole sweep +
-    // shrink: serializes the lock-free directory-bit reads in
+    // clients' allocation slow paths. Hold MSPL across the sweep (and the
+    // shrink leg, which only executes world-stopped once shared — see
+    // below): serializes the lock-free directory-bit reads in
     // MarkedBlock::Handle::sweep against addBlock's m_bits resize, and the
     // block frees against the block registry/weak-set lists. No-op when
     // !isSharedServer() (I10). MSPL holders never hold it across a collection
@@ -1523,7 +1543,26 @@ void Heap::sweepSynchronously()
         before = MonotonicTime::now();
     }
     m_objectSpace.sweepBlocks();
-    m_objectSpace.shrink();
+    // SharedGC (MC-SAFE S4 / SPEC-heap §11): physical block reclamation must
+    // be world-stopped (or epoch-quarantined). When this sweep runs
+    // mutator-concurrently (collectNow(Sync)'s tail, MSPL held, world
+    // running), sibling mutators are still executing lock-free heap reads:
+    // the concurrent string/IC protocols license transient stale reads of
+    // dead-verdicted cells (e.g. JSString::fiberConcurrently), which are
+    // benign only while the memory stays heap-owned. MSPL serializes
+    // allocation slow paths and the registry, not those reads, so freeing
+    // "empty" blocks here is a use-after-free window
+    // (mc-safe-gcwait-vs-classa-stop, ASAN). Defer the shrink to the next
+    // world-stopped sweep (finalize()'s shouldSweepSynchronously() path,
+    // critical-memory/mini-mode, or teardown) — the same world-stopped-only
+    // rule precise allocations already enforce (I5/I16 at
+    // MarkedSpace::sweepPreciseAllocations: mutator-concurrent sweeping is a
+    // deviation-4 disabled feature), extended to the block shrink leg. Empty
+    // blocks stay on the directories' empty lists and remain reusable by
+    // every client's allocator — only the OS-return is deferred, not reuse,
+    // so this cannot starve allocation.
+    if (!isSharedServer() || worldIsStoppedForAllClients())
+        m_objectSpace.shrink();
     if (Options::logGC()) [[unlikely]] {
         MonotonicTime after = MonotonicTime::now();
         dataLog("=> ", capacity() / 1024, "kb, ", (after - before).milliseconds(), "ms");
@@ -3692,7 +3731,186 @@ void Heap::addCoreConstraints()
             lastVersion = m_phaseVersion;
         })),
         ConstraintVolatility::GreyedByExecution);
-    
+
+    m_constraintSet->add(
+        "Wlr", "Window Liveness Retention",
+        MAKE_MARKING_CONSTRAINT_EXECUTOR_PAIR(([this, lastVersion = static_cast<uint64_t>(0)] (auto& visitor) mutable {
+            // SPEC-heap I4/I5 — shared-server window-liveness retention
+            // (EVIDENCE.md §10/§11). With N parked mutators, a cell allocated
+            // in the pre-stop mutator window can be live with its ONLY
+            // liveness witnesses being the step-5 flush's newlyAllocated
+            // stamp (MarkedBlock::Handle::stopAllocating) or its block's
+            // directory allocated bit: §10 Experiment B proved the conducted
+            // cycle traced no heap edge to the cohort AND no parked thread's
+            // copied stack/register image references it, so the legacy
+            // invariant "every live cell is marked by end of marking" does
+            // NOT hold under the N-mutator §10 protocol — and
+            // Heap::endMarking() retires BOTH witnesses, after which an
+            // IsEmpty quick sweep would rehand the still-held whole payload
+            // to another thread (the §9 corruption chain). Append every
+            // version-current-unmarked window-witnessed cell to the visitor
+            // through the REAL conservative-root path
+            // (appendJSCellOrAuxiliary: mark + trace), inside the marking
+            // fixpoint, so the retained set is closed under tracing: weak
+            // sets and output constraints re-converge over the retained
+            // cells, and every mark-keyed registry (e.g. the transition
+            // WeakGCHashTables pruned after endMarking) only ever observes
+            // CONSISTENT retained objects. Mark-without-trace was proven
+            // unsound there: a retained zombie dictionary Structure with a
+            // swept PropertyTable was re-adopted via the transition table
+            // (objectmodel/i03-quarantine-readd-across-gc.js). Kind-agnostic
+            // on purpose: the corruption-carrying cells are Auxiliary /
+            // JSCellWithIndexingHeader (a JSCell-only walk was shown
+            // insufficient, §7 Result 4 vs §10 Experiment A).
+            //
+            // NOTE (deliberate over-retention, do NOT "optimize"): on the
+            // allocBit leg this appends every unmarked cell in the block —
+            // an allocated block's free list was fully consumed
+            // (didConsumeFreeList), so every cell slot was handed out this
+            // mutator window and holds a constructed object (the same
+            // property stock conservative scanning relies on when it
+            // accepts any cell-aligned pointer into an allocated block);
+            // there is no narrower per-cell judge, and narrowing the NA leg
+            // was proven to reintroduce the under-marking hole. Cost
+            // (round-6 adjudication — the earlier "exactly one extra cycle"
+            // claim was WRONG): (a) in an EDEN cycle a retained dead window
+            // cell's mark is STICKY — it stays marked through every
+            // subsequent eden cycle and is reclaimable only at the next FULL
+            // collection, so each eden window's dead cohort (plus its traced
+            // closure) floats as old-generation garbage until then; (b) in a
+            // FULL collection areMarksStale() is true for every block, the
+            // isMarkedRaw skip (inside sharedGCWindowWitnessSnapshot) is disabled, and the allocBit leg
+            // therefore retains EVERY cell of every consumed block —
+            // including prior-cycle survivors that are now dead, which carry
+            // no window witness conceptually. Tracing those survivors is
+            // safe (their referents were marked last cycle and this cycle's
+            // sweep has not run), but a dead set can ride for up to two full
+            // collections, not one cycle, and full-GC reclamation of
+            // window-consumed blocks degrades accordingly. Quantify on the
+            // bench gate AFTER the temporary diagnostics are stripped. A
+            // narrowing that skips stale-marked survivors in full
+            // collections was sketched (EVIDENCE.md §13) but needs its own
+            // adversarial round — do NOT land it blind.
+            //
+            // SOUNDNESS LEMMAS (round-6): unlike the stock conservative
+            // scan, this pass dereferences cells (structureID read +
+            // visitChildren) for which NO stopped thread published a pointer
+            // value. That is sound because:
+            //   L1 (publication): every lite's pre-park heap stores are
+            //   sequenced-before its GCClient::Heap::releaseHeapAccess()
+            //   seq_cst exchange to NoAccess ("RHA ... publishes all prior
+            //   heap writes to the conductor (F6)", Heap.cpp), and
+            //   conductSharedCollection()'s §10.4 access barrier seq_cst-
+            //   samples every client's m_accessState under GBL and proceeds
+            //   only when ALL are NoAccess — so every pre-park store
+            //   happens-before constraint execution on the conductor; the
+            //   chain extends to parallel marker helpers through the
+            //   m_markingMutex / m_markingConditionVariable wakeup
+            //   (lock release/acquire).
+            //   L2 (no park mid-initialization): object allocation +
+            //   initialization runs entirely under heap access; a lite's
+            //   access is released only at park brackets / poll sites
+            //   (GILDroppedSection, RHA/SINFAC polls,
+            //   parkSitePollAndParkForStopTheWorld), never inside an
+            //   allocation or initialization path, and the §10.4 barrier
+            //   waits for NoAccess on every client — so
+            //   worldIsStoppedForAllClients() implies no lite is
+            //   mid-initialization. This is the same structural property
+            //   stock conservative scanning already relies on when it
+            //   dereferences arbitrary cell-aligned pointers into allocated
+            //   blocks. Any new code that released heap access mid-
+            //   initialization would break BOTH paths, not just this one.
+            //
+            // One execution per phase version suffices: the witness set is
+            // fixed at stop time (no mutator runs, conductor allocation is
+            // forbidden inside the stop window), marking never clears mark
+            // bits, and the scan appends EVERY unmarked witness cell — later
+            // convergence iterations cannot discover new witnesses.
+            //
+            // GATE RULING (round-7 F5): keyed on sticky ISS, NOT on a
+            // gilOff-process check — deliberately. ISS is reachable on two
+            // paths: the gilOff designation (VM.cpp) AND the GIL-ON
+            // second-client trigger (HeapClientSet::add ->
+            // noteSharedServerSticky when useSharedGCHeap && size > 1).
+            // Once ISS, EVERY collection runs the same §10 conducted stop
+            // protocol — stopAllocating NA stamping pre-stop, witness
+            // retirement in endMarking — so the §10 window-witness hole is
+            // a property of shared conduction itself, not of gilOff; a
+            // GIL-on shared-heap run needs this retention for exactly the
+            // same reason. The broader gate is also the conservative
+            // direction (retains more, never less). Flag-off (default
+            // options) identity is unaffected: ISS never flips without
+            // useSharedGCHeap. Recorded in EVIDENCE.md §14.
+            if (!isSharedServer()) [[likely]]
+                return;
+            if constexpr (std::is_same_v<std::decay_t<decltype(visitor)>, SlotVisitor>) {
+                if (lastVersion == m_phaseVersion)
+                    return;
+                lastVersion = m_phaseVersion;
+                // Round-7 F3: this pass dereferences cells (structureID +
+                // visitChildren) for which NO stopped thread published a
+                // pointer — its entire memory-safety argument (L1/L2) is
+                // worldIsStoppedForAllClients(). A debug-only check is too
+                // weak for the Release configuration all pinned verifies
+                // run, and checkConn's Mutator arm deliberately tolerates a
+                // legacy mutator-conn collection without WSAC; enforce at
+                // the point of use. One load per phase version — free.
+                RELEASE_ASSERT(worldIsStoppedForAllClients());
+                SetRootMarkReasonScope rootScope(visitor, RootMarkReason::ConservativeScan);
+                HeapVersion markingVersion = m_objectSpace.markingVersion();
+                Vector<HeapCell*> candidates;
+                m_objectSpace.forEachBlock(
+                    [&] (MarkedBlock::Handle* handle) {
+                        // Round-7 F1: the witness judgment (NA version,
+                        // allocBit, marks staleness, per-cell bits) is taken
+                        // as ONE consistent snapshot under the block's
+                        // header lock — the same lock aboutToMarkSlow holds
+                        // while it clears/folds the bitmaps and bumps both
+                        // versions concurrently on parallel marker helpers.
+                        // The old hoisted lock-free reads violated the
+                        // documented isMarkedRaw()/Dependency protocol. See
+                        // the protocol + stale-bit-zero lemma comment at
+                        // MarkedBlock::sharedGCWindowWitnessSnapshot().
+                        // Appends happen HERE, after the header lock is
+                        // dropped (appendJSCellOrAuxiliary can retake it via
+                        // aboutToMark).
+                        candidates.shrink(0);
+                        handle->block().sharedGCWindowWitnessSnapshot(markingVersion, candidates);
+                        if (!candidates.isEmpty()) {
+                            for (HeapCell* cell : candidates)
+                                visitor.appendJSCellOrAuxiliary(cell);
+                            // Under the bitvector lock so the empty judge in
+                            // BlockDirectory::endMarking() and any subsequent
+                            // sweep classification observe it; an IsEmpty
+                            // whole-payload rehand-out of a window-live block
+                            // is thereby impossible. (appendJSCellOrAuxiliary
+                            // only sets it via aboutToMarkSlow when the
+                            // block's marks were stale — eden cycles need
+                            // this explicit form.)
+                            BlockDirectory* directory = handle->directory();
+                            Locker locker { directory->bitvectorLock() };
+                            directory->setIsMarkingNotEmpty(handle, true);
+                        }
+                    });
+                // Precise-allocation leg (closes EVIDENCE.md §11 residual 1):
+                // MarkedSpace::endMarking() also retires the per-allocation
+                // newlyAllocated witness, so a window-allocated PRECISE cell
+                // (> largeCutoff Map storage / butterfly) with the same
+                // no-root profile would be freed by the sweep. Same witness,
+                // same retention, same trace closure.
+                for (PreciseAllocation* allocation : m_objectSpace.preciseAllocations()) {
+                    if (allocation->isNewlyAllocated() && !allocation->isMarked())
+                        visitor.appendJSCellOrAuxiliary(allocation->cell());
+                }
+            } else {
+                // GC-verifier mirror (AbstractSlotVisitor): skipped, like the
+                // conservative scan — the verifier has no window witnesses to
+                // re-derive (the real fixpoint already marked the cohort).
+                UNUSED_PARAM(visitor);
+            }
+        })),
+        ConstraintVolatility::GreyedByExecution);
+
     m_constraintSet->add(
         "Msr", "Misc Small Roots",
         MAKE_MARKING_CONSTRAINT_EXECUTOR_PAIR(([this] (auto& visitor) {
@@ -4860,7 +5078,28 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
             });
             if (!anyAccess)
                 break;
-            m_gcBarrierCondition.wait(m_gcBarrierLock);
+            // §10.4 fan re-assertion (mc-safe-gcwait-vs-classa-stop family;
+            // mirrors the §A.3 conductor's re-fire, VMManager.cpp "Re-fire on
+            // every non-quiescent sample"): under the §A.2.1 interim seam the
+            // per-lite stop bits ALIAS the single VM-wide trap word, and
+            // VMTraps' take rule clears NeedStopTheWorld when the FIRST
+            // trapping thread latches it. A sibling mutator still running JS
+            // (or spinning in a compile-lock tryLock loop that services traps
+            // only when the bit is visible) would poll a clear word forever,
+            // never release access, and wedge this barrier — observed as the
+            // ic-publish-reset-loops / gcwait 30s-watchdog and 100s-hang
+            // signatures. Re-fire per sample (requestStopAllInternal's
+            // mode>=Stopping GC arm re-traps entered VMs; idempotent).
+            // Lock order: m_worldLock ranks ABOVE GBL (notifyVMStop holds it
+            // while park hooks take GBL via RHA), so drop GBL for the call.
+            // The timed wait below bounds the re-sample so a wakeup lost
+            // between the drop and the wait cannot wedge us. RETIRED when the
+            // per-lite trap words land (VMTraps.h activation checklist).
+            {
+                DropLockForScope dropper(locker);
+                VMManager::requestStopAll(VMManager::StopReason::GC);
+            }
+            m_gcBarrierCondition.waitFor(m_gcBarrierLock, Seconds::fromMilliseconds(1));
         }
         m_worldIsStoppedForAllClients.store(true, std::memory_order_seq_cst); // WSAC set under GBL (F7).
     }
@@ -5865,6 +6104,19 @@ void Heap::acquireHeapAccess()
         if (threadGranularGated && jsThreadsStopPendingFor(*serverVM) && !jsThreadsCurrentThreadIsStopConductor()) [[unlikely]] {
             uint8_t reverted = m_accessState.exchange(noAccessState, std::memory_order_seq_cst);
             ASSERT_UNUSED(reverted, reverted == hasAccessState);
+            // F8/§10.4 composition (mc-safe-gcwait-vs-classa-stop): every
+            // HasAccess->NoAccess transition while GSP is pending must wake
+            // the GC conductor's untimed §10.4 barrier wait, exactly like
+            // RHA does — the conductor may have sampled this client as
+            // HasAccess right after our step-2 GSP load missed its store.
+            // (For THIS leg the GCL ordering shield makes the overlap
+            // unreachable today — an open §A.3 window holds GCL, so no
+            // shared GC can be mid-barrier — but the notify is one seq_cst
+            // load on an already-unlikely path; keep the rule uniform.)
+            if (m_server.m_gcStopPending.load(std::memory_order_seq_cst)) [[unlikely]] {
+                Locker locker { m_server.m_gcBarrierLock };
+                m_server.m_gcBarrierCondition.notifyAll();
+            }
             jsThreadsNotifyMutatorQuiesced();
             jsThreadsParkForStopWindow(*serverVM);
             continue; // Retry from step 1 (a GC stop may have arrived meanwhile; GSP re-polls).
@@ -5886,6 +6138,22 @@ void Heap::acquireHeapAccess()
         if (threadGranularGated && jsThreadsModeStopGatesCurrentThread(*serverVM)) [[unlikely]] {
             uint8_t reverted = m_accessState.exchange(noAccessState, std::memory_order_seq_cst);
             ASSERT_UNUSED(reverted, reverted == hasAccessState);
+            // F8/§10.4 composition (mc-safe-gcwait-vs-classa-stop, REAL
+            // deadlock): the Mode-machine trap bit is fanned WITHOUT GCL
+            // (VMManager::requestStopAll(StopReason::GC) fans it in §10 step
+            // 3, after GSP), so this leg CAN fire between the conductor's
+            // GSP store and its §10.4 barrier sample: our step-2 GSP load
+            // read false, the conductor then sampled us HasAccess and
+            // entered the untimed m_gcBarrierCondition.wait, and we revert
+            // here for the mode bit. Without this notify the conductor
+            // sleeps forever holding GCL, a queued Class-A requester blocks
+            // in the JSThreadsStopScope tryLock-poll, and the 30s stop
+            // watchdog fail-stops the process (heap §10A RHA rule: every
+            // HasAccess->NoAccess transition signals the barrier iff GSP).
+            if (m_server.m_gcStopPending.load(std::memory_order_seq_cst)) [[unlikely]] {
+                Locker locker { m_server.m_gcBarrierLock };
+                m_server.m_gcBarrierCondition.notifyAll();
+            }
             jsThreadsNotifyMutatorQuiesced();
             jsThreadsParkForModeStop(*serverVM);
             continue; // Retry from step 1 (GSP and the §A.3 word re-poll).

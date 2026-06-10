@@ -103,6 +103,25 @@ void AsyncTicket::scheduleViaDeferredWorkTimer(DeferredWorkTimer::Task&& task)
 {
     m_vm.deferredWorkTimer->scheduleWorkSoon(m_ticket.ptr(), [protectedThis = Ref { *this }, task = WTF::move(task)](DeferredWorkTimer::Ticket dwtTicket) mutable {
         task(dwtTicket);
+        // §E.4 retirement parity (MC-DOS S4, mc-dos-waiter-table-storm):
+        // the task-queue path retires the DWT registration right after the
+        // settle task ((a) settle, (b) retire, (c) m_promise clear —
+        // runQueuedSettleTaskOnRegistrant below). This tail historically
+        // relied on doWork's m_pendingTickets removal alone, which UNROOTS
+        // NOTHING: JSGlobalObject::visitChildren marks target+dependencies
+        // of every LIVE, un-cancelled TicketData in the realm's
+        // m_weakTickets set, and any holder of a stray Ref to the ticket —
+        // e.g. the 5.6 finite-timeout timer lambda, which pins its
+        // Ref<AsyncTicket> for the FULL timeout — keeps the settled
+        // ticket's waited-on cell and promise GC-rooted long after the
+        // settle (observed: a notified property waitAsync's cell stays
+        // uncollectable for the whole 60s timeout). cancel() — not
+        // cancelPendingWork(): doWork already take()s the ticket out of
+        // m_pendingTickets before running this task, so the GIL-on
+        // contains() assert there would fire — flips the visitor's skip
+        // bit; dependencies are NOT freed (cancel, not cancelAndClear), so
+        // concurrent mayBeCancelled readers stay safe.
+        dwtTicket->cancel();
         protectedThis->m_promise.clear();
     });
 }
@@ -193,6 +212,27 @@ void AsyncTicket::routeQueuedTaskToMainFallback(DeferredWorkTimer::Task&& task)
     if (m_ticket->isCancelled())
         return;
     scheduleViaDeferredWorkTimer(WTF::move(task));
+}
+
+void AsyncTicket::retireUnsettled()
+{
+    // §C.3(b) revoked registration (U-T11; see the header comment). The
+    // caller dequeued this ticket's only waiter under the list lock while
+    // its state was still Waiting, so no notifier ever observed it and no
+    // settle path can be in flight — the CAS below must win.
+    ASSERT(m_vm.currentThreadIsHoldingAPILock());
+    bool expected = false;
+    bool won = m_settled.compare_exchange_strong(expected, true);
+    RELEASE_ASSERT(won);
+    // §E.3: the property-waitAsync registration is never-armed until gate
+    // U-T9-INT1 lands (countsKeepalive=false at the call site); if that gate
+    // ever flips, this retirement site must perform the rule-1 decrement
+    // under the registrant's inboxLock like the open settle arm does.
+    bool wasArmed = claimKeepaliveRelease();
+    ASSERT_UNUSED(wasArmed, !wasArmed);
+    if (!m_ticket->isCancelled())
+        m_vm.deferredWorkTimer->cancelPendingWork(m_ticket.ptr());
+    m_promise.clear();
 }
 
 void AsyncTicket::armKeepalive()
@@ -1008,7 +1048,7 @@ RefPtr<ThreadState> ThreadManager::restrictionOwner(JSObject* object)
     return RefPtr<ThreadState> { it->value->owner.copyRef() };
 }
 
-void ThreadManager::restrictObject(JSObject* object, ThreadState& owner)
+bool ThreadManager::restrictObject(JSObject* object, ThreadState& owner)
 {
     Locker locker { m_affinityLock };
     auto result = m_affinityTable.ensure(object, [&] {
@@ -1016,10 +1056,22 @@ void ThreadManager::restrictObject(JSObject* object, ThreadState& owner)
     });
     if (result.isNewEntry) {
         m_restrictedCount.fetch_add(1, std::memory_order_relaxed);
-        return;
+        return true;
     }
-    if (result.iterator->value->weak.get() == object)
-        return; // Live entry for THIS object: idempotent re-restrict (foreign re-restrict was rejected by the caller's affinity step (0)).
+    if (result.iterator->value->weak.get() == object) {
+        // Live entry for THIS object. GIL-on, only an owner-idempotent
+        // re-restrict can reach here (the caller's affinity step (0) and
+        // this insert are one atomic host call). GIL-off, step (0) and this
+        // section are SEPARATE m_affinityLock sections: two threads can both
+        // observe Affinity::None and race here, and the loser must not be
+        // told it owns an object the table assigns to its rival (MC-HAND S6
+        // phantom ownership claim, docs/threads/cve/map-MC-HAND.md; frozen
+        // SPEC-api 4.1 requires ConcurrentAccessError for a re-restrict from
+        // another thread). The claim verdict is therefore re-derived under
+        // THIS lock section: owner identity is the ThreadState pointer
+        // (5.7.2), compared, never dereferenced.
+        return result.iterator->value->owner.ptr() == &owner;
+    }
     // Stale entry: the previous occupant of this address died and its
     // finalizer has not run yet. Replace the entry so the NEW object's
     // restriction is recorded with the correct owner. The count is already
@@ -1028,6 +1080,7 @@ void ThreadManager::restrictObject(JSObject* object, ThreadState& owner)
     // already started racing us, its identity check (context != entry)
     // makes it a no-op.
     result.iterator->value = makeAffinityEntry(object, owner);
+    return true;
 }
 
 void ThreadManager::pruneRestrictedObject(JSCell* cell, void* expectedEntry)

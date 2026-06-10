@@ -29,6 +29,8 @@
 #include "CommonIdentifiers.h"
 #include "DirectArgumentsOffset.h"
 #include "GenericArgumentsImpl.h"
+#include "Options.h"
+#include <wtf/Atomics.h>
 #include <wtf/CagedPtr.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -79,6 +81,12 @@ public:
     
     bool isMappedArgument(uint32_t i) const
     {
+        // THREADS (AUD1.N3 RESOLVED-3): the m_mappedArguments pointer load is
+        // the ruling's sanctioned address-dependent consume — the bitmap is
+        // filled COMPLETELY before the pointer is release-published
+        // (overrideThings), so the dependent at(i) load never sees unfilled
+        // bits. The pointer transitions null -> non-null exactly once, so the
+        // re-load inside at(i) is benign.
         return i < internalLength() && (!m_mappedArguments || !WTF::atomicLoad(&m_mappedArguments.at(i), std::memory_order_relaxed));
     }
 
@@ -89,13 +97,27 @@ public:
 
     JSValue getIndexQuickly(uint32_t i) const
     {
-        ASSERT_WITH_SECURITY_IMPLICATION(isMappedArgument(i));
+        // THREADS (AUD1.N3 RESOLVED-3): a foreign reader can lose the
+        // isMappedArgument()/getIndexQuickly() check-then-read race against a
+        // concurrent overrideThings()/unmapArgument(). That is a sanctioned
+        // linearization (read ordered before the override): unmapArgument()
+        // never clears storage()[i], so the read returns the last mapped
+        // value, not garbage. Only the bounds half of the old assertion is
+        // load-bearing for memory safety; keep it unconditional. The full
+        // mapped-ness assertion stays in force whenever JS threads are off.
+        ASSERT_WITH_SECURITY_IMPLICATION(i < internalLength());
+        ASSERT(Options::useJSThreads() || isMappedArgument(i));
         return const_cast<DirectArguments*>(this)->storage()[i].get();
     }
-    
+
     void setIndexQuickly(VM& vm, uint32_t i, JSValue value)
     {
-        ASSERT_WITH_SECURITY_IMPLICATION(isMappedArgument(i));
+        // THREADS (AUD1.N3 RESOLVED-3): same race-tolerant contract as
+        // getIndexQuickly() — a writer that loses the race stores into a slot
+        // whose reads have been rerouted to the materialized property, so the
+        // store is simply dead, never unsafe (bounds still asserted).
+        ASSERT_WITH_SECURITY_IMPLICATION(i < internalLength());
+        ASSERT(Options::useJSThreads() || isMappedArgument(i));
         storage()[i].set(vm, this, value);
     }
     
@@ -117,7 +139,22 @@ public:
     }
     
     // Methods intended for use by the GenericArgumentsImpl mixin.
-    bool overrodeThings() const { return !!m_mappedArguments; }
+    bool overrodeThings() const
+    {
+        if (!m_mappedArguments)
+            return false;
+        if (Options::useJSThreads()) [[unlikely]] {
+            // THREADS (AUD1.N3 RESOLVED-3 reader-acquire half): callers that
+            // observe the published bitmap go on to read the MATERIALIZED
+            // length/callee/@@iterator properties, which are NOT
+            // address-dependent on the bitmap pointer. Pair with the
+            // storeStoreFence + release publication in overrideThings() so
+            // those structure/butterfly reads see the writer's puts (no
+            // default-value leak). Flag-off cost: one predictable branch.
+            WTF::loadLoadFence();
+        }
+        return true;
+    }
     void overrideThings(JSGlobalObject*);
     void overrideThingsIfNecessary(JSGlobalObject*);
     void unmapArgument(JSGlobalObject*, unsigned index);

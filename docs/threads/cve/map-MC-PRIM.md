@@ -151,25 +151,24 @@ must NOT be cited post-ungil.
 conditional add (`putDirectForAtomicsMissingAdd`, `:455-462`, re-derives
 existence/extensibility inside the E4-published §2 loop).
 
-**Verdict: susceptible-suspected (engine-acknowledged) + needs-test.** The code itself
-records the hole (KNOWN RESIDUAL, `:434-439`, recorded in INTEGRATE-ungil): a fresh
-INDEXED element is added through `putDirectIndex`'s define-own leg with no conditional
-re-derivation — a racing indexed `defineProperty` (accessor or non-writable) on another
-thread forces a sparse-map/SlowPutAS conversion that the put is not conditional on.
-Post-ungil, store-probe(Missing) → put is not one atomic step for indices: the
-least-checked store can clobber a just-defined indexed accessor or non-writable element,
-a heap state no sequential interleaving of Atomics.store can produce. This is the
-closest thing in the tree to CVE-2012-0507's "atomic primitive writes through an
-invariant someone else just changed". Severity: integrity/spec-soundness (descriptor
-clobber), not directly memory-unsafe — but the SlowPutAS conversion racing a
-non-conditional putDirectIndex is also a shape-machinery stress with memory-safety
-relevance under the amplifier.
+**Verdict: CLOSED (fix landed 2026-06-10; test green).** Original finding (kept for
+the record): a fresh INDEXED element was added through `putDirectIndex`'s define-own
+leg with no conditional re-derivation — a racing indexed `defineProperty` (accessor or
+non-writable) on another thread forced a sparse-map/SlowPutAS conversion the put was
+not conditional on; the least-checked store could clobber a just-defined indexed
+accessor or non-writable element (CVE-2012-0507's "atomic primitive writes through an
+invariant someone else just changed"). **Landed fix:** the indexed twin of the
+named-key conditional add — `JSObject::putDirectIndexForAtomicsMissingAdd`
+(`ThreadAtomics.cpp:496`, wired at `:706`; named-key twin at `:727`) re-derives
+existence/extensibility/shape inside the E4-published §2 loop and restarts on loss.
+Same closure as MC-REENT S3c — full executed record (40/40 + 3/3, plus the narrowed
+preventExtensions residual) lives in map-MC-REENT.md S3c.
 
 **Test:** `JSTests/threads/cve/mc-prim-indexed-missing-define-race.js` (deterministic
 invariant per owner iteration; indexed twin of
 JSTests/threads/atomics/property-store-missing-define-race.js, which covers only named
-keys; second phase covers the non-writable-data variant). Expected: PASSES under the
-phase-1 GIL, targeted probe post-ungil until the residual is closed.
+keys; second phase covers the non-writable-data variant). PASSING GIL-on and GIL-off
+since 2026-06-10 — a future failure is a REGRESSION of the landed conditional add.
 
 ## P5 — Internal-field resume claim (generators / async fns / iterator helpers)
 
@@ -273,12 +272,24 @@ audit (tree is mid-bring-up); they join the post-ungil thread-cve-audit run.
 
 ## Fix queue (when execution confirms)
 
-1. P4: make the Missing-arm indexed add conditional, mirroring
-   `putDirectForAtomicsMissingAdd` — re-derive the index's existence/descriptor inside
-   the publication loop, restart on loss (the named-key fix shape transplants).
+1. P4: **DONE 2026-06-10** — `putDirectIndexForAtomicsMissingAdd` landed
+   (`ThreadAtomics.cpp:496`/`:706`), mirroring `putDirectForAtomicsMissingAdd`;
+   closure record in map-MC-REENT.md S3c. Nothing left on this item.
 2. P5: at ungil-implementation review, diff the annex N7 claim-site list against every
    writer of generator/async internal fields (incl. `.return()`/`.throw()`, debugger
    pokes) before enabling tier-inlined claimed stores.
+   **DIFF RESULT (post-landing review round): NOT fully discharged — recorded
+   deferral.** Claimed: GeneratorPrototype.js resume/return/throw heads,
+   JSIteratorHelperPrototype.js next/return. Release-ordered but unclaimed: the
+   yield-side unclaim store (all generator-ish bodies — now store-RELEASE in all
+   tiers gilOff via the put_internal_field fence, relocated after the frame saves,
+   fail-closed; the generatorRegister()-based validation extends the reorder to
+   wrapper-less async functions previously silently skipped). UNCLAIMED and OPEN:
+   `AsyncGeneratorPrototype.js` resume head (plain check-then-store :37/:78/:83) +
+   asyncGeneratorEnqueue queue-field writers — two threads racing `agen.next()`
+   still get two simultaneous owners. Deferral + owed async susceptibility test
+   recorded in CVE-AUDIT-STATUS.md item 3 and SPEC-ungil-history.md
+   "§N.5 LANDED SHAPE".
 3. P1 fragility note: add the `probeArrayStorageElementForAtomics` lock scope to the
    thread-scanners clang-tidy target so the no-alloc/no-park obligation is
    machine-checked.

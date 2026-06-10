@@ -223,6 +223,30 @@ static bool worldIsStoppedEvidenceExcludingThreadGranularWindow(VM& vm)
     return false;
 }
 
+// cve-structureid-decontaminate-stop (corpus: mc-safe-gcwait-vs-classa-stop):
+// already-stopped evidence that is THREAD-STABLE for the current caller —
+// evidence that cannot evaporate while `work` runs on this stack: the
+// process-global stub depth (raised by this stack or an outer closure whose
+// own entry passed the tripwire), the OM stub witness, and the VMManager
+// all-VM stop. Deliberately EXCLUDES (a) the SectionA.3 thread-granular window —
+// inline licensing for that belongs to its conductor alone (r33 guard + the
+// conductor early-out at the call site) — and (b) the per-heap GC-stop
+// disjuncts (vm.heap.worldIsStopped() / worldIsStoppedForAllClients()),
+// whose stability is exactly what the GC-conduction check at the call site
+// establishes: those stops are ended by the GC conductor, which clears WSAC
+// and resumes its clients (the gcwait resume edge) WITHOUT consulting our
+// witness depth.
+static bool worldIsStoppedEvidenceIsThreadStable()
+{
+    if (s_stubWorldStoppedDepth.load(std::memory_order_relaxed))
+        return true;
+#if defined(JSC_OM_PROVIDES_JSTHREADS_STUB_WITNESS)
+    if (g_jsThreadsStubWorldStopped)
+        return true;
+#endif
+    return VMManager::info().worldMode == VMManager::Mode::Stopped;
+}
+
 void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
 {
     // R1.h FIRST (load-bearing for SPEC-jit section 5.3, Task 5): a caller that
@@ -253,6 +277,56 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
         // requesting path below) instead — fail-stop, never patch.
         if (jsThreadsThreadGranularWorldIsStopped() && !jsThreadsCurrentThreadIsStopConductor()) [[unlikely]]
             RELEASE_ASSERT(worldIsStoppedEvidenceExcludingThreadGranularWindow(vm));
+        // cve-structureid-decontaminate-stop (corpus:
+        // mc-safe-gcwait-vs-classa-stop): stop-CONDUCTION check for the
+        // per-heap GC-stop disjuncts, gilOff only. The legacy
+        // vm.heap.worldIsStopped() and shared-server
+        // worldIsStoppedForAllClients() evidence is conducted by the GC, not
+        // by this caller: the GC conductor clears WSAC pre-resume and wakes
+        // its clients (the gcwait resume edge) without consulting the
+        // witness depth this branch is about to raise, so for a caller that
+        // does not itself conduct that GC the "stopped world" can evaporate
+        // mid-`work` — Class-A nuking/patching then races freshly resumed
+        // mutators (observed: StructureID decontaminate assert via
+        // JSCell::structure on a transiently-cleared cell, rope fiber-sum
+        // assert, ASAN through JSC::call). Inline execution on GC-stop
+        // evidence is licensed only for the thread CONDUCTING that GC, whose
+        // stop cannot end underneath it because it is the thread that ends
+        // it. Conduction is read from mutatorState(), per-calling-thread
+        // once ISS (a shared-mode conductor marks only its own thread
+        // Collecting/Sweeping via CollectingScope/SweepingScope; a worklist
+        // compiler thread or a foreign mutator reads Running), OR from the
+        // calling thread being a designated GC thread (collector/helper,
+        // Thread::mayBeGCThread()) — CollectingScope exists only on the
+        // mutator-conducted leg, so an End phase conducted by the concurrent
+        // collector thread reads Running from the server slot yet is the
+        // thread that ends the stop. Together this matches
+        // Heap::currentThreadIsDoingGCWork() minus the Allocating disjunct
+        // (an Allocating mutator does not conduct a GC stop). Every other
+        // gilOff caller queues at SectionA.3 arbitration instead: the
+        // thread-granular conductor takes the GC conductor lock (HBT4.5),
+        // so it naturally waits out the in-flight GC before opening its own
+        // window — fail-closed, never patch on evaporable evidence.
+        if (vm.gilOff() && !jsThreadsCurrentThreadIsStopConductor()
+            && !worldIsStoppedEvidenceIsThreadStable()) [[unlikely]] {
+#if defined(JSC_JIT_HAS_SHARED_HEAP_SERVER)
+            JSC::Heap& gcStopServer = vm.clientHeap.server();
+#else
+            JSC::Heap& gcStopServer = vm.heap;
+#endif
+            bool currentThreadConductsTheGCStop = Thread::mayBeGCThread();
+            switch (gcStopServer.mutatorState()) {
+            case MutatorState::Collecting:
+            case MutatorState::Sweeping:
+                currentThreadConductsTheGCStop = true;
+                break;
+            case MutatorState::Running:
+            case MutatorState::Allocating:
+                break;
+            }
+            if (!currentThreadConductsTheGCStop)
+                return jsThreadsThreadGranularStopTheWorldAndRun(vm, work);
+        }
         // Review rounds 2/3 (R2-4, R3-1, R3-11): the entered-VM tripwire, the
         // shared-server scoping, and the witness raise/lower + F5 barrier all
         // live in AlreadyStoppedWorldWitnessScope (shared with
@@ -477,6 +551,13 @@ void watchdogAssertStopProgress(MonotonicTime requestStart, VM* vm) WTF_IGNORES_
         }
         Locker locker { AdoptLock, registry.lock };
         std::atomic_thread_fence(std::memory_order_seq_cst);
+        // A foreign §A.3 window open at dump time means the access-holding
+        // lite below may be that window's conductor (AB-21 re-acquire), not
+        // a wedged mutator — i.e. the caller is a starved/queued requester,
+        // not a conductor whose predicate cannot converge.
+        bool foreignWindowOpen = jsThreadsThreadGranularWorldIsStopped() && !jsThreadsCurrentThreadIsStopConductor();
+        if (foreignWindowOpen)
+            dataLogLn("  NOTE: another thread's §A.3 stop window is OPEN (witness depth nonzero, opened by a different thread) — this requester never reached/held tenure; access-holders below may be that live conductor.");
         for (VMLite* lite : registry.lites) {
             if (lite->vm != vm)
                 continue;
@@ -488,7 +569,9 @@ void watchdogAssertStopProgress(MonotonicTime requestStart, VM* vm) WTF_IGNORES_
                 lite == requesterLite ? " [requester/conductor — exempt]" : "",
                 " clientHeap=", RawPointer(lite->clientHeap),
                 " hasHeapAccess=", lite->clientHeap->hasHeapAccess(),
-                lite != requesterLite && lite->clientHeap->hasHeapAccess() ? "  <== NON-QUIESCENT (blocking the stop)" : "");
+                lite != requesterLite && lite->clientHeap->hasHeapAccess()
+                    ? (foreignWindowOpen ? "  <== access-holding (possibly the OPEN window's conductor — see NOTE above)" : "  <== NON-QUIESCENT (blocking the stop)")
+                    : "");
         }
     }
     RELEASE_ASSERT_NOT_REACHED();

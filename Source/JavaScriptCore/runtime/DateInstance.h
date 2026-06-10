@@ -72,18 +72,32 @@ public:
 
     DECLARE_EXPORT_INFO;
 
+    // Snapshot-taking overloads (SPEC-ungil §N.3 residue): an operation that pairs the
+    // GregorianDateTime with anything else derived from the internal time value (e.g.
+    // toISOString's ms-of-second) must load internalNumber() exactly ONCE and pass the
+    // snapshot here, so the conversion cannot re-fetch a concurrently-updated value.
+    const GregorianDateTime* gregorianDateTime(DateCache& cache, double milli) const
+    {
+        if (m_data && m_data->m_gregorianDateTimeCachedForMS == milli)
+            return &m_data->m_cachedGregorianDateTime;
+        return calculateGregorianDateTime(cache, milli);
+    }
+
     const GregorianDateTime* gregorianDateTime(DateCache& cache) const
     {
-        if (m_data && m_data->m_gregorianDateTimeCachedForMS == internalNumber())
-            return &m_data->m_cachedGregorianDateTime;
-        return calculateGregorianDateTime(cache);
+        return gregorianDateTime(cache, internalNumber());
+    }
+
+    const GregorianDateTime* gregorianDateTimeUTC(DateCache& cache, double milli) const
+    {
+        if (m_data && m_data->m_gregorianDateTimeUTCCachedForMS == milli)
+            return &m_data->m_cachedGregorianDateTimeUTC;
+        return calculateGregorianDateTimeUTC(cache, milli);
     }
 
     const GregorianDateTime* gregorianDateTimeUTC(DateCache& cache) const
     {
-        if (m_data && m_data->m_gregorianDateTimeUTCCachedForMS == internalNumber())
-            return &m_data->m_cachedGregorianDateTimeUTC;
-        return calculateGregorianDateTimeUTC(cache);
+        return gregorianDateTimeUTC(cache, internalNumber());
     }
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
@@ -96,8 +110,8 @@ private:
 
     DECLARE_DEFAULT_FINISH_CREATION;
     JS_EXPORT_PRIVATE void finishCreation(VM&, double);
-    JS_EXPORT_PRIVATE const GregorianDateTime* calculateGregorianDateTime(DateCache&) const;
-    JS_EXPORT_PRIVATE const GregorianDateTime* calculateGregorianDateTimeUTC(DateCache&) const;
+    JS_EXPORT_PRIVATE const GregorianDateTime* calculateGregorianDateTime(DateCache&, double milli) const;
+    JS_EXPORT_PRIVATE const GregorianDateTime* calculateGregorianDateTimeUTC(DateCache&, double milli) const;
 
     double m_internalNumber { PNaN };
     mutable RefPtr<DateInstanceData> m_data;
