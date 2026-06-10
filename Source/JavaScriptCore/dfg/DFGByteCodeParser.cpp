@@ -7037,6 +7037,23 @@ void ByteCodeParser::handleGetScope(VirtualRegister destination)
 void ByteCodeParser::handleCheckTraps()
 {
     addToGraph((Options::usePollingTraps() || m_graph.m_plan.isUnlinked()) ? CheckTraps : InvalidationPoint);
+    // SPEC-jit I21 (AB-10 closure): flag-on, every DFG/FTL poll is immediately
+    // followed by an invalidation point, so a mutator parked at the poll while
+    // the window's work JETTISONED this code block resumes into the patched
+    // exit instead of running stale elided code. (useJSThreads forces
+    // usePollingTraps, M2b, so the ternary above always picked the bare
+    // CheckTraps; unlinked plans cannot carry invalidation points and keep the
+    // CheckTraps-only form — they are not used flag-on.)
+    if (Options::useJSThreads() && !m_graph.m_plan.isUnlinked()) [[unlikely]] {
+        // The flag-on CheckTraps clobbers the heap (a park admits a foreign
+        // stop window), hence ClobbersExit; exiting to the same bytecode
+        // after the poll is sound (the poll has no JS-observable effect and
+        // re-executes on re-entry), so re-validate the exit origin for the
+        // invalidation point.
+        m_exitOK = true;
+        addToGraph(ExitOK);
+        addToGraph(InvalidationPoint);
+    }
 }
 
 void ByteCodeParser::emitPutById(
@@ -9442,7 +9459,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
 
             RELEASE_ASSERT(!m_currentBlock->size() || (m_graph.compilation() && m_currentBlock->size() == 1 && m_currentBlock->at(0)->op() == CountExecution));
 
-            ValueProfileAndVirtualRegisterBuffer* buffer = bytecode.metadata(codeBlock).m_buffer;
+            ValueProfileAndVirtualRegisterBuffer* buffer = WTF::atomicLoad(&bytecode.metadata(codeBlock).m_buffer, std::memory_order_acquire); // THREADS: pairs with the release publish.
 
             if (!buffer) {
                 NEXT_OPCODE(op_catch); // This catch has yet to execute. Note: this load can be racy with the main thread.
@@ -10456,7 +10473,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
             Node* enumerator = get(bytecode.m_enumerator);
             Node* mode = get(bytecode.m_mode);
 
-            auto seenModes = OptionSet<JSPropertyNameEnumerator::Flag>::fromRaw(metadata.m_enumeratorMetadata);
+            auto seenModes = OptionSet<JSPropertyNameEnumerator::Flag>::fromRaw(WTF::atomicLoad(const_cast<uint8_t*>(&metadata.m_enumeratorMetadata), std::memory_order_relaxed)); // THREADS: relaxed profiling read.
 
             if (!seenModes)
                 addToGraph(ForceOSRExit);
@@ -10493,7 +10510,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
             Node* mode = get(bytecode.m_mode);
             Node* enumerator = get(bytecode.m_enumerator);
 
-            auto seenModes = OptionSet<JSPropertyNameEnumerator::Flag>::fromRaw(metadata.m_enumeratorMetadata);
+            auto seenModes = OptionSet<JSPropertyNameEnumerator::Flag>::fromRaw(WTF::atomicLoad(const_cast<uint8_t*>(&metadata.m_enumeratorMetadata), std::memory_order_relaxed)); // THREADS: relaxed profiling read.
             if (!seenModes)
                 addToGraph(ForceOSRExit);
 
@@ -10595,7 +10612,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
             addVarArgChild(get(bytecode.m_index));
             addVarArgChild(get(bytecode.m_mode));
             addVarArgChild(get(bytecode.m_enumerator));
-            set(bytecode.m_dst, addToGraph(Node::VarArg, EnumeratorInByVal, OpInfo(arrayMode.asWord()), OpInfo(metadata.m_enumeratorMetadata)));
+            set(bytecode.m_dst, addToGraph(Node::VarArg, EnumeratorInByVal, OpInfo(arrayMode.asWord()), OpInfo(WTF::atomicLoad(const_cast<uint8_t*>(&metadata.m_enumeratorMetadata), std::memory_order_relaxed))));
 
             NEXT_OPCODE(op_enumerator_in_by_val);
         }
@@ -10610,7 +10627,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
             addVarArgChild(get(bytecode.m_index));
             addVarArgChild(get(bytecode.m_mode));
             addVarArgChild(get(bytecode.m_enumerator));
-            set(bytecode.m_dst, addToGraph(Node::VarArg, EnumeratorHasOwnProperty, OpInfo(arrayMode.asWord()), OpInfo(metadata.m_enumeratorMetadata)));
+            set(bytecode.m_dst, addToGraph(Node::VarArg, EnumeratorHasOwnProperty, OpInfo(arrayMode.asWord()), OpInfo(WTF::atomicLoad(const_cast<uint8_t*>(&metadata.m_enumeratorMetadata), std::memory_order_relaxed))));
 
             NEXT_OPCODE(op_enumerator_has_own_property);
         }
@@ -10627,7 +10644,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
             Node* mode = get(bytecode.m_mode);
             Node* enumerator = get(bytecode.m_enumerator);
 
-            auto seenModes = OptionSet<JSPropertyNameEnumerator::Flag>::fromRaw(metadata.m_enumeratorMetadata);
+            auto seenModes = OptionSet<JSPropertyNameEnumerator::Flag>::fromRaw(WTF::atomicLoad(const_cast<uint8_t*>(&metadata.m_enumeratorMetadata), std::memory_order_relaxed)); // THREADS: relaxed profiling read.
             if (!seenModes)
                 addToGraph(ForceOSRExit);
 
@@ -11191,7 +11208,7 @@ void ByteCodeParser::handleIteratorOpen(const JSInstruction* currentInstruction,
     CodeBlock* codeBlock = m_inlineStackTop->m_codeBlock;
     auto bytecode = currentInstruction->as<OpIteratorOpen>();
     auto& metadata = bytecode.metadata(codeBlock);
-    uint32_t seenModes = metadata.m_iterationMetadata.seenModes;
+    uint32_t seenModes = CommonSlowPaths::loadIterationModeSeenModesConcurrently(metadata.m_iterationMetadata); // THREADS §5.7.7 relaxed profiling read.
 
     JSGlobalObject* globalObject = m_inlineStackTop->m_codeBlock->globalObjectFor(currentCodeOrigin());
 
@@ -11842,7 +11859,7 @@ void ByteCodeParser::handleIteratorNext(const JSInstruction* currentInstruction,
     CodeBlock* codeBlock = m_inlineStackTop->m_codeBlock;
     auto bytecode = currentInstruction->as<OpIteratorNext>();
     auto& metadata = bytecode.metadata(codeBlock);
-    uint32_t seenModes = metadata.m_iterationMetadata.seenModes;
+    uint32_t seenModes = CommonSlowPaths::loadIterationModeSeenModesConcurrently(metadata.m_iterationMetadata); // THREADS §5.7.7 relaxed profiling read.
 
     JSGlobalObject* globalObject = m_inlineStackTop->m_codeBlock->globalObjectFor(currentCodeOrigin());
 

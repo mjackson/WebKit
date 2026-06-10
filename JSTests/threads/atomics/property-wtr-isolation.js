@@ -13,6 +13,15 @@ const i32 = new Int32Array(new SharedArrayBuffer(8));
 function parkWaiterOn(target, key) {
     // Spawns a waiter and returns once it is parked (cooperative GIL: the
     // ready-park sequencing guarantees it; see property-wait-notify.js).
+    //
+    // GIL-OFF (closeout review): that guarantee is GONE — the main thread
+    // resumes as soon as `ready` is stored, while the waiter is still en
+    // route from the ready store to Atomics.wait, so a right-target notify
+    // can legitimately report 0 woken (observed as a ~30-50% flake at the
+    // expect-1 asserts). Wrong-target notifies stay timing-independent
+    // (they can never wake this waiter, parked or not), so only the
+    // expect-1 sites changed: they spin via notifyOne() below until the
+    // waiter is actually parked. GIL-on the spin runs exactly once.
     const sync = { ready: 0 };
     const t = new Thread(() => {
         Atomics.store(sync, "ready", 1);
@@ -22,6 +31,18 @@ function parkWaiterOn(target, key) {
     if (Atomics.load(sync, "ready") === 0)
         Atomics.wait(sync, "ready", 0);
     return t;
+}
+
+function notifyOne(target, key) {
+    // Spin until the single parked waiter is woken; returns the woken count
+    // of the successful notify (always 1 — a wrong-target notify can never
+    // satisfy the loop, so the isolation property is still what terminates
+    // it). A waiter that never parks turns this into the harness timeout.
+    for (;;) {
+        const woken = Atomics.notify(target, key, 1);
+        if (woken !== 0)
+            return woken;
+    }
 }
 
 // ---- waiter on (o,"k"); notifies on every wrong target wake nothing ----
@@ -34,8 +55,8 @@ function parkWaiterOn(target, key) {
     shouldBe(Atomics.notify(o, "K"), 0, "keys are case-sensitive uids");
     shouldBe(Atomics.notify(o, "absent"), 0, "0 woken is valid even if o lacks the property");
 
-    // The waiter is still parked: only the true (cell, uid) wakes it.
-    shouldBe(Atomics.notify(o, "k"), 1);
+    // Only the true (cell, uid) wakes it.
+    shouldBe(notifyOne(o, "k"), 1);
     shouldBe(t.join(), "ok");
 }
 
@@ -43,7 +64,7 @@ function parkWaiterOn(target, key) {
 {
     const t = parkWaiterOn(other, "k");
     shouldBe(Atomics.notify(o, "k"), 0, "the dead list for (o,'k') must not alias (other,'k')");
-    shouldBe(Atomics.notify(other, "k"), 1);
+    shouldBe(notifyOne(other, "k"), 1);
     shouldBe(t.join(), "ok");
 }
 
@@ -53,7 +74,7 @@ function parkWaiterOn(target, key) {
     const arr = { 1: 0 };
     const t = parkWaiterOn(arr, "1");
     shouldBe(Atomics.notify(arr, "01"), 0, "'01' is a different uid from '1'");
-    shouldBe(Atomics.notify(arr, 1), 1, "numeric 1 canonicalizes to uid '1'");
+    shouldBe(notifyOne(arr, 1), 1, "numeric 1 canonicalizes to uid '1'");
     shouldBe(t.join(), "ok");
 }
 
@@ -61,6 +82,6 @@ function parkWaiterOn(target, key) {
 {
     const t = parkWaiterOn(o, "k");
     shouldBe(Atomics.notify(o, "k", 0), 0, "explicit count 0 wakes none");
-    shouldBe(Atomics.notify(o, "k", 1), 1);
+    shouldBe(notifyOne(o, "k"), 1);
     shouldBe(t.join(), "ok");
 }

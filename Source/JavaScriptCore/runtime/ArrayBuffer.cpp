@@ -56,8 +56,36 @@ namespace ArrayBufferInternal {
 static constexpr bool verbose = false;
 }
 
+// THREADS/TSAN-gated copy of buffer DATA lanes that may race other Threads'
+// element accesses (SAB-granularity staleness is the blessed semantics; the
+// racing access itself must be defined). Production builds keep memcpy.
+static void copyDataLanesRacy(void* dst, const void* src, size_t size)
+{
+#if TSAN_ENABLED
+    uint8_t* to = static_cast<uint8_t*>(dst);
+    uint8_t* from = const_cast<uint8_t*>(static_cast<const uint8_t*>(src));
+    for (size_t i = 0; i < size; ++i)
+        WTF::atomicStore(&to[i], WTF::atomicLoad(&from[i], std::memory_order_relaxed), std::memory_order_relaxed);
+#else
+    memcpy(dst, src, size);
+#endif
+}
+
 static void zeroFill(void* base, size_t size)
 {
+#if TSAN_ENABLED
+    // THREADS/TSAN-gated (recorded per TSAN-TRIAGE §13.4 precedent): a resize's
+    // zero-fill writes buffer DATA lanes that concurrent typed-array readers on
+    // other Threads may race (SAB-granularity staleness is the blessed
+    // semantics; the race itself must be defined). Byte-wise relaxed stores keep
+    // the accesses TSAN-visible; production builds keep memset below.
+    {
+        uint8_t* bytes = static_cast<uint8_t*>(base);
+        for (size_t i = 0; i < size; ++i)
+            WTF::atomicStore(&bytes[i], static_cast<uint8_t>(0), std::memory_order_relaxed);
+        return;
+    }
+#endif
     constexpr size_t largeZeroFillThreshold = 1 * MB;
     if (size >= largeZeroFillThreshold) {
         size_t pageSizeValue = WTF::pageSize();
@@ -563,11 +591,13 @@ void consumeQuarantinedTailOnRegrow(JSC::Heap& heap, BufferMemoryHandle& handle,
 ArrayBufferContents::ArrayBufferContents(void* data, size_t sizeInBytes, std::optional<size_t> maxByteLength, ArrayBufferDestructorFunction&& destructor)
     : m_data(data)
     , m_destructor(WTF::move(destructor))
-    , m_sizeInBytes(sizeInBytes)
     , m_maxByteLength(maxByteLength.value_or(sizeInBytes))
     , m_hasMaxByteLength(!!maxByteLength)
 {
-    RELEASE_ASSERT(m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    // THREADS/TSAN: relaxed store (not member-init) so the ctor's write at a
+    // GC/allocator-recycled address pairs cleanly with stale readers' atomics.
+    WTF::atomicStore(&m_sizeInBytes, sizeInBytes, std::memory_order_relaxed);
+    RELEASE_ASSERT(sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
 }
 
 ArrayBufferContents::ArrayBufferContents(std::span<const uint8_t> data, std::optional<size_t> maxByteLength, ArrayBufferDestructorFunction&& destructor)
@@ -578,16 +608,16 @@ ArrayBufferContents::ArrayBufferContents(std::span<const uint8_t> data, std::opt
 ArrayBufferContents::ArrayBufferContents(Ref<SharedArrayBufferContents>&& shared, bool forceFixedLengthIfWasm)
     : m_shared(WTF::move(shared))
     , m_memoryHandle(m_shared->memoryHandle())
-    , m_sizeInBytes(m_shared->sizeInBytes(std::memory_order_seq_cst))
 {
-    RELEASE_ASSERT(m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    WTF::atomicStore(&m_sizeInBytes, m_shared->sizeInBytes(std::memory_order_seq_cst), std::memory_order_relaxed); // THREADS/TSAN: see first ctor.
+    RELEASE_ASSERT(WTF::atomicLoad(&m_sizeInBytes, std::memory_order_relaxed) <= MAX_ARRAY_BUFFER_SIZE);
     bool adjustedForceFixedLengthIfWasm = forceFixedLengthIfWasm || !Options::useWasmMemoryToBufferAPIs();
     if (m_shared->mode() == SharedArrayBufferContents::Mode::WebAssembly && adjustedForceFixedLengthIfWasm) {
         m_hasMaxByteLength = false;
-        m_maxByteLength = m_sizeInBytes;
+        m_maxByteLength = WTF::atomicLoad(&m_sizeInBytes, std::memory_order_relaxed);
     } else {
         m_hasMaxByteLength = !!m_shared->maxByteLength();
-        m_maxByteLength = m_shared->maxByteLength().value_or(m_sizeInBytes);
+        m_maxByteLength = m_shared->maxByteLength().value_or(WTF::atomicLoad(&m_sizeInBytes, std::memory_order_relaxed));
     }
     // data() cannot destroy m_shared here so the code is safe as is so avoid
     // refing for performance reasons.
@@ -597,11 +627,11 @@ ArrayBufferContents::ArrayBufferContents(Ref<SharedArrayBufferContents>&& shared
 ArrayBufferContents::ArrayBufferContents(void* data, size_t sizeInBytes, size_t maxByteLength, Ref<BufferMemoryHandle>&& memoryHandle)
     : m_data(data)
     , m_memoryHandle(WTF::move(memoryHandle))
-    , m_sizeInBytes(sizeInBytes)
     , m_maxByteLength(maxByteLength)
     , m_hasMaxByteLength(true)
 {
-    RELEASE_ASSERT(m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    WTF::atomicStore(&m_sizeInBytes, sizeInBytes, std::memory_order_relaxed); // THREADS/TSAN: see first ctor.
+    RELEASE_ASSERT(sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
 }
 
 void ArrayBufferContents::tryAllocate(size_t numElements, unsigned elementByteSize, InitializationPolicy policy)
@@ -628,8 +658,8 @@ void ArrayBufferContents::tryAllocate(size_t numElements, unsigned elementByteSi
         return;
     }
 
-    m_sizeInBytes = sizeInBytes.value();
-    RELEASE_ASSERT(m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    WTF::atomicStore(&m_sizeInBytes, sizeInBytes.value(), std::memory_order_relaxed);
+    RELEASE_ASSERT(WTF::atomicLoad(&m_sizeInBytes, std::memory_order_relaxed) <= MAX_ARRAY_BUFFER_SIZE);
     m_maxByteLength = m_sizeInBytes;
     m_hasMaxByteLength = false;
     m_destructor = ArrayBuffer::primitiveGigacageDestructor();
@@ -643,7 +673,7 @@ void ArrayBufferContents::makeShared()
 
 SharedArrayBufferContents::~SharedArrayBufferContents()
 {
-    WaiterListManager::singleton().unregister(std::bit_cast<uint8_t*>(data()), m_sizeInBytes);
+    WaiterListManager::singleton().unregister(std::bit_cast<uint8_t*>(data()), m_sizeInBytes.load(std::memory_order_relaxed)); // SharedArrayBufferContents::m_sizeInBytes is already std::atomic.
     if (RefPtr destructor = m_destructor) {
         // FIXME: we shouldn't use getUnsafe here https://bugs.webkit.org/show_bug.cgi?id=197698
         destructor->run(m_data.getUnsafe());
@@ -653,12 +683,13 @@ SharedArrayBufferContents::~SharedArrayBufferContents()
 void ArrayBufferContents::copyTo(ArrayBufferContents& other)
 {
     ASSERT(!other.m_data);
-    other.tryAllocate(m_sizeInBytes, sizeof(char), ArrayBufferContents::InitializationPolicy::DontInitialize);
+    size_t selfSizeInBytes = WTF::atomicLoad(&m_sizeInBytes, std::memory_order_relaxed);
+    other.tryAllocate(selfSizeInBytes, sizeof(char), ArrayBufferContents::InitializationPolicy::DontInitialize);
     if (!other.m_data)
         return;
-    memcpy(other.data(), data(), m_sizeInBytes);
-    other.m_sizeInBytes = m_sizeInBytes;
-    RELEASE_ASSERT(other.m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    copyDataLanesRacy(other.data(), data(), selfSizeInBytes);
+    WTF::atomicStore(&other.m_sizeInBytes, selfSizeInBytes, std::memory_order_relaxed);
+    RELEASE_ASSERT(selfSizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
     ASSERT(other.m_maxByteLength <= MAX_ARRAY_BUFFER_SIZE);
 }
 
@@ -670,10 +701,10 @@ void ArrayBufferContents::shareWith(ArrayBufferContents& other)
     other.m_destructor = nullptr;
     other.m_shared = m_shared;
     other.m_memoryHandle = m_memoryHandle;
-    other.m_sizeInBytes = m_sizeInBytes;
+    WTF::atomicStore(&other.m_sizeInBytes, WTF::atomicLoad(&m_sizeInBytes, std::memory_order_relaxed), std::memory_order_relaxed);
     other.m_maxByteLength = m_maxByteLength;
     other.m_hasMaxByteLength = m_hasMaxByteLength;
-    RELEASE_ASSERT(other.m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    RELEASE_ASSERT(WTF::atomicLoad(&other.m_sizeInBytes, std::memory_order_relaxed) <= MAX_ARRAY_BUFFER_SIZE);
     ASSERT(other.m_maxByteLength <= MAX_ARRAY_BUFFER_SIZE);
 }
 
@@ -879,7 +910,7 @@ void ArrayBuffer::setAssociatedWasmMemory(Wasm::Memory* memory)
 #endif
 }
 
-void ArrayBuffer::refreshAfterWasmMemoryGrow(Wasm::Memory* memory)
+void ArrayBuffer::refreshAfterWasmMemoryGrow(VM& vm, Wasm::Memory* memory)
 {
     ASSERT(isWasmMemory());
 
@@ -890,8 +921,14 @@ void ArrayBuffer::refreshAfterWasmMemoryGrow(Wasm::Memory* memory)
         return;
 
     // JSArrayBufferViews (typed arrays) effectively cache their buffer's data pointer.
-    for (size_t i = numberOfIncomingReferences(); i--;) {
-        JSCell* cell = incomingReferenceAt(i);
+    // GIL-off, another thread constructing a view on this buffer concurrently
+    // appends to its incoming-reference storage under the owning set's lock
+    // (Heap::addReference -> addIncomingReference: singleton->Vector repoint
+    // or Vector realloc), so an unlocked walk here is the §3.27
+    // realloc-vs-reader UAF. Snapshot under the lock, walk the snapshot (see
+    // notifyDetaching for the leaf-rank/lifetime argument).
+    auto incomingReferences = snapshotIncomingReferences(vm);
+    for (JSCell* cell : incomingReferences) {
         auto* view = dynamicDowncast<JSArrayBufferView>(cell);
         if (view)
             view->refreshVector(newData);
@@ -970,7 +1007,7 @@ bool ArrayBuffer::transferTo(VM& vm, ArrayBufferContents& result)
             if (!result.m_data)
                 return false;
             if (currentByteLength)
-                memcpy(result.data(), m_contents.data(), currentByteLength);
+                copyDataLanesRacy(result.data(), m_contents.data(), currentByteLength);
             result.m_sizeInBytes = currentByteLength;
         } else {
             // Source WITH maxByteLength: copyTo is insufficient (it copies
@@ -994,7 +1031,7 @@ bool ArrayBuffer::transferTo(VM& vm, ArrayBufferContents& result)
             void* memory = handle->memory();
             result = ArrayBufferContents(memory, currentByteLength, maxByteLength, handle.releaseNonNull());
             if (currentByteLength)
-                memcpy(result.data(), m_contents.data(), currentByteLength);
+                copyDataLanesRacy(result.data(), m_contents.data(), currentByteLength);
         }
 
         // The source runs arm 1 verbatim (quarantine owning the free,
@@ -1080,7 +1117,7 @@ void ArrayBuffer::detach(VM& vm)
             entry.contents.m_destructor = std::exchange(m_contents.m_destructor, nullptr);
             entry.contents.m_shared = m_contents.m_shared;
             entry.contents.m_memoryHandle = m_contents.m_memoryHandle;
-            entry.contents.m_sizeInBytes = oldSizeInBytes;
+            WTF::atomicStore(&entry.contents.m_sizeInBytes, oldSizeInBytes, std::memory_order_relaxed);
             entry.contents.m_maxByteLength = oldMaxByteLength;
             entry.contents.m_hasMaxByteLength = m_contents.m_hasMaxByteLength;
 
@@ -1121,10 +1158,36 @@ void ArrayBuffer::detach(VM& vm)
     notifyDetaching(vm);
 }
 
+// GIL-off, this buffer's incoming-reference storage is concurrently mutated
+// by other threads creating views on it (Heap::addReference under the
+// GCIncomingRefCountedSet lock), so all reads of that storage must also be
+// under that lock — the lock-free walk was the §3.27 r0 UAF signature
+// (Vector realloc / singleton->Vector repoint vs reader). The set lock is a
+// strict heap-rank leaf, so we must NOT call back into view code while
+// holding it (detachFromArrayBuffer takes the view's cellLock); instead we
+// snapshot the cell list under the lock and walk the snapshot. The snapshot
+// stays valid for the walk: this mutator is between safepoints, so the
+// stop-the-world collector cannot run, and incoming references are only
+// removed at GC sweep / lastChanceToFinalize — exactly the lifetime argument
+// the old unlocked walk already relied on.
+Vector<JSCell*, 8> ArrayBuffer::snapshotIncomingReferences(VM& vm)
+{
+    Vector<JSCell*, 8> incomingReferences;
+    {
+        Locker locker { vm.heap.arrayBufferIncomingReferencesLock() };
+        size_t count = numberOfIncomingReferences();
+        incomingReferences.reserveInitialCapacity(count);
+        for (size_t i = 0; i < count; ++i)
+            incomingReferences.append(incomingReferenceAt(i));
+    }
+    return incomingReferences;
+}
+
 void ArrayBuffer::notifyDetaching(VM& vm)
 {
-    for (size_t i = numberOfIncomingReferences(); i--;) {
-        JSCell* cell = incomingReferenceAt(i);
+    auto incomingReferences = snapshotIncomingReferences(vm);
+    for (size_t i = incomingReferences.size(); i--;) {
+        JSCell* cell = incomingReferences[i];
         if (JSArrayBufferView* view = dynamicDowncast<JSArrayBufferView>(cell))
             view->detachFromArrayBuffer();
     }
@@ -1322,7 +1385,7 @@ Expected<int64_t, GrowFailReason> ArrayBuffer::resize(VM& vm, size_t newByteLeng
         if (m_contents.m_maxByteLength < newByteLength)
             return makeUnexpected(GrowFailReason::InvalidGrowSize);
 
-        deltaByteLength = static_cast<int64_t>(newByteLength) - static_cast<int64_t>(m_contents.m_sizeInBytes);
+        deltaByteLength = static_cast<int64_t>(newByteLength) - static_cast<int64_t>(WTF::atomicLoad(&m_contents.m_sizeInBytes, std::memory_order_relaxed));
 #if ENABLE(WEBASSEMBLY)
         if (Options::useWasmMemoryToBufferAPIs()) {
             if (isWasmMemory() && (deltaByteLength < 0 || deltaByteLength % PageCount::pageSize))
@@ -1395,10 +1458,11 @@ Expected<int64_t, GrowFailReason> ArrayBuffer::resize(VM& vm, size_t newByteLeng
             memoryHandle->updateSize(desiredSize);
         }
 
-        if (m_contents.m_sizeInBytes < newByteLength)
-            zeroFill(std::bit_cast<uint8_t*>(data()) + m_contents.m_sizeInBytes, newByteLength - m_contents.m_sizeInBytes);
+        size_t oldByteLength = WTF::atomicLoad(&m_contents.m_sizeInBytes, std::memory_order_relaxed);
+        if (oldByteLength < newByteLength)
+            zeroFill(std::bit_cast<uint8_t*>(data()) + oldByteLength, newByteLength - oldByteLength);
 
-        m_contents.m_sizeInBytes = newByteLength;
+        WTF::atomicStore(&m_contents.m_sizeInBytes, newByteLength, std::memory_order_relaxed);
     }
 
     if (deltaByteLength > 0)
@@ -1565,7 +1629,7 @@ void ArrayBufferContents::refreshAfterWasmMemoryGrow(Wasm::Memory* memory)
     } else {
         m_memoryHandle = memory->handle();
         m_data = memory->basePointer();
-        m_sizeInBytes = m_memoryHandle->size();
+        WTF::atomicStore(&m_sizeInBytes, m_memoryHandle->size(), std::memory_order_relaxed);
     }
 #else
     UNUSED_PARAM(memory);

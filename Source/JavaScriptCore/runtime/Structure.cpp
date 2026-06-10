@@ -101,7 +101,20 @@ static UncheckedKeyHashSet<Structure*>& liveStructureSet = *(new UncheckedKeyHas
 inline void StructureTransitionTable::setSingleTransition(VM& vm, JSCell* owner, Structure* structure)
 {
     ASSERT(isUsingSingleSlot());
-    m_data = std::bit_cast<intptr_t>(structure) | UsingSingleSlotFlag;
+    intptr_t newData = std::bit_cast<intptr_t>(structure) | UsingSingleSlotFlag;
+    if (Options::useJSThreads()) [[unlikely]] {
+        // TSAN family structure-fields (UG §K publication): this is the
+        // publish store of a freshly constructed transition target. Mutator
+        // lookups hold m_lock flag-on (L6), but GC concurrent-marking reads
+        // m_data via trySingleTransition under a DIFFERENT lock epoch and the
+        // single-slot word is also read during finalization — release here
+        // (plus the constructor-tail fence) orders the target's constructor
+        // stores before its pointer becomes loadable. Cold path (first
+        // transition install), so the arm64 stlr is acceptable; flag-off
+        // keeps the plain store below, bit-identical codegen.
+        WTF::atomicStore(&m_data, newData, std::memory_order_release);
+    } else
+        m_data = newData;
     vm.writeBarrier(owner, structure);
 }
 
@@ -258,34 +271,65 @@ inline void Structure::validateFlags() { }
 Structure::Structure(VM& vm, StructureVariant variant, JSGlobalObject* globalObject, const TypeInfo& typeInfo, const ClassInfo* classInfo)
     : Structure(vm, globalObject, jsNull(), typeInfo, classInfo, NonArray, 0)
 {
-    m_structureVariant = variant;
+    // §8.9 wave 3: TSAN-relaxed (plain non-TSAN) — concurrent stale-reference
+    // readers may probe variant() while this recycled cell is re-initialized.
+    tsanRelaxedStore(m_structureVariant, variant);
     ASSERT(this->variant() == StructureVariant::WebAssemblyGC);
+
+    // §10.9 fixShape (2): the delegated-to constructor's publication
+    // storeStoreFence ran BEFORE the variant overwrite above, so the variant
+    // store was not ordered before a subsequent single-word publish. Re-issue
+    // the release so readers that reach this Structure through the publish
+    // see WebAssemblyGC, never the delegate's transient Normal. Flag-off
+    // codegen unchanged (predicted-not-taken branch only).
+    if (Options::useJSThreads()) [[unlikely]]
+        WTF::storeStoreFence();
 }
 
 Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, const TypeInfo& typeInfo, const ClassInfo* classInfo, IndexingType indexingType, unsigned inlineCapacity)
     : JSCell(vm, vm.structureStructure.get())
     , m_blob(indexingType, typeInfo)
-    , m_outOfLineTypeFlags(typeInfo.outOfLineTypeFlags())
-    , m_inlineCapacity(inlineCapacity)
-    , m_bitField(0)
-    , m_propertyHash(0)
     , m_realm(globalObject, WriteBarrierEarlyInit)
     , m_prototype(prototype, WriteBarrierEarlyInit)
-    , m_classInfo(classInfo)
     , m_transitionWatchpointSet(IsWatched)
 {
+    // TSAN family structure-fields (§8.9 fixShape (2)): the scalar members are
+    // initialized here with TSAN-relaxed stores (tsanRelaxedStore compiles to
+    // the identical plain store non-TSAN), not in the member-init-list — a
+    // member-init-list init is a plain store that races concurrent readers
+    // holding stale/recycled cell references (classInfoForCells/typeInfo/...,
+    // the 83 one-sided Structure::Structure keys), and clang's coalescing of
+    // adjacent plain init-list stores produced wide stores overlapping the
+    // m_lock byte and the watchpoint-set words (the Atomic<u8>/Atomic<u64>
+    // "ctor" keys). The WriteBarrier members above are already relaxed-atomic
+    // through storeCell; m_blob through TypeInfoBlob's relaxed accessors. The
+    // Atomic-bearing member TYPES (m_lock, the three watchpoint sets,
+    // m_transitionTable, m_seenProperties) construct through
+    // ConcurrentCtorMember (Structure.h, §10.9 fixShape (1)): under TSAN
+    // their storage is a deferred-construction union written with relaxed
+    // atomic stores, so the std::atomic constructors' plain stores never
+    // touch the member words; non-TSAN they are the plain types.
+    tsanRelaxedStore(m_outOfLineTypeFlags, typeInfo.outOfLineTypeFlags());
+    tsanRelaxedStore(m_inlineCapacity, static_cast<uint8_t>(inlineCapacity));
+    tsanRelaxedStore(m_bitField, static_cast<uint32_t>(0));
+    tsanRelaxedStore(m_transitionPropertyAttributes, static_cast<TransitionPropertyAttributes>(0));
+    tsanRelaxedStore(m_structureVariant, StructureVariant::Normal);
+    tsanRelaxedStore(m_transitionThreadLocalTID, static_cast<uint16_t>(0));
+    tsanRelaxedStore(m_propertyHash, static_cast<uint32_t>(0));
+    tsanRelaxedStore(m_classInfo, classInfo);
+
     // SPEC-objectmodel §5: both TTL sets start IsWatched for new structures
     // flag-on; flag-off they keep their inert NSDMI ClearWatchpoint (I22) and
     // this single predicted-not-taken check is the only flag cost.
     // N1: fresh structure - the creating thread is the sole lock-free
     // butterfly-less transitioner while the TTL sets are valid (0 flag-off and
-    // on the main thread; never notTTLTID). Flag-off the field keeps its NSDMI
-    // value 0 and is never consulted (I22/E3), so skip the out-of-line
+    // on the main thread; never notTTLTID). Flag-off the field keeps the 0
+    // stored above and is never consulted (I22/E3), so skip the out-of-line
     // currentButterflyTID() call (cross-DSO + TLS read) entirely.
     if (Options::useJSThreads()) [[unlikely]] {
         m_transitionThreadLocalWatchpointSet.startWatching();
         m_writeThreadLocalWatchpointSet.startWatching();
-        m_transitionThreadLocalTID = currentButterflyTID();
+        tsanRelaxedStore(m_transitionThreadLocalTID, currentButterflyTID());
     }
 
     bool hasStaticNonEnumerableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontEnum));
@@ -322,26 +366,44 @@ Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, co
     validateFlags();
 
     ASSERT(WTF::roundUpToMultipleOf<Structure::atomSize>(this) == this);
+
+    // TSAN family structure-fields (OM §5/§9.4, UG §K): publication release.
+    // Flag-on, this Structure becomes visible to other threads through a
+    // subsequent single-word publish (cell-header StructureID store,
+    // transition-table setSingleTransition, global/IC slots); concurrent
+    // readers then load m_classInfo/m_blob/m_realm/m_inlineCapacity without
+    // this structure's m_lock. All constructor stores must be ordered before
+    // any such publish store — the missing release the triage ruling calls
+    // out. Gated so the flag-off path keeps today's codegen (no dmb on arm64).
+    if (Options::useJSThreads()) [[unlikely]]
+        WTF::storeStoreFence();
 }
 
 const ClassInfo Structure::s_info = { "Structure"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(Structure) };
 
 Structure::Structure(VM& vm, CreatingEarlyCellTag)
     : JSCell(CreatingEarlyCell)
-    , m_inlineCapacity(0)
-    , m_bitField(0)
-    , m_propertyHash(0)
     , m_prototype(jsNull(), WriteBarrierEarlyInit)
-    , m_classInfo(info())
     , m_transitionWatchpointSet(IsWatched)
 {
+    // §8.9 wave 3: TSAN-relaxed scalar init instead of member-init-list plain
+    // stores — see the 7-argument constructor above for the full rationale.
+    tsanRelaxedStore(m_inlineCapacity, static_cast<uint8_t>(0));
+    tsanRelaxedStore(m_bitField, static_cast<uint32_t>(0));
+    tsanRelaxedStore(m_transitionPropertyAttributes, static_cast<TransitionPropertyAttributes>(0));
+    tsanRelaxedStore(m_structureVariant, StructureVariant::Normal);
+    tsanRelaxedStore(m_transitionThreadLocalTID, static_cast<uint16_t>(0));
+    tsanRelaxedStore(m_propertyHash, static_cast<uint32_t>(0));
+    tsanRelaxedStore(m_classInfo, static_cast<const ClassInfo*>(info()));
+
     // N1 (early cell: VM startup runs on the creating thread; 0 on main).
-    // Flag-off: keep the NSDMI 0 (TID and both TTL sets, I22), skip the
-    // out-of-line TLS read. Flag-on: start watching both TTL sets (§5).
+    // Flag-off: keep the 0 stored above (TID) and both TTL sets' inert
+    // ClearWatchpoint (I22), skip the out-of-line TLS read. Flag-on: start
+    // watching both TTL sets (§5).
     if (Options::useJSThreads()) [[unlikely]] {
         m_transitionThreadLocalWatchpointSet.startWatching();
         m_writeThreadLocalWatchpointSet.startWatching();
-        m_transitionThreadLocalTID = currentButterflyTID();
+        tsanRelaxedStore(m_transitionThreadLocalTID, currentButterflyTID());
     }
 
     TypeInfo typeInfo { StructureType, StructureFlags };
@@ -371,26 +433,44 @@ Structure::Structure(VM& vm, CreatingEarlyCellTag)
     setMaxOffset(vm, invalidOffset);
  
     m_blob = TypeInfoBlob(0, typeInfo);
-    m_outOfLineTypeFlags = typeInfo.outOfLineTypeFlags();
+    tsanRelaxedStore(m_outOfLineTypeFlags, typeInfo.outOfLineTypeFlags());
 
     ASSERT(hasAnyKindOfGetterSetterProperties() == m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::AccessorOrCustomAccessorOrValue)));
     ASSERT(hasReadOnlyOrGetterSetterPropertiesExcludingProto() == m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessorOrValue)));
     ASSERT(!this->typeInfo().overridesGetCallData() || m_classInfo->methodTable.getCallData != &JSCell::getCallData);
 
     ASSERT(WTF::roundUpToMultipleOf<Structure::atomSize>(this) == this);
+
+    // Publication release — see the 7-argument constructor above.
+    if (Options::useJSThreads()) [[unlikely]]
+        WTF::storeStoreFence();
 }
 
 Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     : JSCell(vm, vm.structureStructure.get())
-    , m_inlineCapacity(previous->m_inlineCapacity)
-    , m_bitField(0)
-    , m_structureVariant(variant)
-    , m_propertyHash(previous->m_propertyHash)
     , m_seenProperties(previous->m_seenProperties)
     , m_prototype(previous->m_prototype.get(), WriteBarrierEarlyInit)
-    , m_classInfo(previous->m_classInfo)
     , m_transitionWatchpointSet(IsWatched)
 {
+    // §8.9 wave 3: TSAN-relaxed scalar init instead of member-init-list plain
+    // stores — see the 7-argument constructor above for the full rationale.
+    // The reads of `previous`'s fields are TSAN-relaxed too: `previous` is a
+    // published structure whose same words are concurrently written nowhere
+    // (post-ctor immutable) but whose own construction may not be
+    // TSAN-visible to this thread. m_seenProperties stays in the init list:
+    // its copy reads the source word with a relaxed load, and the member's
+    // own storage is written via ConcurrentCtorMember's deferred-ctor
+    // relaxed stores (§10.9 fixShape (1) — the r3 70-report key was the
+    // TinyBloomFilter NSDMI's std::atomic-constructor plain store, which the
+    // union wrapper now skips). m_prototype's EarlyInit ctor stores through
+    // the relaxed-atomic WriteBarrierBase accessors.
+    tsanRelaxedStore(m_inlineCapacity, tsanRelaxedLoad(previous->m_inlineCapacity));
+    tsanRelaxedStore(m_bitField, static_cast<uint32_t>(0));
+    tsanRelaxedStore(m_transitionPropertyAttributes, static_cast<TransitionPropertyAttributes>(0));
+    tsanRelaxedStore(m_structureVariant, variant);
+    tsanRelaxedStore(m_propertyHash, tsanRelaxedLoad(previous->m_propertyHash));
+    tsanRelaxedStore(m_classInfo, tsanRelaxedLoad(previous->m_classInfo));
+
     // SPEC-objectmodel §5: transition targets also start IsWatched flag-on; a
     // shared instance transitioning INTO this structure fires the target's sets
     // per-event (F2/§4.2-0) before publishing, so fresh-valid is sound.
@@ -435,9 +515,9 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     // N1: the structure transition TID is the CREATOR's TID, copied to targets
     // (§2.1) - the shape's butterfly-less transition ownership follows the
     // shape's creator, not whichever thread happens to reuse the shape.
-    // (Unconditional: flag-off previous' TID is always 0, so this is the same
-    // 0 the NSDMI already wrote - a single 16-bit copy, no Options load.)
-    m_transitionThreadLocalTID = previous->m_transitionThreadLocalTID;
+    // (Unconditional: flag-off previous' TID is always 0 - a single 16-bit
+    // copy, no Options load. TSAN-relaxed pair, plain non-TSAN.)
+    tsanRelaxedStore(m_transitionThreadLocalTID, tsanRelaxedLoad(previous->m_transitionThreadLocalTID));
 
     setDictionaryKind(previous->dictionaryKind());
     setIsPinnedPropertyTable(false);
@@ -463,7 +543,7 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
  
     TypeInfo typeInfo = previous->typeInfo();
     m_blob = TypeInfoBlob(previous->indexingModeIncludingHistory(), typeInfo);
-    m_outOfLineTypeFlags = typeInfo.outOfLineTypeFlags();
+    tsanRelaxedStore(m_outOfLineTypeFlags, typeInfo.outOfLineTypeFlags());
 
     ASSERT(!previous->typeInfo().structureIsImmortal());
     setPreviousID(vm, previous);
@@ -475,13 +555,24 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     // Copy this bit now, in case previous was being watched.
     setTransitionWatchpointIsLikelyToBeFired(previous->transitionWatchpointIsLikelyToBeFired());
 
-    if (previous->m_realm)
-        m_realm.set(vm, this, previous->m_realm.get());
+    // §10.9: relaxed-atomic store (setWithoutWriteBarrier) + explicit barrier
+    // instead of .set()'s plain setEarlyValue exchange — realm() readers can
+    // probe this recycled cell concurrently. Identical codegen.
+    if (JSGlobalObject* previousRealm = previous->m_realm.get()) {
+        ASSERT(!Options::useConcurrentJIT() || !isCompilationThread()); // Same assert .set() performed.
+        validateCell(previousRealm);
+        m_realm.setWithoutWriteBarrier(previousRealm);
+        vm.writeBarrier(this, previousRealm);
+    }
     ASSERT(hasAnyKindOfGetterSetterProperties() || !m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::AccessorOrCustomAccessorOrValue)));
     ASSERT(hasReadOnlyOrGetterSetterPropertiesExcludingProto() || !m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessorOrValue)));
     ASSERT(!this->typeInfo().overridesGetCallData() || m_classInfo->methodTable.getCallData != &JSCell::getCallData);
 
     ASSERT(WTF::roundUpToMultipleOf<Structure::atomSize>(this) == this);
+
+    // Publication release — see the 7-argument constructor above.
+    if (Options::useJSThreads()) [[unlikely]]
+        WTF::storeStoreFence();
 }
 
 Structure::~Structure() = default;
@@ -763,7 +854,7 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
         transition = Structure::create(vm, structure, deferred);
     }
 
-    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
+    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->cachedPrototypeChainConcurrently()); // Relaxed atomic read: the source chain slot is written lock-free (TSAN family structure-fields).
 
     // While we are adding the property, rematerializing the property table is super weird: we already
     // have a m_transitionPropertyName and transitionPropertyAttributes but the m_transitionOffset is still wrong. If the
@@ -939,7 +1030,7 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
             structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
-    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
+    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->cachedPrototypeChainConcurrently()); // Relaxed atomic read: the source chain slot is written lock-free (TSAN family structure-fields).
 
     // While we are deleting the property, we need to make sure the table is not cleared.
     {
@@ -1000,7 +1091,7 @@ Structure* Structure::changePrototypeTransition(VM& vm, Structure* structure, JS
         // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, this mutator
         // transition-table lookup holds the source's m_lock (released at the
         // end of this block, before any allocation). Flag-off: no lock (I22).
-        ConcurrentJSLocker locker(Options::useJSThreads() ? &structure->m_lock : nullptr);
+        ConcurrentJSLocker locker(Options::useJSThreads() ? &structure->lock() : nullptr);
         if (Structure* existingTransition = structure->m_transitionTable.get(key, 0, TransitionKind::ChangePrototype)) {
             ASSERT(!existingTransition->hasPolyProto());
             existingTransition->checkOffsetConsistency();
@@ -1158,7 +1249,7 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
             structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
-    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
+    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->cachedPrototypeChainConcurrently()); // Relaxed atomic read: the source chain slot is written lock-free (TSAN family structure-fields).
 
     {
         ConcurrentJSLocker locker(transition->m_lock);
@@ -1319,7 +1410,7 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
         // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, this mutator
         // transition-table lookup holds the source's m_lock. Flag-off: no
         // lock (I22).
-        ConcurrentJSLocker locker(Options::useJSThreads() ? &structure->m_lock : nullptr);
+        ConcurrentJSLocker locker(Options::useJSThreads() ? &structure->lock() : nullptr);
         if (Structure* existingTransition = structure->m_transitionTable.get(nullptr, 0, transitionKind)) {
             ASSERT(existingTransition->transitionKind() == transitionKind);
             ASSERT(existingTransition->indexingModeIncludingHistory() == indexingModeIncludingHistory);
@@ -2242,7 +2333,10 @@ void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     if (!thisObject->isObject()) {
         // We do not need to clear JSPropertyNameEnumerator since it is never cached for non-object Structure.
         // We do not have code clearing JSPropertyNameEnumerator since this function can be called concurrently.
-        thisObject->m_cachedPrototypeChain.clear();
+        // Relaxed atomic null store (same str): this marking-thread write races
+        // lock-free mutator readers of the chain slot (prototypeChain/isValid,
+        // canCachePropertyNameEnumerator).
+        WTF::atomicStore(thisObject->m_cachedPrototypeChain.slot(), static_cast<StructureChain*>(nullptr), std::memory_order_relaxed);
 #if ASSERT_ENABLED
         if (auto* rareData = thisObject->tryRareData())
             ASSERT(!rareData->cachedPropertyNameEnumerator());
@@ -2496,10 +2590,20 @@ void Structure::setCachedPropertyNameEnumerator(VM& vm, JSPropertyNameEnumerator
     // Identity: single-threaded / GIL-on, prototypeChain() returned
     // m_cachedPrototypeChain with no interleaving possible, so chain always
     // equals it and this bail is unreachable — preserved by the ASSERT below.
-    if (chain != m_cachedPrototypeChain.get()) {
+    if (chain != cachedPrototypeChainConcurrently()) {
         ASSERT(Options::useJSThreads() && !Options::useThreadGIL());
         return;
     }
+    // AUD1.N4(3): flag-on, retire (don't free) any previous watchpoint vector
+    // BEFORE the delegate's FixedVector reassignment
+    // (StructureRareDataInlines.h) would destroy it in place — retired
+    // watchpoints stay alive until finalizeUnconditionally because foreign
+    // threads can still reach them through watched structures' transition
+    // watchpoint sets. We hold m_lock, which serializes this against the
+    // flag-on clearCachedPrototypeChain. Flag-off: single mutator, today's
+    // immediate in-place destruction is race-free and stays bit-identical (I22).
+    if (Options::useJSThreads()) [[unlikely]]
+        rareData()->retireCachedPropertyNameEnumeratorWatchpoints();
     rareData()->setCachedPropertyNameEnumerator(vm, this, enumerator, chain);
 }
 
@@ -2540,14 +2644,24 @@ bool Structure::canCachePropertyNameEnumerator(VM&) const
     // source of this null: it fires only for !isObject() structures, and this
     // path is object-only, so the identity ASSERT is safe even under
     // concurrent marking.
-    StructureChain* structureChain = m_cachedPrototypeChain.get();
+    // Relaxed atomic load: paired with the atomic null stores in
+    // clearCachedPrototypeChain / visitChildrenImpl (same mov/ldr codegen).
+    StructureChain* structureChain = cachedPrototypeChainConcurrently();
     if (!structureChain) [[unlikely]] {
         ASSERT(Options::useJSThreads() && !Options::useThreadGIL());
         return false;
     }
+    // TSAN family structure-fields (r4 residual "StructureChain::create x
+    // canCachePropertyNameEnumerator"): the chain's StructureID lanes live in
+    // auxiliary memory that a foreign mutator can recycle into a NEW chain
+    // (StructureChain::create zero-fill + finishCreation relaxed lane
+    // stores). Relaxed atomic 32-bit lane loads (identical ldr/mov codegen)
+    // pair with those writers; a stale/zero lane just takes the
+    // decline-to-cache or sentinel exit, per the staleness argument above.
     StructureID* currentStructureID = structureChain->head();
     while (true) {
-        StructureID structureID = *currentStructureID;
+        static_assert(sizeof(StructureID) == sizeof(uint32_t));
+        StructureID structureID = std::bit_cast<StructureID>(WTF::atomicLoad(reinterpret_cast<uint32_t*>(currentStructureID), std::memory_order_relaxed));
         if (!structureID)
             return true;
         Structure* structure = structureID.decode();
@@ -2639,7 +2753,7 @@ Structure* Structure::setBrandTransition(VM& vm, Structure* structure, Symbol* b
     }
     transition->setTransitionKind(TransitionKind::SetBrand);
 
-    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
+    transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->cachedPrototypeChainConcurrently()); // Relaxed atomic read: the source chain slot is written lock-free (TSAN family structure-fields).
     transition->m_blob.setIndexingModeIncludingHistory(structure->indexingModeIncludingHistory());
     transition->m_transitionPropertyName = &brand->uid();
     transition->setTransitionPropertyAttributes(0);

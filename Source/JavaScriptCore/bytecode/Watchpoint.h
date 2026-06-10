@@ -35,6 +35,7 @@
 #include <wtf/PrintStream.h>
 #include <wtf/ScopedLambda.h>
 #include <wtf/SentinelLinkedList.h>
+#include <wtf/ThreadSanitizerSupport.h>
 #include <wtf/ThreadSafeRefCounted.h>
 
 namespace JSC {
@@ -243,8 +244,20 @@ public:
     // }
     WatchpointState state() const
     {
-        WatchpointState result = static_cast<WatchpointState>(m_state);
-        return result;
+        // TSAN wave 2 (triage 3.6): racy-by-design read (JIT spec section 5.6); the
+        // relaxed atomic load makes the C++ access defined without adding ordering
+        // (states are monotonic, OM spec section 5; stale values are tolerated and
+        // re-checked under the Class-A stop, I11).
+        // TSAN r11 (reports 14/15/26/27, ctor-vs-compiler-probe): pairs with
+        // the HAPPENS_BEFORE at the end of the WatchpointSet constructor —
+        // a freshly created set is consume-published (release CAS / fence +
+        // relaxed pointer store) and probed lock-free by compiler threads;
+        // TSAN cannot model the consume edge, so it pairs the probe against
+        // the creator's malloc/ctor writes. The pair is trivially sound: the
+        // constructor of any set a reader can reach ran before the reader
+        // obtained the pointer. No-op outside TSAN.
+        TSAN_ANNOTATE_HAPPENS_AFTER(this);
+        return m_state.loadRelaxed();
     }
     
     // It is safe to call this from another thread.  It may return true
@@ -272,18 +285,18 @@ public:
     // set watchpoints that we believe will actually be fired.
     void startWatching()
     {
-        ASSERT(m_state != IsInvalidated);
-        if (m_state == IsWatched)
+        ASSERT(m_state.loadRelaxed() != IsInvalidated);
+        if (m_state.loadRelaxed() == IsWatched)
             return;
         WTF::storeStoreFence();
-        m_state = IsWatched;
+        m_state.storeRelaxed(IsWatched);
         WTF::storeStoreFence();
     }
 
     template <typename T>
     void fireAll(VM& vm, T& fireDetails)
     {
-        if (m_state != IsWatched) [[likely]]
+        if (m_state.loadRelaxed() != IsWatched) [[likely]]
             return;
         fireAllSlow(vm, fireDetails);
     }
@@ -305,7 +318,7 @@ public:
     {
         if (state() == IsWatched)
             fireAll(vm, detail);
-        m_state = IsInvalidated;
+        m_state.storeRelaxed(IsInvalidated);
     }
     
     void invalidate(VM& vm, const char* reason)
@@ -315,15 +328,17 @@ public:
     
     bool isBeingWatched() const
     {
-        return m_setIsNotEmpty;
+        // Racy-by-design read from compiler threads (same family as state();
+        // triage 3.6): relaxed atomic, no ordering implied.
+        return m_setIsNotEmpty.loadRelaxed();
     }
 
     // SPEC-jit section 5.6 / I10: classification is fixed at construction.
     WatchpointSetClassification classification() const
     {
-        return m_invalidatesCode ? WatchpointSetClassification::InvalidatesCode : WatchpointSetClassification::DataOnly;
+        return m_invalidatesCode.loadRelaxed() ? WatchpointSetClassification::InvalidatesCode : WatchpointSetClassification::DataOnly;
     }
-    bool invalidatesCompiledCode() const { return m_invalidatesCode; }
+    bool invalidatesCompiledCode() const { return m_invalidatesCode.loadRelaxed(); }
 
     static constexpr ptrdiff_t offsetOfState() { return OBJECT_OFFSETOF(WatchpointSet, m_state); }
 
@@ -359,12 +374,37 @@ private:
 
     friend class InlineWatchpointSet;
 
-    int8_t m_state;
-    int8_t m_setIsNotEmpty;
-    int8_t m_invalidatesCode; // SPEC-jit section 5.6 classification bit; immutable after construction (I10).
+    // TSAN wave 2 (triage 3.6): m_state and m_setIsNotEmpty are read racily BY
+    // DESIGN from compiler threads and other mutators (JIT spec section 5.6; OM spec
+    // section 5: states monotonic, fires only under the Class-A stop, I13). Relaxed
+    // Atomic makes those accesses defined C++ without changing flag-off codegen
+    // (a relaxed byte load/store compiles to a plain byte load/store); ALL
+    // ordering still comes from the pre-existing explicit fences and the
+    // stop-the-world protocol, exactly as before. The JIT/LLInt load m_state
+    // as a raw byte at offsetOfState(); the static_assert below the class
+    // pins that layout.
+    // TSAN wave 5 (triage 12.6, REOPENED family 9): ALL THREE members are
+    // initialized via relaxed stores in the constructor BODY, not via the
+    // Atomic value constructor — the value constructor is a plain (non-atomic)
+    // store, and a freshly inflateSlow'd fat set is reachable by lock-free
+    // compiler-thread readers as soon as the thin->fat word is published, so
+    // the construction writes themselves must be atomic accesses.
+    // m_invalidatesCode is in the same boat: it is read lock-free from
+    // compiler threads (InlineWatchpointSet::invalidatesCompiledCode ->
+    // fat(data)->invalidatesCompiledCode()), so it gets the same relaxed
+    // Atomic treatment (still one byte; relaxed byte accesses compile to plain
+    // byte accesses, flag-off codegen unchanged). It is immutable after
+    // construction (I10) except for the deferred-fire take() transfer.
+    Atomic<WatchpointState> m_state;
+    Atomic<bool> m_setIsNotEmpty;
+    Atomic<int8_t> m_invalidatesCode; // SPEC-jit section 5.6 classification bit; immutable after construction (I10).
 
     SentinelLinkedList<Watchpoint, BasicRawSentinelNode<Watchpoint>> m_set;
 };
+
+// JIT (branch8 at offsetOfState) and LLInt (bbeq WatchpointSet::m_state[...])
+// load the state as a single raw byte; the Atomic wrapper must not change that.
+static_assert(sizeof(Atomic<WatchpointState>) == 1);
 
 // InlineWatchpointSet is a low-overhead, non-copyable watchpoint set in which
 // it is not possible to quickly query whether it is being watched in a single
@@ -389,7 +429,7 @@ class InlineWatchpointSet {
     WTF_MAKE_NONCOPYABLE(InlineWatchpointSet);
 public:
     InlineWatchpointSet(WatchpointState state, WatchpointSetClassification classification = WatchpointSetClassification::InvalidatesCode)
-        : m_data(encodeState(state) | (classification == WatchpointSetClassification::DataOnly ? ClassBFlag : 0))
+        : m_data { encodeState(state) | (classification == WatchpointSetClassification::DataOnly ? ClassBFlag : 0) }
     {
     }
 
@@ -403,9 +443,9 @@ public:
     // See comment about state() in Watchpoint above.
     WatchpointState state() const
     {
-        uintptr_t data = m_data;
+        uintptr_t data = m_data.loadRelaxed();
         if (isFat(data))
-            return fat(data)->state();
+            return consumeFat(data)->state();
         return decodeState(data);
     }
     
@@ -431,7 +471,7 @@ public:
             protect(fat())->startWatching();
             return;
         }
-        ASSERT(decodeState(m_data) != IsInvalidated);
+        ASSERT(decodeState(m_data.loadRelaxed()) != IsInvalidated);
         setThinState(IsWatched);
     }
 
@@ -451,7 +491,7 @@ public:
             protect(fat())->fireAll(vm, fireDetails);
             return;
         }
-        if (decodeState(m_data) == ClearWatchpoint)
+        if (decodeState(m_data.loadRelaxed()) == ClearWatchpoint)
             return;
         setThinState(IsInvalidated);
         WTF::storeStoreFence();
@@ -469,9 +509,9 @@ public:
     // bit; fat: the inflated set's bit (transferred at inflateSlow).
     bool invalidatesCompiledCode() const
     {
-        uintptr_t data = m_data;
+        uintptr_t data = m_data.loadRelaxed();
         if (isFat(data))
-            return fat(data)->invalidatesCompiledCode();
+            return consumeFat(data)->invalidatesCompiledCode();
         return !(data & ClassBFlag);
     }
     
@@ -483,7 +523,7 @@ public:
             protect(fat())->touch(vm, detail);
             return;
         }
-        uintptr_t data = m_data;
+        uintptr_t data = m_data.loadRelaxed();
         if (decodeState(data) == IsInvalidated)
             return;
         WTF::storeStoreFence();
@@ -533,8 +573,9 @@ public:
     //   the assumptions that the DFG thread used are still valid when the DFG code is installed.
     bool isBeingWatched() const
     {
-        if (isFat())
-            return fat()->isBeingWatched();
+        uintptr_t data = m_data.loadRelaxed();
+        if (isFat(data))
+            return consumeFat(data)->isBeingWatched();
         return false;
     }
 
@@ -562,10 +603,13 @@ private:
     static bool isFat(uintptr_t data) { return !isThin(data); }
 
     // Every thin state store preserves the classification bit (I10).
+    // Thin-state stores require the owner's serialization (as before); only
+    // the word access itself is (relaxed) atomic so concurrent lock-free
+    // readers are defined C++ (triage 3.6).
     void setThinState(WatchpointState state)
     {
         ASSERT(isThin());
-        m_data = encodeState(state) | (m_data & ClassBFlag);
+        m_data.storeRelaxed(encodeState(state) | (m_data.loadRelaxed() & ClassBFlag));
     }
 
     static WatchpointState decodeState(uintptr_t data)
@@ -579,30 +623,54 @@ private:
         return (static_cast<uintptr_t>(state) << StateShift) | IsThinFlag;
     }
     
-    bool isThin() const { return isThin(m_data); }
-    bool isFat() const { return isFat(m_data); };
+    bool isThin() const { return isThin(m_data.loadRelaxed()); }
+    bool isFat() const { return isFat(m_data.loadRelaxed()); };
     
     static WatchpointSet* fat(uintptr_t data)
     {
         return std::bit_cast<WatchpointSet*>(data);
     }
-    
+
+    // TSAN wave 5 (triage 12.6, REOPENED family 9): consume-ordered read of
+    // the fat pointer. inflateSlow publishes the fat pointer with a release
+    // CAS, but lock-free readers load m_data RELAXED — without an ordering
+    // edge on the reader side, the WatchpointSet's construction writes are not
+    // ordered before the dereference and a compiler thread can observe a
+    // mid-init set. Dependency::fence(data).consume(...) carries an address
+    // dependency from the m_data load to every load through the returned
+    // pointer (the mythical C++ consume), pairing with the release publish at
+    // zero ordering cost: a compiler fence on TSO, a self-eor on ARM. No
+    // acquire load, so flag-off fast paths keep plain loads.
+    static WatchpointSet* consumeFat(uintptr_t data)
+    {
+        ASSERT(isFat(data));
+        return Dependency::fence(data).consume(fat(data));
+    }
+
     WatchpointSet* fat()
     {
-        ASSERT(isFat());
-        return fat(m_data);
+        uintptr_t data = m_data.loadRelaxed();
+        ASSERT(isFat(data));
+        return consumeFat(data);
     }
-    
+
     const WatchpointSet* fat() const
     {
-        ASSERT(isFat());
-        return fat(m_data);
+        uintptr_t data = m_data.loadRelaxed();
+        ASSERT(isFat(data));
+        return consumeFat(data);
     }
 
     JS_EXPORT_PRIVATE WatchpointSet* inflateSlow();
     JS_EXPORT_PRIVATE void NODELETE freeFat();
-    
-    uintptr_t m_data;
+
+    // TSAN wave 2 (triage 3.6): the thin/fat word is read lock-free from
+    // compiler threads and other mutators while inflateSlow publishes the fat
+    // pointer; relaxed Atomic word, with the inflateSlow publish a release CAS
+    // (the WatchpointSet's contents are release-ordered before the fat pointer
+    // becomes visible). Flag-off codegen is unchanged: relaxed word
+    // loads/stores compile to plain loads/stores.
+    Atomic<uintptr_t> m_data;
 };
 
 // SPEC-jit section 5.6 deferral: the deferred fireAllSlow overload behaves as

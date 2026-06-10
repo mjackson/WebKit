@@ -1,0 +1,24 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+ThreadSanitizer:DEADLYSIGNAL
+==2801459==ERROR: ThreadSanitizer: SEGV on unknown address 0x0072a00000c7 (pc 0x7f3679c1cbc4 bp 0x7ffcbea1ed30 sp 0x7ffcbea1ed00 T2801459)
+==2801459==The signal is caused by a READ memory access.
+    #0 <null> <null> (0x7f3679c1cbc4)
+    #1 <null> <null> (0x7f3679c103f5)
+    #2 llint_call_javascript LowLevelInterpreter.cpp (jsc+0x1e00f88)
+    #3 JSC::Interpreter::executeProgram(JSC::SourceCode const&, JSC::JSGlobalObject*, JSC::JSObject*) /root/WebKit/Source/JavaScriptCore/interpreter/Interpreter.cpp:1225:28 (jsc+0xe8999e)
+    #4 JSC::evaluate(JSC::JSGlobalObject*, JSC::SourceCode const&, JSC::JSValue, WTF::NakedPtr<JSC::Exception>&) /root/WebKit/Source/JavaScriptCore/runtime/Completion.cpp:145:37 (jsc+0x13c3de3)
+    #5 runWithOptions(GlobalObject*, CommandLine&, bool&) /root/WebKit/Source/JavaScriptCore/jsc.cpp:3957:35 (jsc+0x1cafc5)
+    #6 jscmain(int, char**)::$_0::operator()(JSC::VM&, GlobalObject*, bool&) const /root/WebKit/Source/JavaScriptCore/jsc.cpp:4686:13 (jsc+0x1cafc5)
+    #7 int runJSC<jscmain(int, char**)::$_0>(CommandLine const&, bool, jscmain(int, char**)::$_0 const&) /root/WebKit/Source/JavaScriptCore/jsc.cpp:4472:13 (jsc+0x1cafc5)
+    #8 jscmain(int, char**) /root/WebKit/Source/JavaScriptCore/jsc.cpp:4679:18 (jsc+0x1cafc5)
+    #9 main /root/WebKit/Source/JavaScriptCore/jsc.cpp:3715:15 (jsc+0x1c9803)
+    #10 __libc_start_call_main <null> (libc.so.6+0x2a60f) (BuildId: f272aa838db85055a63d6886f3ca9646107c1609)
+
+==2801459==Register values:
+rax = 0x000072a00000c360  rbx = 0x0000000000000001  rcx = 0xfffe000000000002  rdx = 0x000072a00000c1a0  
+rdi = 0x00000072a00000c1  rsi = 0x00000072a00000c1  rbp = 0x00007ffcbea1ed30  rsp = 0x00007ffcbea1ed00  
+ r8 = 0x00007f3500000000   r9 = 0x0000000000000008  r10 = 0x00007f3679c1ccd7  r11 = 0x00007ffcbe53f220  
+r12 = 0x000072a400000f40  r13 = 0x00007298000058e8  r14 = 0xfffe000000000000  r15 = 0xfffe000000000002  
+ThreadSanitizer can not provide additional info.
+SUMMARY: ThreadSanitizer: SEGV (<unknown module>) 
+==2801459==ABORTING

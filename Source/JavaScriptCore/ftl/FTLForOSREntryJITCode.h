@@ -29,6 +29,7 @@
 
 #include "FTLJITCode.h"
 #include <limits>
+#include <wtf/Atomics.h>
 #include <wtf/FixedVector.h>
 
 namespace JSC { namespace FTL {
@@ -61,8 +62,12 @@ public:
     void setBytecodeIndex(BytecodeIndex value) { m_bytecodeIndex = value; }
     BytecodeIndex bytecodeIndex() const { return m_bytecodeIndex; }
     
-    void countEntryFailure() { m_entryFailureCount++; }
-    unsigned entryFailureCount() const { return m_entryFailureCount; }
+    // THREADS §5.7.1 (TSAN-TRIAGE family 2): the entry-failure count is bumped from the
+    // FTL OSR-entry slow path by any of N mutators racing into the same entry CodeBlock
+    // and read by the retry heuristic; relaxed atomic add/load on the plain field, lost
+    // counts benign (advisory retry datum). Flag-off semantics/codegen unchanged.
+    void countEntryFailure() { WTF::atomicExchangeAdd(&m_entryFailureCount, 1u, std::memory_order_relaxed); }
+    unsigned entryFailureCount() const { return WTF::atomicLoad(const_cast<unsigned*>(&m_entryFailureCount), std::memory_order_relaxed); }
     
     ForOSREntryJITCode* ftlForOSREntry() final;
 

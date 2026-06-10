@@ -34,6 +34,12 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+// UNGIL §A.3 (AB-10) cross-TU seams — defined in runtime/VMManager.cpp;
+// declaration pattern matches heap/Heap.cpp:151, heap/LocalAllocator.cpp:45
+// and heap/BlockDirectory.cpp:45. Signatures must stay byte-identical.
+bool jsThreadsThreadGranularWorldIsStopped(); // §A.3.2 post-quiescence depth.
+bool jsThreadsCurrentThreadIsStopConductor(); // §A.3.3 tenure check.
+
 std::array<unsigned, MarkedSpace::numSizeClasses> MarkedSpace::s_sizeClassForSizeStep;
 
 namespace {
@@ -354,7 +360,13 @@ void MarkedSpace::stopAllocating()
     // license flushing while other client threads run — their inline/LLInt
     // fast paths pop their FreeLists without any lock (I2). Outside teardown,
     // shared-mode callers must be the conductor while WSAC.
-    ASSERT(!heap().isSharedServer() || heap().worldIsStoppedForAllClients() || heap().mutatorSlowPathLock().isHeld());
+    // UNGIL §K.5 class-4 (AB-10): a §A.3 thread-granular window's CONDUCTOR
+    // is also licensed — its §A.3.2 predicate parks every other entered
+    // mutator at poll sites outside MSPL/BVL holds (the AB18-D argument at
+    // LocalAllocator.cpp:assertSharedAllocatorMutationIsSafe), so no client
+    // FreeList fast path can be in flight; haveABadTime's conversion-walk
+    // HeapIterationScope reaches here from inside that window.
+    ASSERT(!heap().isSharedServer() || heap().worldIsStoppedForAllClients() || heap().mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
     forEachDirectory(
         [&] (BlockDirectory& directory) -> IterationStatus {
             directory.stopAllocating();
@@ -418,7 +430,10 @@ void MarkedSpace::resumeAllocating()
     // SharedGC (§5.2(4), T8): resume is conductor-side (still inside the stop
     // window — §10 step 8 strictly precedes the VMM resume) or a
     // MSPL-holding iterator's didFinishIterating.
-    ASSERT(!heap().isSharedServer() || heap().worldIsStoppedForAllClients() || heap().mutatorSlowPathLock().isHeld());
+    // UNGIL §K.5 class-4 (AB-10): the §A.3 conductor disjunct mirrors
+    // stopAllocating() above — didFinishIterating from haveABadTime's
+    // in-window HeapIterationScope resumes here before the window closes.
+    ASSERT(!heap().isSharedServer() || heap().worldIsStoppedForAllClients() || heap().mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
     m_conservativeScanIsPrepared = false;
     forEachDirectory(
         [&] (BlockDirectory& directory) -> IterationStatus {

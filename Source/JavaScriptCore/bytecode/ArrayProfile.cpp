@@ -123,14 +123,14 @@ void dumpArrayModes(PrintStream& out, ArrayModes arrayModes)
         out.print(comma, "BigUint64ArrayMode"_s);
 }
 
-SUPPRESS_TSAN void ArrayProfile::computeUpdatedPrediction(CodeBlock* codeBlock)
+void ArrayProfile::computeUpdatedPrediction(CodeBlock* codeBlock)
 {
-    // THREADS §5.7.5/§5.7.7 (SPEC-jit Task 12): the structure-ID words are plain,
-    // word-atomic and advisory; a racing std::exchange can at worst re-merge or drop one
-    // observation, which is benign (I12).
-    if (auto structureID = std::exchange(m_lastSeenStructureID, StructureID()))
+    // THREADS §5.7.5/§5.7.7 (SPEC-jit Task 12): the structure-ID words are advisory;
+    // C++ accesses use relaxed word-atomics (JIT'd stores stay plain per §5.7.1). A racing
+    // exchange can at worst re-merge or drop one observation, which is benign (I12).
+    if (auto structureID = WTF::atomicExchange(&m_lastSeenStructureID, StructureID(), std::memory_order_relaxed))
         computeUpdatedPrediction(codeBlock, structureID.decode());
-    if (auto structureID = std::exchange(m_speculationFailureStructureID, StructureID()))
+    if (auto structureID = WTF::atomicExchange(&m_speculationFailureStructureID, StructureID(), std::memory_order_relaxed))
         computeUpdatedPrediction(codeBlock, structureID.decode());
 }
 
@@ -165,7 +165,7 @@ void ArrayProfile::computeUpdatedPrediction(CodeBlock* codeBlock, Structure* las
 
 void ArrayProfile::observeIndexedRead(JSCell* cell, unsigned index)
 {
-    m_lastSeenStructureID = cell->structureID();
+    observeStructureID(cell->structureID()); // THREADS §5.7.7: relaxed word-atomic advisory store.
 
     if (JSObject* object = dynamicDowncast<JSObject>(cell)) {
         if (hasAnyArrayStorage(object->indexingType()) && index >= object->getVectorLength())
@@ -186,22 +186,25 @@ CString ArrayProfile::briefDescription(CodeBlock* codeBlock)
     return briefDescriptionWithoutUpdating();
 }
 
-SUPPRESS_TSAN CString ArrayProfile::briefDescriptionWithoutUpdating()
+CString ArrayProfile::briefDescriptionWithoutUpdating()
 {
+    // THREADS §5.7.5: diagnostic-only relaxed snapshots.
     StringPrintStream out;
     CommaPrinter comma;
 
-    if (m_observedArrayModes)
-        out.print(comma, ArrayModesDump(m_observedArrayModes));
-    if (m_arrayProfileFlags.contains(ArrayProfileFlag::MayStoreHole))
+    ArrayModes modesSnapshot = WTF::atomicLoad(&m_observedArrayModes, std::memory_order_relaxed);
+    auto flagsSnapshot = arrayProfileFlagsConcurrently();
+    if (modesSnapshot)
+        out.print(comma, ArrayModesDump(modesSnapshot));
+    if (flagsSnapshot.contains(ArrayProfileFlag::MayStoreHole))
         out.print(comma, "Hole"_s);
-    if (m_arrayProfileFlags.contains(ArrayProfileFlag::OutOfBounds))
+    if (flagsSnapshot.contains(ArrayProfileFlag::OutOfBounds))
         out.print(comma, "OutOfBounds"_s);
-    if (m_arrayProfileFlags.contains(ArrayProfileFlag::MayInterceptIndexedAccesses))
+    if (flagsSnapshot.contains(ArrayProfileFlag::MayInterceptIndexedAccesses))
         out.print(comma, "Intercept"_s);
-    if (!m_arrayProfileFlags.contains(ArrayProfileFlag::UsesNonOriginalArrayStructures))
+    if (!flagsSnapshot.contains(ArrayProfileFlag::UsesNonOriginalArrayStructures))
         out.print(comma, "Original"_s);
-    if (!m_arrayProfileFlags.contains(ArrayProfileFlag::MayBeResizableOrGrowableSharedTypedArray))
+    if (!flagsSnapshot.contains(ArrayProfileFlag::MayBeResizableOrGrowableSharedTypedArray))
         out.print(comma, "Resizable"_s);
 
     return out.toCString();

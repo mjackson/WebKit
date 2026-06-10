@@ -166,13 +166,35 @@ private:
     JSString(VM& vm, Ref<StringImpl>&& value)
         : JSCell(CreatingWellDefinedBuiltinCell, vm.stringStructure.get()->id(), defaultTypeInfoBlob())
     {
-        new (&uninitializedValueInternal()) String(WTF::move(value));
+        // TSAN family rope-stringimpl (OM ground truth: shared cells are racy
+        // with re-dispatch): a recycled cell can still be probed by stale
+        // lock-free readers (concurrent compilers / GC) through
+        // fiberConcurrently() while this constructor initializes it, so the
+        // init store must be an annotated relaxed atomic store. Same one
+        // pointer-sized store and ownership transfer as the placement-new
+        // String construction it replaces (String holds exactly one
+        // RefPtr<StringImpl>); identical codegen on every supported target.
+        static_assert(sizeof(String) == sizeof(StringImpl*));
+#if TSAN_ENABLED
+        // TSAN (r11 reports 17/18/20/21): release so a sibling Thread's
+        // TSAN-gated fiberConcurrently() acquire synchronizes with this
+        // publication and the fresh impl's contents (allocated just before on
+        // this thread) become visible to TSAN's happens-before model.
+        // Production stays relaxed: ownership transfer + the address
+        // dependency into the immutable impl order the contents on every
+        // supported target (see the fiberConcurrently protocol comment).
+        WTF::atomicStore(&m_fiber, std::bit_cast<uintptr_t>(&value.leakRef()), std::memory_order_release);
+#else
+        WTF::atomicStore(&m_fiber, std::bit_cast<uintptr_t>(&value.leakRef()), std::memory_order_relaxed);
+#endif
     }
 
     JSString(VM& vm)
         : JSCell(CreatingWellDefinedBuiltinCell, vm.stringStructure.get()->id(), defaultTypeInfoBlob())
-        , m_fiber(isRopeInPointer)
     {
+        // See above: relaxed atomic init store for stale lock-free readers of
+        // a recycled cell.
+        WTF::atomicStore(&m_fiber, isRopeInPointer, std::memory_order_relaxed);
     }
 
     void finishCreation(VM& vm, unsigned length)
@@ -303,17 +325,35 @@ protected:
 
     inline JSString* tryReplaceOneCharImpl(JSGlobalObject*, char16_t search, JSString* replacement, uint8_t* stackLimit, bool& found);
 
-    // UNGIL V7 (read side only): m_fiber can be republished by a concurrent
-    // JSRopeString::convertToNonRope (JSStringInlines.h) while lock-free
-    // readers snapshot it, so the read must be an annotated relaxed atomic
-    // load (same codegen as the plain load on every supported target).
-    // NOTE: the publish side in convertToNonRope is still a PLAIN
-    // placement-new store — the TSAN JSString::fiberConcurrently family
-    // persists, and the C++ HB story for the pointee's contents is
-    // incomplete, until the out-of-scope companion (release-ordered atomic
-    // publish of m_fiber, plus a consume/acquire-or-documented-dependency
-    // ruling on this load) lands. V7 triage must expect that residual.
-    uintptr_t fiberConcurrently() const { return WTF::atomicLoad(&m_fiber, std::memory_order_relaxed); }
+    // UNGIL V7 (read side): m_fiber can be republished by a concurrent
+    // JSRopeString::convertToNonRope (JSStringInlines.h) or
+    // JSString::swapToAtomString while lock-free readers snapshot it, so the
+    // read must be an annotated relaxed atomic load (same codegen as the
+    // plain load on every supported target). Write sides now atomic in this
+    // header: constructors + JSRopeString initialize* are relaxed stores
+    // (recycled-cell stale readers), swapToAtomString is a release-ordered
+    // atomicExchange (contents of the published impl happen-before any
+    // acquire reader; relaxed readers rely on the address-dependency into the
+    // immutable impl, per the OM ground-truth re-dispatch rule).
+    // The publish in convertToNonRope (JSStringInlines.h) is the release
+    // companion: a release-ordered atomicStore of the resolved impl pointer
+    // (TSAN-TRIAGE §11.17), mirroring swapToAtomString.
+    uintptr_t fiberConcurrently() const
+    {
+#if TSAN_ENABLED
+        // TSAN-gated acquire (recorded in TSAN-TRIAGE; §13.4-style gate): the
+        // production protocol relies on address-dependency ordering from this
+        // relaxed load to the resolved StringImpl's contents (convertToNonRope /
+        // swapToAtomString publish with a release store). TSAN cannot model
+        // dependency ordering, so without an acquire here every content read of
+        // a concurrently-resolved rope is reported against the resolver's
+        // copyElements. Acquire is a plain load on x86-64; production stays
+        // relaxed (dependency ordering is sufficient on all supported targets).
+        return WTF::atomicLoad(&m_fiber, std::memory_order_acquire);
+#else
+        return WTF::atomicLoad(&m_fiber, std::memory_order_relaxed);
+#endif
+    }
 
     mutable uintptr_t m_fiber;
 
@@ -375,41 +415,64 @@ public:
     class CompactFibers {
     public:
         static constexpr uintptr_t addressMask = (1ULL << OS_CONSTANT(EFFECTIVE_ADDRESS_WIDTH)) - 1;
+        // TSAN family rope-stringimpl (OM ground truth: shared cells are racy
+        // with re-dispatch): the split fiber/length words are written only at
+        // rope creation, but recycled cells can still be probed by stale
+        // lock-free readers (concurrent compilers / GC) while a new rope's
+        // constructor initializes them, so every C++ access must be an
+        // annotated relaxed atomic. Wave-5 review amendment: the LITTLE_ENDIAN
+        // single unaligned wide load is KEPT for non-TSAN builds — replacing
+        // it unconditionally with two narrow relaxed loads was a flag-off
+        // codegen change on hot rope paths (resolveRope*, iterRope*, GC
+        // visitChildren), which the campaign rules forbid. The value race on
+        // these words is exactly the blessed §5.7/OM-ground-truth class the
+        // wide load always had. Under TSAN_ENABLED ONLY (unaligned atomics do
+        // not exist, so the wide load cannot be annotated), readers compose
+        // per-field relaxed loads instead — same values, TSAN-visible — the
+        // precedent shape of Structure.h tsanRelaxedLoad. This TSAN-only
+        // divergence is recorded in docs/threads/TSAN-TRIAGE.md (§13).
+        // PRECONDITION (load-bearing): under TSAN the two relaxed loads are
+        // independent, so a reader racing initializeFiber* can assemble a TORN
+        // pointer that no thread ever wrote. This is sound only under the OM
+        // ground-truth re-dispatch rule: no concurrent consumer may
+        // dereference a fiber value without first re-validating the cell.
+        // fiber1()/fiber2() values are NOT dereference-safe in concurrent
+        // code — the unaligned wide load relies on the same rule.
         JSString* fiber1() const
         {
-#if CPU(LITTLE_ENDIAN)
+#if CPU(LITTLE_ENDIAN) && !TSAN_ENABLED
             return std::bit_cast<JSString*>(WTF::unalignedLoad<uintptr_t>(&m_fiber1Lower) & addressMask);
 #else
-            return std::bit_cast<JSString*>(static_cast<uintptr_t>(m_fiber1Lower) | (static_cast<uintptr_t>(m_fiber1Upper) << 32));
+            return std::bit_cast<JSString*>(static_cast<uintptr_t>(WTF::atomicLoad(&m_fiber1Lower, std::memory_order_relaxed)) | (static_cast<uintptr_t>(WTF::atomicLoad(&m_fiber1Upper, std::memory_order_relaxed)) << 32));
 #endif
         }
 
         void initializeFiber1(JSString* fiber)
         {
             uintptr_t pointer = std::bit_cast<uintptr_t>(fiber);
-            m_fiber1Lower = static_cast<uint32_t>(pointer);
-            m_fiber1Upper = static_cast<uint16_t>(pointer >> 32);
+            WTF::atomicStore(&m_fiber1Lower, static_cast<uint32_t>(pointer), std::memory_order_relaxed);
+            WTF::atomicStore(&m_fiber1Upper, static_cast<uint16_t>(pointer >> 32), std::memory_order_relaxed);
         }
 
         JSString* fiber2() const
         {
-#if CPU(LITTLE_ENDIAN)
+#if CPU(LITTLE_ENDIAN) && !TSAN_ENABLED
             return std::bit_cast<JSString*>(WTF::unalignedLoad<uintptr_t>(&m_fiber1Upper) >> 16);
 #else
-            return std::bit_cast<JSString*>(static_cast<uintptr_t>(m_fiber2Lower) | (static_cast<uintptr_t>(m_fiber2Upper) << 16));
+            return std::bit_cast<JSString*>(static_cast<uintptr_t>(WTF::atomicLoad(&m_fiber2Lower, std::memory_order_relaxed)) | (static_cast<uintptr_t>(WTF::atomicLoad(&m_fiber2Upper, std::memory_order_relaxed)) << 16));
 #endif
         }
         void initializeFiber2(JSString* fiber)
         {
             uintptr_t pointer = std::bit_cast<uintptr_t>(fiber);
-            m_fiber2Lower = static_cast<uint16_t>(pointer);
-            m_fiber2Upper = static_cast<uint32_t>(pointer >> 16);
+            WTF::atomicStore(&m_fiber2Lower, static_cast<uint16_t>(pointer), std::memory_order_relaxed);
+            WTF::atomicStore(&m_fiber2Upper, static_cast<uint32_t>(pointer >> 16), std::memory_order_relaxed);
         }
 
-        unsigned length() const { return m_length; }
+        unsigned length() const { return WTF::atomicLoad(&m_length, std::memory_order_relaxed); }
         void initializeLength(unsigned length)
         {
-            m_length = length;
+            WTF::atomicStore(&m_length, length, std::memory_order_relaxed);
         }
 
         static constexpr ptrdiff_t offsetOfLength() { return OBJECT_OFFSETOF(CompactFibers, m_length); }
@@ -421,38 +484,42 @@ public:
     private:
         friend class LLIntOffsetsExtractor;
 
-        uint32_t m_length { 0 };
-        uint32_t m_fiber1Lower { 0 };
-        uint16_t m_fiber1Upper { 0 };
-        uint16_t m_fiber2Lower { 0 };
-        uint32_t m_fiber2Upper { 0 };
+        // mutable so the const readers above can take non-const addresses for
+        // WTF::atomicLoad (same pattern as JSString::m_fiber).
+        mutable uint32_t m_length { 0 };
+        mutable uint32_t m_fiber1Lower { 0 };
+        mutable uint16_t m_fiber1Upper { 0 };
+        mutable uint16_t m_fiber2Lower { 0 };
+        mutable uint32_t m_fiber2Upper { 0 };
     };
     static_assert(sizeof(CompactFibers) == sizeof(void*) * 2);
 #else
     class CompactFibers {
     public:
+        // TSAN family rope-stringimpl: relaxed atomic accesses for stale
+        // lock-free readers of recycled cells — see the ADDRESS64 variant.
         JSString* fiber1() const
         {
-            return m_fiber1;
+            return WTF::atomicLoad(&m_fiber1, std::memory_order_relaxed);
         }
         void initializeFiber1(JSString* fiber)
         {
-            m_fiber1 = fiber;
+            WTF::atomicStore(&m_fiber1, fiber, std::memory_order_relaxed);
         }
 
         JSString* fiber2() const
         {
-            return m_fiber2;
+            return WTF::atomicLoad(&m_fiber2, std::memory_order_relaxed);
         }
         void initializeFiber2(JSString* fiber)
         {
-            m_fiber2 = fiber;
+            WTF::atomicStore(&m_fiber2, fiber, std::memory_order_relaxed);
         }
 
-        unsigned length() const { return m_length; }
+        unsigned length() const { return WTF::atomicLoad(&m_length, std::memory_order_relaxed); }
         void initializeLength(unsigned length)
         {
-            m_length = length;
+            WTF::atomicStore(&m_length, length, std::memory_order_relaxed);
         }
 
         static constexpr ptrdiff_t offsetOfLength() { return OBJECT_OFFSETOF(CompactFibers, m_length); }
@@ -462,9 +529,11 @@ public:
     private:
         friend class LLIntOffsetsExtractor;
 
-        uint32_t m_length { 0 };
-        JSString* m_fiber1 { nullptr };
-        JSString* m_fiber2 { nullptr };
+        // mutable so the const readers above can take non-const addresses for
+        // WTF::atomicLoad (same pattern as JSString::m_fiber).
+        mutable uint32_t m_length { 0 };
+        mutable JSString* m_fiber1 { nullptr };
+        mutable JSString* m_fiber2 { nullptr };
     };
 #endif
 
@@ -554,20 +623,32 @@ private:
 
     void convertToNonRope(String&&) const;
 
+    // TSAN family rope-stringimpl: these initializers run only inside the
+    // constructor of a freshly allocated (possibly recycled) cell — a single
+    // writer — but stale lock-free readers (concurrent compilers / GC) can
+    // still probe the recycled cell concurrently (OM ground truth: shared
+    // cells are racy with re-dispatch), so the writes must be annotated
+    // relaxed atomic stores. No atomic RMW is needed: there is exactly one
+    // writer during construction, so a relaxed load + relaxed store of the
+    // recombined word is sufficient and keeps the plain-store codegen.
     void initializeIs8Bit(bool flag) const
     {
+        uintptr_t fiber = WTF::atomicLoad(&m_fiber, std::memory_order_relaxed);
         if (flag)
-            m_fiber |= is8BitInPointer;
+            fiber |= is8BitInPointer;
         else
-            m_fiber &= ~is8BitInPointer;
+            fiber &= ~is8BitInPointer;
+        WTF::atomicStore(&m_fiber, fiber, std::memory_order_relaxed);
     }
 
     void initializeIsSubstring(bool flag) const
     {
+        uintptr_t fiber = WTF::atomicLoad(&m_fiber, std::memory_order_relaxed);
         if (flag)
-            m_fiber |= isSubstringInPointer;
+            fiber |= isSubstringInPointer;
         else
-            m_fiber &= ~isSubstringInPointer;
+            fiber &= ~isSubstringInPointer;
+        WTF::atomicStore(&m_fiber, fiber, std::memory_order_relaxed);
     }
 
     ALWAYS_INLINE void initializeLength(unsigned length)
@@ -730,9 +811,13 @@ private:
 
     void initializeFiber0(JSString* fiber)
     {
+        // TSAN family rope-stringimpl: constructor-only single-writer store
+        // racing stale lock-free readers of a recycled cell; relaxed atomic
+        // load + store (see initializeIs8Bit).
         uintptr_t pointer = std::bit_cast<uintptr_t>(fiber);
         ASSERT(!(pointer & ~stringMask));
-        m_fiber = (pointer | (m_fiber & ~stringMask));
+        uintptr_t bits = WTF::atomicLoad(&m_fiber, std::memory_order_relaxed);
+        WTF::atomicStore(&m_fiber, pointer | (bits & ~stringMask), std::memory_order_relaxed);
     }
 
     void initializeFiber1(JSString* fiber)
@@ -884,10 +969,34 @@ ALWAYS_INLINE void JSString::swapToAtomString(VM& vm, RefPtr<AtomStringImpl>&& a
     // So, we keep the old string alive by appending it to Heap::m_possiblyAccessedStringsFromConcurrentThreads. And GC clears that list when GC finishes.
     // This is OK since (1) when finishing GC concurrent compiler threads and GC threads are stopped, and (2) AtomString is already held in the atom table,
     // and we anyway keep this old string until this JSString* is GC-ed. So it does not increase any memory pressure, we release at the same timing.
+    //
+    // TSAN family rope-stringimpl: this republish of m_fiber races lock-free
+    // readers (fiberConcurrently), so it must be an annotated atomic store.
+    // The release ordering replaces (and subsumes) the storeStoreFence the
+    // plain String::swap publication used: the atom impl's contents
+    // happen-before any reader that observes the new bits.
     ASSERT(!isCompilationThread() && !Thread::mayBeGCThread());
-    String target(WTF::move(atom));
-    WTF::storeStoreFence(); // Ensure AtomStringImpl's string is fully initialized when it is exposed to concurrent threads.
-    valueInternal().swap(target);
+    RefPtr<StringImpl> newImpl = WTF::move(atom);
+    uintptr_t newBits = std::bit_cast<uintptr_t>(newImpl.leakRef());
+    uintptr_t oldBits;
+    if (vm.gilOff()) [[unlikely]] {
+        // GIL-off: N mutators can race to atomize the same cell. A pair of
+        // plain read-old/store-new swaps would hand BOTH losers the same old
+        // impl (double-adopt -> over-deref/UAF) and leak a winner's atom ref.
+        // A release atomicExchange transfers ownership of exactly one prior
+        // value to exactly one thread regardless of interleaving (every
+        // published impl is either still in the cell or owned by exactly one
+        // exchanger below).
+        oldBits = WTF::atomicExchange(&m_fiber, newBits, std::memory_order_release);
+    } else {
+        // GIL-on / flag-off: single mutator; same one-load/one-store shape as
+        // the String::swap it replaces (release store == plain store + the
+        // old storeStoreFence on every supported target).
+        oldBits = WTF::atomicLoad(&m_fiber, std::memory_order_relaxed);
+        WTF::atomicStore(&m_fiber, newBits, std::memory_order_release);
+    }
+    ASSERT(!(oldBits & isRopeInPointer));
+    String target(adoptRef(std::bit_cast<StringImpl*>(oldBits)));
     vm.heap.appendPossiblyAccessedStringFromConcurrentThreads(WTF::move(target));
 }
 
@@ -898,8 +1007,16 @@ ALWAYS_INLINE Identifier JSString::toIdentifier(JSGlobalObject* globalObject) co
     if (isRope())
         return static_cast<const JSRopeString*>(this)->toIdentifier(globalObject);
     VM& vm = getVM(globalObject);
-    if (valueInternal().impl()->isAtom())
-        return Identifier::fromString(vm, Ref { *static_cast<AtomStringImpl*>(valueInternal().impl()) });
+    // TSAN family rope-stringimpl: snapshot the published impl ONCE through
+    // the annotated relaxed load (getValueImpl). Each valueInternal().impl()
+    // is a PLAIN load of m_fiber that races a concurrent swapToAtomString
+    // republish (release atomicExchange) under gilOff. The snapshot is the
+    // same single load instruction, so flag-off codegen is unchanged, and
+    // single-mutator flag-off semantics are identical (m_fiber cannot change
+    // under our feet there).
+    StringImpl* impl = getValueImpl();
+    if (impl->isAtom())
+        return Identifier::fromString(vm, Ref { *static_cast<AtomStringImpl*>(impl) });
     // GIL-off: vm.lastAtomizedIdentifier{String,AtomString}Impl is a
     // SINGLE-MUTATOR memoization pair (two plain Ref members) — N threads
     // racing it interleave the two writes and the read below, returning the
@@ -910,18 +1027,23 @@ ALWAYS_INLINE Identifier JSString::toIdentifier(JSGlobalObject* globalObject) co
     // useSharedAtomStringTable) and keep the swap-publication path.
     // GIL-on / flag-off: branch dead, memoization byte-identical.
     if (vm.gilOff()) [[unlikely]] {
-        Ref<AtomStringImpl> atom = AtomStringImpl::add(valueInternal().impl()).releaseNonNull();
-        if (!valueInternal().impl()->isAtom())
+        // Note: re-checking isAtom() on the SNAPSHOT (not a fresh m_fiber
+        // read) is sound: AtomStringImpl::add can atomize `impl` in place
+        // (flag read is the atomic hashAndFlags), and if another thread
+        // already swapped the cell to an atom, our extra swapToAtomString is
+        // an idempotent atom-for-atom exchange.
+        Ref<AtomStringImpl> atom = AtomStringImpl::add(impl).releaseNonNull();
+        if (!impl->isAtom())
             swapToAtomString(vm, RefPtr { atom.ptr() });
         return Identifier::fromString(vm, WTF::move(atom));
     }
-    if (vm.lastAtomizedIdentifierStringImpl.ptr() != valueInternal().impl()) {
-        vm.lastAtomizedIdentifierStringImpl = *valueInternal().impl();
-        vm.lastAtomizedIdentifierAtomStringImpl = AtomStringImpl::add(valueInternal().impl()).releaseNonNull();
+    if (vm.lastAtomizedIdentifierStringImpl.ptr() != impl) {
+        vm.lastAtomizedIdentifierStringImpl = *impl;
+        vm.lastAtomizedIdentifierAtomStringImpl = AtomStringImpl::add(impl).releaseNonNull();
     }
-    // It is possible that AtomStringImpl::add converts existing valueInternal()'s StringImpl to AtomicStringImpl,
+    // It is possible that AtomStringImpl::add converts the existing StringImpl to AtomicStringImpl in place,
     // thus we need to recheck atomicity status here.
-    if (!valueInternal().impl()->isAtom())
+    if (!impl->isAtom())
         swapToAtomString(vm, RefPtr { vm.lastAtomizedIdentifierAtomStringImpl.ptr() });
     return Identifier::fromString(vm, Ref { vm.lastAtomizedIdentifierAtomStringImpl });
 }
@@ -932,11 +1054,18 @@ ALWAYS_INLINE GCOwnedDataScope<AtomStringImpl*> JSString::toAtomString(JSGlobalO
         getVM(globalObject).verifyCanGC();
     if (isRope())
         return { this, static_cast<const JSRopeString*>(this)->resolveRopeToAtomString(globalObject) };
-    if (valueInternal().impl()->isAtom())
-        return { this, static_cast<AtomStringImpl*>(valueInternal().impl()) };
-    AtomString atom(valueInternal());
+    // TSAN family rope-stringimpl: snapshot the published impl through the
+    // annotated relaxed load (getValueImpl) instead of plain m_fiber reads
+    // racing a concurrent swapToAtomString republish (see toIdentifier). The
+    // final return re-reads the cell: after our swap the cell holds an atom
+    // (ours, or a racing winner's — non-rope cells are only ever republished
+    // with atoms), so the cast remains valid either way.
+    StringImpl* impl = getValueImpl();
+    if (impl->isAtom())
+        return { this, static_cast<AtomStringImpl*>(impl) };
+    AtomString atom(impl);
     swapToAtomString(getVM(globalObject), atom.releaseImpl());
-    return { this, static_cast<AtomStringImpl*>(valueInternal().impl()) };
+    return { this, static_cast<AtomStringImpl*>(getValueImpl()) };
 }
 
 ALWAYS_INLINE GCOwnedDataScope<AtomStringImpl*> JSString::toExistingAtomString(JSGlobalObject* globalObject) const
@@ -945,11 +1074,14 @@ ALWAYS_INLINE GCOwnedDataScope<AtomStringImpl*> JSString::toExistingAtomString(J
         getVM(globalObject).verifyCanGC();
     if (isRope())
         return static_cast<const JSRopeString*>(this)->resolveRopeToExistingAtomString(globalObject);
-    if (valueInternal().impl()->isAtom())
-        return { this, static_cast<AtomStringImpl*>(valueInternal().impl()) };
-    if (auto atom = AtomStringImpl::lookUp(valueInternal().impl())) {
+    // TSAN family rope-stringimpl: annotated relaxed snapshot of the
+    // published impl; see toAtomString above.
+    StringImpl* impl = getValueImpl();
+    if (impl->isAtom())
+        return { this, static_cast<AtomStringImpl*>(impl) };
+    if (auto atom = AtomStringImpl::lookUp(impl)) {
         swapToAtomString(getVM(globalObject), WTF::move(atom));
-        return { this, static_cast<AtomStringImpl*>(valueInternal().impl()) };
+        return { this, static_cast<AtomStringImpl*>(getValueImpl()) };
     }
     return { };
 }
@@ -971,8 +1103,12 @@ inline void JSString::value(jsstring_iterator* iterator) const
       }
 
 
-    auto internal = valueInternal().impl();
-    if (this->is8Bit()) {
+    // TSAN family rope-stringimpl: snapshot the published impl through the
+    // annotated relaxed load, and derive 8-bit-ness from the SAME snapshot
+    // (a second m_fiber load could observe a different impl republished by a
+    // concurrent swapToAtomString). Flag-off: identical loads and behavior.
+    auto* internal = getValueImpl();
+    if (internal->is8Bit()) {
         auto span8 = internal->span8();
         iterator->append8(iterator, (void*)span8.data(), span8.size());
     } else {
@@ -1254,19 +1390,30 @@ ALWAYS_INLINE GCOwnedDataScope<StringView> JSRopeString::view(JSGlobalObject* gl
     if constexpr (validateDFGDoesGC)
         getVM(globalObject).verifyCanGC();
     if (isSubstring()) {
-        auto& base = substringBase()->valueInternal();
+        // TSAN family rope-stringimpl: read the base's published impl through
+        // the annotated relaxed load; a plain String read of the base's
+        // m_fiber races a concurrent swapToAtomString republish.
+        auto* baseImpl = substringBase()->getValueImpl();
         // We return the substring as that's the owner and JSStringJoiner will end up retaining a reference to the underlying string.
-        return { substringBase(), StringView { base }.substring(substringOffset(), length()) };
+        return { substringBase(), StringView { *baseImpl }.substring(substringOffset(), length()) };
     }
-    auto& string = resolveRope(globalObject);
-    return { this, string };
+    resolveRope(globalObject);
+    if (JSString::isRope()) [[unlikely]] // OOM: resolveRope failed; surface an empty view (caller sees the exception).
+        return { this, StringView { } };
+    // TSAN family rope-stringimpl: snapshot the published impl through the
+    // annotated relaxed load (a plain String read of m_fiber races another
+    // thread's resolver/atomizer republish).
+    return { this, StringView { *getValueImpl() } };
 }
 
 ALWAYS_INLINE GCOwnedDataScope<StringView> JSString::view(JSGlobalObject* globalObject) const
 {
     if (isRope())
         return static_cast<const JSRopeString&>(*this).view(globalObject);
-    return { this, valueInternal() };
+    // TSAN family rope-stringimpl: build the view from the annotated relaxed
+    // impl snapshot rather than a plain String read of m_fiber (which races a
+    // concurrent swapToAtomString republish). Same single load flag-off.
+    return { this, StringView { *getValueImpl() } };
 }
 
 inline bool JSString::isSubstring() const

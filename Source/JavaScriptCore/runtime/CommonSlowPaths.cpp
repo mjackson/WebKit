@@ -61,6 +61,7 @@
 #include "ObjectConstructor.h"
 #include "ScopedArguments.h"
 #include "TypeProfilerLog.h"
+#include <wtf/Atomics.h>
 #include "runtime/Error.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -330,18 +331,25 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_to_this)
     auto bytecode = pc->as<OpToThis>();
     auto& metadata = bytecode.metadata(codeBlock);
     JSValue v1 = GET(bytecode.m_srcDst).jsValue();
+    // GIL-off (TSAN family codeblock-init): op_to_this metadata is per-CodeBlock
+    // profiling state that multiple threads can hit when they share a CodeBlock.
+    // The cached-structure word and status byte are advisory (racy-profiling
+    // tolerance, JIT spec §5.7.7 / UNGIL §K): a stale or torn-free lost update
+    // only degrades the DFG's ToThis prediction. Plain mixed-thread accesses are
+    // UB, so route them through relaxed atomics; flag-off codegen is unchanged
+    // (relaxed load/store compile to the same plain load/store).
     if (v1.isCell()) {
         StructureID myStructureID = v1.asCell()->structureID();
-        StructureID otherStructureID = metadata.m_cachedStructureID;
+        StructureID otherStructureID = WTF::atomicLoad(&metadata.m_cachedStructureID, std::memory_order_relaxed);
         if (myStructureID != otherStructureID) {
             if (otherStructureID)
-                metadata.m_toThisStatus = ToThisConflicted;
-            metadata.m_cachedStructureID = myStructureID;
+                WTF::atomicStore(&metadata.m_toThisStatus, ToThisConflicted, std::memory_order_relaxed);
+            WTF::atomicStore(&metadata.m_cachedStructureID, myStructureID, std::memory_order_relaxed);
             vm.writeBarrier(codeBlock, myStructureID.decode());
         }
     } else {
-        metadata.m_toThisStatus = ToThisConflicted;
-        metadata.m_cachedStructureID = StructureID();
+        WTF::atomicStore(&metadata.m_toThisStatus, ToThisConflicted, std::memory_order_relaxed);
+        WTF::atomicStore(&metadata.m_cachedStructureID, StructureID(), std::memory_order_relaxed);
     }
     // Note: We only need to do this value profiling here on the slow path. The fast path
     // just returns the input to to_this if the structure check succeeds. If the structure
@@ -860,13 +868,13 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
     auto& iterator = GET(bytecode.m_iterator);
 
     auto iterationMode = getIterationMode(vm, globalObject, iterable, symbolIterator);
-    if (iterationMode != IterationMode::Generic && !canUseFastIterationMode(metadata.m_iterationMetadata.seenModes, iterationMode)) [[unlikely]]
+    if (iterationMode != IterationMode::Generic && !canUseFastIterationMode(CommonSlowPaths::loadIterationModeSeenModesConcurrently(metadata.m_iterationMetadata), iterationMode)) [[unlikely]]
         iterationMode = IterationMode::Generic;
 
     switch (iterationMode) {
     case IterationMode::FastArray: {
         // We should be good to go.
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::FastArray;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, IterationMode::FastArray); // THREADS §5.7.7
         GET(bytecode.m_next) = vm.fastArrayValuesSentinel();
         auto* iteratedObject = uncheckedDowncast<JSObject>(iterable);
         iterator = JSArrayIterator::create(vm, globalObject->arrayIteratorStructure(), iteratedObject, IterationKind::Values);
@@ -880,7 +888,7 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
         auto* arrayIterator = uncheckedDowncast<JSArrayIterator>(iterable.asCell());
         auto* array = downcast<JSArray>(arrayIterator->iteratedObject());
         ASSERT_UNUSED(array, isJSArray(array));
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | iterationMode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, iterationMode); // THREADS §5.7.7
         JSSentinel* sentinel = nullptr;
         switch (iterationMode) {
         case IterationMode::FastArrayValues: sentinel = vm.fastArrayValuesSentinel(); break;
@@ -895,7 +903,7 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
     }
 
     case IterationMode::FastMap: {
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::FastMap;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, IterationMode::FastMap); // THREADS §5.7.7
         GET(bytecode.m_next) = vm.fastMapEntriesSentinel();
         auto* map = uncheckedDowncast<JSMap>(iterable);
         iterator = JSMapIterator::create(vm, globalObject->mapIteratorStructure(), map, IterationKind::Entries);
@@ -907,7 +915,7 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
     case IterationMode::FastMapValues:
     case IterationMode::FastMapEntries: {
         ASSERT_UNUSED(iterable, dynamicDowncast<JSMapIterator>(iterable.asCell()));
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | iterationMode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, iterationMode); // THREADS §5.7.7
         JSSentinel* sentinel = nullptr;
         switch (iterationMode) {
         case IterationMode::FastMapKeys: sentinel = vm.fastMapKeysSentinel(); break;
@@ -922,7 +930,7 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
     }
 
     case IterationMode::FastSet: {
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::FastSet;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, IterationMode::FastSet); // THREADS §5.7.7
         GET(bytecode.m_next) = vm.fastSetValuesSentinel();
         auto* set = uncheckedDowncast<JSSet>(iterable);
         iterator = JSSetIterator::create(vm, globalObject->setIteratorStructure(), set, IterationKind::Values);
@@ -933,7 +941,7 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
     case IterationMode::FastSetValues:
     case IterationMode::FastSetEntries: {
         ASSERT_UNUSED(iterable, dynamicDowncast<JSSetIterator>(iterable.asCell()));
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | iterationMode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, iterationMode); // THREADS §5.7.7
         JSSentinel* sentinel = nullptr;
         switch (iterationMode) {
         case IterationMode::FastSetValues: sentinel = vm.fastSetValuesSentinel(); break;
@@ -947,7 +955,7 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
     }
 
     case IterationMode::FastString: {
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::FastString;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, IterationMode::FastString); // THREADS §5.7.7
         GET(bytecode.m_next) = vm.fastStringValuesSentinel();
         auto* string = asString(iterable);
         iterator = JSStringIterator::create(vm, globalObject->stringIteratorStructure(), string);
@@ -963,7 +971,7 @@ ALWAYS_INLINE UGPRPair iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObj
         }
 
         // Return to the bytecode to try in generic mode.
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::Generic;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, IterationMode::Generic); // THREADS §5.7.7
         return encodeResult(pc, reinterpret_cast<void*>(static_cast<uintptr_t>(IterationMode::Generic)));
     }
     }
@@ -1017,7 +1025,7 @@ ALWAYS_INLINE UGPRPair iteratorNextTryFastImpl(VM& vm, JSGlobalObject* globalObj
             break;
         }
 
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | mode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, mode); // THREADS §5.7.7
         auto& indexSlot = arrayIterator->internalField(JSArrayIterator::Field::Index);
         int64_t index = indexSlot.get().asAnyInt();
         ASSERT(index == JSArrayIterator::doneIndex || (0 <= index && index <= maxSafeInteger()));
@@ -1069,7 +1077,7 @@ ALWAYS_INLINE UGPRPair iteratorNextTryFastImpl(VM& vm, JSGlobalObject* globalObj
             mode = IterationMode::FastMapEntries;
             break;
         }
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | mode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, mode); // THREADS §5.7.7
 
         auto result = mapIterator->nextWithAdvance(vm);
         bool done = result.key.isEmpty();
@@ -1106,7 +1114,7 @@ ALWAYS_INLINE UGPRPair iteratorNextTryFastImpl(VM& vm, JSGlobalObject* globalObj
             mode = IterationMode::FastSetEntries;
             break;
         }
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | mode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, mode); // THREADS §5.7.7
 
         JSValue nextKey = setIterator->nextWithAdvance(vm);
         bool done = nextKey.isEmpty();
@@ -1130,7 +1138,7 @@ ALWAYS_INLINE UGPRPair iteratorNextTryFastImpl(VM& vm, JSGlobalObject* globalObj
     }
 
     if (auto stringIterator = dynamicDowncast<JSStringIterator>(iterator)) {
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::FastString;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, IterationMode::FastString); // THREADS §5.7.7
         JSString* value = stringIterator->nextWithAdvance(globalObject, vm);
         CHECK_EXCEPTION();
         bool done = !value;
@@ -1180,6 +1188,15 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_to_primitive)
 
 JSC_DEFINE_COMMON_SLOW_PATH(slow_path_enter)
 {
+#if TSAN_ENABLED
+    // Residual-2 recycled-cell class (TSAN §18 mop-up, narrowed at the
+    // thread-closeout final review): op_enter is the entry op, so a stale
+    // CodeBlock cell recycled across Threads can be probed here (m_vm via
+    // BEGIN(), m_scopeRegister, m_couldBeTainted). Acquire the ctor edge
+    // ONCE, keyed on the cell, before BEGIN()'s first read; plain
+    // CodeBlock::vm() stays unannotated engine-wide (see CodeBlock.h).
+    callFrame->codeBlock()->vmConcurrentProbe();
+#endif
     BEGIN();
     Heap::heap(codeBlock)->writeBarrier(codeBlock);
     GET(codeBlock->scopeRegister()) = uncheckedDowncast<JSCallee>(callFrame->jsCallee())->scope();
@@ -1239,7 +1256,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_enumerator_next)
     JSString* name = enumerator->computeNext(globalObject, base, index, mode);
     CHECK_EXCEPTION();
 
-    metadata.m_enumeratorMetadata |= static_cast<uint8_t>(mode);
+    WTF::atomicStore(&metadata.m_enumeratorMetadata, static_cast<uint8_t>(WTF::atomicLoad(&metadata.m_enumeratorMetadata, std::memory_order_relaxed) | static_cast<uint8_t>(mode)), std::memory_order_relaxed); // THREADS §5.7.7: relaxed profiling byte (lost |= tolerated).
     modeRegister = jsNumber(static_cast<uint8_t>(mode));
     indexRegister = jsNumber(index);
     nameRegister = name ? name : vm.smallStrings.sentinelString();
@@ -1254,7 +1271,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_enumerator_get_by_val)
     JSValue propertyName = GET(bytecode.m_propertyName).jsValue();
     auto& metadata = bytecode.metadata(codeBlock);
     auto mode = static_cast<JSPropertyNameEnumerator::Flag>(GET(bytecode.m_mode).jsValue().asUInt32());
-    metadata.m_enumeratorMetadata |= static_cast<uint8_t>(mode);
+    WTF::atomicStore(&metadata.m_enumeratorMetadata, static_cast<uint8_t>(WTF::atomicLoad(&metadata.m_enumeratorMetadata, std::memory_order_relaxed) | static_cast<uint8_t>(mode)), std::memory_order_relaxed); // THREADS §5.7.7: relaxed profiling byte (lost |= tolerated).
     JSPropertyNameEnumerator* enumerator = uncheckedDowncast<JSPropertyNameEnumerator>(GET(bytecode.m_enumerator).jsValue());
     unsigned index = GET(bytecode.m_index).jsValue().asInt32();
 
@@ -1268,7 +1285,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_enumerator_in_by_val)
     JSValue baseValue = GET_C(bytecode.m_base).jsValue();
     auto& metadata = bytecode.metadata(codeBlock);
     auto mode = static_cast<JSPropertyNameEnumerator::Flag>(GET(bytecode.m_mode).jsValue().asUInt32());
-    metadata.m_enumeratorMetadata |= static_cast<uint8_t>(mode);
+    WTF::atomicStore(&metadata.m_enumeratorMetadata, static_cast<uint8_t>(WTF::atomicLoad(&metadata.m_enumeratorMetadata, std::memory_order_relaxed) | static_cast<uint8_t>(mode)), std::memory_order_relaxed); // THREADS §5.7.7: relaxed profiling byte (lost |= tolerated).
 
     CHECK_EXCEPTION();
     JSPropertyNameEnumerator* enumerator = uncheckedDowncast<JSPropertyNameEnumerator>(GET(bytecode.m_enumerator).jsValue());
@@ -1293,7 +1310,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_enumerator_put_by_val)
     JSValue value = GET_C(bytecode.m_value).jsValue();
     auto& metadata = bytecode.metadata(codeBlock);
     auto mode = static_cast<JSPropertyNameEnumerator::Flag>(GET(bytecode.m_mode).jsValue().asUInt32());
-    metadata.m_enumeratorMetadata |= static_cast<uint8_t>(mode);
+    WTF::atomicStore(&metadata.m_enumeratorMetadata, static_cast<uint8_t>(WTF::atomicLoad(&metadata.m_enumeratorMetadata, std::memory_order_relaxed) | static_cast<uint8_t>(mode)), std::memory_order_relaxed); // THREADS §5.7.7: relaxed profiling byte (lost |= tolerated).
     JSPropertyNameEnumerator* enumerator = uncheckedDowncast<JSPropertyNameEnumerator>(GET(bytecode.m_enumerator).jsValue());
     unsigned index = GET(bytecode.m_index).jsValue().asInt32();
 
@@ -1308,7 +1325,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_enumerator_has_own_property)
     JSValue baseValue = GET_C(bytecode.m_base).jsValue();
     auto& metadata = bytecode.metadata(codeBlock);
     auto mode = static_cast<JSPropertyNameEnumerator::Flag>(GET(bytecode.m_mode).jsValue().asUInt32());
-    metadata.m_enumeratorMetadata |= static_cast<uint8_t>(mode);
+    WTF::atomicStore(&metadata.m_enumeratorMetadata, static_cast<uint8_t>(WTF::atomicLoad(&metadata.m_enumeratorMetadata, std::memory_order_relaxed) | static_cast<uint8_t>(mode)), std::memory_order_relaxed); // THREADS §5.7.7: relaxed profiling byte (lost |= tolerated).
 
     JSPropertyNameEnumerator* enumerator = uncheckedDowncast<JSPropertyNameEnumerator>(GET(bytecode.m_enumerator).jsValue());
     if (auto* base = baseValue.getObject()) {
@@ -1392,14 +1409,14 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_resolve_scope)
             CHECK_EXCEPTION();
             if (hasProperty) {
                 ConcurrentJSLocker locker(codeBlock->m_lock);
-                metadata.m_resolveType = needsVarInjectionChecks(resolveType) ? GlobalPropertyWithVarInjectionChecks : GlobalProperty;
+                WTF::atomicStore(&metadata.m_resolveType, static_cast<ResolveType>(needsVarInjectionChecks(resolveType) ? GlobalPropertyWithVarInjectionChecks : GlobalProperty), std::memory_order_relaxed); // THREADS: lock-free readers load this atomically.
                 metadata.m_globalObject.set(vm, codeBlock, globalObject);
                 metadata.m_globalLexicalBindingEpoch = globalObject->globalLexicalBindingEpoch();
             }
         } else if (resolvedScope->isGlobalLexicalEnvironment()) {
             JSGlobalLexicalEnvironment* globalLexicalEnvironment = uncheckedDowncast<JSGlobalLexicalEnvironment>(resolvedScope);
             ConcurrentJSLocker locker(codeBlock->m_lock);
-            metadata.m_resolveType = needsVarInjectionChecks(resolveType) ? GlobalLexicalVarWithVarInjectionChecks : GlobalLexicalVar;
+            WTF::atomicStore(&metadata.m_resolveType, static_cast<ResolveType>(needsVarInjectionChecks(resolveType) ? GlobalLexicalVarWithVarInjectionChecks : GlobalLexicalVar), std::memory_order_relaxed); // THREADS: lock-free readers load this atomically.
             metadata.m_globalLexicalEnvironment.set(vm, codeBlock, globalLexicalEnvironment);
         }
         break;

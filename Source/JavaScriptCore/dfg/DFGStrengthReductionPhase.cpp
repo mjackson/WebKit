@@ -1163,6 +1163,30 @@ private:
                 return true;
             };
 
+            // UNGIL A16 EXTENSION (AUD1.K2/SD19, U-T4b): foldToConstant()
+            // inserts RecordRegExpCachedResult and convertTestToTestInline()
+            // emits inline cached-result stores; both write the SHARED
+            // in-object RegExpCachedResult stream (five plain multi-word
+            // stores: lastRegExp/lastInput/result.start/result.end + reify
+            // flip) from whichever thread executes the compiled code. GIL-off
+            // that interleaves with another thread's record()/lastResult()
+            // and cross-pairs (input, start/end) — leftContext() then takes
+            // jsSubstring past the input's length: a MEMORY-SAFETY (OOB)
+            // race, not stale legacy statics. Until the lite-resident
+            // m_regExpGlobalData re-point (A16-ext jit slice) lands, gilOff
+            // compilations refuse these conversions and keep the generic
+            // nodes, which lower to the C++ operations — already re-pointed
+            // per-thread via threadRegExpGlobalData(). convertToStatic()
+            // stays valid gilOff: RegExpExecNonGlobalOrSticky lowers to an
+            // operation call. The emission-time fail-stop tripwires in
+            // DFGSpeculativeJIT(64).cpp / FTLLowerDFGToB3.cpp back this gate
+            // up. Flag-off/GIL-on takes the unchanged path below.
+            if (vm().gilOff()) [[unlikely]] {
+                if (convertToStatic())
+                    break;
+                break;
+            }
+
             if (foldToConstant())
                 break;
 

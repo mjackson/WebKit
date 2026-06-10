@@ -136,7 +136,7 @@ inline bool AbstractSlotVisitor::addOpaqueRoot(void* ptr)
         return false;
     if (m_needsExtraOpaqueRootHandling) [[unlikely]]
         didAddOpaqueRoot(ptr);
-    m_visitCount++;
+    WTF::atomicStore(&m_visitCount, WTF::atomicLoad(&m_visitCount, std::memory_order_relaxed) + 1, std::memory_order_relaxed); // Single-writer counter; see visitCount().
     return true;
 }
 
@@ -230,7 +230,7 @@ ALWAYS_INLINE ReferrerToken AbstractSlotVisitor::referrer() const
 
 ALWAYS_INLINE void AbstractSlotVisitor::reset()
 {
-    m_visitCount = 0;
+    WTF::atomicStore(&m_visitCount, static_cast<size_t>(0), std::memory_order_relaxed);
 }
 
 } // namespace JSC

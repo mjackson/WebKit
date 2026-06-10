@@ -207,7 +207,19 @@ inline StructureChain* Structure::prototypeChain(VM& vm, JSGlobalObject* globalO
     if (!isValid(globalObject, m_cachedPrototypeChain.get(), base)) {
         JSValue prototype = prototypeForLookup(globalObject, base);
         const_cast<Structure*>(this)->clearCachedPrototypeChain();
-        m_cachedPrototypeChain.set(vm, this, StructureChain::create(vm, prototype.isNull() ? nullptr : asObject(prototype)));
+        // TSAN family structure-fields (§10.9 prototypeChain key, 8 reports):
+        // this is the LOCK-FREE writer of the chain slot; the readers
+        // (cachedPrototypeChainConcurrently, canCachePropertyNameEnumerator,
+        // the GC null store in visitChildrenImpl) are relaxed-atomic, but
+        // .set()'s setEarlyValue is a RawPtrTraits::exchange PLAIN store.
+        // Relaxed-atomic store + explicit barrier — identical codegen. The
+        // chain's lanes were release-published by StructureChain::
+        // finishCreation's constructor-tail fence before this publish store.
+        StructureChain* chain = StructureChain::create(vm, prototype.isNull() ? nullptr : asObject(prototype));
+        ASSERT(!Options::useConcurrentJIT() || !isCompilationThread()); // Same assert .set() performed.
+        validateCell(chain);
+        m_cachedPrototypeChain.setWithoutWriteBarrier(chain);
+        vm.writeBarrier(this, chain);
     }
     return m_cachedPrototypeChain.get();
 }
@@ -219,13 +231,22 @@ inline bool Structure::isValid(JSGlobalObject* globalObject, StructureChain* cac
 
     JSValue prototype = prototypeForLookup(globalObject, base);
     StructureID* cachedStructure = cachedPrototypeChain->head();
-    while (*cachedStructure && !prototype.isNull()) {
-        if (asObject(prototype)->structureID() != *cachedStructure)
+    // TSAN family structure-fields: relaxed 32-bit loads of the chain lanes —
+    // StructureChain::finishCreation writes them with relaxed atomic stores on
+    // possibly recycled auxiliary memory (see that function). Same mov codegen.
+    auto loadCachedStructureID = [](StructureID* lane) {
+        static_assert(sizeof(StructureID) == sizeof(uint32_t));
+        return std::bit_cast<StructureID>(WTF::atomicLoad(reinterpret_cast<uint32_t*>(lane), std::memory_order_relaxed));
+    };
+    StructureID cachedStructureID = loadCachedStructureID(cachedStructure);
+    while (cachedStructureID && !prototype.isNull()) {
+        if (asObject(prototype)->structureID() != cachedStructureID)
             return false;
         ++cachedStructure;
+        cachedStructureID = loadCachedStructureID(cachedStructure);
         prototype = asObject(prototype)->getPrototypeDirect();
     }
-    return prototype.isNull() && !*cachedStructure;
+    return prototype.isNull() && !cachedStructureID;
 }
 
 inline void Structure::didCachePropertyReplacement(VM& vm, PropertyOffset offset)
@@ -600,20 +621,50 @@ ALWAYS_INLINE void Structure::setPrototypeWithoutTransition(VM& vm, JSValue prot
 
 ALWAYS_INLINE void Structure::setRealm(VM& vm, JSGlobalObject* globalObject)
 {
-    m_realm.set(vm, this, globalObject);
+    // TSAN family structure-fields: realm()/globalObject() readers are
+    // relaxed-atomic (WriteBarrierBase::get) and may probe recycled /
+    // just-published Structures; .set()'s setEarlyValue is a plain exchange.
+    // Relaxed store + explicit barrier, identical codegen.
+    ASSERT(globalObject);
+    ASSERT(!Options::useConcurrentJIT() || !isCompilationThread()); // Same assert .set() performed.
+    validateCell(globalObject);
+    m_realm.setWithoutWriteBarrier(globalObject);
+    vm.writeBarrier(this, globalObject);
 }
 
 ALWAYS_INLINE void Structure::setPropertyTable(VM& vm, PropertyTable* table)
 {
-    m_propertyTableUnsafe.setMayBeNull(vm, this, table);
+    // TSAN families structure-fields/property-table (§10.9 fixShape (3)):
+    // readers of this slot (propertyTableOrNull / ensurePropertyTable* via
+    // WriteBarrierBase::get, and the GC clear in visitChildrenImpl) are
+    // relaxed-atomic, but setMayBeNull stores through setEarlyValue ->
+    // RawPtrTraits::exchange, a PLAIN store — the 26+36-report writer key.
+    // Route the store through the relaxed-atomic storeCell
+    // (setWithoutWriteBarrier) + an explicit barrier — same validation, same
+    // barrier, identical single-mov codegen flag-off.
+    if (table)
+        validateCell(table);
+    m_propertyTableUnsafe.setWithoutWriteBarrier(table);
+    vm.writeBarrier(this, table);
 }
 
 ALWAYS_INLINE void Structure::setPreviousID(VM& vm, Structure* structure)
 {
     if (hasRareData())
         rareData()->setPreviousID(vm, structure);
-    else
-        m_previousOrRareData.set(vm, this, structure);
+    else {
+        // TSAN family structure-fields (§10.9 setPreviousID key, 5 reports):
+        // previousID() readers load this slot lock-free with relaxed/acquire
+        // atomics (previousOrRareDataConcurrently, Structure.h) and the
+        // flag-on clearPreviousID/allocateRareData writers CAS it; .set()'s
+        // setEarlyValue plain exchange was the last unpaired writer. Same
+        // shape as setPropertyTable above: validate + relaxed store + barrier.
+        ASSERT(structure);
+        ASSERT(!Options::useConcurrentJIT() || !isCompilationThread()); // Same assert .set() performed.
+        validateCell(static_cast<JSCell*>(structure));
+        m_previousOrRareData.setWithoutWriteBarrier(structure);
+        vm.writeBarrier(this, structure);
+    }
 }
 
 inline void Structure::pin(const AbstractLocker&, VM& vm, PropertyTable* table)
@@ -720,11 +771,17 @@ ALWAYS_INLINE bool Structure::shouldConvertToPolyProto(const Structure* a, const
 
     // We only care about Structure's generated from functions that share
     // the same executable.
-    const Box<InlineWatchpointSet>& aInlineWatchpointSet = a->rareData()->sharedPolyProtoWatchpoint();
-    const Box<InlineWatchpointSet>& bInlineWatchpointSet = b->rareData()->sharedPolyProtoWatchpoint();
-    if (!aInlineWatchpointSet || !bInlineWatchpointSet || aInlineWatchpointSet.get() != bInlineWatchpointSet.get())
+    // TSAN family structure-fields (§10.9 item (4)): identity-only check, so
+    // compare the Box pointer WORDS through the relaxed-atomic raw accessor
+    // instead of dereferencing the member through a const Box& (a plain load
+    // racing the flag-on CAS installer). Box::get() points at a fixed offset
+    // inside the RefCountable, so word equality <=> get() equality; identical
+    // load/compare codegen flag-off, and no ref-count traffic.
+    uintptr_t aInlineWatchpointSetWord = a->rareData()->sharedPolyProtoWatchpointWord();
+    uintptr_t bInlineWatchpointSetWord = b->rareData()->sharedPolyProtoWatchpointWord();
+    if (!aInlineWatchpointSetWord || !bInlineWatchpointSetWord || aInlineWatchpointSetWord != bInlineWatchpointSetWord)
         return false;
-    ASSERT(aInlineWatchpointSet && bInlineWatchpointSet && aInlineWatchpointSet.get() == bInlineWatchpointSet.get());
+    ASSERT(aInlineWatchpointSetWord && bInlineWatchpointSetWord && aInlineWatchpointSetWord == bInlineWatchpointSetWord);
 
     if (a->hasPolyProto() || b->hasPolyProto())
         return false;
@@ -845,7 +902,7 @@ ALWAYS_INLINE StructureTransitionTable::Hash::Key StructureTransitionTable::Hash
 
 inline Structure* StructureTransitionTable::trySingleTransition() const
 {
-    uintptr_t pointer = m_data;
+    uintptr_t pointer = static_cast<uintptr_t>(dataConcurrently()); // THREADS/TSAN: relaxed snapshot, same mov as the upstream plain load.
     if (pointer & UsingSingleSlotFlag)
         return std::bit_cast<Structure*>(pointer & ~UsingSingleSlotFlag);
     return nullptr;
@@ -867,15 +924,18 @@ void StructureTransitionTable::forEachTransition(const Functor& functor) const
 
 inline Structure* StructureTransitionTable::get(PointerKey rep, unsigned attributes, TransitionKind transitionKind) const
 {
-    if (isUsingSingleSlot()) {
-        auto* transition = trySingleTransition();
+    // Single snapshot of the table word (one load — upstream's plain code
+    // loaded it twice via isUsingSingleSlot + trySingleTransition).
+    uintptr_t data = static_cast<uintptr_t>(dataConcurrently());
+    if (data & UsingSingleSlotFlag) {
+        auto* transition = std::bit_cast<Structure*>(data & ~UsingSingleSlotFlag);
         if (!transition)
             return nullptr;
         if (Hash::createKeyFromStructure(transition) != Hash::createKey(rep, attributes, transitionKind))
             return nullptr;
         return transition;
     }
-    return map()->get(StructureTransitionTable::Hash::createKey(rep, attributes, transitionKind));
+    return std::bit_cast<TransitionMap*>(data)->get(StructureTransitionTable::Hash::createKey(rep, attributes, transitionKind));
 }
 
 // SPEC-objectmodel L6/I37 (Task 3c): see the declaration. Mirrors add()'s
@@ -884,15 +944,16 @@ inline Structure* StructureTransitionTable::get(PointerKey rep, unsigned attribu
 // Caller holds the owning Structure's m_lock flag-on.
 inline Structure* StructureTransitionTable::getMatching(Structure* candidate) const
 {
-    if (isUsingSingleSlot()) {
-        auto* transition = trySingleTransition();
+    uintptr_t data = static_cast<uintptr_t>(dataConcurrently()); // Single snapshot (see get()).
+    if (data & UsingSingleSlotFlag) {
+        auto* transition = std::bit_cast<Structure*>(data & ~UsingSingleSlotFlag);
         if (!transition)
             return nullptr;
         if (Hash::createKeyFromStructure(transition) != Hash::createKeyFromStructure(candidate))
             return nullptr;
         return transition;
     }
-    return map()->get(Hash::createKeyFromStructure(candidate));
+    return std::bit_cast<TransitionMap*>(data)->get(Hash::createKeyFromStructure(candidate));
 }
 
 inline void StructureTransitionTable::finalizeUnconditionally(VM& vm, CollectionScope)

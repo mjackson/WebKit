@@ -107,22 +107,31 @@ public:
     DECLARE_EXPORT_INFO;
 
 public:
+    // TSAN code-lifecycle (TSAN-TRIAGE.md section 3.5): m_jitCodeForCall /
+    // m_jitCodeForConstruct are the published jit-code pointers — replaced by
+    // a concurrent installCode while read lock-free here. All accesses go
+    // through ConcurrentJITCodePtr (consume-ordered load / release publish;
+    // see jit/JITCode.h). The single-load-then-deref shape below is load
+    // bearing: one atomic load, everything after is address-dependent.
     Ref<JSC::JITCode> generatedJITCodeForCall() const
     {
-        ASSERT(m_jitCodeForCall);
-        return *m_jitCodeForCall;
+        JSC::JITCode* jitCode = m_jitCodeForCall.get();
+        ASSERT(jitCode);
+        return *jitCode;
     }
 
     Ref<JSC::JITCode> generatedJITCodeForConstruct() const
     {
-        ASSERT(m_jitCodeForConstruct);
-        return *m_jitCodeForConstruct;
+        JSC::JITCode* jitCode = m_jitCodeForConstruct.get();
+        ASSERT(jitCode);
+        return *jitCode;
     }
 
     void* generatedJITCodeAddressForCall() const
     {
-        ASSERT(m_jitCodeForCall);
-        return m_jitCodeForCall->addressForCall();
+        JSC::JITCode* jitCode = m_jitCodeForCall.get();
+        ASSERT(jitCode);
+        return jitCode->addressForCall();
     }
 
     Ref<JSC::JITCode> generatedJITCodeFor(CodeSpecializationKind kind) const
@@ -135,12 +144,12 @@ public:
 
     CodePtr<JSEntryPtrTag> generatedJITCodeWithArityCheckForCall() const
     {
-        return m_jitCodeForCallWithArityCheck;
+        return concurrentCodePtrLoad(m_jitCodeForCallWithArityCheck);
     }
 
     CodePtr<JSEntryPtrTag> generatedJITCodeWithArityCheckForConstruct() const
     {
-        return m_jitCodeForConstructWithArityCheck;
+        return concurrentCodePtrLoad(m_jitCodeForConstructWithArityCheck);
     }
 
     CodePtr<JSEntryPtrTag> generatedJITCodeWithArityCheckFor(CodeSpecializationKind kind) const
@@ -159,11 +168,11 @@ public:
         if (arity == ArityCheckMode::MustCheckArity) {
             switch (kind) {
             case CodeSpecializationKind::CodeForCall:
-                if (CodePtr<JSEntryPtrTag> result = m_jitCodeForCallWithArityCheck)
+                if (CodePtr<JSEntryPtrTag> result = concurrentCodePtrLoad(m_jitCodeForCallWithArityCheck))
                     return result;
                 break;
             case CodeSpecializationKind::CodeForConstruct:
-                if (CodePtr<JSEntryPtrTag> result = m_jitCodeForConstructWithArityCheck)
+                if (CodePtr<JSEntryPtrTag> result = concurrentCodePtrLoad(m_jitCodeForConstructWithArityCheck))
                     return result;
                 break;
             }
@@ -202,10 +211,10 @@ public:
             // Cache the result; this is necessary for the JIT's virtual call optimizations.
             switch (kind) {
             case CodeSpecializationKind::CodeForCall:
-                m_jitCodeForCallWithArityCheck = result;
+                concurrentCodePtrStore(m_jitCodeForCallWithArityCheck, result);
                 break;
             case CodeSpecializationKind::CodeForConstruct:
-                m_jitCodeForConstructWithArityCheck = result;
+                concurrentCodePtrStore(m_jitCodeForConstructWithArityCheck, result);
                 break;
             }
         }
@@ -254,23 +263,29 @@ public:
 
     CodePtr<JSEntryPtrTag> swapGeneratedJITCodeForCallWithArityCheckForDebugger(CodePtr<JSEntryPtrTag> jitCodeForCallWithArityCheck)
     {
-        auto old = m_jitCodeForCallWithArityCheck;
-        m_jitCodeForCallWithArityCheck = jitCodeForCallWithArityCheck;
+        auto old = concurrentCodePtrLoad(m_jitCodeForCallWithArityCheck);
+        concurrentCodePtrStore(m_jitCodeForCallWithArityCheck, jitCodeForCallWithArityCheck);
         return old;
     }
 
     CodePtr<JSEntryPtrTag> swapGeneratedJITCodeForConstructWithArityCheckForDebugger(CodePtr<JSEntryPtrTag> jitCodeForConstructWithArityCheck)
     {
-        auto old = m_jitCodeForConstructWithArityCheck;
-        m_jitCodeForConstructWithArityCheck = jitCodeForConstructWithArityCheck;
+        auto old = concurrentCodePtrLoad(m_jitCodeForConstructWithArityCheck);
+        concurrentCodePtrStore(m_jitCodeForConstructWithArityCheck, jitCodeForConstructWithArityCheck);
         return old;
     }
     
     void dump(PrintStream&) const;
         
 protected:
-    RefPtr<JSC::JITCode> m_jitCodeForCall;
-    RefPtr<JSC::JITCode> m_jitCodeForConstruct;
+    // TSAN code-lifecycle (section 3.5): published jit-code pointers, replaced
+    // concurrently by installCode while read lock-free — all accesses are
+    // atomics via ConcurrentJITCodePtr / concurrentCodePtr{Load,Store}
+    // (jit/JITCode.h). Same single-pointer layout as the RefPtr/CodePtr these
+    // used to be, so offsetOfJITCodeWithArityCheckFor consumers and
+    // JIT-emitted loads are unaffected.
+    ConcurrentJITCodePtr m_jitCodeForCall;
+    ConcurrentJITCodePtr m_jitCodeForConstruct;
     CodePtr<JSEntryPtrTag> m_jitCodeForCallWithArityCheck;
     CodePtr<JSEntryPtrTag> m_jitCodeForConstructWithArityCheck;
 };

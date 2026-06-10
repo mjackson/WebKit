@@ -136,10 +136,29 @@ void Watchpoint::fire(VM& vm, const FireDetail& detail)
 }
 
 WatchpointSet::WatchpointSet(WatchpointState state, WatchpointSetClassification classification)
-    : m_state(state)
-    , m_setIsNotEmpty(false)
-    , m_invalidatesCode(classification == WatchpointSetClassification::InvalidatesCode)
 {
+    // TSAN wave 5 (triage 12.6, REOPENED family 9): initialize via relaxed
+    // STORES, not the Atomic value constructor — the value constructor is a
+    // plain (non-atomic) store, and when this set is the fat set allocated by
+    // InlineWatchpointSet::inflateSlow it becomes reachable to lock-free
+    // compiler-thread readers (state()/isStillValid() through the thin/fat
+    // word) the moment the release CAS publishes the pointer; those readers'
+    // accesses are atomic, so these construction writes must be too. Ordering
+    // against the publish is the release CAS on the writer side plus the
+    // consume-ordered fat-pointer read on the reader side
+    // (InlineWatchpointSet::consumeFat); relaxed is sufficient here. Relaxed
+    // byte stores compile to plain byte stores: flag-off codegen unchanged.
+    m_state.storeRelaxed(state);
+    m_setIsNotEmpty.storeRelaxed(false);
+    m_invalidatesCode.storeRelaxed(classification == WatchpointSetClassification::InvalidatesCode);
+    // TSAN r11 (reports 14/15/25/26/27/28): publication choke point for the
+    // consume-published fresh set — pairs with the HAPPENS_AFTER in state()
+    // and InferredValueWatchpointSet::inferredValue(). The real edge is the
+    // release CAS (inflateSlow) / fence-before-pointer-publish on the owner
+    // side, which TSAN cannot model; the annotation records "construction
+    // happens-before any cross-thread probe", which is trivially true (the
+    // probe needs the published pointer). No-op outside TSAN.
+    TSAN_ANNOTATE_HAPPENS_BEFORE(this);
 }
 
 WatchpointSet::~WatchpointSet()
@@ -173,8 +192,11 @@ void WatchpointSet::add(Watchpoint* watchpoint)
     // object model). Serialize the link against concurrent add/remove.
     MembershipLocker locker;
     m_set.push(watchpoint);
-    m_setIsNotEmpty = true;
-    m_state = IsWatched;
+    // Relaxed stores (triage 3.6): concurrent lock-free state()/isBeingWatched()
+    // readers tolerate staleness by design; no ordering is implied here beyond
+    // what the membership lock already provides to other add/remove paths.
+    m_setIsNotEmpty.storeRelaxed(true);
+    m_state.storeRelaxed(IsWatched);
 }
 
 // ===== SPEC-jit section 5.6: central Class-A fire protocol =====
@@ -307,7 +329,7 @@ void WatchpointSet::fireAllNow(VM& vm, const FireDetail& detail)
     ASSERT(state() == IsWatched);
 
     WTF::storeStoreFence();
-    m_state = IsInvalidated; // Do this first. Needed for adaptive watchpoints.
+    m_state.storeRelaxed(IsInvalidated); // Do this first. Needed for adaptive watchpoints. Ordering comes from the surrounding F4 fence pair / STW barrier, as before.
     fireAllWatchpoints(vm, detail);
     WTF::storeStoreFence(); // F4: this fence pair stays; Class-A fires additionally ride the stop entry/exit barrier.
 }
@@ -320,7 +342,7 @@ void WatchpointSet::fireAllSlow(VM& vm, const FireDetail& detail)
     // deliberately no ">1 mutator" gate (G7/I10: VM construction does not
     // synchronize with an in-flight inline fire). Class-B sets and data-only
     // FireDetails (rare-site override) fire exactly as today.
-    if (Options::useJSThreads() && m_invalidatesCode && !detail.fireIsDataOnly()) [[unlikely]] {
+    if (Options::useJSThreads() && m_invalidatesCode.loadRelaxed() && !detail.fireIsDataOnly()) [[unlikely]] {
         fireAllUnderClassAStop(vm, detail);
         return;
     }
@@ -361,7 +383,7 @@ void WatchpointSet::fireAllSlow(VM&, DeferredWatchpointFire* deferredWatchpoints
 
     WTF::storeStoreFence();
     deferredWatchpoints->takeWatchpointsToFire(this);
-    m_state = IsInvalidated; // Do after moving watchpoints to deferredWatchpoints so deferredWatchpoints gets our current state.
+    m_state.storeRelaxed(IsInvalidated); // Do after moving watchpoints to deferredWatchpoints so deferredWatchpoints gets our current state.
     WTF::storeStoreFence();
 }
 
@@ -426,10 +448,10 @@ void WatchpointSet::take(WatchpointSet* other)
     // install on the source set).
     MembershipLocker locker;
     m_set.takeFrom(other->m_set);
-    m_setIsNotEmpty = other->m_setIsNotEmpty;
-    m_state = other->m_state;
-    m_invalidatesCode = other->m_invalidatesCode; // SPEC-jit section 5.6: a deferred fire keeps the source set's classification.
-    other->m_setIsNotEmpty = false;
+    m_setIsNotEmpty.storeRelaxed(other->m_setIsNotEmpty.loadRelaxed());
+    m_state.storeRelaxed(other->m_state.loadRelaxed());
+    m_invalidatesCode.storeRelaxed(other->m_invalidatesCode.loadRelaxed()); // SPEC-jit section 5.6: a deferred fire keeps the source set's classification.
+    other->m_setIsNotEmpty.storeRelaxed(false);
 }
 
 void InlineWatchpointSet::add(Watchpoint* watchpoint)
@@ -453,14 +475,33 @@ WatchpointSet* InlineWatchpointSet::inflateSlow()
     // (Readers of m_data stay lock-free: the publish below is
     // fence-then-store, as before.)
     MembershipLocker locker;
-    if (Options::useJSThreads() && isFat()) [[unlikely]]
-        return fat();
-    ASSERT(isThin());
+    uintptr_t data = m_data.loadRelaxed();
+    if (Options::useJSThreads() && isFat(data)) [[unlikely]]
+        return fat(data);
+    ASSERT(isThin(data));
     // Transfer the construction-time classification to the fat set (I10).
-    WatchpointSetClassification classification = (m_data & ClassBFlag) ? WatchpointSetClassification::DataOnly : WatchpointSetClassification::InvalidatesCode;
-    WatchpointSet* fat = &WatchpointSet::create(decodeState(m_data), classification).leakRef();
-    WTF::storeStoreFence();
-    m_data = std::bit_cast<uintptr_t>(fat);
+    WatchpointSetClassification classification = (data & ClassBFlag) ? WatchpointSetClassification::DataOnly : WatchpointSetClassification::InvalidatesCode;
+    WatchpointSet* fat = &WatchpointSet::create(decodeState(data), classification).leakRef();
+    // TSAN wave 2 (triage 3.6): publish the fat pointer with a release CAS so
+    // the WatchpointSet's initialized contents are ordered before the pointer
+    // becomes visible to lock-free relaxed readers of m_data (this replaces
+    // the old storeStoreFence + plain store, which was UB against those
+    // readers). The CAS cannot fail: flag-on, the thin->fat transition is
+    // serialized by the membership lock (re-checked above) and thin-state
+    // stores require the owner's serialization; flag-off there is a single
+    // mutator. Asserted below.
+    //
+    // TSAN wave 5 (triage 12.6, REOPENED family 9): the release CAS alone was
+    // not enough — WatchpointSet::create above ran the Atomic value
+    // constructors (plain stores), and the lock-free readers load m_data
+    // RELAXED, so there was no reader-side edge ordering the construction
+    // writes before the dereference. Both halves are now fixed at their
+    // source: the WatchpointSet constructor initializes m_state /
+    // m_setIsNotEmpty / m_invalidatesCode via relaxed atomic stores, and every
+    // fat-pointer dereference goes through the consume-ordered
+    // InlineWatchpointSet::consumeFat, which pairs with this release publish.
+    uintptr_t prior = m_data.compareExchangeStrong(data, std::bit_cast<uintptr_t>(fat), std::memory_order_release);
+    ASSERT_UNUSED(prior, prior == data);
     return fat;
 }
 

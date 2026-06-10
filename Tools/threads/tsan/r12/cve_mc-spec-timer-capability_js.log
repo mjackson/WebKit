@@ -1,0 +1,2 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+MC-SPEC witness: 4542 counter ticks in 50ms (~91 ticks/ms); 74292/100000 back-to-back load pairs advanced

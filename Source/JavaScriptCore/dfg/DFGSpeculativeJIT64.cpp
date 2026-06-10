@@ -3017,6 +3017,21 @@ void SpeculativeJIT::compileGetByVal(Node* node, const ScopedLambda<std::tuple<J
 #if ENABLE(YARR_JIT_REGEXP_TEST_INLINE)
 void SpeculativeJIT::compileRegExpTestInline(Node* node)
 {
+    if (vm().gilOff()) [[unlikely]] {
+        // UNGIL A16 EXTENSION (AUD1.K2/SD19, U-T4b) — FAIL-STOP TRIPWIRE
+        // (sibling of compileRecordRegExpCachedResult): the inline success
+        // path below stores the SHARED in-object RegExpCachedResult stream
+        // (lastRegExp/lastInput/result.start/result.end + reify flip) —
+        // a torn multi-word cross-thread race with an OOB-substring
+        // consequence in leftContext(), uninstrumentable by TSAN. gilOff
+        // compiles must never reach here: DFGStrengthReductionPhase refuses
+        // convertTestToTestInline() when gilOff, so RegExpTest lowers to the
+        // re-pointed operation instead. GIL-on/flag-off emission below is
+        // byte-for-byte unchanged.
+        DFG_CRASH(m_graph, node, "RegExpTestInline gilOff emission requires the lite-resident m_regExpGlobalData copy (A16-ext, not landed)");
+        return;
+    }
+
     RegExp* regExp = uncheckedDowncast<RegExp>(node->cellOperand2()->value());
 
     auto jitCodeBlock = regExp->getRegExpJITCodeBlock();

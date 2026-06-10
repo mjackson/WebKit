@@ -208,17 +208,22 @@ inline bool StructureRareData::tryCachePropertyNameEnumeratorViaWatchpoint(VM&, 
         return false;
 
     unsigned size = 0;
-    for (auto* current = chain->head(); *current; ++current) {
+    // THREADS/TSAN: relaxed lane loads (see StructureChain::loadLaneConcurrently).
+    for (auto* current = chain->head();; ++current) {
+        StructureID structureID = StructureChain::loadLaneConcurrently(current);
+        if (!structureID)
+            break;
         ++size;
-        StructureID structureID = *current;
         Structure* structure = structureID.decode();
         if (!structure->propertyNameEnumeratorShouldWatch())
             return false;
     }
     m_cachedPropertyNameEnumeratorWatchpoints = FixedVector<StructureChainInvalidationWatchpoint>(size);
     unsigned index = 0;
-    for (auto* current = chain->head(); *current; ++current) {
-        StructureID structureID = *current;
+    for (auto* current = chain->head(); index < size; ++current) {
+        StructureID structureID = StructureChain::loadLaneConcurrently(current);
+        if (!structureID)
+            break;
         Structure* structure = structureID.decode();
         m_cachedPropertyNameEnumeratorWatchpoints[index].install(this, structure);
         ++index;

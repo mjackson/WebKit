@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/ThreadSanitizerSupport.h>
+
 #include "CodeBlock.h"
 #include "ConcatKeyAtomStringCache.h"
 #include "Identifier.h"
@@ -36,6 +38,10 @@ namespace JSC {
 template<typename Func>
 inline JSString* ConcatKeyAtomStringCache::getOrInsert(VM& vm, JSString* s0, JSString* s1, JSString* s2, const Func& func)
 {
+    // THREADS/TSAN: pairs with the TSAN_ANNOTATE_HAPPENS_BEFORE in
+    // DFG::Graph::tryAddConcatKeyAtomStringCache (the pointer arrives baked in
+    // JIT'd code; the real ordering is code installation). No-op outside TSAN.
+    TSAN_ANNOTATE_HAPPENS_AFTER(this);
     JSString* variable = nullptr;
     switch (m_mode) {
     case Mode::Variable0: {

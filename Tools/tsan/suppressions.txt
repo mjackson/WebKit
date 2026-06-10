@@ -271,3 +271,187 @@ race:JSC::Heap::overCriticalMemoryThreshold
 # (flag-off codegen changed: GC-path atomic RMWs in shared upstream code),
 # GIL-on corpus (92 tests), pinned V2/V3/V4 rungs.
 # ============================================================================
+
+# ============================================================================
+# Wave-7 adjudication (r7, 2026-06-09): GC/allocator-recycled-memory probes.
+#
+# CLASS: "Atomic probe vs allocator re-hand-out". 152 of the 182 r7 corpus
+# reports have this exact shape: the racing ACCESS is an ATOMIC relaxed load
+# through one of the object model's DEDICATED concurrent accessors, and the
+# "previous write" is the TSAN malloc/aligned_alloc interceptor's SYNTHETIC
+# whole-block write at (re)allocation time of the same address (frame #0 =
+# tsan_interceptors_posix.cpp; "Location is heap block ..."). I.e. a stale
+# lock-free probe of a dead cell/butterfly/stub whose memory the heap has
+# already handed back out.
+#
+# WHY SUPPRESSED AND NOT FIXED:
+#   - The C++ side of every one of these accesses is ALREADY a relaxed atomic
+#     (that is what the accessors below are for); there is no plain access of
+#     ours left to convert. The reported "plain" side is the allocator
+#     interceptor's synthetic write, which cannot be made atomic.
+#   - The interleaving is DESIGN-BLESSED: SPEC-objectmodel's ground truths
+#     (GT staleness tolerance; §3.0 header bytes via concurrent accessors;
+#     §2/§4 butterfly words via the tagged-word accessors; C4 bounds and
+#     re-dispatch) explicitly permit stale probes of dead cells — the probed
+#     VALUE is always revalidated (structure re-check, bounds re-check, CAS,
+#     fiber-flag re-check) before it can affect semantics. No happens-before
+#     edge can exist by design, so no code change can silence these.
+#   - Rule-3 cross-check: each anchor below is a read-side accessor that
+#     exists SOLELY for blessed concurrent probing. Every known WRITER of the
+#     probed words was converted to atomics during waves 1-7 (see
+#     docs/threads/TSAN-TRIAGE.md); a racing PLAIN writer would surface under
+#     its own write-side anchor in a fresh report and is NOT masked wholesale.
+#   - ACCEPTED MASKING TRADEOFF (recorded): `race:` matches any frame of
+#     either stack, so a future plain-writer regression whose report happens
+#     to contain one of these reader frames would be hidden in THAT pairing.
+#     Mitigation: the write side of such a regression also pairs against
+#     other readers/writers and the allocator, which keeps it visible.
+#
+# NOT covered (deliberately left unsuppressed, see TSAN-TRIAGE §16):
+#   - ICSlowPathCallFrameTracer / PropertyInlineCache ctor / repatch families:
+#     their racy access is a PLAIN read of a freed PIC (JITOperations.cpp:120
+#     et al.) — the JIT §4.4 retired-artifact epoch audit item, a REAL-BUG
+#     SUSPECT, must stay visible.
+#   - Any plain-access-vs-allocator pairing.
+
+# Cell header bytes (JSType/indexingTypeAndMisc/cellState/StructureID lanes),
+# OM §3.0/GT#2: header reads go through cellHeaderConcurrentLoad by ruling.
+race:cellHeaderConcurrentLoad
+
+# Butterfly/tagged-word/fragment-pointer lanes, OM §2/§4 (taggedButterflyWord,
+# spine and fragment loads).
+race:butterflyConcurrentLoad
+
+# JS value word lanes (WriteBarrier/contiguous slots), OM §1 GT.
+race:JSC::JSValue::decodeConcurrent
+race:updateEncodedJSValueConcurrent
+
+# PropertyInlineCache field probes from C++ slow paths (the ATOMIC reader
+# half of the ic-stubinfo family; the PLAIN tracer reads stay visible).
+race:icConcurrentRelaxedLoad
+
+# JSString fiber word + StringImpl header probed through the published-impl
+# protocol (rope-stringimpl family rulings, §11.17/§13.4).
+race:JSC::JSString::fiberConcurrently
+race:WTF::StringImplShape::hashAndFlags
+
+# WatchpointSet state byte: monotonic, fired-only-in-STW (JIT §5.6 ruling);
+# state() is the blessed racy read.
+race:JSC::WatchpointSet::state
+race:JSC::InlineWatchpointSet::state
+
+# Typed-array view metadata words (typedarray-sab family rulings §3.24):
+# RacyArrayBufferViewField wrapper, the caged vector word, and the
+# ArrayBufferContents size word — all relaxed-atomic by ruling.
+race:JSC::RacyArrayBufferViewField
+race:vectorCagedConcurrently
+race:WTF::CagedPtr
+race:JSC::ArrayBufferContents::sizeInBytes
+race:JSC::IndexingHeader::publicLength
+
+# DirectArguments relaxed accessors (directarguments family ruling).
+race:JSC::DirectArguments::internalLength
+race:JSC::DirectArguments::isMappedArgument
+race:GenericArgumentsImplInternal::acquireLoadDescriptor
+
+# CallLinkInfo packed type/callType byte probe (calllink family ruling §5.8).
+race:JSC::CallLinkInfo::loadCallTypeAndType
+
+# ----------------------------------------------------------------------------
+# r11 mop-up additions (2026-06-09): same wave-7 class ("atomic probe vs
+# allocator (re-)hand-out"), new symbolization anchors only. Each racing
+# access below is an ATOMIC relaxed load through a dedicated concurrent
+# accessor; the paired "previous write" is the TSAN malloc/aligned_alloc
+# interceptor's synthetic whole-block write (frame #0 =
+# tsan_interceptors_posix.cpp) — there is no plain access of ours to convert,
+# and the probed value is always revalidated per the SPEC ground truths
+# (see the class rationale at the top of this block).
+
+# CallLinkInfo::owner() atomic JSCell* probe (CallLinkInfo.h:463 atomicLoad)
+# of a stale CLI inside a CodeBlock metadata table whose block was re-handed
+# out (r11 report 1; the §17 retired-artifact audit covers the live-CLI
+# publication side — this anchor is only the dead-CLI/recycled-block pairing).
+# NARROWED at the thread-closeout final review: the previous matcher
+# `race:JSC::CallLinkInfo::owner` was a substring template that ALSO matched
+# every frame of CallLinkInfo::ownerForSlowPath (reports-r11.log:55 shows
+# both frames in the same stack) — the function carrying the §17
+# HAPPENS_AFTER annotation AND the cross-frame plain
+# callerFrame()->codeOwnerCell() read for owner-less ICs; the residual-3
+# CachedCall/MicrotaskCall family lives in that neighborhood and a
+# regression there would have been silently swallowed (rule-3/4 breach,
+# same class as the WriteBarrierBase narrowing below). The parens
+# disambiguate: the probe symbolizes as its own frame
+# "JSC::CallLinkInfo::owner() const" (reports-r11.log:54). Same
+# accepted-masking caveat as the sibling entries: a plain-access regression
+# inside owner() itself is still hidden. Verify symbolization in the r18
+# re-baseline snapshot.
+race:JSC::CallLinkInfo::owner()
+
+# IndexingHeader::vectorLength atomic probe of a recycled butterfly block —
+# sibling of the already-anchored IndexingHeader::publicLength (OM §2/I9b).
+race:JSC::IndexingHeader::vectorLength
+
+# r18 (post-closeout review): stale wasteful-typed-array OOB probe vs
+# allocator (re-)hand-out — same wave-7 class. The racing accesses on our
+# side are all atomic (RacyArrayBufferViewField loads, the now-relaxed
+# IndexingHeader::arrayBuffer probe, the ArrayBuffer refcount fetch_add in
+# RefPtr's refIfNotNull); the paired "previous write" is the TSAN
+# malloc/aligned_alloc interceptor's synthetic whole-block write for a
+# fresh MarkedBlock / a fresh ArrayBuffer allocation in the recycled slot
+# (r18 cve/mc-grow-buffer-storm reports 1-3). Anchored on the OOB-check
+# helper frame (present in all three racing stacks) rather than the host
+# builtin, keeping the getter bodies visible per the
+# typedArrayViewProtoGetterFuncLength deletion rationale. Accepted
+# masking: a future plain access introduced INSIDE
+# isArrayBufferViewOutOfBounds itself would be swallowed.
+race:JSC::isArrayBufferViewOutOfBounds
+
+# StructureChain::head() atomic StructureID* probe (StructureChain.h:55
+# atomicLoad) from prototype-chain revalidation (Structure::isValid re-checks
+# the probed chain against the live structure) racing a PreciseAllocation
+# re-hand-out (r11 reports 23/24, forin-enumerator-cache).
+race:JSC::StructureChain::head
+
+# WriteBarrierBase<T>::cell() — the relaxed-atomic JS-cell-slot probe, the
+# cell-pointer analog of the already-anchored JSC::JSValue::decodeConcurrent
+# (OM §1 GT: JS cell slots are racy; probed cells are revalidated). Surfaced
+# as a sub-1/20 flicker (CodeBlock::globalObject() via slow_path_enter on a
+# recycled cell vs a fresh MarkedBlock aligned_alloc). The write side of the
+# slot (storeCell/setEarlyValue) became relaxed-atomic in the §18 mop-up, so
+# a plain-writer regression still surfaces under its own anchor; same
+# masking tradeoff as the rest of this block.
+# NARROWED at the thread-closeout final review: the previous matcher
+# `race:JSC::WriteBarrierBase` was class-wide — it matched get/set/
+# setEarlyValue/copyFrom and the slot()/tagPointer()/payloadPointer()
+# plain-escape consumers on EITHER stack, engine-wide (rule-3/4 breach: a
+# future plain writer through slot() or a raw butterfly copy racing an
+# inlined cell() reader would have been swallowed). cell() symbolizes as its
+# own inline frame in the observed reports (e.g. reports-r12.log:595
+# "WriteBarrierBase<...>::cell() const"), so anchor exactly that frame.
+race:JSC::WriteBarrierBase<*>::cell
+
+# RacyArrayBufferViewField typed-array metadata probe, re-anchored at the
+# thread-closeout final review: the previous entry suppressed the ENTIRE host
+# builtin (race:JSC::typedArrayViewProtoGetterFuncLength) because the probe
+# inlined away (r11 report 9). The probe load is now NEVER_INLINE under TSAN
+# (JSArrayBufferView.h), so the existing narrow
+# race:JSC::RacyArrayBufferViewField anchor above matches the symbolized
+# frame and the function-level entry is DELETED. Any race in the getter's
+# real body (m_length/m_vector/m_mode plain paths, possiblySharedBuffer) is
+# visible to TSAN again. Requires the r18 re-baseline snapshot.
+
+# Rule-1 entry (r11 report 13, residual-2 "recordParse"): pre-existing
+# upstream pairing — concurrent baseline/DFG compiler threads read the
+# UnlinkedFunctionExecutable parse-feature BIT-FIELDS
+# (isInStrictContext/lexicallyScopedFeatures via selectNewFunctionOperation,
+# JITOperations.h:454) while the owning mutator lazily re-parses
+# (generateUnlinkedFunctionCodeBlock -> recordParse). Upstream runs the same
+# interleaving with its concurrent JITs. Benign: re-parses of the same source
+# are deterministic, so both racing values agree once first written (a stale
+# read sees the identical bits); the fields cannot be made dedicated atomic
+# bytes — the class is size-capped (static_assert <= 96 bytes), documented at
+# the recordParse site (UnlinkedFunctionExecutable.h). The threads work made
+# no functional edit to recordParse or its readers (rule-3 check: the only
+# threads edit in this class hoisted the unrelated singleton bit OUT of these
+# words).
+race:JSC::UnlinkedFunctionExecutable::recordParse

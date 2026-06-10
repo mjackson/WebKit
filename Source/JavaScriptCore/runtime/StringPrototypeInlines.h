@@ -709,12 +709,12 @@ static ALWAYS_INLINE JSString* removeAllUsingRegExpSearch(VM& vm, JSGlobalObject
             return string;
 
         // Record the last matching.
-        globalObject->regExpGlobalData().recordMatch(vm, globalObject, regExp, string, MatchResult { static_cast<unsigned>(lastIndex), static_cast<unsigned>(lastIndex + pattern.length()) }, /* oneCharacterMatch */ false);
+        threadRegExpGlobalData(globalObject).recordMatch(vm, globalObject, regExp, string, MatchResult { static_cast<unsigned>(lastIndex), static_cast<unsigned>(lastIndex + pattern.length()) }, /* oneCharacterMatch */ false);
         RELEASE_AND_RETURN(scope, jsSpliceSubstrings(globalObject, string, source, sourceRanges.span()));
     }
 
     while (true) {
-        MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExp, string, source, startPosition);
+        MatchResult result = threadRegExpGlobalData(globalObject).performMatch(globalObject, regExp, string, source, startPosition);
         RETURN_IF_EXCEPTION(scope, nullptr);
         if (!result)
             break;
@@ -755,7 +755,7 @@ ALWAYS_INLINE JSCellButterfly* addToRegExpSearchCache(VM& vm, JSGlobalObject* gl
     if (auto* entry = vm.gilOff() ? nullptr : vm.stringReplaceCache.get(source, regExp)) {
         auto lastMatch = entry->m_lastMatch;
         auto matchResult = entry->m_matchResult;
-        globalObject->regExpGlobalData().resetResultFromCache(globalObject, regExp, string, matchResult, lastMatch.span());
+        threadRegExpGlobalData(globalObject).resetResultFromCache(globalObject, regExp, string, matchResult, lastMatch.span());
         RELEASE_AND_RETURN(scope, entry->m_result);
     }
 
@@ -764,7 +764,7 @@ ALWAYS_INLINE JSCellButterfly* addToRegExpSearchCache(VM& vm, JSGlobalObject* gl
     MarkedArgumentBuffer results;
     while (true) {
         int* ovector;
-        MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExp, string, source, startPosition, &ovector);
+        MatchResult result = threadRegExpGlobalData(globalObject).performMatch(globalObject, regExp, string, source, startPosition, &ovector);
         RETURN_IF_EXCEPTION(scope, nullptr);
         if (!result)
             break;
@@ -816,7 +816,7 @@ ALWAYS_INLINE JSCellButterfly* addToRegExpSearchCache(VM& vm, JSGlobalObject* gl
     // AUD1.N2 residual (C) minimal slice: GIL-off, never publish into the
     // unlocked VM-shared cache (see the get-side bypass above).
     if (!vm.gilOff()) [[likely]]
-        vm.stringReplaceCache.set(source, regExp, result, globalObject->regExpGlobalData().matchResult(), regExp->ovectorSpan(vm));
+        vm.stringReplaceCache.set(source, regExp, result, threadRegExpGlobalData(globalObject).matchResult(), regExp->ovectorSpan(vm));
     RELEASE_AND_RETURN(scope, result);
 }
 
@@ -1145,11 +1145,11 @@ static ALWAYS_INLINE JSString* tryTrimSpaces(VM& vm, JSGlobalObject* globalObjec
 
         if (!right) {
             // Everything is spaces.
-            globalObject->regExpGlobalData().resetResultFromCache(globalObject, regExp, string, MatchResult { 0, sourceLen }, { });
+            threadRegExpGlobalData(globalObject).resetResultFromCache(globalObject, regExp, string, MatchResult { 0, sourceLen }, { });
             return jsEmptyString(vm);
         }
 
-        globalObject->regExpGlobalData().resetResultFromCache(globalObject, regExp, string, MatchResult { right, sourceLen }, { });
+        threadRegExpGlobalData(globalObject).resetResultFromCache(globalObject, regExp, string, MatchResult { right, sourceLen }, { });
         return jsString(vm, source.substringSharingImpl(0, right));
     }
     case Yarr::SpecificPattern::LeadingSpacesPlus: {
@@ -1161,11 +1161,11 @@ static ALWAYS_INLINE JSString* tryTrimSpaces(VM& vm, JSGlobalObject* globalObjec
 
         if (left == sourceLen) {
             // Everything is spaces.
-            globalObject->regExpGlobalData().resetResultFromCache(globalObject, regExp, string, MatchResult { 0, sourceLen }, { });
+            threadRegExpGlobalData(globalObject).resetResultFromCache(globalObject, regExp, string, MatchResult { 0, sourceLen }, { });
             return jsEmptyString(vm);
         }
 
-        globalObject->regExpGlobalData().resetResultFromCache(globalObject, regExp, string, MatchResult { 0, left }, { });
+        threadRegExpGlobalData(globalObject).resetResultFromCache(globalObject, regExp, string, MatchResult { 0, left }, { });
         return jsString(vm, source.substringSharingImpl(left, sourceLen));
     }
     case Yarr::SpecificPattern::TrailingSpacesStar:
@@ -1191,7 +1191,7 @@ ALWAYS_INLINE JSString* replaceAllWithStringUsingRegExpSearchNoBackreferences(VM
 
     while (1) {
         int* ovector;
-        MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExp, string, source, startPosition, &ovector);
+        MatchResult result = threadRegExpGlobalData(globalObject).performMatch(globalObject, regExp, string, source, startPosition, &ovector);
         RETURN_IF_EXCEPTION(scope, nullptr);
         if (!result)
             break;
@@ -1244,7 +1244,7 @@ ALWAYS_INLINE JSString* replaceAllWithStringUsingRegExpSearch(VM& vm, JSGlobalOb
 
     while (1) {
         int* ovector;
-        MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExp, string, source, startPosition, &ovector);
+        MatchResult result = threadRegExpGlobalData(globalObject).performMatch(globalObject, regExp, string, source, startPosition, &ovector);
         RETURN_IF_EXCEPTION(scope, nullptr);
         if (!result)
             break;
@@ -1289,7 +1289,7 @@ ALWAYS_INLINE JSString* replaceOneWithStringUsingRegExpSearch(VM& vm, JSGlobalOb
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     int* ovector;
-    MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExp, string, source, 0, &ovector);
+    MatchResult result = threadRegExpGlobalData(globalObject).performMatch(globalObject, regExp, string, source, 0, &ovector);
     RETURN_IF_EXCEPTION(scope, nullptr);
     if (!result)
         return string;

@@ -1,0 +1,30 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+ThreadSanitizerThreadSanitizer:DEADLYSIGNAL
+:DEADLYSIGNAL
+==3602243==ERROR: ThreadSanitizer: SEGV on unknown address 0x000000000008 (pc 0x55c40ab163d4 bp 0x000000000000 sp 0x7f37671fdce0 T3602247)
+==3602243==The signal is caused by a READ memory access.
+==3602243==Hint: address points to the zero page.
+    #0 AtomicImpl<(anonymous namespace)::OpLoad, const volatile unsigned long long *> /home/runner/work/llvm-project/llvm-project/compiler-rt/lib/tsan/rtl/tsan_interface_atomic.cpp (jsc+0x1983d4)
+    #1 __tsan_atomic64_load /home/runner/work/llvm-project/llvm-project/compiler-rt/lib/tsan/rtl/tsan_interface_atomic.cpp:550:10 (jsc+0x1983d4)
+    #2 std::__atomic_base<JSC::JSObject*>::load(std::memory_order) const /usr/lib/gcc/x86_64-amazon-linux/14/../../../../include/c++/14/bits/atomic_base.h:833:9 (jsc+0x1844c36)
+    #3 std::atomic<JSC::JSObject*>::load(std::memory_order) const /usr/lib/gcc/x86_64-amazon-linux/14/../../../../include/c++/14/atomic:582:21 (jsc+0x1844c36)
+    #4 WTF::Atomic<JSC::JSObject*>::load(std::memory_order) const /root/WebKit/WebKitBuild/TSan/WTF/Headers/wtf/Atomics.h:55:100 (jsc+0x1844c36)
+    #5 JSC::JSObject* WTF::atomicLoad<JSC::JSObject*>(JSC::JSObject**, std::memory_order) /root/WebKit/WebKitBuild/TSan/WTF/Headers/wtf/Atomics.h:162:49 (jsc+0x1844c36)
+    #6 JSC::WriteBarrierBase<JSC::JSObject, WTF::RawPtrTraits<JSC::JSObject>>::cell() const /root/WebKit/Source/JavaScriptCore/runtime/WriteBarrier.h:165:39 (jsc+0x1844c36)
+    #7 JSC::WriteBarrierBase<JSC::JSObject, WTF::RawPtrTraits<JSC::JSObject>>::get() const /root/WebKit/Source/JavaScriptCore/runtime/WriteBarrier.h:107:34 (jsc+0x1844c36)
+    #8 JSC::GetterSetter::isGetterNull() const /root/WebKit/Source/JavaScriptCore/runtime/GetterSetter.h:114:72 (jsc+0x1844c36)
+    #9 JSC::PropertyDescriptor::setAccessorDescriptor(JSC::GetterSetter*, unsigned int) /root/WebKit/Source/JavaScriptCore/runtime/PropertyDescriptor.cpp:199:27 (jsc+0x1844c36)
+    #10 JSC::PropertyDescriptor::setPropertySlot(JSC::JSGlobalObject*, JSC::PropertyName, JSC::PropertySlot const&) /root/WebKit/Source/JavaScriptCore/runtime/PropertyDescriptor.cpp:300:9 (jsc+0x1844c36)
+    #11 JSC::JSObject::getOwnPropertyDescriptor(JSC::JSGlobalObject*, JSC::PropertyName, JSC::PropertyDescriptor&) /root/WebKit/Source/JavaScriptCore/runtime/JSObject.cpp:6651:5 (jsc+0x16a016e)
+    #12 JSC::objectConstructorGetOwnPropertyDescriptor(JSC::JSGlobalObject*, JSC::JSObject*, JSC::Identifier const&) /root/WebKit/Source/JavaScriptCore/runtime/ObjectConstructor.cpp:189:18 (jsc+0x17f3833)
+    #13 JSC::objectConstructorGetOwnPropertyDescriptor(JSC::JSGlobalObject*, JSC::CallFrame*) /root/WebKit/Source/JavaScriptCore/runtime/ObjectConstructor.cpp:238:5 (jsc+0x17f2626)
+    #14 <null> <null> (0x7f3725dff156)
+
+==3602243==Register values:
+rax = 0x0000000000000000  rbx = 0x0000000000000008  rcx = 0x00007f3766d309c0  rdx = 0x00000000c21005ff  
+rdi = 0x00007f37671fecc0  rsi = 0x0000100000000010  rbp = 0x0000000000000000  rsp = 0x00007f37671fdce0  
+ r8 = 0x0000000000000003   r9 = 0x000000000008025e  r10 = 0x00000000c0000000  r11 = 0x0000000000000008  
+r12 = 0x000072800001a088  r13 = 0x00007f37671fde50  r14 = 0x00007f37671fecc0  r15 = 0x0000000000000000  
+ThreadSanitizer can not provide additional info.
+SUMMARY: ThreadSanitizer: SEGV /root/WebKit/WebKitBuild/TSan/WTF/Headers/wtf/Atomics.h:55:100 in WTF::Atomic<JSC::JSObject*>::load(std::memory_order) const
+==3602243==ABORTING

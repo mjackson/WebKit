@@ -428,13 +428,16 @@ public:
     JS_EXPORT_PRIVATE Exception* ensureTerminationException();
     Exception* terminationException() const
     {
-        ASSERT(m_terminationException);
-        return m_terminationException;
+        // THREADS: relaxed atomic — published once under m_terminationExceptionLock
+        // in ensureTerminationException(); pointer identity is all readers need.
+        Exception* exception = WTF::atomicLoad(const_cast<Exception**>(&m_terminationException), std::memory_order_relaxed);
+        ASSERT(exception);
+        return exception;
     }
     bool isTerminationException(Exception* exception) const
     {
         ASSERT(exception);
-        return exception == m_terminationException;
+        return exception == WTF::atomicLoad(const_cast<Exception**>(&m_terminationException), std::memory_order_relaxed);
     }
     bool hasPendingTerminationException() const
     {
@@ -574,7 +577,9 @@ private:
     // SPEC-vmstate §6.3 relocated member: cross-thread by design, deliberately
     // NOT in VMLitePrimitives. Kept just outside the block; name/type/sites
     // unchanged.
-    Exception* m_terminationException { nullptr };
+    Exception* m_terminationException { nullptr }; // Guarded by m_terminationExceptionLock for creation; relaxed-atomic reads.
+    Lock m_terminationExceptionLock;
+    Lock m_softReservedZoneSizeLock; // Serializes updateSoftReservedZoneSize's read-modify-write (ErrorHandlingScope save/restore from N Threads).
 public:
     // NOTE: When throwing an exception while rolling back the call frame,
     // callFrameForCatch may be equal to topEntryFrame.
@@ -797,7 +802,37 @@ private:
     }
 
 public:
-    bool didEnterVM { false };
+    // TSAN family microtask-queue (triage §3.30 tail): with useVMLite on,
+    // N mutator threads enter/drain the same VM concurrently, so the plain
+    // `bool didEnterVM` was a write-write race between executeCallImpl's
+    // ScopeExit (and the other vmEntry ScopeExits) and
+    // performMicrotaskCheckpoint's post-drain write — same address, both
+    // storing `true`. The flag is monotonic clobberize bookkeeping: C++ entry
+    // paths set it; only DFG/FTL-generated code tests and clears it
+    // (DFGSpeculativeJIT.cpp / FTLLowerDFGToB3.cpp via AbsoluteAddress /
+    // OBJECT_OFFSETOF byte ops). Any interleaving of the racing `= true`
+    // stores yields the same value, so ordering is irrelevant — the fix is
+    // making the C++ accesses relaxed atomics (defined behavior, identical
+    // codegen: relaxed byte mov), NOT a lock. Happens-before for consumers is
+    // inherited from VM entry itself; the JIT-side byte ops are outside
+    // TSAN's view by design (accepted tradeoff, see TSAN-TRIAGE.md).
+    // This wrapper keeps the 1-byte layout and address (JIT pokes it
+    // directly) while giving every existing `vm.didEnterVM = true` /
+    // `if (vm.didEnterVM)` site relaxed-atomic semantics unchanged at the
+    // call site. Flag-off behavior and codegen are unchanged.
+    struct DidEnterVMFlag {
+        ALWAYS_INLINE DidEnterVMFlag& operator=(bool value)
+        {
+            m_value.store(value, std::memory_order_relaxed);
+            return *this;
+        }
+        ALWAYS_INLINE operator bool() const { return m_value.load(std::memory_order_relaxed); }
+
+        Atomic<bool> m_value { false };
+    };
+    static_assert(sizeof(DidEnterVMFlag) == sizeof(bool));
+
+    DidEnterVMFlag didEnterVM;
 
 private:
     bool m_isInService { false };
@@ -1284,7 +1319,7 @@ public:
     void* stackPointerAtVMEntry() const { return group3Primitives().m_stackPointerAtVMEntry; }
     void setStackPointerAtVMEntry(void*);
 
-    size_t softReservedZoneSize() const { return m_currentSoftReservedZoneSize; }
+    size_t softReservedZoneSize() const { return WTF::atomicLoad(const_cast<size_t*>(&m_currentSoftReservedZoneSize), std::memory_order_relaxed); } // THREADS: see updateSoftReservedZoneSize().
     size_t updateSoftReservedZoneSize(size_t softReservedZoneSize);
     
     static size_t committedStackByteCount();

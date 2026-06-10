@@ -31,6 +31,8 @@
 #include "PutDirectIndexMode.h"
 #include "VM.h"
 #include "WriteBarrier.h"
+#include <wtf/Atomics.h>
+#include <wtf/ThreadSanitizerSupport.h>
 #include <wtf/HashMap.h>
 #include <wtf/TZoneMalloc.h>
 #include <optional>
@@ -56,11 +58,34 @@ public:
     JSValue getConcurrently() const;
     JSValue get() const;
 
-    unsigned attributes() const { return m_attributes; }
+    // TSAN wave 4 (triage §3.10 / §8.10 jsvalue-slots residual): the attribute
+    // word is read by unlocked concurrent probes (compiler-thread
+    // getConcurrently, slot fills); both sides of the pair must be atomic, so
+    // the accessor loads relaxed to match forceSet's relaxed store —
+    // codegen-identical to the previous plain load, flag-off unchanged.
+    unsigned attributes() const { return WTF::atomicLoad(const_cast<unsigned*>(&m_attributes), std::memory_order_relaxed); }
 
     // Defined below SparseArrayValueMap: the bodies need its complete type.
     inline void forceSet(SparseArrayValueMap*, unsigned attributes);
     inline void forceSet(VM&, SparseArrayValueMap*, JSValue, unsigned attributes);
+
+    // TSAN wave 5 (triage family 10 jsvalue-slots, r4 key 'data race x
+    // SparseArrayValueMap::getEntry'): field-wise snapshot copy for GIL-off
+    // readers. The default (memberwise/memcpy) copy of a map entry performs
+    // PLAIN reads of the value and attribute words, which race the unlocked
+    // relaxed-atomic writers (defineOwnIndexedProperty's putIndexedDescriptor
+    // -> forceSet runs without the map's cell lock). Copy through the
+    // relaxed accessors instead — same staleness tolerance as the other
+    // concurrent readers (staleness is blessed; tearing/UB is not). The
+    // result is a thread-local snapshot; plain stores into the local copy
+    // are fine (it is unshared until returned by value).
+    SparseArrayEntry copySnapshotConcurrent() const
+    {
+        SparseArrayEntry copy;
+        copy.Base::setWithoutWriteBarrier(Base::get()); // relaxed load of the shared value word
+        copy.m_attributes = attributes(); // relaxed load of the shared attribute word
+        return copy;
+    }
 
     WriteBarrier<Unknown>& asValue() { return *this; }
 
@@ -109,34 +134,43 @@ public:
 
     DECLARE_VISIT_CHILDREN;
 
+    // TSAN wave 4 (triage §3.10 / §8.10 jsvalue-slots residual): m_flags is
+    // probed unlocked by concurrent readers (e.g. sparseMode() /
+    // hasAnyKindOfGetterSetterProperties() on slow paths) while a locked
+    // mutator sets bits; plain accesses on that word are UB. Reads are
+    // relaxed atomic loads (codegen-identical). Writers: flag-on uses a
+    // relaxed RMW or so two racing setters cannot lose a bit (the word is
+    // monotonic — bits are only ever added, never cleared); flag-off keeps
+    // the plain read-modify-write, so flag-off behavior and codegen are
+    // unchanged.
     bool sparseMode()
     {
-        return m_flags & SparseMode;
+        return flagsRelaxed() & SparseMode;
     }
 
     void setSparseMode()
     {
-        m_flags = static_cast<Flags>(m_flags | SparseMode);
+        orFlags(SparseMode);
     }
 
     bool lengthIsReadOnly()
     {
-        return m_flags & LengthIsReadOnly;
+        return flagsRelaxed() & LengthIsReadOnly;
     }
 
     void setLengthIsReadOnly()
     {
-        m_flags = static_cast<Flags>(m_flags | LengthIsReadOnly);
+        orFlags(LengthIsReadOnly);
     }
 
     bool hasAnyKindOfGetterSetterProperties()
     {
-        return m_flags & HasAnyKindOfGetterSetterProperties;
+        return flagsRelaxed() & HasAnyKindOfGetterSetterProperties;
     }
 
     void setHasAnyKindOfGetterSetterProperties()
     {
-        m_flags = static_cast<Flags>(m_flags | HasAnyKindOfGetterSetterProperties);
+        orFlags(HasAnyKindOfGetterSetterProperties);
     }
 
     // These methods may mutate the contents of the map
@@ -156,18 +190,31 @@ public:
     JSValue getConcurrently(unsigned index);
 
     // AB18-G: GIL-off-safe read API. SparseArrayEntry is plain data
-    // (WriteBarrier word + attribute word), so a by-value copy taken under
-    // the cell lock is a coherent snapshot; the JSValue/GetterSetter cell it
-    // names is GC-stable.
+    // (WriteBarrier word + attribute word); a by-value snapshot taken under
+    // the cell lock (field-wise via the relaxed accessors — see
+    // SparseArrayEntry::copySnapshotConcurrent) is a usable snapshot; the
+    // JSValue/GetterSetter cell it names is GC-stable.
     std::optional<SparseArrayEntry> getEntry(unsigned i);
     template<typename Functor> void forEachEntry(const Functor& functor)
     {
         // Functor runs under the cell lock: it must not run JS, allocate GC
         // memory, or re-enter this map (regime-3 lock rules).
         Locker locker { cellLock() };
+        tsanAcquireCtorPublication();
         for (auto& entry : m_map)
             functor(entry.key, entry.value);
     }
+
+    // r19 (post-closeout review): pairs with the TSAN_ANNOTATE_HAPPENS_BEFORE
+    // at the end of the constructor. The cell lock serializes
+    // post-publication accessors against EACH OTHER, but gives TSAN no edge
+    // to the CONSTRUCTING thread's m_map header NSDMI stores (publication is
+    // the sparse-map install in the array storage, fence + plain store, the
+    // §18 ctor class — r19 flicker pair size()/add() vs ctor). Call right
+    // after taking cellLock() in this class; narrow by construction (sparse
+    // maps are cold, type-specific paths — does not touch hot engine-wide
+    // accessors, per the vm() narrowing lesson). No-op outside TSAN.
+    void tsanAcquireCtorPublication() const { TSAN_ANNOTATE_HAPPENS_AFTER(this); }
 
     // These methods do not mutate the contents of the map.
     // AB18-G: notFound() is GIL-only, like find() — the sentinel comparison
@@ -178,6 +225,7 @@ public:
         if (Options::useJSThreads()) [[unlikely]] {
             // AB18-G: serialize the probe against a racing add()/remove() rehash.
             Locker locker { cellLock() };
+            tsanAcquireCtorPublication();
             return m_map.isEmpty();
         }
         return m_map.isEmpty();
@@ -186,6 +234,7 @@ public:
     {
         if (Options::useJSThreads()) [[unlikely]] {
             Locker locker { cellLock() };
+            tsanAcquireCtorPublication();
             return m_map.contains(i);
         }
         return m_map.contains(i);
@@ -194,6 +243,7 @@ public:
     {
         if (Options::useJSThreads()) [[unlikely]] {
             Locker locker { cellLock() };
+            tsanAcquireCtorPublication();
             return m_map.size();
         }
         return m_map.size();
@@ -205,9 +255,31 @@ public:
     const_iterator end() const { return m_map.end(); }
 
 private:
+    ALWAYS_INLINE unsigned flagsRelaxed() const
+    {
+        return WTF::atomicLoad(const_cast<unsigned*>(&m_flags), std::memory_order_relaxed);
+    }
+
+    ALWAYS_INLINE void orFlags(unsigned bits)
+    {
+        if (Options::useJSThreads()) [[unlikely]] {
+            WTF::atomicExchangeOr(&m_flags, bits, std::memory_order_relaxed);
+            return;
+        }
+        m_flags |= bits;
+    }
+
     Map m_map;
-    Flags m_flags { Normal };
-    size_t m_reportedCapacity { 0 };
+    // TSAN wave 5 (triage family 10 jsvalue-slots, r4 key 'data race x
+    // SparseArrayValueMap::SparseArrayValueMap'): m_flags and
+    // m_reportedCapacity are initialized in the constructor body via relaxed
+    // atomic stores instead of NSDMIs. A GIL-off reader holding a stale ref
+    // to a recycled cell can probe flagsRelaxed() concurrently with the
+    // constructor's initialization; a plain init store on the shared word is
+    // UB against those relaxed loads. Same values, codegen-identical
+    // flag-off.
+    unsigned m_flags; // Bits from Flags; see the relaxed-atomic comment above sparseMode().
+    size_t m_reportedCapacity;
 };
 
 inline void SparseArrayEntry::forceSet(SparseArrayValueMap* map, unsigned attributes)
@@ -220,7 +292,13 @@ inline void SparseArrayEntry::forceSet(SparseArrayValueMap* map, unsigned attrib
 
     if (attributes & PropertyAttribute::Accessor)
         map->setHasAnyKindOfGetterSetterProperties();
-    m_attributes = attributes;
+    // TSAN wave 4 (triage §3.10 / §8.10): this locked store pairs with the
+    // unlocked relaxed reads in attributes()/get()/getConcurrently; a plain
+    // store on the shared word is UB against them. Relaxed atomic store —
+    // codegen-identical, flag-off unchanged. The storeStoreFence above still
+    // orders the value store before this attribute publication for the
+    // getConcurrently consume chain.
+    WTF::atomicStore(&m_attributes, attributes, std::memory_order_relaxed);
 }
 
 inline void SparseArrayEntry::forceSet(VM& vm, SparseArrayValueMap* map, JSValue value, unsigned attributes)

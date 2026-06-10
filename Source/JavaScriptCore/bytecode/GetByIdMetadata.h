@@ -151,6 +151,16 @@ union GetByIdModeMetadata {
     uint64_t* defaultModeCacheWord() { return reinterpret_cast_ptr<uint64_t*>(this); }
     void setDefaultModeCacheConcurrently(StructureID, PropertyOffset);
 
+    // TSAN ic-stubinfo residual (SPEC-jit §4.3, §5.7 racy-profiling tolerance):
+    // a baseline JIT compiler thread snapshots this metadata while the owning
+    // LLInt slow path rewrites it with the relaxed atomic stores above. The
+    // compiler only consumes the mode byte (a profiling hint picking the
+    // initial CacheType), so the blessed snapshot is ONE relaxed 1-byte load —
+    // never a plain whole-struct copy. A stale mode is harmless: it can only
+    // pick a different initial cache shape for the new code. Codegen is
+    // identical to a plain byte load, so flag-off behavior is unchanged.
+    GetByIdMode loadModeConcurrently() { return WTF::atomicLoad(&mode, std::memory_order_relaxed); }
+
     struct {
         uint32_t padding1;
         uint32_t padding2;
@@ -195,6 +205,9 @@ struct GetByIdModeMetadata {
     GetByIdMode mode;
     static constexpr ptrdiff_t offsetOfMode() { return OBJECT_OFFSETOF(GetByIdModeMetadata, mode); }
     uint8_t hitCountForLLIntCaching;
+
+    // See the LE64 variant: relaxed 1-byte snapshot for compiler-thread readers.
+    GetByIdMode loadModeConcurrently() { return WTF::atomicLoad(&mode, std::memory_order_relaxed); }
 };
 #endif
 

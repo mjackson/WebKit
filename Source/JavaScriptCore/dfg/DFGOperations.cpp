@@ -1686,7 +1686,7 @@ JSC_DEFINE_JIT_OPERATION(operationRegExpExecNonGlobalOrSticky, EncodedJSValue, (
     if (!array)
         OPERATION_RETURN(scope, JSValue::encode(jsNull()));
 
-    globalObject->regExpGlobalData().recordMatch(vm, globalObject, regExp, string, result, /* oneCharacterMatch */ false);
+    threadRegExpGlobalData(globalObject).recordMatch(vm, globalObject, regExp, string, result, /* oneCharacterMatch */ false);
     OPERATION_RETURN(scope, JSValue::encode(array));
 }
 
@@ -1718,7 +1718,7 @@ JSC_DEFINE_JIT_OPERATION(operationRegExpMatchFastGlobalString, EncodedJSValue, (
 
     if (regExp->hasValidAtom()) {
         if (string->isSubstring()) {
-            auto& cache = globalObject->regExpGlobalData().substringGlobalAtomCache();
+            auto& cache = threadRegExpGlobalData(globalObject).substringGlobalAtomCache();
             OPERATION_RETURN(scope, JSValue::encode(cache.collectMatches(globalObject, string->asRope(), regExp)));
         }
         OPERATION_RETURN(scope, JSValue::encode(collectGlobalAtomMatches(globalObject, string, regExp)));
@@ -1998,7 +1998,7 @@ JSC_DEFINE_JIT_OPERATION(operationRegExpSearchString, UCPUStrictInt32, (JSGlobal
     auto strView = string->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
 
-    MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExpObject->regExp(), string, strView, 0);
+    MatchResult result = threadRegExpGlobalData(globalObject).performMatch(globalObject, regExpObject->regExp(), string, strView, 0);
 
     OPERATION_RETURN(scope, result ? toUCPUStrictInt32(result.start) : toUCPUStrictInt32(-1));
 }
@@ -2022,7 +2022,7 @@ JSC_DEFINE_JIT_OPERATION(operationRegExpSearch, UCPUStrictInt32, (JSGlobalObject
     auto strView = string->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
 
-    MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExpObject->regExp(), string, strView, 0);
+    MatchResult result = threadRegExpGlobalData(globalObject).performMatch(globalObject, regExpObject->regExp(), string, strView, 0);
 
     OPERATION_RETURN(scope, result ? toUCPUStrictInt32(result.start) : toUCPUStrictInt32(-1));
 }
@@ -6528,7 +6528,10 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
             threadsLocker.emplace(jitCode->m_tierUpTriggersLock);
         auto triggerEntry = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
         if (triggerEntry != jitCode->tierUpEntryTriggers.end()) {
-            switch (triggerEntry->value) {
+            // THREADS: relaxed atomic accesses on the single-byte trigger; the compiler
+            // thread's carve-out store (compilationDidBecomeReadyAsynchronously) bypasses
+            // m_tierUpTriggersLock by design (DFGJITCode.h contract).
+            switch (WTF::atomicLoad(&triggerEntry->value, std::memory_order_relaxed)) {
             case JITCode::TriggerReason::DontTrigger:
                 // The trigger isn't set, we entered because the counter reached its
                 // threshold.
@@ -6543,7 +6546,7 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
                 // We were asked to enter as soon as possible and start compiling an
                 // entry for the current bytecode location. Unset this trigger so we
                 // don't continually enter.
-                triggerEntry->value = JITCode::TriggerReason::DontTrigger;
+                WTF::atomicStore(&triggerEntry->value, JITCode::TriggerReason::DontTrigger, std::memory_order_relaxed);
                 triggeredSlowPathToStartCompilation = true;
                 break;
             }
@@ -6672,7 +6675,7 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
 
                 auto candidateTrigger = jitCode->tierUpEntryTriggers.find(osrEntryCandidate);
                 RELEASE_ASSERT(candidateTrigger != jitCode->tierUpEntryTriggers.end()); // tierUpInLoopHierarchy values are guaranteed OSR-entry trigger sites (DFGJITCode.h:322).
-                if (candidateTrigger->value == JITCode::TriggerReason::StartCompilation) {
+                if (WTF::atomicLoad(&candidateTrigger->value, std::memory_order_relaxed) == JITCode::TriggerReason::StartCompilation) { // THREADS: see relaxed-trigger note in tierUpCommon.
                     // This means that we already asked this loop to compile. If we've reached here, it
                     // means program control has not yet reached that loop. So it's taking too long to compile.
                     // So we move on to asking the inner loop of this loop to compile itself.
@@ -6682,7 +6685,7 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
                 // This is where we ask the outer to loop to immediately compile itself if program
                 // control reaches it.
                 dataLogLnIf(Options::verboseOSR(), "Inner-loop ", originBytecodeIndex, " in ", *codeBlock, " setting parent loop ", osrEntryCandidate, "'s trigger and backing off.");
-                candidateTrigger->value = JITCode::TriggerReason::StartCompilation;
+                WTF::atomicStore(&candidateTrigger->value, JITCode::TriggerReason::StartCompilation, std::memory_order_relaxed);
                 return true;
             }
 

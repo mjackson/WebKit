@@ -447,12 +447,28 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
        for the U-T5 M7-tripwire deletion (VMEntryScope.cpp): gilOff stop
        requests now reach the protocol that replaced the premise; the
        gilOn stub keeps its sampled entered-VM tripwire unchanged.
-     - **AB-10 (BLOCKER): haveABadTime K.5 Class-4 stop absent.** The
-       JSGlobalObject::haveABadTime body must run under ONE §A.3
-       thread-granular stop GIL-off (ANNEX HBT/HBT2-HBT4; the body
-       allocates, so the default-conductor closure rules need the Class-4
-       variant first). Interim: RELEASE_ASSERT(!vm.gilOff()) tripwire at
-       entry (landed by the review round — fail-stop, no longer silent).
+     - ~~AB-10 (BLOCKER): haveABadTime K.5 Class-4 stop absent~~ **CLOSED
+       by the closeout round (item 4)**: haveABadTime routes its whole
+       body (post-arbitration isHavingABadTime re-check + landed body as
+       haveABadTimeImpl) through JSThreadsSafepoint::stopTheWorldAndRun
+       when gilOff — the §A.3 conductor already carries the Class-4 shape
+       (HBT4 order, AB-21 in-window own-client access re-acquire = HBT3.2,
+       HBT2.2 I14 no-GC-in-window bracket; in-window GC initiation defers
+       via the IT-4 arms). Heap-side shared-server asserts gained the
+       conductor disjunct (MarkedSpace stop/resumeAllocating, WeakSet
+       sweep/shrink, Heap::sweepNextLogicallyEmptyWeakBlock — same shape
+       as LocalAllocator/BlockDirectory AB18-D). RESUME-SIDE staleness
+       (the real corpus failure: a mutator parked at a poll resumed its
+       compiled loop and stored contiguous-addressed into the converted
+       ArrayStorage butterfly, +2-slot shift): flag-on CheckTraps now
+       clobbers the heap in DFGClobberize/AI (a park admits a foreign stop
+       window — no heap fact survives a poll), and handleCheckTraps emits
+       the SPEC-jit I21 trailing InvalidationPoint (ExitOK re-validated).
+       lastArraySize (JSObject.cpp) relaxed-atomicized (N-mutator
+       ArrayStorage growth, advisory heuristic). Verified:
+       havebadtime-vs-indexed-fastpath.js 50/50 amplified standalone,
+       120/120 load6, 10/10 TSAN zero-report, corpus 93/0 GIL-off + 94/0
+       GIL-on, identity 40/40.
      - **AB-11: ThreadObject spawn-overload migration.** gilOffProcess
        refuses EVERY spawn including the winner VM's
        (ThreadManager.cpp allocateSpawnedThreadState VM-blind form returns
@@ -722,7 +738,8 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
      review round; previously `--useJSThreads=1 --useSharedGCHeap=1` —
      two flags, since M_opts2 auto-forces the other two — produced a live
      gilOff process against AB-1's silent LLInt split-brain with NO
-     in-code fail-stop). Build/Verify MUST treat AB-1, AB-8, AB-10..AB-13,
+     in-code fail-stop). Build/Verify MUST treat AB-1, AB-8, AB-11..AB-13
+     (AB-10 closed at the closeout round, item 4),
      AB-15..AB-20 (AB-21 closed at round 4), AB-24, AB-25, AB-26, and the
      OPEN residuals of AB-22/AB-23 as LAUNCH BLOCKERS for running the
      full-trio configuration, and the U0 refusal clause (Options.cpp) is

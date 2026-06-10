@@ -251,7 +251,7 @@ inline void opEnumeratorPutByVal(JSGlobalObject* globalObject, JSValue baseValue
             }
         }
         if (enumeratorMetadata)
-            *enumeratorMetadata |= static_cast<uint8_t>(JSPropertyNameEnumerator::HasSeenOwnStructureModeStructureMismatch);
+            WTF::atomicStore(enumeratorMetadata, static_cast<uint8_t>(WTF::atomicLoad(enumeratorMetadata, std::memory_order_relaxed) | static_cast<uint8_t>(JSPropertyNameEnumerator::HasSeenOwnStructureModeStructureMismatch)), std::memory_order_relaxed); // THREADS §5.7.7: relaxed profiling byte.
         [[fallthrough]];
     }
 

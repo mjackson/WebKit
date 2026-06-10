@@ -25,6 +25,7 @@
 #include "JSObject.h"
 
 #include "AllocationFailureMode.h"
+#include "ArrayProfile.h"
 #include "CustomGetterSetter.h"
 #include "Exception.h"
 #include "GCDeferralContextInlines.h"
@@ -58,7 +59,12 @@ namespace JSC {
 // as a simple heuristic for as the value to grow the next array from size 0.
 // This value is capped by the constant FIRST_VECTOR_GROW defined in
 // ArrayConventions.h.
-static unsigned lastArraySize = 0;
+// UNGIL (AB-10 closure follow-on): GIL-off, N mutators grow ArrayStorage
+// vectors concurrently (e.g. post-haveABadTime slow puts), racing this
+// purely-advisory sizing hint. Relaxed atomic per the TSAN triage convention
+// for advisory heuristics (TSAN-TRIAGE.md families 12-14/19): a stale value
+// only perturbs the growth heuristic, never correctness.
+static std::atomic<unsigned> lastArraySize { 0 };
 
 STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(JSObject);
 STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(JSObjectWithButterfly);
@@ -541,6 +547,130 @@ const WriteBarrierBase<Unknown>* JSObject::locationForOutOfLineOffsetConcurrent(
     }
 }
 
+// TSAN wave 4 (triage §3.10 / §8.10 jsvalue-slots residual): typed-array arm
+// of the concurrent quickly accessors. JSArrayBufferView::m_length and the
+// element words are intentionally-racy data words under shared-heap threading
+// (SPEC-objectmodel ground truth; SAB-granularity tolerance): a foreign
+// thread's trySetIndexQuicklyConcurrent element store (or a racing detach
+// zeroing m_length) pairs with this thread's plain loads inside
+// canGetIndexQuicklyForTypedArray / getIndexQuicklyForTypedArray, which is
+// UB. Route the length read and the element load/store through relaxed
+// WTF::Atomic word accesses — the updateEncodedJSValueConcurrent analog for
+// non-JSValue words. These helpers are reachable only from the *Concurrent
+// accessors (which assert Options::useJSThreads()), so flag-off behavior and
+// codegen are untouched. Resizable/growable/auto-length views
+// (!canUseRawFieldsDirectly) conservatively report "not quickly": their
+// bounds derive from multi-word ArrayBuffer state that cannot be snapshotted
+// with a single relaxed load; callers fall to their generic paths.
+
+static ALWAYS_INLINE size_t typedArrayLengthRawConcurrent(const JSArrayBufferView* view)
+{
+    return std::bit_cast<const WTF::Atomic<size_t>*>(std::bit_cast<const uint8_t*>(view) + JSArrayBufferView::offsetOfLength())->loadRelaxed();
+}
+
+// Sized integer alias so the element access compiles to a single relaxed
+// atomic word op for every adaptor type (including double and Float16,
+// where Atomic<Type> itself would be exotic).
+template<typename Type>
+using TypedArrayElementRawWord = std::conditional_t<sizeof(Type) == 1, uint8_t,
+    std::conditional_t<sizeof(Type) == 2, uint16_t,
+    std::conditional_t<sizeof(Type) == 4, uint32_t, uint64_t>>>;
+
+template<typename Adaptor>
+static ALWAYS_INLINE bool canGetIndexQuicklyForTypedArrayViewConcurrent(const JSGenericTypedArrayView<Adaptor>* view, unsigned i)
+{
+    if (!Adaptor::canConvertToJSQuickly)
+        return false;
+    if (!view->canUseRawFieldsDirectly()) [[unlikely]]
+        return false;
+    return i < typedArrayLengthRawConcurrent(view);
+}
+
+template<typename Adaptor>
+static ALWAYS_INLINE JSValue tryGetIndexQuicklyForTypedArrayViewConcurrent(const JSGenericTypedArrayView<Adaptor>* view, unsigned i)
+{
+    using Type = typename Adaptor::Type;
+    using RawWord = TypedArrayElementRawWord<Type>;
+    static_assert(sizeof(RawWord) == sizeof(Type));
+    if (!canGetIndexQuicklyForTypedArrayViewConcurrent(view, i))
+        return JSValue();
+    RawWord raw = std::bit_cast<const WTF::Atomic<RawWord>*>(view->typedVector() + i)->loadRelaxed();
+    return Adaptor::toJSValue(nullptr, std::bit_cast<Type>(raw));
+}
+
+template<typename Adaptor>
+static ALWAYS_INLINE bool trySetIndexQuicklyForTypedArrayViewConcurrent(JSGenericTypedArrayView<Adaptor>* view, unsigned i, JSValue value)
+{
+    using Type = typename Adaptor::Type;
+    using RawWord = TypedArrayElementRawWord<Type>;
+    static_assert(sizeof(RawWord) == sizeof(Type));
+    if (!value.isNumber())
+        return false;
+    // canSetIndexQuickly == canGetIndexQuickly + isNumber for the quickly family.
+    if (!canGetIndexQuicklyForTypedArrayViewConcurrent(view, i))
+        return false;
+    // toNativeFromValue on a number is pure (no JS, no allocation).
+    Type native = toNativeFromValue<Adaptor>(value);
+    std::bit_cast<WTF::Atomic<RawWord>*>(view->typedVector() + i)->storeRelaxed(std::bit_cast<RawWord>(native));
+    return true;
+}
+
+static ALWAYS_INLINE bool canGetIndexQuicklyForTypedArrayConcurrent(const JSObject* object, unsigned i)
+{
+    switch (object->type()) {
+#define CASE_TYPED_ARRAY_TYPE(name) \
+    case name ## ArrayType: \
+        return canGetIndexQuicklyForTypedArrayViewConcurrent(uncheckedDowncast<JS ## name ## Array>(object), i);
+    FOR_EACH_TYPED_ARRAY_TYPE_EXCLUDING_DATA_VIEW(CASE_TYPED_ARRAY_TYPE)
+#undef CASE_TYPED_ARRAY_TYPE
+    default:
+        return false;
+    }
+}
+
+static ALWAYS_INLINE JSValue tryGetIndexQuicklyForTypedArrayConcurrent(const JSObject* object, unsigned i, ArrayProfile* arrayProfile)
+{
+#if USE(LARGE_TYPED_ARRAYS)
+    if (i > ArrayProfile::s_smallTypedArrayMaxLength && arrayProfile)
+        arrayProfile->setMayBeLargeTypedArray();
+#else
+    UNUSED_PARAM(arrayProfile);
+#endif
+    switch (object->type()) {
+#define CASE_TYPED_ARRAY_TYPE(name) \
+    case name ## ArrayType: \
+        return tryGetIndexQuicklyForTypedArrayViewConcurrent(uncheckedDowncast<JS ## name ## Array>(object), i);
+    FOR_EACH_TYPED_ARRAY_TYPE_EXCLUDING_DATA_VIEW(CASE_TYPED_ARRAY_TYPE)
+#undef CASE_TYPED_ARRAY_TYPE
+    default:
+        return JSValue();
+    }
+}
+
+static ALWAYS_INLINE bool trySetIndexQuicklyForTypedArrayConcurrent(JSObject* object, unsigned i, JSValue value, ArrayProfile* arrayProfile)
+{
+    bool result;
+    switch (object->type()) {
+#define CASE_TYPED_ARRAY_TYPE(name) \
+    case name ## ArrayType: \
+        result = trySetIndexQuicklyForTypedArrayViewConcurrent(uncheckedDowncast<JS ## name ## Array>(object), i, value); \
+        break;
+    FOR_EACH_TYPED_ARRAY_TYPE_EXCLUDING_DATA_VIEW(CASE_TYPED_ARRAY_TYPE)
+#undef CASE_TYPED_ARRAY_TYPE
+    default:
+        return false;
+    }
+    if (!result)
+        return false;
+#if USE(LARGE_TYPED_ARRAYS)
+    if (i > ArrayProfile::s_smallTypedArrayMaxLength && arrayProfile)
+        arrayProfile->setMayBeLargeTypedArray();
+#else
+    UNUSED_PARAM(arrayProfile);
+#endif
+    return true;
+}
+
 bool JSObject::canGetIndexQuicklyConcurrent(unsigned i) const
 {
     ASSERT(Options::useJSThreads());
@@ -554,7 +684,7 @@ bool JSObject::canGetIndexQuicklyConcurrent(unsigned i) const
     uint64_t word = taggedButterflyWord();
     switch (indexingType()) {
     case ALL_BLANK_INDEXING_TYPES:
-        return canGetIndexQuicklyForTypedArray(i);
+        return canGetIndexQuicklyForTypedArrayConcurrent(this, i); // §3.10: relaxed m_length read
     case ALL_UNDECIDED_INDEXING_TYPES:
         return false;
     case ALL_INT32_INDEXING_TYPES:
@@ -653,8 +783,14 @@ JSValue JSObject::getIndexQuicklyConcurrent(unsigned i) const
         JSValue value = storage->m_vector[i].get();
         return value ? value : jsUndefined();
     }
-    case ALL_BLANK_INDEXING_TYPES:
-        return getIndexQuicklyForTypedArray(i);
+    case ALL_BLANK_INDEXING_TYPES: {
+        // §3.10: relaxed length + element reads. A racing detach/length change
+        // between the caller's canGetIndexQuicklyConcurrent and this read
+        // surfaces as undefined — same race tolerance as the dense arms above —
+        // instead of tripping getIndexQuicklyForTypedArray's RELEASE_ASSERT.
+        JSValue result = tryGetIndexQuicklyForTypedArrayConcurrent(this, i, nullptr);
+        return result ? result : jsUndefined();
+    }
     default:
         RELEASE_ASSERT_NOT_REACHED();
         return JSValue();
@@ -667,8 +803,10 @@ JSValue JSObject::tryGetIndexQuicklyConcurrent(unsigned i, ArrayProfile* arrayPr
     uint64_t word = taggedButterflyWord();
     switch (indexingType()) {
     case ALL_BLANK_INDEXING_TYPES:
-        if (canGetIndexQuicklyForTypedArray(i))
-            return getIndexQuicklyForTypedArray(i, arrayProfile);
+        // §3.10: relaxed length + element reads (single length snapshot — no
+        // can/get TOCTOU against a racing detach).
+        if (JSValue result = tryGetIndexQuicklyForTypedArrayConcurrent(this, i, arrayProfile))
+            return result;
         break;
     case ALL_UNDECIDED_INDEXING_TYPES:
         break;
@@ -701,14 +839,14 @@ JSValue JSObject::tryGetIndexQuicklyConcurrent(unsigned i, ArrayProfile* arrayPr
             const WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfReadable(butterflySpine(word), i); // C4
             if (!slot)
                 break;
-            result = *std::bit_cast<const double*>(slot); // §4.7 raw double
+            result = WTF::atomicLoad(std::bit_cast<double*>(const_cast<WriteBarrierBase<Unknown>*>(slot)), std::memory_order_relaxed); // §4.7 raw double; relaxed atomic (intentionally racy JS value word)
         } else {
             const Butterfly* butterfly = untaggedButterfly(word);
             if (!butterfly) [[unlikely]]
                 break; // E5 None-first (round 4).
             if (i >= butterfly->publicLength() || i >= butterfly->vectorLength()) // round 4: snapshot bound (aliased publicLength can race past it)
                 break;
-            result = butterfly->contiguousDouble().at(this, i);
+            result = WTF::atomicLoad(const_cast<double*>(&butterfly->contiguousDouble().at(this, i).m_data), std::memory_order_relaxed); // relaxed atomic (intentionally racy JS value word)
         }
         if (result != result)
             break;
@@ -774,7 +912,7 @@ bool JSObject::trySetIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v, Array
     }
     switch (indexingMode()) {
     case ALL_BLANK_INDEXING_TYPES:
-        return trySetIndexQuicklyForTypedArray(i, v, arrayProfile);
+        return trySetIndexQuicklyForTypedArrayConcurrent(this, i, v, arrayProfile); // §3.10: relaxed length read + element store
     case ALL_UNDECIDED_INDEXING_TYPES:
         return false;
     case ALL_WRITABLE_INT32_INDEXING_TYPES: {
@@ -834,7 +972,7 @@ bool JSObject::trySetIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v, Array
             WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfWithinVectorLength(butterflySpine(word), i);
             if (!slot)
                 return false;
-            *std::bit_cast<double*>(slot) = value; // §4.7 raw double; no barrier
+            WTF::atomicStore(std::bit_cast<double*>(slot), value, std::memory_order_relaxed); // §4.7 raw double; no barrier; relaxed atomic (intentionally racy JS value word)
             butterflySpine(word)->bumpPublicLengthToAtLeast(i + 1); // Review round 2: CAS-max (shared word).
             return true;
         }
@@ -852,7 +990,7 @@ bool JSObject::trySetIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v, Array
             convertDoubleToContiguousWhilePerformingSetIndex(vm, i, v);
             return true;
         }
-        butterfly->contiguousDouble().at(this, i) = value;
+        WTF::atomicStore(&butterfly->contiguousDouble().at(this, i).m_data, value, std::memory_order_relaxed); // relaxed atomic (intentionally racy JS value word)
         updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
         return true;
     }
@@ -941,7 +1079,7 @@ void JSObject::setIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v)
                 convertDoubleToContiguousWhilePerformingSetIndex(vm, i, v);
                 return;
             }
-            butterfly->contiguousDouble().at(this, i) = value;
+            WTF::atomicStore(&butterfly->contiguousDouble().at(this, i).m_data, value, std::memory_order_relaxed); // relaxed atomic (intentionally racy JS value word)
             updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
             return;
         }
@@ -958,7 +1096,15 @@ void JSObject::setIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v)
         return;
     }
     case ALL_BLANK_INDEXING_TYPES:
-        setIndexQuicklyForTypedArray(i, v);
+        // §3.10: relaxed length read + element store (same racy words as the
+        // tryGet/trySet pair above, reached via this entry point). A failed
+        // store means a racing detach/shrink made the index out-of-bounds —
+        // per typed-array semantics that store is a no-op, so tolerate it
+        // rather than re-running setIndexQuicklyForTypedArray's plain-word
+        // RELEASE_ASSERT under a blessed race. Caller misuse (non-number v)
+        // still trips the assert below, matching the old precondition.
+        ASSERT(v.isNumber());
+        trySetIndexQuicklyForTypedArrayConcurrent(this, i, v, nullptr);
         return;
     default:
         RELEASE_ASSERT_NOT_REACHED();
@@ -2347,8 +2493,8 @@ Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKin
             // Segmented source: replacement spine. The source must be
             // header-less (C2: blank indexing type => no indexed fragments).
             ButterflySpine* oldSpine = butterflySpine(word);
-            RELEASE_ASSERT(!oldSpine->indexedFragmentCount && !oldSpine->vectorLength); // C2
-            uint32_t outOfLineFragments = oldSpine->outOfLineFragmentCount;
+            RELEASE_ASSERT(!oldSpine->indexedFragmentCountConcurrent() && !oldSpine->vectorLengthConcurrent()); // C2; relaxed reads (V7 TSAN getters)
+            uint32_t outOfLineFragments = oldSpine->outOfLineFragmentCountConcurrent();
             uint32_t neededIndexedFragments = std::max<uint32_t>(1, static_cast<uint32_t>((static_cast<uint64_t>(length) + 1 + (butterflyFragmentSlots - 1)) / butterflyFragmentSlots));
             uint32_t coveredVectorLength = neededIndexedFragments * butterflyFragmentSlots - 1;
             uint32_t publishedVectorLength = std::min<uint32_t>(coveredVectorLength, MAX_STORAGE_VECTOR_LENGTH);
@@ -2358,11 +2504,13 @@ Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKin
             newSpine->outOfLineFragmentCount = outOfLineFragments;
             newSpine->indexedFragmentCount = neededIndexedFragments;
             newSpine->vectorLength = publishedVectorLength;
-            newSpine->spineEpoch = oldSpine->spineEpoch + 1;
-            newSpine->aliasedAllocationBase = oldSpine->aliasedAllocationBase; // VERBATIM (I7)
-            newSpine->aliasedAllocationSize = oldSpine->aliasedAllocationSize;
+            // V7 (TSAN): relaxed reads of the published old spine (its out-of-line
+            // fragment slots are atomically re-pointed by racing property adds).
+            newSpine->spineEpoch = butterflyConcurrentLoad(&oldSpine->spineEpoch) + 1;
+            newSpine->aliasedAllocationBase = butterflyConcurrentLoad(&oldSpine->aliasedAllocationBase); // VERBATIM (I7)
+            newSpine->aliasedAllocationSize = butterflyConcurrentLoad(&oldSpine->aliasedAllocationSize);
             for (uint32_t j = 0; j < outOfLineFragments; ++j)
-                newSpine->fragments()[j] = oldSpine->fragments()[j]; // Shared fragments aliased verbatim (I6).
+                newSpine->fragments()[j] = oldSpine->outOfLineFragment(j); // Shared fragments aliased verbatim (I6); relaxed slot load.
             bool fillDouble = hasDouble(targetType);
             for (uint32_t f = 0; f < neededIndexedFragments; ++f) {
                 auto* fragment = static_cast<ButterflyFragment*>(
@@ -3823,6 +3971,83 @@ void JSObject::setPrototypeDirect(VM& vm, JSValue prototype)
     switchToSlowPutArrayStorage(vm);
 }
 
+// GIL-off [[SetPrototypeOf]] linearization. OrdinarySetPrototypeOf's cycle
+// walk (step 8) and its [[Prototype]] install (step 9) must be atomic with
+// respect to every other [[SetPrototypeOf]] in the process: two mutators
+// completing a cycle in opposite directions (a->b vs b->a) can otherwise BOTH
+// pass the walk against the pre-race chains and BOTH install, creating a real
+// prototype cycle — after which any unbounded chain walk (including this very
+// cycle check, or a property-miss walk) spins forever while holding heap
+// access and trips the STW watchdog. Every user-reachable proto mutation
+// funnels through setPrototypeWithCycleCheck (Object/Reflect.setPrototypeOf,
+// the __proto__ setter, Object.create-less __proto__ puts, the Proxy default
+// trap on its target), so one process-wide lock around {walk, install}
+// linearizes them: exactly one racer installs, the loser's walk then observes
+// the winner's chain and throws the spec TypeError.
+//
+// SCOPE (host-API exclusion, recorded at the final closure review): the
+// C API's JSObjectSetPrototype IS covered — it dispatches through the
+// methodTable to this function (JSObjectRef.cpp). NOT covered:
+// JSGlobalObject::resetPrototype and its fixupPrototypeChainWithObjectPrototype
+// chain-tail walk + setPrototypeDirect (JSGlobalObject.cpp), reachable from
+// JSGlobalContextCreateInGroup (JSContextRef.cpp) and the GLib wrapper map.
+// Every in-tree caller runs during global-object construction, before the
+// global is shared (see the finishCreation comment in JSGlobalObject.cpp),
+// but the embedder-supplied prototype's chain TAIL that fixup mutates may
+// already be published. EMBEDDER RESTRICTION (GIL-off): resetPrototype must
+// not be called on a published global, and the prototype handed to context
+// creation must not have its chain concurrently mutated; route any
+// post-publication proto change through [[SetPrototypeOf]]
+// (setPrototypeWithCycleCheck). Revisit if an embedder needs locked
+// resetPrototype semantics.
+//
+// The lock is process-global (not per-object or hand-over-hand): a cycle is a
+// property of an arbitrary multi-object chain, and per-object locking in walk
+// order deadlocks on the very races this serializes (a->b vs b->a acquire in
+// opposite orders). Contention is acceptable — proto mutation is already a
+// slow path that fires watchpoints and invalidates structure caches.
+//
+// Acquisition is the FunctionRareData/GILOffCompilationLocker tryLock POLL
+// LOOP, not a blocking lock(): the holder allocates (changePrototypeTransition)
+// and can fire Class-A watchpoints / haveABadTime inside the critical section,
+// i.e. it can request or park at a stop-the-world while holding the lock, so a
+// loser blocked in lock() would neither publish nor acknowledge the stop and
+// would trip the STW watchdog. The loser alternates
+// parkSitePollAndParkForStopTheWorld() with yield instead.
+//
+// Everything that can run arbitrary JS (isExtensible — Proxy trap) or throw
+// stays OUTSIDE the lock; the locked region re-checks the no-op fast path,
+// walks, and installs, and the walk itself never calls out (it reads
+// getPrototypeDirect() only and breaks at ProxyObjectType).
+static Lock s_gilOffProtoCycleLock;
+
+class GILOffProtoCycleLocker {
+    WTF_MAKE_NONCOPYABLE(GILOffProtoCycleLocker);
+public:
+    GILOffProtoCycleLocker(VM& vm, bool shouldLock)
+        : m_shouldLock(shouldLock)
+    {
+        if (!m_shouldLock) [[likely]]
+            return;
+        if (s_gilOffProtoCycleLock.tryLock()) [[likely]]
+            return;
+        while (!s_gilOffProtoCycleLock.tryLock()) {
+            if (JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm))
+                continue; // Parked across a §A.3 window; retry.
+            Thread::yield();
+        }
+    }
+
+    ~GILOffProtoCycleLocker()
+    {
+        if (m_shouldLock) [[unlikely]]
+            s_gilOffProtoCycleLock.unlock();
+    }
+
+private:
+    bool m_shouldLock;
+};
+
 bool JSObject::setPrototypeWithCycleCheck(VM& vm, JSGlobalObject* globalObject, JSValue prototype, bool shouldThrowIfCantSet)
 {
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -3856,6 +4081,17 @@ bool JSObject::setPrototypeWithCycleCheck(VM& vm, JSGlobalObject* globalObject, 
     // to document and enforce this invariant about the nature of prototype.
     if (!prototype.isObject() && !prototype.isNull()) [[unlikely]]
         return typeError(globalObject, scope, shouldThrowIfCantSet, PrototypeValueCanOnlyBeAnObjectOrNullTypeError);
+
+    // GIL-off: the cycle walk and the install must be one linearized step
+    // against every concurrent [[SetPrototypeOf]] (comment above the locker
+    // class). GIL-on / single-thread: shouldLock is false and this is free.
+    GILOffProtoCycleLocker protoCycleLocker(vm, vm.gilOffWithProcessGate());
+
+    // Re-check the no-op fast path under the lock: a racer that already
+    // installed exactly this prototype makes us a spec no-op (step 4 of
+    // OrdinarySetPrototypeOf against the now-current chain), not a TypeError.
+    if (this->getPrototypeDirect() == prototype)
+        return true;
 
     JSValue nextPrototype = prototype;
     while (nextPrototype && nextPrototype.isObject()) {
@@ -4102,9 +4338,12 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
         // FIX-4: snapshot the cacheable-dictionary pinned table's edit count
         // BEFORE resolving the offset, so the under-lock {table, edit count}
         // re-validation below proves the freshness of `offset` and of the
-        // plan-time clone together. Any in-place edit landing after this read
-        // bumps the count (PropertyTable.h, release store under the cell
-        // lock) and forces a RESTART before anything stale is published.
+        // plan-time clone together. Writers bump the count AFTER the in-place
+        // mutation completes (PropertyTable.h protocol comment, release store
+        // under the cell lock), so any edit that overlaps the window between
+        // this snapshot and the under-lock recheck — including one already in
+        // flight when we snapshot — is observed at the recheck and forces a
+        // RESTART before anything stale is published.
         PropertyTable* plannedDictionaryTable = nullptr;
         uint32_t plannedDictionaryEditCount = 0;
         if (structure->isDictionary() && !structure->isUncacheableDictionary()) {
@@ -4252,11 +4491,16 @@ static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, Property
             // mid-plan therefore forces a RESTART here instead of
             // publishing pre-flatten offsets into compacted slots.
             // With structureID, dictionary-kind, table pointer, and edit
-            // count all re-validated under the cell lock — and the edit
-            // count snapshotted BEFORE the pre-lock get — the source table
-            // is frozen across get, clone, and publication: every remaining
-            // in-place dictionary mutation holds this cell lock and bumps
-            // the count. The clone is exact and `offset` is fresh, so the
+            // count all re-validated under the cell lock — the edit count
+            // snapshotted BEFORE the pre-lock get, and bumped by writers
+            // AFTER their mutation completes (PropertyTable.h protocol) —
+            // the source table is frozen across get, clone, and
+            // publication: every in-place dictionary mutation holds this
+            // cell lock and bumps the count post-mutation, so a passing
+            // recheck proves no edit overlapped the window (an edit
+            // mid-flight at snapshot time bumps after we snapshotted; an
+            // edit mid-flight at recheck time is impossible — we hold the
+            // lock it mutates under). The clone is exact and `offset` is fresh, so the
             // capacity and offset equalities are theorems, not racing
             // observations. A mismatch here is a logic error
             // (SPEC-objectmodel §4.2/§4.3), not a race: abort rather than
@@ -6167,14 +6411,14 @@ ALWAYS_INLINE unsigned JSObject::getNewVectorLength(unsigned indexBias, unsigned
     if (desiredLength < maxInitLength)
         increasedLength = maxInitLength;
     else if (!currentVectorLength)
-        increasedLength = std::max(desiredLength, lastArraySize);
+        increasedLength = std::max(desiredLength, lastArraySize.load(std::memory_order_relaxed));
     else {
         increasedLength = timesThreePlusOneDividedByTwo(desiredLength);
     }
 
     ASSERT(increasedLength >= desiredLength);
 
-    lastArraySize = std::min(increasedLength, FIRST_ARRAY_STORAGE_VECTOR_GROW);
+    lastArraySize.store(std::min(increasedLength, FIRST_ARRAY_STORAGE_VECTOR_GROW), std::memory_order_relaxed);
 
     return ArrayStorage::optimalVectorLength(
         indexBias, structure()->outOfLineCapacity(),

@@ -1,0 +1,3 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+Exception: Error: round 1: BOTH racing Thread.restrict calls succeeded — phantom ownership claim (MC-HAND hit: frozen SPEC-api 4.1 requires CAE for re-restrict from another thread)
+global code@/root/WebKit/JSTests/threads/cve/mc-hand-restrict-claim.js:102:24

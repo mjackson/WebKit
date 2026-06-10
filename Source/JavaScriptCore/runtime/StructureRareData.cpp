@@ -67,9 +67,17 @@ void StructureRareData::destroy(JSCell* cell)
 StructureRareData::StructureRareData(VM& vm, Structure* previous)
     : JSCell(vm, vm.structureRareDataStructure.get())
     , m_previous(previous, WriteBarrierEarlyInit)
-    , m_maxOffset(invalidOffset)
-    , m_transitionOffset(invalidOffset)
 {
+    // TSAN family structure-fields (§8.9): m_maxOffset/m_transitionOffset are
+    // read lock-free through the relaxed atomic loads in Structure.h
+    // (maxOffset()/transitionOffset() rare-data overflow arms) the instant a
+    // stale/recycled reference is probed; the member-init-list plain stores
+    // were the last unpaired writer. Relaxed atomic stores — identical
+    // str/mov codegen, no ordering implied (publication ordering comes from
+    // allocateRareData's fence + CAS, acquire-paired under TSAN by
+    // Structure::previousOrRareDataConcurrently).
+    WTF::atomicStore(&m_maxOffset, invalidOffset, std::memory_order_relaxed);
+    WTF::atomicStore(&m_transitionOffset, invalidOffset, std::memory_order_relaxed);
 }
 
 template<typename Visitor>
@@ -295,6 +303,92 @@ void StructureRareData::cacheSpecialPropertySlow(JSGlobalObject* globalObject, V
     }
 }
 
+// TSAN family structure-fields (AUD1.N4(3), races/forin-enumerator-cache.js):
+// GC-retirement of the enumerator watchpoint FixedVector. Freeing the vector
+// in place (the FixedVector reassignments in StructureRareDataInlines.h /
+// clearCachedPropertyNameEnumerator) destroys StructureChainInvalidation-
+// Watchpoints that are still linked into OTHER structures' transition
+// watchpoint sets; a concurrent thread firing/walking one of those sets then
+// touches freed memory. Outside a stop-the-world window the vector must
+// therefore be MOVED (buffer pointer swap — watchpoint addresses are stable)
+// into the retirement list and destroyed only in finalizeUnconditionally,
+// when mutators are stopped. Callers hold the owning Structure's m_lock
+// (Structure::setCachedPropertyNameEnumerator install path and the flag-on
+// Structure::clearCachedPrototypeChain), which serializes the moves.
+// A retired watchpoint that later fires only clears this cache again —
+// conservative over-invalidation, never unsoundness.
+void StructureRareData::retireCachedPropertyNameEnumeratorWatchpoints()
+{
+    if (m_cachedPropertyNameEnumeratorWatchpoints.isEmpty())
+        return;
+    m_retiredCachedPropertyNameEnumeratorWatchpoints.append(WTF::move(m_cachedPropertyNameEnumeratorWatchpoints));
+    m_cachedPropertyNameEnumeratorWatchpoints = FixedVector<StructureChainInvalidationWatchpoint>();
+}
+
+// TSAN family structure-fields (§10.9 item (4), "Box reassign" key): flag-on
+// publish-once install of the shared poly-proto watchpoint Box. The slot is
+// written by ObjectAllocationProfile initialization and the rare-data clone
+// path while foreign threads (LLInt slow paths, IC compilation) read it
+// lock-free; a plain RefPtr reassign both tears the word and can deref a Box
+// a reader is concurrently copying. CAS from null with winner-keeps removes
+// replacement entirely: the established Box is never displaced, so nothing
+// readers can hold is ever released under them, and the loser's candidate —
+// never published — is deref'd locally. Winner-keeps is the same convention
+// as the locked enumerator / special-property installs above; in practice
+// racing installers carry the same Box (the executable's), so keeping the
+// first is observably identical. Flag-off never reaches here.
+void StructureRareData::setSharedPolyProtoWatchpointConcurrently(Box<InlineWatchpointSet>&& box)
+{
+    ASSERT(Options::useJSThreads());
+    static_assert(sizeof(Box<InlineWatchpointSet>) == sizeof(uintptr_t), "single-word CAS publish treats the Box as one pointer word");
+    // Detach the incoming Box's pointer word without giving up its ref: on
+    // CAS success that ref becomes the member's; on failure we re-form the
+    // Box and let its destructor deref.
+    union Incoming {
+        Incoming() : word(0) { }
+        ~Incoming() { } // ownership handling is explicit below
+        uintptr_t word;
+        Box<InlineWatchpointSet> box;
+    } incoming;
+    new (&incoming.box) Box<InlineWatchpointSet>(WTF::move(box));
+    if (!incoming.word)
+        return; // Installing an empty Box is a no-op flag-on (slot is monotonic null -> Box).
+    uintptr_t prior = WTF::atomicCompareExchangeStrong(reinterpret_cast<uintptr_t*>(&m_polyProtoWatchpoint), static_cast<uintptr_t>(0), incoming.word);
+    if (!prior)
+        return; // Published: the ref moved into the member word.
+    // Lost (or the same Box was already installed): keep the established
+    // entry, drop our candidate's ref. It was never visible to anyone.
+    incoming.box.~Box<InlineWatchpointSet>();
+}
+
+Box<InlineWatchpointSet> StructureRareData::copySharedPolyProtoWatchpointConcurrently() const
+{
+    ASSERT(Options::useJSThreads());
+    static_assert(sizeof(Box<InlineWatchpointSet>) == sizeof(uintptr_t));
+    // Relaxed atomic load of the pointer word, then a thread-safe ref through
+    // a borrowed (non-owning) view. Lifetime: the slot is publish-once
+    // flag-on (see above) and holds its ref until this cell is swept, and a
+    // reader can only reach this rare data through a live Structure — so the
+    // pointee cannot die between the load and the ref.
+    union Borrowed {
+        Borrowed() : word(0) { }
+        ~Borrowed() { } // never run the Box dtor — this view owns no ref
+        uintptr_t word;
+        Box<InlineWatchpointSet> box;
+    } borrowed;
+    borrowed.word = WTF::atomicLoad(reinterpret_cast<uintptr_t*>(const_cast<Box<InlineWatchpointSet>*>(&m_polyProtoWatchpoint)), std::memory_order_relaxed);
+    return borrowed.box;
+}
+
+void StructureRareData::clearCachedPropertyNameEnumeratorRetiringWatchpoints()
+{
+    // The flag word is read lock-free (single word) by foreign fast paths and
+    // the JIT; the member's RelaxedAtomicUintPtr wrapper publishes the clear
+    // atomically (relaxed — same str/mov).
+    m_cachedPropertyNameEnumeratorAndFlag = 0;
+    retireCachedPropertyNameEnumeratorWatchpoints();
+}
+
 // Lock context (AUD1.N4 / K4.VI.2): callers are watchpoint FIRES (GIL-off
 // these run only inside a §A.3 stop or with the world stopped — jit deopt
 // machinery) and finalizeUnconditionally (GC end phase, mutators stopped) —
@@ -314,6 +408,14 @@ void StructureRareData::clearCachedSpecialProperty(CachedSpecialPropertyKey key)
 
 void StructureRareData::finalizeUnconditionally(VM& vm, CollectionScope)
 {
+    // Drain the GC-retired enumerator watchpoint vectors: mutators are
+    // stopped here, so destroying the watchpoints (which unlinks them from
+    // the watched structures' transition watchpoint sets) cannot race a
+    // foreign walker. Cells die only at the following sweep, so the sets the
+    // destructors touch are still valid memory.
+    if (!m_retiredCachedPropertyNameEnumeratorWatchpoints.isEmpty()) [[unlikely]]
+        m_retiredCachedPropertyNameEnumeratorWatchpoints.clear();
+
     if (m_specialPropertyCache) {
         auto clearCacheIfInvalidated = [&](CachedSpecialPropertyKey key) {
             auto& cache = m_specialPropertyCache->m_cache[static_cast<unsigned>(key)];

@@ -101,6 +101,29 @@ void PolymorphicCallCase::dump(PrintStream& out) const
     out.print("<variant = ", m_variant, ", codeBlock = ", pointerDump(m_codeBlock), ">");
 }
 
+// TSAN wave 3 (calllink, SPEC-jit 5.8/F6) construction/publication contract:
+// the routine must be FULLY constructed before it becomes reachable by any
+// lock-free reader. Reachability gilOff:
+// - C++ readers (CallLinkStatus on a DFG compiler thread, CallLinkInfo::
+//   forEachDependentCell on a concurrent marking thread) reach the routine
+//   only through CallLinkInfo::stub(), an ACQUIRE load pairing with
+//   setStub's RELEASE publish — which this constructor fully precedes on
+//   the linking thread. That edge orders every slot/header/vptr write below
+//   before any field read through the published pointer.
+// - The mid-constructor linkIncomingCall pushes below expose interior
+//   PolymorphicCallNodes on shared incoming-call lists before construction
+//   completes, but that is admissible: every list traverser (the
+//   unlinkOrUpgradeIncomingCalls drain, destruction-context removers) holds
+//   CallLinkInfo::s_callLinkSerializationLock, and linkPolymorphicCall holds
+//   that same lock across linkPolymorphicCallImpl — including this entire
+//   constructor (bytecode/Repatch.cpp) — so no traverser can observe a
+//   half-built node.
+// - The JIT'd polymorphic thunk reaches the routine through the published
+//   CallLinkRecord (F6); that asm side is outside TSAN's view (covered by
+//   the object-model protocol tests, per the campaign charter).
+// Freeing is epoch-safe per SPEC-jit 4.4/4.5: clearStub keeps the pointer
+// published flag-on and the GC-aware atomic refcount defers reclamation past
+// a conservative scan, so a stale reader never sees freed memory.
 PolymorphicCallStubRoutine::PolymorphicCallStubRoutine(unsigned headerSize, unsigned trailingSize, const MacroAssemblerCodeRef<JITStubRoutinePtrTag>& code, VM& vm, JSCell* owner, CallFrame* callerFrame, CallLinkInfo& callLinkInfo, const Vector<CallSlot, 16>& callSlots, bool notUsingCounting, bool isClosureCall)
     : GCAwareJITStubRoutine(Type::PolymorphicCallStubRoutineType, code, owner, /* isCodeImmutable */ true)
     , ButterflyArray<PolymorphicCallStubRoutine, PolymorphicCallNode, CallSlot>(headerSize, trailingSize)
@@ -187,7 +210,13 @@ CallEdgeList PolymorphicCallStubRoutine::edges() const
     CallEdgeList result;
     unsigned index = 0;
     forEachDependentCell([&](JSCell* cell) {
-        unsigned count = trailingSpan()[index].m_count;
+        // SPEC-jit 5.7 racy-profiling tolerance (TSAN wave 3): the JIT'd
+        // polymorphic stub increments m_count concurrently with this
+        // compiler-thread read; a torn/stale count only skews inlining
+        // heuristics (profiles select, guards validate — I12). Relaxed
+        // atomic load makes the C++ side defined; codegen-identical to the
+        // plain load.
+        uint32_t count = WTF::atomicLoad(const_cast<uint32_t*>(&trailingSpan()[index].m_count), std::memory_order_relaxed);
         result.append(CallEdge(CallVariant(cell), count));
         ++index;
     });

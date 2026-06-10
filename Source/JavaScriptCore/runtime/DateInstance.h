@@ -21,6 +21,7 @@
 #pragma once
 
 #include "JSObject.h"
+#include <wtf/Atomics.h>
 
 namespace JSC {
 
@@ -54,8 +55,20 @@ public:
         return instance;
     }
 
-    double internalNumber() const { return m_internalNumber; }
-    void setInternalNumber(double value) { m_internalNumber = value; }
+    // With useJSThreads, m_internalNumber can be written by one thread (e.g. Date.prototype.setTime)
+    // while another thread reads it (e.g. gregorianDateTime{UTC} cache validation). The spec
+    // (SPEC-ungil.md) does not bless torn doubles here, so route all accesses through relaxed
+    // 64-bit atomic loads/stores of the same storage word. The field itself stays a plain double:
+    // layout, offsetOfInternalNumber() JIT users, and flag-off codegen are unchanged (relaxed
+    // 64-bit load/store compiles to the same plain move on all supported targets).
+    double internalNumber() const
+    {
+        return std::bit_cast<double>(std::bit_cast<const WTF::Atomic<uint64_t>*>(&m_internalNumber)->loadRelaxed());
+    }
+    void setInternalNumber(double value)
+    {
+        std::bit_cast<WTF::Atomic<uint64_t>*>(&m_internalNumber)->storeRelaxed(std::bit_cast<uint64_t>(value));
+    }
 
     DECLARE_EXPORT_INFO;
 

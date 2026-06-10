@@ -433,7 +433,11 @@ static inline bool jitCompileAndSetHeuristics(VM& vm, CodeBlock* codeBlock)
     ASSERT(Options::useJIT());
 
     if (codeBlock->jitType() != JITType::BaselineJIT) {
-        if (RefPtr<BaselineJITCode> baselineRef = codeBlock->unlinkedCodeBlock()->m_unlinkedBaselineCode) {
+        // §12.2: snapshot under the UnlinkedCodeBlock lock — a bare RefPtr load
+        // here can race another mutator's plan-finalize install (torn pointer /
+        // ref-count corruption, see UnlinkedCodeBlock.h contract). Cold tier-up
+        // slow path; the lock is uncontended flag-off.
+        if (RefPtr<BaselineJITCode> baselineRef = codeBlock->unlinkedCodeBlock()->unlinkedBaselineCodeConcurrently()) {
             if (vm.gilOff()) [[unlikely]] {
                 // UNGIL §5.7.2 (AB18-B): this install is single-shot (setBaselineJITData asserts
                 // !m_jitData) but two mutators in the prologue/loop slow path can race it on the
@@ -2727,7 +2731,10 @@ LLINT_SLOW_PATH_DECL(slow_path_profile_catch)
 
     auto bytecode = pc->as<OpCatch>();
     auto& metadata = bytecode.metadata(codeBlock);
-    metadata.m_buffer->forEach([&] (ValueProfileAndVirtualRegister& profile) {
+    // THREADS: acquire pairs with the release publish in
+    // ensureCatchLivenessIsComputedForBytecodeIndexSlow (another Thread may
+    // have published the buffer concurrently).
+    WTF::atomicLoad(&metadata.m_buffer, std::memory_order_acquire)->forEach([&] (ValueProfileAndVirtualRegister& profile) {
         profile.storeBucketConcurrently(0, JSValue::encode(callFrame->uncheckedR(profile.m_operand).jsValue())); // THREADS §5.7.4
     });
 

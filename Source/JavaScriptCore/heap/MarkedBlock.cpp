@@ -86,7 +86,12 @@ NEVER_INLINE bool MarkedBlock::Handle::isLive(HeapVersion markingVersion, HeapVe
                 if (header.m_lock.fencelessValidate(count.value, Dependency::fence(myMarkingVersion)))
                     return false;
             } else {
-                bool result = fencedHeader.m_marks.get(block.atomNumber(cell));
+                // TSAN r12 (report 7): concurrentGet — a marker's
+                // concurrentTestAndSet CAS races this optimistic read; the
+                // CountingLock fencelessValidate re-check (upstream protocol)
+                // already tolerates the race, the relaxed atomic read just
+                // makes the word access defined. Codegen identical.
+                bool result = fencedHeader.m_marks.concurrentGet(block.atomNumber(cell), fenceBefore);
                 if (header.m_lock.fencelessValidate(count.value, Dependency::fence(result)))
                     return result;
             }
@@ -187,6 +192,18 @@ MarkedBlock::Header::Header(VM& vm, Handle& handle)
     , m_markingVersion(MarkedSpace::nullVersion)
     , m_newlyAllocatedVersion(MarkedSpace::nullVersion)
 {
+    // TSAN r12 (report 3, residual-2 "HeapCell::vm on recycled MarkedBlock"):
+    // publication choke point — pairs with the HAPPENS_AFTER in
+    // MarkedBlock::vmConcurrentProbe() (NOT plain vm(); narrowed at the
+    // thread-closeout final review — see the probe accessor's comment for why
+    // the universal getter must stay unannotated).
+    // The header's const-init writes (m_vm is `VM* const`,
+    // it cannot become an atomic) are ordered before any cross-thread cell
+    // probe by the block hand-out protocol (directory locks / consume-style
+    // cell publication), which TSAN cannot fully model; stale probes of a
+    // RECYCLED block are blessed by the wave-7 staleness adjudication. No-op
+    // outside TSAN.
+    TSAN_ANNOTATE_HAPPENS_BEFORE(this);
 }
 
 MarkedBlock::Header::~Header() = default;

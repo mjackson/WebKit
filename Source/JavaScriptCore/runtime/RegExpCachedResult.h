@@ -54,18 +54,32 @@ class RegExp;
 // {m_reified + 4 reified barriers}. It is NOT lockable without putting a
 // §LK acquisition on every successful match, so the ruling is §K.1 per-lite:
 //
-//   - GIL-OFF (NOT YET LIVE — V7: the consumer re-point has not landed; all
-//     runtime+DFG consumers still hit the shared in-object stream, so
-//     record()'s five plain stores + the reify flip still race cross-lite.
-//     The RegExpCachedResult::record / RawPtrTraits<RegExp|JSString>::
-//     exchange / MatchingContextHolder TSAN families persist until the
-//     mechanical re-point of the performMatch/record call sites
-//     (RegExpGlobalDataInlines.h, RegExpConstructor.cpp,
-//     StringPrototypeInlines.h / RegExpObjectInlines.h) from
-//     globalObject->regExpGlobalData() to threadRegExpGlobalData() lands.
-//     vm.m_executingRegExp (YarrMatchingContextHolder.h ctor/dtor) is a
-//     tracked sub-item of the same re-point: per-lite field or relaxed
-//     Atomic with a diagnostic-tolerance ruling):
+//   - GIL-OFF (RUNTIME RE-POINT LANDED — TSAN wave 1: every C++ consumer of
+//     the match-result stream (RegExpConstructor.cpp, RegExpPrototype.cpp,
+//     RegExpObject.cpp / RegExpObjectInlines.h, StringPrototype.cpp /
+//     StringPrototypeInlines.h, RegExpSubstringGlobalAtomCache.cpp,
+//     DFGOperations.cpp slow paths) now routes through
+//     threadRegExpGlobalData(globalObject) (declared in JSGlobalObject.h),
+//     so record()'s five plain stores + the reify flip are single-thread-
+//     private GIL-off. vm.m_executingRegExp landed with the same wave:
+//     YarrMatchingContextHolder ctor/dtor route to the CURRENT lite's
+//     Group-4 slot (VMLite::executingRegExp) GIL-off.
+//     JIT SIDE (gated; A16-ext jit slice still open for the OPTIMIZED
+//     emission): gilOff DFG/FTL compilation can no longer write the SHARED
+//     in-object stream. DFGStrengthReductionPhase refuses foldToConstant()
+//     (which inserts RecordRegExpCachedResult) and convertTestToTestInline()
+//     when gilOff, so the generic nodes lower to the re-pointed C++
+//     operations; DFGSpeculativeJIT.cpp, DFGSpeculativeJIT64.cpp and
+//     FTLLowerDFGToB3.cpp all carry fail-stop tripwires
+//     (RecordRegExpCachedResult + RegExpTestInline) behind that gate.
+//     CLASSIFICATION (why a gate, not a deprioritized residual): an
+//     unguarded inline record interleaving with another thread's
+//     record()/lastResult() cross-pairs (m_lastInput, m_result.start/end);
+//     leftContext() then computes jsSubstring(0, m_result.start) with a
+//     start past the input's length — MEMORY-SAFETY (OOB substring /
+//     torn multi-word), NOT merely stale legacy statics, and invisible to
+//     TSAN because JIT code is uninstrumented. The A16-ext lite-resident L2
+//     slot re-point restores the inline fast path gilOff):
 //     each entered thread owns a PRIVATE RegExpGlobalData stream
 //     (carrying one RegExpCachedResult) — the per-lite side table in
 //     JSGlobalObject.cpp (threadRegExpGlobalData), GC-rooted via the

@@ -1,0 +1,11 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+Detected offset inconsistency: numberOfSlotsForMaxOffset doesn't match totalSize!
+this = 0x7f110006c800
+transitionOffset = 71
+maxOffset = 71
+m_inlineCapacity = 6
+propertyTable = 0x72a0002d0130
+numberOfSlotsForMaxOffset = 14
+totalSize = 0
+inlineOverflowAccordingToTotalSize = 0
+numberOfOutOfLineSlotsForMaxOffset = 8

@@ -64,6 +64,10 @@ CLoop-frame families are suppressed wholesale up front and never analyzed. Run c
 (JSC_useThreadGIL=false JSC_useVMLite=true JSC_useSharedAtomStringTable=true JSC_useSharedGCHeap=true
 JSC_useThreadGILOffUnsafe=true), FULL JIT, halt_on_error=0, suppressions=Tools/tsan/suppressions.txt,
 full JSTests/threads corpus + races/.
+KNOWN-FAILING (newly integrated tests, functional bugs queued for a separate fix round — NOT in this campaign's
+scope; do not count them against the TSAN pass/fail picture, but DO keep any race reports they generate):
+semantics/date-cache-churn.js, semantics/proto-cycle-race.js, semantics/symbol-registry-cross-thread.js,
+gc-stress/havebadtime-vs-indexed-fastpath.js.
 `
 
 // ---- Phase 1: snapshot + triage (solo) ----

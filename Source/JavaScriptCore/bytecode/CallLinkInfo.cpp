@@ -374,6 +374,25 @@ JSObject* CallLinkInfo::callee()
 
 void CallLinkInfo::setLastSeenCallee(VM& vm, const JSCell* owner, JSObject* callee)
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        // TSAN wave 4 (calllink, SPEC-jit 5.8 / object-model blessed cell-slot
+        // race): the READER side of m_lastSeenCallee is already relaxed-atomic
+        // (WriteBarrierBase::cell()), but WriteBarrierBase::set routes the
+        // WRITE through Traits::exchange — a PLAIN store — so concurrent
+        // slow-path profiling writers racing forEachDependentCell /
+        // lastSeenCallee() readers were one-sided plain-vs-atomic. Route the
+        // store through setWithoutWriteBarrier (relaxed-atomic storeCell) and
+        // emit the GC barrier ourselves. lastSeenCallee is pure profiling
+        // (§5.7 racy-profiling tolerance: a lost or stale last-seen callee
+        // only skews CallLinkStatus heuristics), so relaxed is the blessed
+        // shape — not a lock. Flag-off takes the historical set() below,
+        // unchanged.
+        ASSERT(callee);
+        validateCell(callee);
+        m_lastSeenCallee.setWithoutWriteBarrier(callee);
+        vm.writeBarrier(owner, callee);
+        return;
+    }
     m_lastSeenCallee.set(vm, owner, callee);
 }
 
@@ -466,13 +485,38 @@ void CallLinkInfo::revertCallToStub()
     m_monomorphicCallDestination = nullptr;
 }
 
+// TSAN wave 3 (calllink) triage note: this initializer's sole call site is
+// CodeBlock::finishCreation (metadata setup), which completes before the
+// CodeBlock is installed/published to any other thread — the plain
+// m_owner/m_type/m_callType/m_codeOrigin stores here cannot race. TSAN keys
+// naming this frame are expected to carry it in the report's heap-block
+// ALLOCATION stack, not an access stack (the same misattribution class as
+// the SmallStrings::initializeCommonStrings finding, TSAN-TRIAGE 3.22). If
+// an r3+ report ever shows this frame in an ACCESS stack, that is a new
+// finding: re-open it, do not bin it against this note.
+// [Wave 5 update: r4 did show access-stack pairs against compiler-thread
+// specializationKind()/type() readers across metadata-buffer reuse; the
+// finding was re-opened and the callType/type byte converted to the
+// relaxed-atomic write-once pair below.]
 void DataOnlyCallLinkInfo::initialize(VM& vm, CodeBlock* owner, CallType callType, CodeOrigin codeOrigin)
 {
-    m_owner = owner;
-    m_type = static_cast<uint8_t>(Type::DataOnly);
+    // TSAN wave 4 (calllink): m_owner goes through the relaxed-atomic
+    // write-once pair (see CallLinkInfo::owner()) so allocator-reuse report
+    // keys cannot pair a plain init store with a stale reader's atomic load.
+    WTF::atomicStore(&m_owner, static_cast<JSCell*>(owner), std::memory_order_relaxed);
+    // TSAN wave 5 (calllink): the r4 reports DID show this initializer in
+    // ACCESS stacks paired with compiler-thread specializationKind()/type()
+    // readers ("specializationKind x UnlinkedMetadataTable::link / DataOnly
+    // initialize") — the metadata buffer this DataOnlyCallLinkInfo lives in
+    // is recycled, so a stale reader's load pairs with the new buffer's init
+    // write. Per the wave-3 note below, that re-opened the finding: the
+    // packed callType+type byte now goes through the relaxed-atomic
+    // write-once pair (single store; see CallLinkInfo.h), the same shape as
+    // the m_owner fix above. Write-once still holds: this runs in
+    // CodeBlock::finishCreation before the CodeBlock is published.
+    storeCallTypeAndType(callType, Type::DataOnly);
     ASSERT(Type::DataOnly == type());
     m_codeOrigin = codeOrigin;
-    m_callType = callType;
     m_mode.store(static_cast<uint8_t>(Mode::Init));
     if (!Options::useLLIntICs()) [[unlikely]]
         setVirtualCall(vm);
@@ -535,7 +579,15 @@ void CallLinkInfo::setVirtualCall(VM& vm)
         m_monomorphicCallDestination = vm.getCTIVirtualCall(callMode()).code().template retagged<JSEntryPtrTag>();
         WTF::storeStoreFence();
         m_callee.clear();
-        *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
+        // TSAN wave 3 (calllink): the sentinel store must go through the same
+        // relaxed-atomic slot discipline as every other m_callee access — a
+        // plain store here races the WriteBarrier relaxed-atomic readers
+        // (forEachDependentCell on a concurrent marking thread, the
+        // CallLinkStatus reads). Relaxed is sufficient: the payload it gates
+        // is ordered by the storeStoreFence above (mirror order) and by
+        // publishRecord's F6 protocol (record order); flag-off takes the
+        // plain-store branch below, untouched.
+        WTF::atomicStore(std::bit_cast<uintptr_t*>(m_callee.slot()), polymorphicCalleeMask, std::memory_order_relaxed);
     } else {
         m_callee.clear();
         *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
@@ -598,7 +650,9 @@ void CallLinkInfo::setStub(VM& vm, Ref<PolymorphicCallStubRoutine>&& newStub)
         m_monomorphicCallDestination = m_stub->code().code().retagged<JSEntryPtrTag>();
         WTF::storeStoreFence();
         m_callee.clear();
-        *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
+        // TSAN wave 3 (calllink): atomic sentinel store — same rule and
+        // justification as setVirtualCall above.
+        WTF::atomicStore(std::bit_cast<uintptr_t*>(m_callee.slot()), polymorphicCalleeMask, std::memory_order_relaxed);
     } else {
         m_callee.clear();
         *std::bit_cast<uintptr_t*>(m_callee.slot()) = polymorphicCalleeMask;
@@ -771,9 +825,13 @@ void OptimizingCallLinkInfo::emitTailCallFastPath(CCallHelpers& jit, ScopedLambd
 #if ENABLE(DFG_JIT)
 void OptimizingCallLinkInfo::initializeFromDFGUnlinkedCallLinkInfo(VM&, const DFG::UnlinkedCallLinkInfo& unlinkedCallLinkInfo, CodeBlock* owner)
 {
-    m_owner = owner;
+    // TSAN wave 4 (calllink): relaxed-atomic write-once m_owner store — same
+    // rule as DataOnlyCallLinkInfo::initialize / the CallLinkInfo ctor.
+    WTF::atomicStore(&m_owner, static_cast<JSCell*>(owner), std::memory_order_relaxed);
     m_codeOrigin = unlinkedCallLinkInfo.codeOrigin;
-    m_callType = unlinkedCallLinkInfo.callType;
+    // TSAN wave 5 (calllink): routed through the relaxed-atomic packed byte
+    // (write-once before this info is reachable by other lites).
+    setCallType(unlinkedCallLinkInfo.callType);
 }
 #endif
 

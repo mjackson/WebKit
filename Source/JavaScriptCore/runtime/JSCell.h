@@ -79,6 +79,17 @@ template<typename T> void* tryAllocateCell(VM&, GCDeferralContext*, size_t = siz
 // TSAN-instrumented atomic IR (__tsan_atomic128_*); confirm empirically on
 // the rebuilt WebKitBuild/TSan binary — if the publish is invisible to TSAN,
 // these pairs exempt the header WORDS but the dcas frame keeps reporting.
+//
+// Wave-3 review amendment (§9.1): the load helper DELIBERATELY stays
+// TSAN-build-only. These are the hottest loads in the engine (every type
+// check / structure() / cellState() read); unconditional atomics would be
+// the same mov per access but would pin the optimizer (no CSE/merge of
+// adjacent header-byte loads) on exactly the paths the V5b bench gate has
+// historically punished. The reader side is the OM §3.0/GT#2-blessed half
+// of the protocol; the retained production-UB acceptance, the resulting
+// permanent TSAN blindness through this helper, and the designated
+// alternate coverage (object-model protocol tests + amplifier) are recorded
+// in docs/threads/TSAN-TRIAGE.md §9.1.
 template<typename T>
 ALWAYS_INLINE T cellHeaderConcurrentLoad(const T& field)
 {
@@ -90,6 +101,24 @@ ALWAYS_INLINE T cellHeaderConcurrentLoad(const T& field)
 #else
     return field;
 #endif
+}
+
+// V7 (TSAN, cell-header family; wave-3 review amendment §9.1): the
+// WRITER-side counterpart of cellHeaderConcurrentLoad. The reader side above
+// is blessed by SPEC-objectmodel §3.0/GT#2 (stale header bytes re-dispatch),
+// but a relaxed atomic load pairing with a PLAIN store is still a data race
+// in the C++ model. Every non-constructor header-byte/word writer
+// (setStructure, setStructureIDDirectly, clearStructure, setCellState,
+// early-cell init) stores through this helper, which is an UNCONDITIONAL
+// relaxed atomic per the campaign convention: a single-word relaxed store is
+// the identical mov flag-off (these are cold/warm slow-path writers, not the
+// hot allocation ctor — that ctor keeps its member-init-list / TSAN-only
+// 64-bit assembly, see JSCellInlines.h and TSAN-TRIAGE §9.1).
+template<typename T>
+ALWAYS_INLINE void cellHeaderConcurrentStore(T& field, std::type_identity_t<T> value)
+{
+    static_assert(std::is_trivially_copyable_v<T>);
+    __atomic_store(&field, &value, __ATOMIC_RELAXED);
 }
 
 #define DECLARE_EXPORT_INFO                                                  \
@@ -202,8 +231,11 @@ public:
     // use structureID() raw + StructureID::tryDecode/didRace instead.
     Structure* structure() const { return cellHeaderConcurrentLoad(m_structureID).decontaminate().decode(); }
     void setStructure(VM&, Structure*);
-    void setStructureIDDirectly(StructureID id) { m_structureID = id; }
-    void clearStructure() { m_structureID = StructureID(); }
+    // V7 (TSAN): header writers store via cellHeaderConcurrentStore so they
+    // pair with the cellHeaderConcurrentLoad readers above (plain store
+    // non-TSAN — identical codegen).
+    void setStructureIDDirectly(StructureID id) { cellHeaderConcurrentStore(m_structureID, id); }
+    void clearStructure() { cellHeaderConcurrentStore(m_structureID, StructureID()); }
 
     TypeInfo::InlineTypeFlags inlineTypeFlags() const { return cellHeaderConcurrentLoad(m_flags); }
     
@@ -263,9 +295,13 @@ public:
     // The recommended idiom for using cellState() is to switch on it or perform an == comparison on it
     // directly. We deliberately avoid helpers for this, because we want transparency about how the various
     // CellState values influences our various algorithms. 
-    CellState cellState() const { return m_cellState; }
-    
-    void setCellState(CellState data) const { const_cast<JSCell*>(this)->m_cellState = data; }
+    // V7 (TSAN): m_cellState is flipped by CAS from GC threads
+    // (atomicCompareExchangeCellState*) and dcasHeaderAndButterfly swaps the
+    // whole header word; the plain load/store here must be (TSAN-only)
+    // relaxed atomics to pair with those — identical codegen non-TSAN.
+    CellState cellState() const { return cellHeaderConcurrentLoad(m_cellState); }
+
+    void setCellState(CellState data) const { cellHeaderConcurrentStore(const_cast<JSCell*>(this)->m_cellState, data); }
     
     bool atomicCompareExchangeCellStateWeakRelaxed(CellState oldState, CellState newState)
     {

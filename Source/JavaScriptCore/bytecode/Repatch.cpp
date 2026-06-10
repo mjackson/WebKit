@@ -385,6 +385,15 @@ void ftlThunkAwareRepatchCall(CodeBlock* codeBlock, CodeLocationCall<JSInternalP
     MacroAssembler::repatchCall(call, newCalleeFunction.retagged<OperationPtrTag>());
 }
 
+// TSAN ic-stubinfo (SPEC-jit §5.1/D3): IC state is mutable multi-field data;
+// every writer must hold the owner CodeBlock's m_lock. This primitive
+// REQUIRES the caller to hold codeBlock->m_lock already — the tryCache*
+// bodies and the reset* family (reached from PropertyInlineCache::reset,
+// whose callers all hold the lock) satisfy that. Callers on the lock-free
+// GaveUp/megamorphic-demotion tails must use repatchSlowPathCallLocking
+// below instead: without the lock, two slow paths demoting the same shared
+// IC concurrently (or racing a locked Optimize-revert writer in tryCache*)
+// make m_slowOperation a plain-store data race.
 static void repatchSlowPathCall(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, CodePtr<CFunctionPtrTag> newCalleeFunction)
 {
     if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(propertyCache)) {
@@ -392,6 +401,15 @@ static void repatchSlowPathCall(CodeBlock* codeBlock, PropertyInlineCache& prope
         return;
     }
     ftlThunkAwareRepatchCall(codeBlock, downcast<RepatchingPropertyInlineCache>(propertyCache).m_slowPathCallLocation, newCalleeFunction);
+}
+
+// See above: the lock-acquiring shape for the repatch* tails, which run AFTER
+// tryCache* released the locker. The store itself does not allocate, so a
+// plain ConcurrentJSLocker suffices (no GC-safe bracket needed).
+static void repatchSlowPathCallLocking(CodeBlock* codeBlock, PropertyInlineCache& propertyCache, CodePtr<CFunctionPtrTag> newCalleeFunction)
+{
+    ConcurrentJSLocker locker(codeBlock->m_lock);
+    repatchSlowPathCall(codeBlock, propertyCache, newCalleeFunction);
 }
 
 enum InlineCacheAction {
@@ -906,16 +924,16 @@ void repatchGetBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue ba
     case PromoteToMegamorphic: {
         switch (kind) {
         case GetByKind::ById:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByIdMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByIdMegamorphic);
             break;
         case GetByKind::ByIdWithThis:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByIdWithThisMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByIdWithThisMegamorphic);
             break;
         case GetByKind::ByVal:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByValMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByValMegamorphic);
             break;
         case GetByKind::ByValWithThis:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByValWithThisMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByValWithThisMegamorphic);
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -924,7 +942,7 @@ void repatchGetBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue ba
         break;
     }
     case GiveUpOnCache:
-        repatchSlowPathCall(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
+        repatchSlowPathCallLocking(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
         break;
     case RetryCacheLater:
     case AttemptToCache:
@@ -935,6 +953,10 @@ void repatchGetBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue ba
 // Mainly used to transition from megamorphic case to generic case.
 void repatchGetBySlowPathCall(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, GetByKind kind)
 {
+    // TSAN ic-stubinfo (SPEC-jit §5.1/D3): IC-state writers hold the owner
+    // CodeBlock's m_lock; this megamorphic->generic demotion is reached from
+    // JIT slow paths with no lock held.
+    ConcurrentJSLocker locker(codeBlock->m_lock);
     resetGetBy(vm, codeBlock, propertyCache, kind);
     repatchSlowPathCall(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
 }
@@ -1077,16 +1099,16 @@ void repatchArrayGetByVal(JSGlobalObject* globalObject, CodeBlock* codeBlock, JS
     case PromoteToMegamorphic: {
         switch (kind) {
         case GetByKind::ById:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByIdMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByIdMegamorphic);
             break;
         case GetByKind::ByIdWithThis:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByIdWithThisMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByIdWithThisMegamorphic);
             break;
         case GetByKind::ByVal:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByValMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByValMegamorphic);
             break;
         case GetByKind::ByValWithThis:
-            repatchSlowPathCall(codeBlock, propertyCache, operationGetByValWithThisMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationGetByValWithThisMegamorphic);
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -1095,7 +1117,7 @@ void repatchArrayGetByVal(JSGlobalObject* globalObject, CodeBlock* codeBlock, JS
         break;
     }
     case GiveUpOnCache:
-        repatchSlowPathCall(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
+        repatchSlowPathCallLocking(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
         break;
     case RetryCacheLater:
     case AttemptToCache:
@@ -1139,6 +1161,8 @@ static CodePtr<CFunctionPtrTag> NODELETE appropriatePutByGaveUpFunction(PutByKin
 // Mainly used to transition from megamorphic case to generic case.
 void repatchPutBySlowPathCall(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, PutByKind kind)
 {
+    // TSAN ic-stubinfo (SPEC-jit §5.1/D3): see repatchGetBySlowPathCall.
+    ConcurrentJSLocker locker(codeBlock->m_lock);
     resetPutBy(vm, codeBlock, propertyCache, kind);
     repatchSlowPathCall(codeBlock, propertyCache, appropriatePutByGaveUpFunction(kind));
 }
@@ -1552,16 +1576,16 @@ void repatchPutBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue ba
     case PromoteToMegamorphic: {
         switch (putByKind) {
         case PutByKind::ByIdStrict:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByIdStrictMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByIdStrictMegamorphic);
             break;
         case PutByKind::ByIdSloppy:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByIdSloppyMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByIdSloppyMegamorphic);
             break;
         case PutByKind::ByValStrict:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByValStrictMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByValStrictMegamorphic);
             break;
         case PutByKind::ByValSloppy:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByValSloppyMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByValSloppyMegamorphic);
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -1570,7 +1594,7 @@ void repatchPutBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue ba
         break;
     }
     case GiveUpOnCache:
-        repatchSlowPathCall(codeBlock, propertyCache, appropriatePutByGaveUpFunction(putByKind));
+        repatchSlowPathCallLocking(codeBlock, propertyCache, appropriatePutByGaveUpFunction(putByKind));
         break;
     case RetryCacheLater:
     case AttemptToCache:
@@ -1694,16 +1718,16 @@ void repatchArrayPutByVal(JSGlobalObject* globalObject, CodeBlock* codeBlock, JS
     case PromoteToMegamorphic: {
         switch (putByKind) {
         case PutByKind::ByIdStrict:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByIdStrictMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByIdStrictMegamorphic);
             break;
         case PutByKind::ByIdSloppy:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByIdSloppyMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByIdSloppyMegamorphic);
             break;
         case PutByKind::ByValStrict:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByValStrictMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByValStrictMegamorphic);
             break;
         case PutByKind::ByValSloppy:
-            repatchSlowPathCall(codeBlock, propertyCache, operationPutByValSloppyMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationPutByValSloppyMegamorphic);
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -1712,7 +1736,7 @@ void repatchArrayPutByVal(JSGlobalObject* globalObject, CodeBlock* codeBlock, JS
         break;
     }
     case GiveUpOnCache:
-        repatchSlowPathCall(codeBlock, propertyCache, appropriatePutByGaveUpFunction(putByKind));
+        repatchSlowPathCallLocking(codeBlock, propertyCache, appropriatePutByGaveUpFunction(putByKind));
         break;
     case RetryCacheLater:
     case AttemptToCache:
@@ -1801,16 +1825,16 @@ void repatchDeleteBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, DeleteP
         LOG_IC((ICEvent::DelByReplaceWithGeneric, baseValue.classInfoOrNull()));
         switch (kind) {
         case DelByKind::ByIdStrict:
-            repatchSlowPathCall(codeBlock, propertyCache, operationDeleteByIdStrictGaveUp);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationDeleteByIdStrictGaveUp);
             break;
         case DelByKind::ByIdSloppy:
-            repatchSlowPathCall(codeBlock, propertyCache, operationDeleteByIdSloppyGaveUp);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationDeleteByIdSloppyGaveUp);
             break;
         case DelByKind::ByValStrict:
-            repatchSlowPathCall(codeBlock, propertyCache, operationDeleteByValStrictGaveUp);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationDeleteByValStrictGaveUp);
             break;
         case DelByKind::ByValSloppy:
-            repatchSlowPathCall(codeBlock, propertyCache, operationDeleteByValSloppyGaveUp);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationDeleteByValSloppyGaveUp);
             break;
         }
     }
@@ -1845,6 +1869,8 @@ inline CodePtr<CFunctionPtrTag> NODELETE appropriateInByGaveUpFunction(InByKind 
 // Mainly used to transition from megamorphic case to generic case.
 void repatchInBySlowPathCall(VM& vm, CodeBlock* codeBlock, PropertyInlineCache& propertyCache, InByKind kind)
 {
+    // TSAN ic-stubinfo (SPEC-jit §5.1/D3): see repatchGetBySlowPathCall.
+    ConcurrentJSLocker locker(codeBlock->m_lock);
     resetInBy(vm, codeBlock, propertyCache, kind);
     repatchSlowPathCall(codeBlock, propertyCache, appropriateInByGaveUpFunction(kind));
 }
@@ -1975,10 +2001,10 @@ void repatchInBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSObject* b
     case PromoteToMegamorphic: {
         switch (kind) {
         case InByKind::ById:
-            repatchSlowPathCall(codeBlock, propertyCache, operationInByIdMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationInByIdMegamorphic);
             break;
         case InByKind::ByVal:
-            repatchSlowPathCall(codeBlock, propertyCache, operationInByValMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationInByValMegamorphic);
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -1988,7 +2014,7 @@ void repatchInBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSObject* b
     }
     case GiveUpOnCache:
         LOG_IC((ICEvent::InReplaceWithGeneric, baseObject->classInfo()));
-        repatchSlowPathCall(codeBlock, propertyCache, appropriateInByGaveUpFunction(kind));
+        repatchSlowPathCallLocking(codeBlock, propertyCache, appropriateInByGaveUpFunction(kind));
         break;
     case RetryCacheLater:
     case AttemptToCache:
@@ -2033,7 +2059,7 @@ void repatchHasPrivateBrand(JSGlobalObject* globalObject, CodeBlock* codeBlock, 
     SuperSamplerScope superSamplerScope(false);
 
     if (tryCacheHasPrivateBrand(globalObject, codeBlock, baseObject, brandID, wasFound, propertyCache) == GiveUpOnCache)
-        repatchSlowPathCall(codeBlock, propertyCache, operationHasPrivateBrandGaveUp);
+        repatchSlowPathCallLocking(codeBlock, propertyCache, operationHasPrivateBrandGaveUp);
 }
 
 static InlineCacheAction tryCacheCheckPrivateBrand(
@@ -2075,7 +2101,7 @@ void repatchCheckPrivateBrand(JSGlobalObject* globalObject, CodeBlock* codeBlock
     SuperSamplerScope superSamplerScope(false);
 
     if (tryCacheCheckPrivateBrand(globalObject, codeBlock, baseObject, brandID, propertyCache) == GiveUpOnCache)
-        repatchSlowPathCall(codeBlock, propertyCache, operationCheckPrivateBrandGaveUp);
+        repatchSlowPathCallLocking(codeBlock, propertyCache, operationCheckPrivateBrandGaveUp);
 }
 
 static InlineCacheAction tryCacheSetPrivateBrand(
@@ -2135,7 +2161,7 @@ void repatchSetPrivateBrand(JSGlobalObject* globalObject, CodeBlock* codeBlock, 
     SuperSamplerScope superSamplerScope(false);
 
     if (tryCacheSetPrivateBrand(globalObject, codeBlock, baseObject, oldStructure,  brandID, propertyCache) == GiveUpOnCache)
-        repatchSlowPathCall(codeBlock, propertyCache, operationSetPrivateBrandGaveUp);
+        repatchSlowPathCallLocking(codeBlock, propertyCache, operationSetPrivateBrandGaveUp);
 }
 
 static InlineCacheAction tryCacheInstanceOf(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue valueValue, JSValue prototypeValue, PropertyInlineCache& propertyCache, bool wasFound)
@@ -2330,10 +2356,10 @@ void repatchArrayInByVal(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSV
     case PromoteToMegamorphic: {
         switch (kind) {
         case InByKind::ById:
-            repatchSlowPathCall(codeBlock, propertyCache, operationInByIdMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationInByIdMegamorphic);
             break;
         case InByKind::ByVal:
-            repatchSlowPathCall(codeBlock, propertyCache, operationInByValMegamorphic);
+            repatchSlowPathCallLocking(codeBlock, propertyCache, operationInByValMegamorphic);
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -2342,7 +2368,7 @@ void repatchArrayInByVal(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSV
         break;
     }
     case GiveUpOnCache:
-        repatchSlowPathCall(codeBlock, propertyCache, appropriateInByGaveUpFunction(kind));
+        repatchSlowPathCallLocking(codeBlock, propertyCache, appropriateInByGaveUpFunction(kind));
         break;
     case RetryCacheLater:
     case AttemptToCache:
@@ -2356,7 +2382,7 @@ void repatchInstanceOf(
 {
     SuperSamplerScope superSamplerScope(false);
     if (tryCacheInstanceOf(globalObject, codeBlock, valueValue, prototypeValue, propertyCache, wasFound) == GiveUpOnCache)
-        repatchSlowPathCall(codeBlock, propertyCache, operationInstanceOfGaveUp);
+        repatchSlowPathCallLocking(codeBlock, propertyCache, operationInstanceOfGaveUp);
 }
 
 void linkDirectCall(VM& vm, DirectCallLinkInfo& callLinkInfo, CodeBlock* calleeCodeBlock, CodePtr<JSEntryPtrTag> codePtr)

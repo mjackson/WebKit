@@ -28,6 +28,7 @@
 
 #include <type_traits>
 #include <utility>
+#include <wtf/Atomics.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/MathExtras.h>
 #include <wtf/StdLibExtras.h>
@@ -110,6 +111,35 @@ public:
 
     uint64_t data() const { return m_data; }
 
+    // Relaxed atomic accessors over the single encoded 64-bit word, for
+    // tuples that are racy-by-design profiling state shared between threads
+    // (e.g. JSC's ArrayAllocationProfile under shared CodeBlocks,
+    // SPEC-ungil/SPEC-jit racy-profiling tolerance). Plain concurrent access
+    // to m_data is UB; these make each access one relaxed atomic load/store
+    // of the whole word, so readers always see a consistent (pointer, type)
+    // pair. No ordering is implied, and the read-modify-write helpers
+    // (setPointerRelaxed/setTypeRelaxed) are NOT atomic RMWs — racing
+    // updates can be lost. Acceptable for advisory profiling data only.
+    uint64_t dataRelaxed() const { return atomicLoad(const_cast<uint64_t*>(&m_data), std::memory_order_relaxed); }
+    PointerType pointerRelaxed() const { return std::bit_cast<PointerType>(dataRelaxed() & pointerMask); }
+    Type typeRelaxed() const { return decodeType(dataRelaxed()); }
+    void setPointerRelaxed(PointerType pointer) { atomicStore(&m_data, encode(pointer, typeRelaxed()), std::memory_order_relaxed); }
+    void setTypeRelaxed(Type type) { atomicStore(&m_data, encode(pointerRelaxed(), type), std::memory_order_relaxed); }
+
+    CompactPointerTuple loadTupleRelaxed() const
+    {
+        CompactPointerTuple result;
+        result.m_data = dataRelaxed();
+        return result;
+    }
+
+    CompactPointerTuple exchangeTupleRelaxed(CompactPointerTuple newValue)
+    {
+        CompactPointerTuple result;
+        result.m_data = atomicExchange(&m_data, newValue.m_data, std::memory_order_relaxed);
+        return result;
+    }
+
     void swap(CompactPointerTuple& other)
     {
         std::swap(m_data, other.m_data);
@@ -151,6 +181,24 @@ public:
     void setPointer(PointerType pointer) { m_pointer = pointer; }
     Type type() const { return m_type; }
     void setType(Type type) { m_type = type; }
+
+    // Same API as the 64-bit path, but the pointer and type live in separate
+    // words here, so the "tuple" forms are NOT a single atomic word — a
+    // racing reader can observe a torn (pointer, type) pair. Acceptable for
+    // advisory profiling data only (the only intended user).
+    PointerType pointerRelaxed() const { return atomicLoad(const_cast<PointerType*>(&m_pointer), std::memory_order_relaxed); }
+    Type typeRelaxed() const { return atomicLoad(const_cast<Type*>(&m_type), std::memory_order_relaxed); }
+    void setPointerRelaxed(PointerType pointer) { atomicStore(&m_pointer, pointer, std::memory_order_relaxed); }
+    void setTypeRelaxed(Type type) { atomicStore(&m_type, type, std::memory_order_relaxed); }
+
+    CompactPointerTuple loadTupleRelaxed() const { return CompactPointerTuple(pointerRelaxed(), typeRelaxed()); }
+
+    CompactPointerTuple exchangeTupleRelaxed(CompactPointerTuple newValue)
+    {
+        PointerType oldPointer = atomicExchange(&m_pointer, newValue.m_pointer, std::memory_order_relaxed);
+        Type oldType = atomicExchange(&m_type, newValue.m_type, std::memory_order_relaxed);
+        return CompactPointerTuple(oldPointer, oldType);
+    }
 
     void swap(CompactPointerTuple& other)
     {

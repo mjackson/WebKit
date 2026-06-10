@@ -32,6 +32,7 @@
 #include <JavaScriptCore/LocalAllocator.h>
 #include <JavaScriptCore/MarkedBlock.h>
 #include <limits>
+#include <wtf/Atomics.h>
 #include <wtf/DataLog.h>
 #include <wtf/DebugHeap.h>
 #include <wtf/Lock.h>
@@ -134,13 +135,34 @@ public:
 #undef BLOCK_DIRECTORY_BIT_CALLBACK
     }
     
-    BlockDirectory* nextDirectory() const { return m_nextDirectory; }
-    BlockDirectory* nextDirectoryInSubspace() const { return m_nextDirectoryInSubspace; }
-    BlockDirectory* nextDirectoryInAlignedMemoryAllocator() const { return m_nextDirectoryInAlignedMemoryAllocator; }
-    
-    void setNextDirectory(BlockDirectory* directory) { m_nextDirectory = directory; }
-    void setNextDirectoryInSubspace(BlockDirectory* directory) { m_nextDirectoryInSubspace = directory; }
-    void setNextDirectoryInAlignedMemoryAllocator(BlockDirectory* directory) { m_nextDirectoryInAlignedMemoryAllocator = directory; }
+    // GIL-off (TSAN family gc-marking-residual): the m_nextDirectory list is
+    // traversed concurrently by the marker/sweeper while a mutator appends a
+    // newly created directory. The writer publishes the fully constructed
+    // directory with a storeStoreFence before linking (MarkedSpace.cpp
+    // addBlockDirectory), so relaxed atomics on the link word itself are
+    // sufficient; they only make the previously-plain pointer accesses
+    // well-defined C++. Codegen is identical to the plain accesses.
+    // TSAN r11 (reports 3-8, ctor-vs-findEmptyBlockToSteal): TSAN cannot see
+    // the storeStoreFence, so without an ordered link edge every constructor
+    // write of a freshly appended directory pairs against a sibling Thread's
+    // steal-walk reads. Under TSAN only, the link stores are release and the
+    // link loads acquire (all traversals are slow paths); production keeps
+    // the relaxed accesses (the fence is the real publication edge). Same
+    // gate shape as JSString::fiberConcurrently (TSAN-TRIAGE §13.4).
+#if TSAN_ENABLED
+    static constexpr std::memory_order linkLoadOrder = std::memory_order_acquire;
+    static constexpr std::memory_order linkStoreOrder = std::memory_order_release;
+#else
+    static constexpr std::memory_order linkLoadOrder = std::memory_order_relaxed;
+    static constexpr std::memory_order linkStoreOrder = std::memory_order_relaxed;
+#endif
+    BlockDirectory* nextDirectory() const { return WTF::atomicLoad(const_cast<BlockDirectory**>(&m_nextDirectory), linkLoadOrder); }
+    BlockDirectory* nextDirectoryInSubspace() const { return WTF::atomicLoad(const_cast<BlockDirectory**>(&m_nextDirectoryInSubspace), linkLoadOrder); }
+    BlockDirectory* nextDirectoryInAlignedMemoryAllocator() const { return WTF::atomicLoad(const_cast<BlockDirectory**>(&m_nextDirectoryInAlignedMemoryAllocator), linkLoadOrder); }
+
+    void setNextDirectory(BlockDirectory* directory) { WTF::atomicStore(&m_nextDirectory, directory, linkStoreOrder); }
+    void setNextDirectoryInSubspace(BlockDirectory* directory) { WTF::atomicStore(&m_nextDirectoryInSubspace, directory, linkStoreOrder); }
+    void setNextDirectoryInAlignedMemoryAllocator(BlockDirectory* directory) { WTF::atomicStore(&m_nextDirectoryInAlignedMemoryAllocator, directory, linkStoreOrder); }
     
     MarkedBlock::Handle* findEmptyBlockToSteal();
     
@@ -219,9 +241,12 @@ private:
     // FIXME: All of these should probably be references.
     // https://bugs.webkit.org/show_bug.cgi?id=166988
     Subspace* m_subspace { nullptr };
-    BlockDirectory* m_nextDirectory { nullptr };
-    BlockDirectory* m_nextDirectoryInSubspace { nullptr };
-    BlockDirectory* m_nextDirectoryInAlignedMemoryAllocator { nullptr };
+    // THREADS/TSAN: null-initialized in the constructor body via relaxed atomic
+    // stores (a member-init plain write at a recycled malloc address pairs with
+    // stale lock-free walkers' atomic loads).
+    BlockDirectory* m_nextDirectory;
+    BlockDirectory* m_nextDirectoryInSubspace;
+    BlockDirectory* m_nextDirectoryInAlignedMemoryAllocator;
     
     SentinelLinkedList<LocalAllocator, BasicRawSentinelNode<LocalAllocator>> m_localAllocators;
 };

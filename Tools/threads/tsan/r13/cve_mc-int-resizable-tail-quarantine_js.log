@@ -1,0 +1,31 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+ThreadSanitizer:DEADLYSIGNAL
+==3471642==ERROR: ThreadSanitizer: SEGV on unknown address 0x000000000008 (pc 0x556ea4def144 bp 0x000000000000 sp 0x7f47a17fde60 T3472771)
+==3471642==The signal is caused by a READ memory access.
+==3471642==Hint: address points to the zero page.
+    #0 AtomicImpl<(anonymous namespace)::OpLoad, const volatile unsigned int *> /home/runner/work/llvm-project/llvm-project/compiler-rt/lib/tsan/rtl/tsan_interface_atomic.cpp (jsc+0x198144)
+    #1 __tsan_atomic32_load /home/runner/work/llvm-project/llvm-project/compiler-rt/lib/tsan/rtl/tsan_interface_atomic.cpp:545:10 (jsc+0x198144)
+    #2 unsigned int JSC::TypeInfoBlob::relaxedLoad<unsigned int>(unsigned int const&) /root/WebKit/Source/JavaScriptCore/runtime/TypeInfoBlob.h:58:9 (jsc+0x1422d0b)
+    #3 JSC::TypeInfoBlob::blob() const /root/WebKit/Source/JavaScriptCore/runtime/TypeInfoBlob.h:129:36 (jsc+0x1422d0b)
+    #4 JSC::Structure::typeInfoBlob() const /root/WebKit/Source/JavaScriptCore/runtime/Structure.h:274:51 (jsc+0x1422d0b)
+    #5 JSC::JSCell::JSCell(JSC::VM&, JSC::Structure*) /root/WebKit/Source/JavaScriptCore/runtime/JSCellInlines.h:69:74 (jsc+0x1422d0b)
+    #6 JSC::JSObject::JSObject(JSC::VM&, JSC::Structure*) /root/WebKit/Source/JavaScriptCore/runtime/JSObject.h:1919:7 (jsc+0x1422d0b)
+    #7 JSC::JSObjectWithButterfly::JSObjectWithButterfly(JSC::VM&, JSC::Structure*, JSC::Butterfly*) /root/WebKit/Source/JavaScriptCore/runtime/JSObject.h:1641:11 (jsc+0x1422d0b)
+    #8 JSC::JSNonFinalObject::JSNonFinalObject(JSC::VM&, JSC::Structure*, JSC::Butterfly*) /root/WebKit/Source/JavaScriptCore/runtime/JSObject.h:1753:11 (jsc+0x1422d0b)
+    #9 JSC::ErrorInstance::ErrorInstance(JSC::VM&, JSC::Structure*, JSC::ErrorType) /root/WebKit/Source/JavaScriptCore/runtime/ErrorInstance.cpp:39:7 (jsc+0x1422d0b)
+    #10 JSC::ErrorInstance::create(JSC::VM&, JSC::Structure*, WTF::String const&, JSC::JSValue, WTF::String (*)(WTF::String const&, WTF::StringView, JSC::RuntimeType, JSC::ErrorInstance::SourceTextWhereErrorOccurred), JSC::RuntimeType, JSC::ErrorType, bool, JSC::JSCell*) /root/WebKit/Source/JavaScriptCore/runtime/ErrorInstance.h:61:82 (jsc+0x1422d0b)
+    #11 JSC::createRangeError(JSC::JSGlobalObject*, WTF::String const&, WTF::String (*)(WTF::String const&, WTF::StringView, JSC::RuntimeType, JSC::ErrorInstance::SourceTextWhereErrorOccurred)) /root/WebKit/Source/JavaScriptCore/runtime/Error.cpp:53:12 (jsc+0x1422d0b)
+    #12 JSC::createRangeError(JSC::JSGlobalObject*, WTF::String const&) /root/WebKit/Source/JavaScriptCore/runtime/Error.cpp:377:12 (jsc+0x14236f2)
+    #13 JSC::throwRangeError(JSC::JSGlobalObject*, JSC::ThrowScope&, WTF::String const&) /root/WebKit/Source/JavaScriptCore/runtime/Error.h:93:157 (jsc+0x153ef18)
+    #14 JSC::throwVMRangeError(JSC::JSGlobalObject*, JSC::ThrowScope&, WTF::String const&) /root/WebKit/Source/JavaScriptCore/runtime/Error.h:109:143 (jsc+0x153ef18)
+    #15 JSC::sharedArrayBufferProtoFuncGrow(JSC::JSGlobalObject*, JSC::CallFrame*) /root/WebKit/Source/JavaScriptCore/runtime/JSArrayBufferPrototype.cpp (jsc+0x153ef18)
+    #16 <null> <null> (0x7f47a33ff156)
+
+==3471642==Register values:
+rax = 0x0000000000000000  rbx = 0x0000000000000008  rcx = 0x00007f47a0d0a5d8  rdx = 0x00000000c15f770f  
+rdi = 0x00007f47a17fecc0  rsi = 0x0000100000000010  rbp = 0x0000000000000000  rsp = 0x00007f47a17fde60  
+ r8 = 0x0000000000000003   r9 = 0x0000000000000060  r10 = 0x00000000c0000000  r11 = 0x0000000000000008  
+r12 = 0x000072380000e248  r13 = 0x000072800001a120  r14 = 0x00007f47a17fecc0  r15 = 0x0000000000000000  
+ThreadSanitizer can not provide additional info.
+SUMMARY: ThreadSanitizer: SEGV /root/WebKit/Source/JavaScriptCore/runtime/TypeInfoBlob.h:58:9 in unsigned int JSC::TypeInfoBlob::relaxedLoad<unsigned int>(unsigned int const&)
+==3471642==ABORTING

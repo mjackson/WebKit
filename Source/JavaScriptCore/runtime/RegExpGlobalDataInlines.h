@@ -33,6 +33,22 @@
 
 namespace JSC {
 
+// UNGIL AUD1.K2/SD19 consumer re-point (TSAN wave 1, regexp-shared family):
+// THE accessor for the RegExp legacy-statics match-result stream. Flag-off /
+// GIL-on this is exactly globalObject->regExpGlobalData() behind a read-only
+// Config-page test (the gilOffWithProcessGate idiom RegExpInlines.h's
+// per-match paths already use — no out-of-line call, no semantic change);
+// gilOff it resolves the CURRENT thread's per-(global, lite) stream via the
+// slow path in JSGlobalObject.cpp, making record()'s multi-word update and
+// the lazy reify flip single-thread-private (SD19: RegExp.$1-$9 etc.
+// observe only the current thread's matches).
+ALWAYS_INLINE RegExpGlobalData& threadRegExpGlobalData(JSGlobalObject* globalObject)
+{
+    if (!getVM(globalObject).gilOffWithProcessGate()) [[likely]]
+        return globalObject->regExpGlobalData();
+    return threadRegExpGlobalDataSlow(globalObject);
+}
+
 ALWAYS_INLINE void RegExpCachedResult::record(VM& vm, JSObject* owner, RegExp* regExp, JSString* input, MatchResult result, bool oneCharacterMatch)
 {
     m_lastRegExp.setWithoutWriteBarrier(regExp);

@@ -167,7 +167,7 @@ void RegExp::finishCreation(VM& vm)
     }
 
     m_atom = WTF::move(pattern.m_atom);
-    m_specificPattern = pattern.m_specificPattern;
+    WTF::atomicStore(&m_specificPattern, pattern.m_specificPattern, std::memory_order_relaxed); // THREADS: see specificPattern().
 
     m_numSubpatterns = pattern.m_numSubpatterns;
     if (!pattern.m_captureGroupNames.isEmpty() || !pattern.m_namedGroupToParenIndices.isEmpty()) {
@@ -229,17 +229,23 @@ void RegExp::byteCodeCompileIfNecessary(VM* vm)
     if (m_regExpBytecode)
         return;
 
-    Yarr::YarrPattern pattern(m_patternString, m_flags, m_constructionErrorCode);
-    if (hasError(m_constructionErrorCode)) {
+    // THREADS: parse into a LOCAL error code so concurrent lock-free isValid()
+    // readers never observe the YarrPattern ctor's transient writes; publish the
+    // final value with a relaxed store (single byte, advisory).
+    Yarr::ErrorCode constructionErrorCode = WTF::atomicLoad(&m_constructionErrorCode, std::memory_order_relaxed);
+    Yarr::YarrPattern pattern(m_patternString, m_flags, constructionErrorCode);
+    WTF::atomicStore(&m_constructionErrorCode, constructionErrorCode, std::memory_order_relaxed);
+    if (hasError(constructionErrorCode)) {
         m_state = ParseError;
         return;
     }
     ASSERT(m_numSubpatterns == pattern.m_numSubpatterns);
 
     m_atom = WTF::move(pattern.m_atom);
-    m_specificPattern = pattern.m_specificPattern;
+    WTF::atomicStore(&m_specificPattern, pattern.m_specificPattern, std::memory_order_relaxed); // THREADS: see specificPattern().
 
-    m_regExpBytecode = byteCodeCompilePattern(vm, pattern, m_constructionErrorCode);
+    m_regExpBytecode = byteCodeCompilePattern(vm, pattern, constructionErrorCode);
+    WTF::atomicStore(&m_constructionErrorCode, constructionErrorCode, std::memory_order_relaxed);
     if (!m_regExpBytecode) {
         m_state = ParseError;
         return;
@@ -259,15 +265,20 @@ void RegExp::compile(VM* vm, Yarr::CharSize charSize, std::optional<StringView> 
 // compile() above, byte-identically the old code.
 void RegExp::compileHoldingCellLock(const AbstractLocker&, VM* vm, Yarr::CharSize charSize, std::optional<StringView> sampleString)
 {
-    Yarr::YarrPattern pattern(m_patternString, m_flags, m_constructionErrorCode);
-    if (hasError(m_constructionErrorCode)) {
+    // THREADS: parse into a LOCAL error code so concurrent lock-free isValid()
+    // readers never observe the YarrPattern ctor's transient writes; publish the
+    // final value with a relaxed store (single byte, advisory).
+    Yarr::ErrorCode constructionErrorCode = WTF::atomicLoad(&m_constructionErrorCode, std::memory_order_relaxed);
+    Yarr::YarrPattern pattern(m_patternString, m_flags, constructionErrorCode);
+    WTF::atomicStore(&m_constructionErrorCode, constructionErrorCode, std::memory_order_relaxed);
+    if (hasError(constructionErrorCode)) {
         m_state = ParseError;
         return;
     }
     ASSERT(m_numSubpatterns == pattern.m_numSubpatterns);
 
     m_atom = WTF::move(pattern.m_atom);
-    m_specificPattern = pattern.m_specificPattern;
+    WTF::atomicStore(&m_specificPattern, pattern.m_specificPattern, std::memory_order_relaxed); // THREADS: see specificPattern().
 
     if (!hasCode()) {
         ASSERT(m_state == NotCompiled);
@@ -305,7 +316,8 @@ void RegExp::compileHoldingCellLock(const AbstractLocker&, VM* vm, Yarr::CharSiz
     // identical; flag-off/GIL-on keeps the historical replace.
     if (vm->gilOff() && m_regExpBytecode) [[unlikely]]
         return;
-    m_regExpBytecode = byteCodeCompilePattern(vm, pattern, m_constructionErrorCode);
+    m_regExpBytecode = byteCodeCompilePattern(vm, pattern, constructionErrorCode);
+    WTF::atomicStore(&m_constructionErrorCode, constructionErrorCode, std::memory_order_relaxed);
     if (!m_regExpBytecode) {
         m_state = ParseError;
         return;
@@ -449,15 +461,20 @@ void RegExp::compileMatchOnly(VM* vm, Yarr::CharSize charSize, std::optional<Str
 // Lock-held body — same shape and rationale as compileHoldingCellLock above.
 void RegExp::compileMatchOnlyHoldingCellLock(const AbstractLocker&, VM* vm, Yarr::CharSize charSize, std::optional<StringView> sampleString)
 {
-    Yarr::YarrPattern pattern(m_patternString, m_flags, m_constructionErrorCode);
-    if (hasError(m_constructionErrorCode)) {
+    // THREADS: parse into a LOCAL error code so concurrent lock-free isValid()
+    // readers never observe the YarrPattern ctor's transient writes; publish the
+    // final value with a relaxed store (single byte, advisory).
+    Yarr::ErrorCode constructionErrorCode = WTF::atomicLoad(&m_constructionErrorCode, std::memory_order_relaxed);
+    Yarr::YarrPattern pattern(m_patternString, m_flags, constructionErrorCode);
+    WTF::atomicStore(&m_constructionErrorCode, constructionErrorCode, std::memory_order_relaxed);
+    if (hasError(constructionErrorCode)) {
         m_state = ParseError;
         return;
     }
     ASSERT(m_numSubpatterns == pattern.m_numSubpatterns);
 
     m_atom = WTF::move(pattern.m_atom);
-    m_specificPattern = pattern.m_specificPattern;
+    WTF::atomicStore(&m_specificPattern, pattern.m_specificPattern, std::memory_order_relaxed); // THREADS: see specificPattern().
 
     if (!hasCode()) {
         ASSERT(m_state == NotCompiled);
@@ -491,7 +508,8 @@ void RegExp::compileMatchOnlyHoldingCellLock(const AbstractLocker&, VM* vm, Yarr
     // compileHoldingCellLock fallback above.
     if (vm->gilOff() && m_regExpBytecode) [[unlikely]]
         return;
-    m_regExpBytecode = byteCodeCompilePattern(vm, pattern, m_constructionErrorCode);
+    m_regExpBytecode = byteCodeCompilePattern(vm, pattern, constructionErrorCode);
+    WTF::atomicStore(&m_constructionErrorCode, constructionErrorCode, std::memory_order_relaxed);
     if (!m_regExpBytecode) {
         m_state = ParseError;
         return;
@@ -522,7 +540,7 @@ void RegExp::deleteCode()
         return;
     m_state = NotCompiled;
     m_atom = String();
-    m_specificPattern = Yarr::SpecificPattern::None;
+    WTF::atomicStore(&m_specificPattern, Yarr::SpecificPattern::None, std::memory_order_relaxed); // THREADS: see specificPattern().
 #if ENABLE(YARR_JIT)
     if (m_regExpJITCode)
         m_regExpJITCode->clear(locker);

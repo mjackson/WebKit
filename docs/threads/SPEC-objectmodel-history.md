@@ -957,3 +957,51 @@ private overlay worktrees, hunks never committed.
 ### 21.5 Editorial (size cap)
 r12 ledger deltas c/h/i relocated verbatim to annex §L2 (still NORMATIVE); §10 manifest
 index compressed (annex §M is authoritative); assorted rationale parentheticals moved here.
+
+## §22. UNGIL Race C closure record (2026-06-09, non-normative) — butterfly-stress silent value corruption was NOT an object-model bug
+
+Incident: `JSTests/threads/jit/spawned-thread-butterfly-stress.js`, GIL-off full
+JIT, ~1/120 under 6-way load: a foreign `o["p"+p]` get_by_val read returned the
+clean Int32 value of a SIBLING property of the same object ({p8,p17}, observed
+in both directions; "named property corrupt: got ...008 want ...017" and the
+mirror). No crash, no ASAN/TSAN report, storage verified intact at the instant
+of corruption ($vm.dumpCell: correct value in the slot; re-read HEALED).
+
+Root cause (confirmed by on-demand differential, Tools/threads/bughunt/
+EVIDENCE.md §§10-11): `KeyAtomStringCache::make()` (per-VM 512-slot key-atom
+cache, shared by all lites under GIL-off) verified the slot's atom by
+hash+equal and then RE-LOADED the slot on return (`return slot;`). "p8" and
+"p17" are the test's unique 512-bucket collision pair (hash 15955301 /
+14316901, both % 512 == 357); a colliding-key miss-store from another lite
+between verification and return swapped in the other valid atom, so the reader
+resolved the WRONG uid with a perfectly correct downstream lookup — wrong key,
+clean value, tier-independent (C++ slow path).
+
+Fix of record (landed; runtime/KeyAtomStringCache.h + KeyAtomStringCacheInlines.h):
+slots are `WTF::Atomic<JSString*>`; make() takes ONE acquire-load snapshot,
+verifies the snapshot, and returns the SAME snapshot (the post-verification
+re-load no longer exists in the program — wrong-uid return is impossible by
+construction under any interleaving); publication is a release store after
+func() fully constructs the atom; `tryGetValueImpl()` is null-checked (rope
+case takes the miss path); clear() relaxed-stores run only world-stopped (GC
+finalize). Flag-off/GIL-on semantics and codegen unchanged (single mutator =>
+snapshot == slot; cache has no JIT/B3 probes).
+
+Object-model exoneration (why this is recorded here): the butterfly/structure
+publication protocol of this spec was the prime suspect and is CLEARED for this
+signature. The test's `late*` chain is PropertyAddition-only, so p8/p17 offsets
+are invariant across every structure in the chain; an in-vivo
+`Structure::getConcurrently` double-probe RELEASE_ASSERT (same held table lock)
+stayed silent across all instrumented runs INCLUDING inside two
+on-demand-reproduced corruption runs; a raced locked uid-pointer-compared table
+probe can only MISS (undefined), never yield a sibling's clean Int32. The
+butterfly was never reallocated during the race window (capacity proof,
+EVIDENCE.md §2) and `--verifyConcurrentButterfly=1` never tripped. No protocol
+text of SPEC-objectmodel.md or its annex changes as a result of this incident.
+
+Differential evidence (same binary, seeds, flags; only the returned pointer
+differs): snapshot-return 0 corruptions in 66 widened-window runs with the
+race window provably entered 9+ times (detector trips, both directions);
+reload-return restored via env arm: 2/5 corruptions, each causally paired
+in-run with a `KEYATOM-RACE` trip. Standing tripwire: keep
+Tools/threads/bughunt/repro.js in the load6 soak rotation.

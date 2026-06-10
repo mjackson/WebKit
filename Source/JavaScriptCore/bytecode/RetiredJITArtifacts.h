@@ -82,6 +82,23 @@ public:
     virtual ~RetiredCallback() = default;
 };
 
+// Thread-closeout final review (AB18-F amendment): whether retireHandlerChain
+// disarms each node's PropertyInlineCacheClearingWatchpoint. Yes is correct
+// ONLY for chains that are genuinely DISPLACED/DETACHED at the retire site
+// (megamorphic promotion, resetStubAsJumpInAccess, reset()) or whose owner
+// CodeBlock is dying (~CodeBlock) — there the disarm reproduces flag-off's
+// inline destruction of the same watchpoint at the same program point. No is
+// REQUIRED for the jettison-time extra-ref retire (PropertyInlineCache::
+// deref(VM&) from CodeBlock::jettison): those chains are deliberately LEFT
+// INSTALLED with a live owner ("dispatch keeps working until invalidation",
+// I21), and disarming them would let a post-jettison fire of the watched set
+// silently skip the IC reset — a straggler baseline frame (no invalidation
+// points) would keep dispatching a stale handler and return wrong values.
+// Flag-off at the jettison program point destroys NOTHING, so No is the
+// flag-off-equivalent arm there. The ~CodeBlock re-retire of the same chain
+// performs the disarm at death.
+enum class DisarmClearingWatchpoints : bool { No, Yes };
+
 class RetiredJITArtifacts {
 public:
     // Retire a (detached) handler-IC chain head. Every node's stub routine
@@ -92,7 +109,7 @@ public:
     // machine code rides the jettisoned-stub-routine path and waits for R2's
     // conservative scan (I7).
 #if ENABLE(JIT)
-    static void retireHandlerChain(VM&, RefPtr<InlineCacheHandler>&& head);
+    static void retireHandlerChain(VM&, RefPtr<InlineCacheHandler>&& head, DisarmClearingWatchpoints);
 
     // Retire a dying optimized (DFG/FTL) CodeBlock's JITCode (called from
     // ~CodeBlock during the GC sweep). Flag-off this just drops the ref

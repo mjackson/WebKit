@@ -34,6 +34,7 @@
 #include "Repatch.h"
 #include "RetiredJITArtifacts.h"
 #include <wtf/Atomics.h>
+#include <wtf/ThreadSanitizerSupport.h>
 
 namespace JSC {
 
@@ -142,8 +143,41 @@ private:
 
 } // anonymous namespace
 
-void PropertyInlineCache::deref(VM& vm)
+void PropertyInlineCache::deref(VM& vm, DisarmClearingWatchpoints disarm)
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        // TSAN ic-stubinfo x-malloc family (SPEC-jit §4.4/I7,
+        // "ICSlowPathCallFrameTracer x malloc" stub-reuse pairs): deref() is
+        // the jettison/teardown-time neutralization hook (CodeBlock::jettison
+        // and ~CodeBlock), after which the IC's own references to the handler
+        // chain and the inlined unit handler are eventually dropped inline by
+        // ~PropertyInlineCache. A sibling mutator inside its safepoint-free
+        // window (G2/I16) can still be dispatching through those nodes, so
+        // handler DATA must only die at heap epoch >= retire+1 AND refcount
+        // zero (section 4.4). Take an EXTRA Ref on the installed chains here
+        // and route it through RetiredJITArtifacts: the published slots stay
+        // installed (no null window for racing JIT'd readers; dispatch keeps
+        // working until invalidation, I21), and the epoch's reference
+        // guarantees the node memory outlives every straggler even after the
+        // destructor's inline release. Machine code reachable through each
+        // node's Ref<GCAwareJITStubRoutine> still rides the jettison
+        // machinery and waits for R2's conservative scan (I7) — the epoch
+        // only extends the DATA lifetime. Retiring the same chain twice
+        // (jettison then destruction) just holds two epoch refs; harmless.
+        // AB18-E/G: the VM& is the caller's, never re-derived via
+        // codeBlock->vm().
+        // AB18-F amendment (thread-closeout final review): the chains retired
+        // here remain INSTALLED. The caller decides whether their clearing
+        // watchpoints may be disarmed: only ~CodeBlock (owner dying) passes
+        // Yes; jettison and reset pass No so a later watched-set fire still
+        // resets the still-dispatching chain (see RetiredJITArtifacts.h).
+        if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(*this)) {
+            if (handlerIC->m_inlinedHandler)
+                RetiredJITArtifacts::retireHandlerChain(vm, RefPtr<InlineCacheHandler> { handlerIC->m_inlinedHandler }, disarm);
+        }
+        if (m_handler)
+            RetiredJITArtifacts::retireHandlerChain(vm, RefPtr<InlineCacheHandler> { m_handler }, disarm);
+    }
     if (auto* repatchingIC = dynamicDowncast<RepatchingPropertyInlineCache>(*this)) {
         if (Options::useJSThreads()) [[unlikely]] {
             // SPEC-jit section 5.1 ("Jettison-time IC deref() same")/I9: never
@@ -319,8 +353,8 @@ AccessGenerationResult PropertyInlineCache::addAccessCase(const GCSafeConcurrent
         }
 
         // The buffering countdown tells us if we should be repatching now.
-        if (bufferingCountdown) {
-            dataLogLnIf(PropertyInlineCacheInternal::verbose, "Countdown is too high: ", bufferingCountdown, ".");
+        if (uint8_t bufferingCountdownValue = bufferingCountdown.loadRelaxed()) {
+            dataLogLnIf(PropertyInlineCacheInternal::verbose, "Countdown is too high: ", bufferingCountdownValue, ".");
             return result;
         }
 
@@ -349,7 +383,7 @@ AccessGenerationResult PropertyInlineCache::addAccessCase(const GCSafeConcurrent
 
         // If we generated some code then we don't want to attempt to repatch in the future until we
         // gather enough cases.
-        bufferingCountdown = Options::repatchBufferingCountdown();
+        bufferingCountdown.storeRelaxed(static_cast<uint8_t>(Options::repatchBufferingCountdown()));
         return result;
     })(accessCase.releaseNonNull());
     if (result.generatedSomeCode()) {
@@ -395,7 +429,7 @@ void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, VM& vm, Co
             // path reached through retired/leaked IC state would reproduce
             // it byte-for-byte.
             if (displacedInlinedHandler) [[unlikely]]
-                RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
+                RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler), DisarmClearingWatchpoints::Yes);
         }
     }
 
@@ -505,15 +539,22 @@ void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, VM& vm, Co
     // AB18-F: use the caller's VM& (same rule as the inlined-handler retire
     // above) — `deref(codeBlock->vm())` re-derived the retire VM through the
     // owner cell's MarkedBlock header, the exact sig-1 stale-owner pattern
-    // this function's own comment bans.
-    deref(vm);
+    // this function's own comment bans. DisarmClearingWatchpoints::No: the
+    // owner is alive and the head now installed is the fresh slow-path-only
+    // chain published by the per-accessType reset above (the displaced chain
+    // was already retired WITH disarm at its displacement site); disarming an
+    // installed live-owner chain here would skip future IC resets.
+    deref(vm, DisarmClearingWatchpoints::No);
     setCacheType(locker, CacheType::Unset);
 }
 
 template<typename Visitor>
 void PropertyInlineCache::visitAggregateImpl(Visitor& visitor)
 {
-    if (!m_identifier) {
+    // §10.4 "x identifier": GC-thread read of m_identifier may race the IC's
+    // link-time initialization on a mutator; take one relaxed snapshot.
+    CacheableIdentifier identifierSnapshot = identifier();
+    if (!identifierSnapshot) {
         Locker locker { m_bufferedStructuresLock };
         WTF::switchOn(m_bufferedStructures,
             [&](std::monostate) { },
@@ -523,7 +564,7 @@ void PropertyInlineCache::visitAggregateImpl(Visitor& visitor)
                     bufferedCacheableIdentifier.visitAggregate(visitor);
             });
     } else
-        m_identifier.visitAggregate(visitor);
+        identifierSnapshot.visitAggregate(visitor);
 
     if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(*this)) {
         if (handlerIC->m_inlinedHandler)
@@ -949,7 +990,9 @@ void HandlerPropertyInlineCache::initializeFromUnlinkedPropertyInlineCache(VM& v
         break;
     }
     doneLocation = unlinkedPropertyCache.doneLocation;
-    m_identifier = unlinkedPropertyCache.m_identifier;
+    // TSAN ic-stubinfo "ctor-publication x identifier" (§10.4): relaxed store,
+    // pairing with the relaxed identifier() reader (see PropertyInlineCache.h).
+    setIdentifierConcurrently(unlinkedPropertyCache.m_identifier);
     m_globalObject = codeBlock->globalObject();
     callSiteIndex = CallSiteIndex(BytecodeIndex(unlinkedPropertyCache.bytecodeIndex.offset()));
     codeOrigin = CodeOrigin(unlinkedPropertyCache.bytecodeIndex);
@@ -958,7 +1001,7 @@ void HandlerPropertyInlineCache::initializeFromUnlinkedPropertyInlineCache(VM& v
     canBeMegamorphic = unlinkedPropertyCache.canBeMegamorphic;
 
     if (unlinkedPropertyCache.canBeMegamorphic)
-        bufferingCountdown = 1;
+        bufferingCountdown.storeRelaxed(1);
 
     usedRegisters = RegisterSet::stubUnavailableRegisters().toScalarRegisterSet();
 
@@ -980,7 +1023,9 @@ void HandlerPropertyInlineCache::initializeFromDFGUnlinkedPropertyInlineCache(Co
         break;
     }
     doneLocation = unlinkedPropertyCache.doneLocation;
-    m_identifier = unlinkedPropertyCache.m_identifier;
+    // TSAN ic-stubinfo "ctor-publication x identifier" (§10.4): relaxed store,
+    // pairing with the relaxed identifier() reader (see PropertyInlineCache.h).
+    setIdentifierConcurrently(unlinkedPropertyCache.m_identifier);
     callSiteIndex = unlinkedPropertyCache.callSiteIndex;
     codeOrigin = unlinkedPropertyCache.codeOrigin;
     if (codeOrigin.inlineCallFrame())
@@ -1001,7 +1046,7 @@ void HandlerPropertyInlineCache::initializeFromDFGUnlinkedPropertyInlineCache(Co
     canBeMegamorphic = unlinkedPropertyCache.canBeMegamorphic;
 
     if (unlinkedPropertyCache.canBeMegamorphic)
-        bufferingCountdown = 1;
+        bufferingCountdown.storeRelaxed(1);
 
     usedRegisters = RegisterSet::stubUnavailableRegisters().toScalarRegisterSet();
 
@@ -1106,6 +1151,27 @@ static void publishHandlerChainHead(RefPtr<InlineCacheHandler>& headSlot, Ref<In
     InlineCacheHandler** rawSlot = std::bit_cast<InlineCacheHandler**>(&headSlot);
     InlineCacheHandler* oldHead = *rawSlot;
     InlineCacheHandler* incoming = &newHead.leakRef();
+#if TSAN_ENABLED
+    // TSAN §4.4 retired-artifact audit (TSAN-RESULTS residual 1, closed
+    // 2026-06-09): publish a TSAN-visible release edge for the new head.
+    // JIT'd readers consume the head with an address dependency (F2) and
+    // hand the node/CallLinkInfo pointers to the C++ slow paths baked into
+    // register state, so TSAN never sees the real ordering; without these
+    // annotations it pairs the ctor's plain init stores (and the allocator's
+    // block writes) on this thread against the reader thread's accesses in
+    // ICSlowPathCallFrameTracer / ownerForSlowPath, on memory the audit
+    // proved live (every flag-on dealloc path of a published handler routes
+    // through RetiredJITArtifacts::retireHandlerChain, which flag-on never
+    // frees — epochCoversEveryJSThread). AFTER sides:
+    // ICSlowPathCallFrameTracer (JITOperations.cpp, keyed on the
+    // PropertyInlineCache) and CallLinkInfo::ownerForSlowPath (keyed on the
+    // embedded CallLinkInfo). Annotating only the NEW node is sufficient:
+    // a prepended head reaches the old chain through m_next, and each old
+    // node was annotated at its own publication. No-op outside TSAN.
+    TSAN_ANNOTATE_HAPPENS_BEFORE(incoming);
+    if (auto* withJSCall = dynamicDowncast<InlineCacheHandlerWithJSCall>(*incoming))
+        TSAN_ANNOTATE_HAPPENS_BEFORE(std::bit_cast<uint8_t*>(withJSCall) + InlineCacheHandlerWithJSCall::offsetOfCallLinkInfo());
+#endif
     // F1/I5: every store initializing the new head (m_next included) must be
     // visible before the publishing store makes the node reachable from JIT'd
     // code. Readers order their loads with an address dependency through the
@@ -1147,8 +1213,8 @@ void PropertyInlineCache::initializeWithUnitHandler(VM& vm, CodeBlock* codeBlock
             // (the client's SERVER under useSharedGCHeap) internally.
             // AB18-G: the VM& is the caller's (AB18-E rule) — no
             // codeBlock->vm() derivation on this retire path.
-            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead));
-            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead), DisarmClearingWatchpoints::Yes);
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler), DisarmClearingWatchpoints::Yes);
         } else {
             // F1/I5: the new handler's payload (and anything reachable through
             // it) must be visible before the publishing store makes it
@@ -1259,8 +1325,8 @@ void PropertyInlineCache::resetStubAsJumpInAccess(VM& vm, CodeBlock* codeBlock)
             // R4-2: pass the VM; RetiredJITArtifacts resolves the epoch heap.
             // AB18-G: the VM& is the caller's (AB18-E rule) — no
             // codeBlock->vm() derivation on this retire path.
-            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead));
-            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead), DisarmClearingWatchpoints::Yes);
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler), DisarmClearingWatchpoints::Yes);
             return;
         }
         WTF::storeStoreFence(); // F1/I5

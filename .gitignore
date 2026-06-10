@@ -1,6 +1,9 @@
 *.pbxuser
 *.perspective*
 *.pyc
+# Workflow scratch/notes — never part of a milestone commit (closeout review)
+/THREAD.md
+/staging-threads/
 .DS_Store
 .directory
 /WebKitBuild/
@@ -97,3 +100,5 @@ CLAUDE.md
 # Ignore tracing files
 *.atrc
 
+Tools/threads/tsan/reports-*.log
+Tools/threads/bughunt/logs/

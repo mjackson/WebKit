@@ -834,7 +834,21 @@ public:
 
     // Must hold the JSLock (creates the first-waiter Strong, registers the
     // teardown finalizer).
-    Ref<PropertyWaiterList> findOrCreateList(VM& vm, JSObject* object, UniquedStringImpl* uid)
+    // ENQUEUES |waiter| before releasing the table lock (list lock rank 3
+    // nested inside table lock rank 2 — the same order removeListIfEmpty
+    // uses). Closeout review fix (lost-waiter): the previous shape returned
+    // the list and had the caller enqueue under the list lock only, leaving
+    // a window where a concurrent notify could findList the just-created
+    // (or existing-empty) entry, dequeue zero waiters, observe it empty,
+    // and removeListIfEmpty it — after which the waiter appended to an
+    // ORPHANED list no future notify can reach (permanent lost sync
+    // waiter; observed as the property-wtr-isolation.js GIL-off ~8%
+    // flake/hang: register immediately followed by removeListIfEmpty of
+    // the same (cell, uid), find-side table empty while the waiter stays
+    // parked). With the append under m_lock, removeListIfEmpty's
+    // emptiness re-check (also m_lock, then the list lock) can no longer
+    // interleave between create and enqueue.
+    Ref<PropertyWaiterList> findOrCreateList(VM& vm, JSObject* object, UniquedStringImpl* uid, PropertyWaiter& waiter)
     {
         bool registerSweepFinalizer = false;
         RefPtr<PropertyWaiterList> list;
@@ -847,6 +861,10 @@ public:
             if (result.isNewEntry) {
                 list->cellProtect.set(vm, object);
                 list->uidProtect = uid;
+            }
+            {
+                Locker listLocker { list->listLock };
+                list->waiters.append(Ref { waiter });
             }
             registerSweepFinalizer = m_sweepFinalizerCells.add(object).isNewEntry;
         }
@@ -1003,12 +1021,10 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
     // JSLock held from the step-1 read through the enqueue closes the lost
     // store+notify window (I10); no list lock is held across the GIL drop.
     auto& table = PropertyWaiterTable::singleton();
-    Ref<PropertyWaiterList> list = table.findOrCreateList(vm, object, uid);
     Ref<PropertyWaiter> waiter = PropertyWaiter::create(PropertyWaiter::Kind::Sync);
-    {
-        Locker listLocker { list->listLock };
-        list->waiters.append(waiter.copyRef());
-    }
+    // Enqueued inside findOrCreateList, under the table lock — see the
+    // lost-waiter comment there (closeout review fix).
+    Ref<PropertyWaiterList> list = table.findOrCreateList(vm, object, uid, waiter.get());
 
     uint8_t finalState;
     bool listNowEmpty = false;
@@ -1134,13 +1150,12 @@ JSValue atomicsWaitAsyncOnProperty(JSGlobalObject* globalObject, JSObject* objec
         Ref<AsyncTicket> ticket = AsyncTicket::create(globalObject, promise, { object });
 
         auto& table = PropertyWaiterTable::singleton();
-        Ref<PropertyWaiterList> list = table.findOrCreateList(vm, object, uid);
         Ref<PropertyWaiter> waiter = PropertyWaiter::create(PropertyWaiter::Kind::Async);
         waiter->ticket = ticket.ptr();
-        {
-            Locker listLocker { list->listLock };
-            list->waiters.append(waiter.copyRef());
-        }
+        // Enqueued inside findOrCreateList, under the table lock — see the
+        // lost-waiter comment there (closeout review fix). The ticket must
+        // be set BEFORE the enqueue publishes the waiter to notifiers.
+        Ref<PropertyWaiterList> list = table.findOrCreateList(vm, object, uid, waiter.get());
 
         if (timeout != Seconds::infinity()) {
             // Arm the timeout on the VM's run loop (SPEC-api 5.6 / G28).

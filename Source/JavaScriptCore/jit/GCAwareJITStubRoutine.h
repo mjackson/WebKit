@@ -91,10 +91,23 @@ protected:
     JSCell* m_owner { nullptr };
     bool m_mayBeExecuting : 1 { false };
     bool m_isJettisoned : 1 { false };
-    bool m_ownerIsDead : 1 { false };
     bool m_isGCAware : 1 { false };
     bool m_isCodeImmutable : 1 { false };
-    bool m_isInSharedJITStubSet : 1 { false };
+    // r18 post-closeout review: these two left the bitfield byte.
+    // addedToSharedJITStubSet() runs on a JIT worklist thread AFTER the
+    // shared routine is published to the SharedJITStubSet, so its bitfield
+    // RMW raced both isStillValid()'s read from a sibling compiler thread
+    // (the observed r18 report) and any GC-side write of the sibling bits
+    // (m_mayBeExecuting / m_isJettisoned — compiler threads do not stop
+    // for GC), i.e. a byte-level lost-update hazard, not just a TSAN
+    // modeling gap. m_ownerIsDead is likewise read by isStillValid() on
+    // compiler threads concurrently with the sweep-side writes
+    // (JITStubRoutineSet.cpp). Both are monotone false->true and
+    // revalidated downstream, so whole atomic bytes suffice; the remaining
+    // bitfield bits are written only pre-publication or by the GC
+    // conductor.
+    std::atomic<bool> m_ownerIsDead { false };
+    std::atomic<bool> m_isInSharedJITStubSet { false };
 };
 
 #if ENABLE(JIT)

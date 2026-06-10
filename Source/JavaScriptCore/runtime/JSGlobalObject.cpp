@@ -190,6 +190,7 @@
 #include "JSSetInlines.h"
 #include "JSSetIteratorInlines.h"
 #include "JSStringIteratorInlines.h"
+#include "JSThreadsSafepoint.h"
 #include "JSTypedArrayConstructors.h"
 #include "JSTypedArrayPrototypes.h"
 #include "JSTypedArrayViewConstructor.h"
@@ -1198,11 +1199,20 @@ JSGlobalObject::JSGlobalObject(VM& vm, Structure* structure, const GlobalObjectM
 // record()/create() initialization happens OUTSIDE it (alloc-outside shape,
 // §E.1b / WS1.2); losers' buffers are destroyed after release.
 //
-// OPEN (recorded; outside this file's owned set): the runtime consumers of
-// globalObject->regExpGlobalData() (RegExpGlobalDataInlines.h,
-// RegExpConstructor.cpp, StringPrototype/RegExpObject paths) re-point to
-// threadRegExpGlobalData per AUD1.K2; the DFG/FTL RecordRegExpCachedResult
-// re-point is the A16-ext jit slice. ALS1.3 STATUS (U-T9): the CAPTURE-side
+// RE-POINT STATUS: the AUD1.K2 runtime-consumer re-point LANDED (TSAN wave
+// 1) — every C++ consumer of the match-result stream (RegExpConstructor.cpp,
+// RegExpPrototype.cpp, RegExpObject paths, StringPrototype paths,
+// RegExpSubstringGlobalAtomCache.cpp, DFGOperations.cpp slow paths) calls
+// threadRegExpGlobalData (declared in JSGlobalObject.h). JIT SIDE: gilOff
+// compilations can no longer emit the shared-stream stores —
+// DFGStrengthReductionPhase refuses the RecordRegExpCachedResult /
+// RegExpTestInline conversions when gilOff (the generic nodes lower to the
+// re-pointed operations) and DFG + FTL both fail-stop if such a node is ever
+// reached gilOff. The residual was a MEMORY-SAFETY gap (torn multi-word
+// record -> OOB substring in leftContext()), not stale legacy statics — see
+// RegExpCachedResult.h's banner. STILL OPEN (perf only): the A16-ext jit
+// slice re-points the inline emission at the lite-resident copy so gilOff
+// regains the inline fast path. ALS1.3 STATUS (U-T9): the CAPTURE-side
 // re-point LANDED (JSPromise.cpp's five registration sites call
 // threadAsyncContextData) but the accessor's per-lite routing is GATED OFF
 // (perLiteAsyncContextCursorEnabled below) until the RESTORE-side brackets
@@ -1262,8 +1272,11 @@ ALWAYS_INLINE VMLite* perLiteRealmRoutingLite(VM& vm)
 
 } // anonymous namespace
 
-RegExpGlobalData& threadRegExpGlobalData(JSGlobalObject*); // Self-declaration (the consumer re-point lifts this beside regExpGlobalData()'s declaration; that header is outside U-T8b's owned set).
-RegExpGlobalData& threadRegExpGlobalData(JSGlobalObject* globalObject)
+// Declared in JSGlobalObject.h; consumers call the ALWAYS_INLINE
+// threadRegExpGlobalData() wrapper (RegExpGlobalDataInlines.h), which routes
+// here only when gilOffWithProcessGate() is true (the AUD1.K2 consumer
+// re-point; flag-off match paths stay call-free).
+RegExpGlobalData& threadRegExpGlobalDataSlow(JSGlobalObject* globalObject)
 {
     VM& vm = globalObject->vm();
     VMLite* lite = perLiteRealmRoutingLite(vm);
@@ -3280,23 +3293,57 @@ void JSGlobalObject::haveABadTime(VM& vm)
 {
     ASSERT(&vm == &this->vm());
 
-    // UNGIL SPEC-ungil K.5 (ANNEX HBT/HBT2-HBT4) TRIPWIRE — recorded as
-    // activation blocker AB-10 (INTEGRATE-ungil.md): GIL-off, this WHOLE body
-    // must run under ONE §A.3 thread-granular stop (conductor = caller,
-    // Class-4 variant, post-arbitration isHavingABadTime re-check, jit I2/R1
-    // jettison) — it fires the HaveABadTime watchpoint and then iterates and
-    // rewrites OTHER threads' live objects (forEachLiveCell +
-    // SlowPutArrayStorage conversion below): silent heap/structure corruption
-    // if sibling mutators run. The K.5 stop has NOT landed (note: the body
-    // allocates, which the current §A.3 default-conductor closure rules
-    // forbid, so a naive jsThreadsThreadGranularStopTheWorldAndRun wrap is
-    // NOT the fix). Until AB-10 lands, fail-stop over silent corruption (the
-    // house rule). GIL-on/flag-off: m_gilOff is false — one predicted-false
-    // byte test.
-    RELEASE_ASSERT(!vm.gilOff());
-
     if (isHavingABadTime())
         return;
+
+    // UNGIL SPEC-ungil §K.5 class-4 (ANNEX HBT as amended by HBT2-HBT4) —
+    // AB-10 CLOSED: GIL-off, the WHOLE body from here to the end of the
+    // conversion walk runs as ONE §A.3 thread-granular stop with the calling
+    // mutator as conductor. It fires the HaveABadTime watchpoint and then
+    // iterates and rewrites OTHER threads' live objects (forEachLiveCell +
+    // SlowPutArrayStorage conversion) — silent heap/structure corruption if
+    // sibling mutators run (a sibling could allocate/store through a fast
+    // indexing mode after the watchpoint fired but before the walk saw its
+    // array). Routing through JSThreadsSafepoint::stopTheWorldAndRun gives
+    // the HBT4-ordered conductor sequence (release access -> §A.3.3
+    // arbitration -> GCL -> fan -> predicate wait), the HBT3.2 in-window
+    // re-acquisition of the conductor's OWN client access (which is what
+    // licenses the Class-4 allocating body: ArrayStorage conversion, Vector
+    // growth, slow-put structure creation), and the HBT2.2 no-GC-in-window
+    // I14 bracket (GC initiation inside the window defers; the function-
+    // scoped DeferGC below dies inside the closure and its exit check
+    // re-runs on the conductor after resume).
+    //
+    // HBT item 1/2: arbitration losers park and retry; the post-arbitration
+    // isHavingABadTime() re-check inside the closure makes double entry for
+    // the SAME global idempotent (another thread may have completed the same
+    // transition while we waited); DIFFERENT globals' calls serialize through
+    // the same arbitration, each running its own complete stop. A nested call
+    // from inside an already-open window (R1.h) runs inline under the
+    // conductor's witness. The CONCURRENT-COMPILER half is unchanged: the
+    // jit I2/R1 watchpoint/jettison protocol covers compiler threads, which
+    // do not park under §A.3.
+    //
+    // GIL-on/flag-off: unchanged — the GIL is the serializer; no stop is
+    // requested (one predicted-false byte test).
+    if (vm.gilOff()) [[unlikely]] {
+        JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            // ANNEX HBT item 2: conductor re-checks isHavingABadTime() after
+            // winning arbitration — a sibling may have completed this
+            // global's transition while we waited.
+            if (isHavingABadTime())
+                return;
+            haveABadTimeImpl(vm);
+        }));
+        return;
+    }
+
+    haveABadTimeImpl(vm);
+}
+
+void JSGlobalObject::haveABadTimeImpl(VM& vm)
+{
+    ASSERT(!isHavingABadTime());
 
     DeferGC deferGC(vm);
 
@@ -4261,6 +4308,22 @@ void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task)
         lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
         return;
     }
+    // UNGIL §E.1/§E.4 (TSAN family 30, wave-2 amendment): mirror
+    // VM::queueMicrotask's third arm. perLiteRealmRoutingLite() returns null
+    // not only for the owning main carrier but also when the calling thread
+    // has NO current lite (pre-carrier window) or a FOREIGN lite
+    // (lite->vm != &vm, cross-VM reentry) — and gilOff the realm-bound queue
+    // aliases the VM default queue, which only the main thread's carrier may
+    // touch plainly. Such an enqueue must go through the queue's
+    // lock-guarded foreign inbox (release(enqueuer)/acquire(drain splice)
+    // publishes the task's words before the carrier dequeues/runs/frees
+    // them); a plain enqueue here is the corruption-grade unsynchronized
+    // Deque write racing the carrier's drain. Flag-off/GIL-on: gilOff() is
+    // false, branch not taken, landed enqueue byte-identical.
+    if (vm.gilOff() && !WTF::isMainThread()) [[unlikely]] {
+        microtaskQueue().enqueueFromForeignThread(WTF::move(task));
+        return;
+    }
     microtaskQueue().enqueue(WTF::move(task));
 }
 
@@ -4293,6 +4356,14 @@ void JSGlobalObject::queueMicrotaskSlow(VM& vm, QueuedTask&& task)
     // the storage routing is the same per-lite reroute as the fast path.
     if (VMLite* lite = perLiteRealmRoutingLite(vm)) [[unlikely]] {
         lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
+        return;
+    }
+    // Same foreign-inbox arm as the fast path above (UNGIL §E.1/§E.4,
+    // family 30 wave-2 amendment): a gilOff enqueue from a non-owner thread
+    // (no-lite window or foreign-VM lite) must not touch the owner's plain
+    // Deque.
+    if (vm.gilOff() && !WTF::isMainThread()) [[unlikely]] {
+        microtaskQueue().enqueueFromForeignThread(WTF::move(task));
         return;
     }
     microtaskQueue().enqueue(WTF::move(task));
@@ -4449,7 +4520,16 @@ FunctionExecutable* JSGlobalObject::tryGetCachedFunctionExecutableForFunctionCon
     if (!defaultCodeGenerationMode().isEmpty())
         return nullptr;
 
-    auto* executable = m_executableForCachedFunctionExecutableForFunctionConstructor.get();
+    // Copy the cell pointer out of the Weak slot under the leaf lock: a concurrent
+    // cachedFunctionExecutableForFunctionConstructor() performs Weak::set, which swaps and
+    // deallocates the previous WeakImpl; a lock-free Weak::get here could dereference that
+    // freed WeakImpl (TSAN triage §8.36). Once copied to the stack the cell itself is kept
+    // alive by conservative scanning, so all further inspection happens outside the lock.
+    FunctionExecutable* executable;
+    {
+        Locker locker { m_functionConstructorExecutableCacheLock };
+        executable = m_executableForCachedFunctionExecutableForFunctionConstructor.get();
+    }
     if (!executable)
         return nullptr;
 
@@ -4496,7 +4576,20 @@ void JSGlobalObject::cachedFunctionExecutableForFunctionConstructor(FunctionExec
     auto* unlinkedExecutable = executable->unlinkedExecutable();
     if (unlinkedExecutable->features() & NoEvalCacheFeature)
         return;
-    m_executableForCachedFunctionExecutableForFunctionConstructor.set(vm(), executable);
+    // SPEC-ungil §LK WS row (i): Weak CREATION (MSPL under ISS) is forbidden
+    // under leaf locks — the WeakImpl allocation can hit a heap slow path
+    // that parks at a safepoint, and a second mutator blocked on this lock
+    // would then be safepoint-blind (the ab17b watchdog-timeout family).
+    // Construct the Weak BEFORE the lock, publish under it with a pointer
+    // swap only, and let the displaced Weak's WeakSet::deallocate run AFTER
+    // the lock is released.
+    Weak<FunctionExecutable> newWeak(executable);
+    {
+        Locker locker { m_functionConstructorExecutableCacheLock };
+        m_executableForCachedFunctionExecutableForFunctionConstructor.swap(newWeak);
+    }
+    // `newWeak` now holds the displaced previous Weak (possibly empty) and
+    // deallocates it here, outside the lock.
 }
 
 #if ENABLE(REMOTE_INSPECTOR)

@@ -710,7 +710,13 @@ public:
     const JITStubRoutineSet& jitStubRoutines() { return *m_jitStubRoutines; }
     
     void addReference(JSCell*, ArrayBuffer*);
-    
+
+    // GIL-off: serializes mutation AND reads of each ArrayBuffer's
+    // incoming-reference storage (see GCIncomingRefCountedSet.h). Unlocked
+    // readers (ArrayBuffer::notifyDetaching / refreshAfterWasmMemoryGrow)
+    // snapshot the cell list under this lock; it is a strict heap-rank leaf.
+    Lock& arrayBufferIncomingReferencesLock() LIFETIME_BOUND { return m_arrayBuffers.lock(); }
+
     // SharedGC (§5.4/I17): once ISS, DeferGC depth is per-CLIENT — this
     // consults the calling thread's client depth (defined after
     // GCClient::Heap at the bottom of this header). !ISS => the server

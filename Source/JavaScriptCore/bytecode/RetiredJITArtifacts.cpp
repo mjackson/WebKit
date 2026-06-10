@@ -32,6 +32,7 @@
 #include "JITCode.h"
 #include "Options.h"
 #include "VM.h"
+#include <wtf/Lock.h>
 
 #if __has_include("HeapClientSet.h")
 // Heap workstream landed: GCClient::Heap::server() resolution is meaningful
@@ -122,7 +123,7 @@ private:
 } // anonymous namespace
 #endif // defined(JSC_JIT_HAS_GC_SAFEPOINT_EPOCH)
 
-void RetiredJITArtifacts::retireHandlerChain(VM& vm, RefPtr<InlineCacheHandler>&& head)
+void RetiredJITArtifacts::retireHandlerChain(VM& vm, RefPtr<InlineCacheHandler>&& head, DisarmClearingWatchpoints disarm)
 {
     if (!head)
         return;
@@ -159,28 +160,53 @@ void RetiredJITArtifacts::retireHandlerChain(VM& vm, RefPtr<InlineCacheHandler>&
     // JITStubRoutineSet shared-server clients register with when
     // useSharedGCHeap lands (this now applies uniformly to ALL stub creation
     // sites, which also register with the creating vm.heap).
-    for (auto* cursor = head.get(); cursor; cursor = cursor->next()) {
-        if (auto* routine = cursor->stubRoutine()) {
-            if (!routine->isGCAware()) [[unlikely]] {
-                RELEASE_ASSERT(!Options::useJSThreads()); // Flag-on every retirable routine is GC-aware at creation; promoting a published routine here would race (see above).
-                routine->makeGCAware(vm);
+    // TSAN ic-stubinfo §10.4 ("disarmClearingWatchpointOnRetire self", family-4
+    // lock ruling): the SAME InlineCacheHandler node can be retired from two
+    // threads at once (e.g. a chain retired at jettison and again at IC
+    // teardown — the double-retire is documented as harmless for the epoch
+    // refs in PropertyInlineCache::deref — or a SharedJITStubSet handler
+    // reachable from two CodeBlocks). Both walkers then run
+    // m_watchpoint.reset() concurrently: a write-write race on the unique_ptr
+    // that can DOUBLE-DELETE the PropertyInlineCacheClearingWatchpoint. This
+    // is a real bug, not an annotation candidate; serialize the disarm walk
+    // under a process-wide leaf lock (retirement is a slow path: jettison,
+    // reset, teardown). Lock order: this lock only wraps the walk below and
+    // nests OVER g_watchpointMembershipLock (taken inside ~Watchpoint); it is
+    // never taken while holding that lock, and no park/JS can run under it.
+    static Lock retiredChainDisarmLock;
+    {
+        Locker locker { retiredChainDisarmLock };
+        for (auto* cursor = head.get(); cursor; cursor = cursor->next()) {
+            if (auto* routine = cursor->stubRoutine()) {
+                if (!routine->isGCAware()) [[unlikely]] {
+                    RELEASE_ASSERT(!Options::useJSThreads()); // Flag-on every retirable routine is GC-aware at creation; promoting a published routine here would race (see above).
+                    routine->makeGCAware(vm);
+                }
+                RELEASE_ASSERT(routine->isGCAware());
             }
-            RELEASE_ASSERT(routine->isGCAware());
+            // AB18-F (sig-1 family, amended at thread-closeout final review):
+            // disarm each DISPLACED/DYING handler's owner-clearing watchpoint
+            // NOW, on BOTH arms below. The epoch arm defers destruction past
+            // the owner CodeBlock's possible death, and the leak arm never
+            // destroys at all — either way an armed
+            // PropertyInlineCacheClearingWatchpoint would survive on a live
+            // WatchpointSet with m_owner pointing at a sweepable CodeBlock;
+            // a later fire would read the dead cell (fireInternal's
+            // wasDestructed()/isPendingDestruction() guards are themselves the
+            // UAF once the MarkedBlock is freed). ~CodeBlock cannot cover these:
+            // its aboutToDie() walk sees only chains still ATTACHED to the IC,
+            // and displaced chains are by definition not. Disarming here is
+            // exactly the flag-off behavior for the DISPLACEMENT and
+            // ~CodeBlock callers (inline destruction of the displaced chain at
+            // the same program point destroys the same watchpoint). It is NOT
+            // flag-off behavior for the jettison-time extra-ref retire, whose
+            // chains stay INSTALLED with a live owner — that caller passes
+            // DisarmClearingWatchpoints::No so a post-jettison watched-set
+            // fire still resets the chain for straggler baseline frames (see
+            // the enum comment in RetiredJITArtifacts.h).
+            if (disarm == DisarmClearingWatchpoints::Yes)
+                cursor->disarmClearingWatchpointOnRetire();
         }
-        // AB18-F (sig-1 family): disarm each displaced handler's owner-
-        // clearing watchpoint NOW, on BOTH arms below. The epoch arm defers
-        // destruction past the owner CodeBlock's possible death, and the
-        // leak arm never destroys at all — either way an armed
-        // PropertyInlineCacheClearingWatchpoint would survive on a live
-        // WatchpointSet with m_owner pointing at a sweepable CodeBlock;
-        // a later fire would read the dead cell (fireInternal's
-        // wasDestructed()/isPendingDestruction() guards are themselves the
-        // UAF once the MarkedBlock is freed). ~CodeBlock cannot cover these:
-        // its aboutToDie() walk sees only chains still ATTACHED to the IC,
-        // and displaced chains are by definition not. Disarming here is
-        // exactly the flag-off behavior (inline destruction of the displaced
-        // chain at the same program point destroys the same watchpoint).
-        cursor->disarmClearingWatchpointOnRetire();
     }
 
 #if defined(JSC_JIT_HAS_GC_SAFEPOINT_EPOCH)

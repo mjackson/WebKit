@@ -20373,6 +20373,22 @@ IGNORE_CLANG_WARNINGS_END
 #if ENABLE(YARR_JIT_REGEXP_TEST_INLINE)
     void compileRegExpTestInline()
     {
+        if (vm().gilOff()) [[unlikely]] {
+            // UNGIL A16 EXTENSION (AUD1.K2/SD19, U-T4b) — FAIL-STOP TRIPWIRE
+            // (sibling of compileRecordRegExpCachedResult below): the inline
+            // success path's patchpoint stores the SHARED in-object
+            // RegExpCachedResult stream (lastRegExp/lastInput/result.start/
+            // result.end + reify flip) — a torn multi-word cross-thread race
+            // with an OOB-substring consequence in leftContext(),
+            // uninstrumentable by TSAN. gilOff compiles must never reach
+            // here: DFGStrengthReductionPhase refuses convertTestToTestInline()
+            // when gilOff, so RegExpTest lowers to the re-pointed operation
+            // instead. GIL-on/flag-off emission below is byte-for-byte
+            // unchanged.
+            DFG_CRASH(m_graph, m_node, "RegExpTestInline gilOff emission requires the lite-resident m_regExpGlobalData copy (A16-ext, not landed)");
+            return;
+        }
+
         RegExp* regExp = uncheckedDowncast<RegExp>(m_node->cellOperand2()->value());
 
         ASSERT(!regExp->globalOrSticky());

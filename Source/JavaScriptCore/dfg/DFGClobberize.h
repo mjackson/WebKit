@@ -617,6 +617,22 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case CheckTraps:
         read(InternalState);
         write(InternalState);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // UNGIL §K.5 / SPEC-jit I21 (AB-10 closure): flag-on, the polling
+            // CheckTraps is a PARK SITE — a mutator that traps here parks for
+            // the whole §A.3 thread-granular window (or a Mode-machine stop),
+            // during which the conductor may rewrite ANY heap fact this code
+            // hoisted: haveABadTime converts every fast-indexing butterfly to
+            // (SlowPut)ArrayStorage, Class-A fires retag structures, debugger
+            // services run arbitrary JS. No heap location may survive the
+            // poll: a hoisted CheckArray/GetButterfly fact reused after
+            // resume addresses a CONVERTED butterfly with the pre-flip shape
+            // (the +2-slot ArrayStorage vector offset corruption). GIL-on the
+            // same model applies (parks happen under flag-on GIL too);
+            // flag-off this branch is dead.
+            read(World);
+            write(Heap);
+        }
         return;
 
     case InvalidationPoint:

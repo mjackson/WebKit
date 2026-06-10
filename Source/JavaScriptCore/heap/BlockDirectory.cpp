@@ -56,6 +56,10 @@ BlockDirectory::BlockDirectory(Heap& heap, size_t cellSize)
     : m_heap(heap)
     , m_cellSize(static_cast<unsigned>(cellSize))
 {
+    // THREADS/TSAN: see the member declarations.
+    WTF::atomicStore(&m_nextDirectory, static_cast<BlockDirectory*>(nullptr), std::memory_order_relaxed);
+    WTF::atomicStore(&m_nextDirectoryInSubspace, static_cast<BlockDirectory*>(nullptr), std::memory_order_relaxed);
+    WTF::atomicStore(&m_nextDirectoryInAlignedMemoryAllocator, static_cast<BlockDirectory*>(nullptr), std::memory_order_relaxed);
 }
 
 BlockDirectory::~BlockDirectory()

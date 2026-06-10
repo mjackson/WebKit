@@ -368,10 +368,14 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     , m_privateSymbolRegistry(makeUniqueRef<SymbolRegistry>(SymbolRegistry::Type::PrivateSymbol))
     , emptyList(new ArgList)
     , machineCodeBytesPerBytecodeWordForBaselineJIT(makeUnique<SimpleStats>())
-    , symbolImplToSymbolMap(*this)
-    , atomStringToJSStringMap(*this)
+    // These per-VM WeakGCMap caches are mutated from every JS thread when
+    // useJSThreads is on (one shared VM under VMLite), so they opt into
+    // WeakGCMap's internal leaf lock (SPEC-ungil §H / §LK.7). With
+    // useJSThreads off they stay lock-free, exactly as before.
+    , symbolImplToSymbolMap(*this, Options::useJSThreads() ? WeakGCMapLocking::Yes : WeakGCMapLocking::No)
+    , atomStringToJSStringMap(*this, Options::useJSThreads() ? WeakGCMapLocking::Yes : WeakGCMapLocking::No)
 #if ENABLE(WEBASSEMBLY)
-    , wasmGCStructureMap(*this)
+    , wasmGCStructureMap(*this, Options::useJSThreads() ? WeakGCMapLocking::Yes : WeakGCMapLocking::No)
 #endif
     , m_regExpCache(makeUnique<RegExpCache>())
     , m_compactVariableMap(adoptRef(*new CompactTDZEnvironmentMap))
@@ -801,19 +805,27 @@ void VM::queueMicrotask(QueuedTask&& task)
             lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
             return;
         }
-        // UNGIL AB-25 interim fail-stop (GIL-removal round 5):
-        // MicrotaskQueue is a plain unlocked Deque, and gilOff the VM
-        // default queue is OWNED by the main thread's carrier (the AB-23
-        // re-key above). The fallthrough below therefore may run only on
-        // the main thread (its own carrier, or the pre-carrier no-lite
-        // window — ownerHasNoTlsDtor is fixed from WTF::isMainThread() at
-        // registration, JSLock.cpp). A no-lite/foreign-VM enqueue from any
-        // OTHER thread would be an unsynchronized Deque write racing the
-        // main carrier's drain — exactly the AB-23 "no-DRAINER" residual's
-        // corruption-grade sibling. Retired by the AB-20/AB-23/AB-25
-        // service-request word (cross-thread enqueues handed off, serviced
-        // at the owner's next drain). Flag-off/GIL-on: branch not taken.
-        RELEASE_ASSERT(WTF::isMainThread());
+        // UNGIL §E.1/§E.4 (TSAN family 30, microtask-queue): the AB-25
+        // interim fail-stop (RELEASE_ASSERT(isMainThread())) is RETIRED for
+        // the enqueue arm — this IS the AB-20/AB-23/AB-25 service-request
+        // word for cross-thread enqueues. GIL-off the VM default queue is
+        // OWNED by the main thread's carrier (the AB-23 re-key above); a
+        // no-lite-window/foreign-VM-lite enqueue from any OTHER thread must
+        // not touch the owner's plain Deque (that was the corruption-grade
+        // unsynchronized write racing the carrier's drain). Instead it is
+        // handed off through the queue's lock-guarded foreign inbox and
+        // serviced at the owner's next drain: the inbox lock
+        // release(enqueuer)/acquire(carrier drain splice) establishes the
+        // happens-before that publishes the task's words before the carrier
+        // dequeues/runs/frees them. The main thread (its own carrier, or
+        // the pre-carrier no-lite window — ownerHasNoTlsDtor is fixed from
+        // WTF::isMainThread() at registration, JSLock.cpp) is the owner and
+        // keeps the landed plain enqueue below. Flag-off/GIL-on: branch not
+        // taken, landed single-queue enqueue byte-identical.
+        if (!WTF::isMainThread()) [[unlikely]] {
+            m_defaultMicrotaskQueue->enqueueFromForeignThread(WTF::move(task));
+            return;
+        }
     }
     m_defaultMicrotaskQueue->enqueue(WTF::move(task));
 }
@@ -1284,11 +1296,19 @@ RefPtr<JSON::Value> VM::takeSamplingProfilerSamplesAsJSON()
 static StringImpl::StaticStringImpl terminationErrorString { "JavaScript execution terminated." };
 Exception* VM::ensureTerminationException()
 {
-    if (!m_terminationException) {
-        JSString* terminationError = jsNontrivialString(*this, terminationErrorString);
-        m_terminationException = Exception::create(*this, terminationError, Exception::StackCaptureAction::DoNotCaptureStack);
+    // THREADS: serialize lazy creation — isTerminationException compares pointer
+    // identity, so exactly one Exception may ever be published VM-wide.
+    Exception* exception = WTF::atomicLoad(&m_terminationException, std::memory_order_relaxed);
+    if (!exception) {
+        Locker locker { m_terminationExceptionLock };
+        exception = WTF::atomicLoad(&m_terminationException, std::memory_order_relaxed);
+        if (!exception) {
+            JSString* terminationError = jsNontrivialString(*this, terminationErrorString);
+            exception = Exception::create(*this, terminationError, Exception::StackCaptureAction::DoNotCaptureStack);
+            WTF::atomicStore(&m_terminationException, exception, std::memory_order_release);
+        }
     }
-    return m_terminationException;
+    return exception;
 }
 
 #if ENABLE(JIT)
@@ -1740,8 +1760,15 @@ void VM::setStackPointerAtVMEntry(void* sp)
 
 size_t VM::updateSoftReservedZoneSize(size_t softReservedZoneSize)
 {
-    size_t oldSoftReservedZoneSize = m_currentSoftReservedZoneSize;
-    m_currentSoftReservedZoneSize = softReservedZoneSize;
+    // THREADS: the read-modify-write is serialized under m_softReservedZoneSizeLock
+    // (ErrorHandlingScope save/restore can run on multiple Threads); the field's
+    // unlocked readers (updateStackLimits, softReservedZoneSize()) use relaxed loads.
+    size_t oldSoftReservedZoneSize;
+    {
+        Locker locker { m_softReservedZoneSizeLock };
+        oldSoftReservedZoneSize = WTF::atomicLoad(&m_currentSoftReservedZoneSize, std::memory_order_relaxed);
+        WTF::atomicStore(&m_currentSoftReservedZoneSize, softReservedZoneSize, std::memory_order_relaxed);
+    }
 #if ENABLE(C_LOOP)
     cloopStack().setSoftReservedZoneSize(softReservedZoneSize);
 #endif
@@ -1821,10 +1848,10 @@ void VM::updateStackLimits()
     void* newSoftStackLimit = 0;
     if (primitives.m_stackPointerAtVMEntry) {
         char* startOfStack = reinterpret_cast<char*>(primitives.m_stackPointerAtVMEntry);
-        newSoftStackLimit = stack.recursionLimit(startOfStack, Options::maxPerThreadStackUsage(), m_currentSoftReservedZoneSize);
+        newSoftStackLimit = stack.recursionLimit(startOfStack, Options::maxPerThreadStackUsage(), WTF::atomicLoad(&m_currentSoftReservedZoneSize, std::memory_order_relaxed));
         primitives.m_stackLimit = stack.recursionLimit(startOfStack, Options::maxPerThreadStackUsage(), reservedZoneSize);
     } else {
-        newSoftStackLimit = stack.recursionLimit(m_currentSoftReservedZoneSize);
+        newSoftStackLimit = stack.recursionLimit(WTF::atomicLoad(&m_currentSoftReservedZoneSize, std::memory_order_relaxed));
         primitives.m_stackLimit = stack.recursionLimit(reservedZoneSize);
     }
 
@@ -2463,6 +2490,18 @@ void VM::drainMicrotasks()
             finalizeSynchronousJSExecution();
             return;
         }
+        // UNGIL §E.1 (TSAN family 30, microtask-queue) — AB-25 sibling
+        // fail-stop, DRAIN arm: the landed body below dequeues from and
+        // swaps the VM default queue's plain Deques, which GIL-off are
+        // owned by the MAIN thread's carrier (AB-23 re-key). A foreign
+        // ENQUEUE is routable through the queue's locked inbox
+        // (queueMicrotask above), but a foreign DRAIN is not — it would be
+        // two threads running checkpoints over one set of plain Deques.
+        // Spawned same-VM threads took the per-lite arm above; anything
+        // else reaching here off-main (foreign-VM lite, no-lite window on
+        // a non-main thread) must fail loudly rather than race. Flag-off/
+        // GIL-on: branch not taken, landed body byte-identical.
+        RELEASE_ASSERT(WTF::isMainThread());
     }
 
     if (executionForbidden()) [[unlikely]]

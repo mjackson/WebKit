@@ -316,22 +316,30 @@ public:
 private:
     friend class SingleSlotTransitionWeakOwner;
 
+    // THREADS/TSAN: one relaxed snapshot of the word — written atomically
+    // (setMap's release store; setSingleTransition; TsanDeferredCtorMember's
+    // relaxed ctor store on recycled cell memory) while lock-free readers
+    // probe it. Same single mov as the upstream plain load; the hot lookup
+    // paths below decode the snapshot instead of re-loading.
+    intptr_t dataConcurrently() const { return WTF::atomicLoad(const_cast<intptr_t*>(&m_data), std::memory_order_relaxed); }
+
     bool isUsingSingleSlot() const
     {
-        return m_data & UsingSingleSlotFlag;
+        return dataConcurrently() & UsingSingleSlotFlag;
     }
 
     TransitionMap* map() const
     {
         ASSERT(!isUsingSingleSlot());
-        return std::bit_cast<TransitionMap*>(m_data);
+        return std::bit_cast<TransitionMap*>(dataConcurrently());
     }
 
     void setMap(TransitionMap* map)
     {
         ASSERT(isUsingSingleSlot());
-        // This implicitly clears the flag that indicates we're using a single transition
-        m_data = std::bit_cast<intptr_t>(map);
+        // This implicitly clears the flag that indicates we're using a single transition.
+        // Release store: publishes the fully constructed map to lock-free probers.
+        WTF::atomicStore(&m_data, std::bit_cast<intptr_t>(map), std::memory_order_release);
         ASSERT(!isUsingSingleSlot());
     }
 

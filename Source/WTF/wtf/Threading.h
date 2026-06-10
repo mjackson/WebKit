@@ -285,7 +285,7 @@ public:
 #endif
 
     bool isCompilationThread() const { return m_isCompilationThread; }
-    bool isJSThread() const { return m_isJSThread; }
+    bool isJSThread() const { return atomicLoad(const_cast<bool*>(&m_isJSThread), std::memory_order_relaxed); } // Dedicated byte; see the member comment.
     GCThreadType gcThreadType() const { return static_cast<GCThreadType>(m_gcThreadType.load(std::memory_order_relaxed)); }
 
     struct NewThreadContext;
@@ -347,7 +347,7 @@ protected:
     void didBecomeDetached() { m_joinableState = Detached; }
     void didExit();
     void didJoin() { m_joinableState = Joined; }
-    bool hasExited() const { return m_didExit; }
+    bool hasExited() const { return atomicLoad(const_cast<bool*>(&m_didExit), std::memory_order_relaxed); } // Dedicated byte; see the member comment.
 
     // These functions are only called from ThreadGroup.
     ThreadGroupAddResult addToThreadGroup(const AbstractLocker& threadGroupLocker, ThreadGroup&);
@@ -374,12 +374,18 @@ protected:
 
     JoinableState m_joinableState { Joinable };
     bool m_isShuttingDown : 1 { false };
-    bool m_didExit : 1 { false };
     bool m_isDestroyedOnce : 1 { false };
     bool m_isCompilationThread: 1 { false };
-    bool m_isJSThread : 1 { false };
 
     bool m_isRealtime : 1 { false };
+
+    // Dedicated bytes (the TSAN header-side pass recorded in
+    // Tools/tsan/suppressions.txt Part A item 5): cross-thread writers
+    // (didExit on thread teardown, registerJSThread) must not byte-RMW the
+    // packed bit-field run above while lock-free readers probe these flags;
+    // all accesses are relaxed atomics on the dedicated bytes.
+    bool m_didExit { false };
+    bool m_isJSThread { false };
 
     // Stored outside the bit-field run: registerGCThread() must not byte-RMW
     // the flag byte shared with m_isShuttingDown / m_didExit / m_isJSThread.

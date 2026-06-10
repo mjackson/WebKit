@@ -44,6 +44,29 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+// TSAN-TRIAGE §3.24 (typedarray-sab; SPEC-objectmodel §4.7 analog): typed
+// array element lanes are JS-visible data words with SAB semantics — aligned,
+// tear-free per lane, value races legal (this holds for any view once it can
+// be reached from more than one JS thread, not just SharedArrayBuffer-backed
+// ones). JIT-generated lane accesses are invisible to TSAN by design; these
+// helpers are the TSAN-blessed accessors for the C++ slow paths. Relaxed
+// atomic loads/stores of 1/2/4/8-byte lanes compile to the same plain
+// MOV/STR, so flag-off codegen and semantics are unchanged. Bulk memset/
+// memmove fast paths must not be converted wholesale — they take a
+// gilOffWithProcessGate()-gated per-lane loop instead, keeping the flag-off
+// bulk path byte-identical.
+template<typename T>
+ALWAYS_INLINE T typedArrayLaneLoadRelaxed(const T* lane)
+{
+    return WTF::atomicLoad(const_cast<T*>(lane), std::memory_order_relaxed);
+}
+
+template<typename T>
+ALWAYS_INLINE void typedArrayLaneStoreRelaxed(T* lane, T value)
+{
+    WTF::atomicStore(lane, value, std::memory_order_relaxed);
+}
+
 template<typename Adaptor>
 JSGenericTypedArrayView<Adaptor>::JSGenericTypedArrayView(
     VM& vm, ConstructionContext& context)
@@ -301,7 +324,23 @@ bool JSGenericTypedArrayView<Adaptor>::setFromTypedArray(JSGlobalObject* globalO
             return false;
 
         RELEASE_ASSERT(JSC::elementSize(Adaptor::typeValue) == JSC::elementSize(other->type()));
-        memmove(typedVector() + offset, std::bit_cast<typename Adaptor::Type*>(other->vector()) + objectOffset, length * elementSize);
+        typename Adaptor::Type* dst = typedVector() + offset;
+        typename Adaptor::Type* src = std::bit_cast<typename Adaptor::Type*>(other->vector()) + objectOffset;
+        if (vm.gilOffWithProcessGate()) [[unlikely]] {
+            // TSAN-TRIAGE §3.24: GIL-off, both ranges may be raced by other JS
+            // threads, so the bulk memmove (plain C++ accesses) is replaced by
+            // relaxed lane copies. memmove overlap semantics are preserved by
+            // picking the copy direction from the pointer order. Flag-off/
+            // GIL-on keeps the byte-identical memmove (one predicted branch).
+            if (dst <= src) {
+                for (size_t i = 0; i < length; ++i)
+                    typedArrayLaneStoreRelaxed(dst + i, typedArrayLaneLoadRelaxed(src + i));
+            } else {
+                for (size_t i = length; i--;)
+                    typedArrayLaneStoreRelaxed(dst + i, typedArrayLaneLoadRelaxed(src + i));
+            }
+        } else
+            memmove(dst, src, length * elementSize);
         return true;
     };
 
@@ -808,7 +847,8 @@ template<typename Adaptor> inline bool JSGenericTypedArrayView<Adaptor>::canSetI
 template<typename Adaptor> inline typename Adaptor::Type JSGenericTypedArrayView<Adaptor>::getIndexQuicklyAsNativeValue(size_t i) const
 {
     ASSERT(inBounds(i));
-    return typedVector()[i];
+    // TSAN-TRIAGE §3.24: relaxed lane load (see typedArrayLaneLoadRelaxed above).
+    return typedArrayLaneLoadRelaxed(typedVector() + i);
 }
 
 template<typename Adaptor> inline JSValue JSGenericTypedArrayView<Adaptor>::getIndexQuickly(size_t i) const
@@ -819,7 +859,8 @@ template<typename Adaptor> inline JSValue JSGenericTypedArrayView<Adaptor>::getI
 template<typename Adaptor> inline void JSGenericTypedArrayView<Adaptor>::setIndexQuicklyToNativeValue(size_t i, typename Adaptor::Type value)
 {
     ASSERT(inBounds(i));
-    typedVector()[i] = value;
+    // TSAN-TRIAGE §3.24: relaxed lane store (see typedArrayLaneStoreRelaxed above).
+    typedArrayLaneStoreRelaxed(typedVector() + i, value);
 }
 
 template<typename Adaptor> inline void JSGenericTypedArrayView<Adaptor>::setIndexQuickly(size_t i, JSValue value)

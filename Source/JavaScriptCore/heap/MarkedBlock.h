@@ -36,6 +36,7 @@
 #include <wtf/IterationStatus.h>
 #include <wtf/PageBlock.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/ThreadSanitizerSupport.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -344,6 +345,7 @@ public:
     const Handle& handle() const;
         
     VM& vm() const;
+    VM& vmConcurrentProbe() const; // TSAN-annotated stale-probe variant; see the inline definition below.
     inline JSC::Heap* heap() const;
     inline MarkedSpace* space() const;
 
@@ -520,6 +522,22 @@ inline VM& MarkedBlock::vm() const
     return *header().m_vm;
 }
 
+inline VM& MarkedBlock::vmConcurrentProbe() const
+{
+    // TSAN r12 (report 3), NARROWED at the thread-closeout final review:
+    // pairs with the HAPPENS_BEFORE at the end of the Header constructor —
+    // see the comment there. The annotation deliberately lives on this
+    // dedicated probe accessor and not on plain vm(): HeapCell::vm() routes
+    // through vm() on virtually every C++ slow path on every thread, and an
+    // AFTER there would continuously re-synchronize every mutator with every
+    // block-allocating thread, hiding unrelated genuine races from TSAN
+    // engine-wide. Use ONLY at blessed stale-probe sites (currently the
+    // ownerForSlowPath consumers via HeapCell::vmConcurrentProbe). No-op
+    // outside TSAN.
+    TSAN_ANNOTATE_HAPPENS_AFTER(&header());
+    return *header().m_vm;
+}
+
 inline WeakSet& MarkedBlock::Handle::weakSet()
 {
     return m_weakSet;
@@ -633,7 +651,10 @@ inline const WTF::BitSet<MarkedBlock::atomsPerBlock>& MarkedBlock::marks() const
 
 inline bool MarkedBlock::isNewlyAllocated(const void* p)
 {
-    return header().m_newlyAllocated.get(atomNumber(p));
+    // TSAN r12 (sibling of the isLive m_marks fix, MarkedBlock.cpp): this is
+    // read on the same CountingLock-validated optimistic path while another
+    // thread sets bits concurrently; relaxed atomic read, codegen identical.
+    return header().m_newlyAllocated.concurrentGet(atomNumber(p));
 }
 
 inline void MarkedBlock::setNewlyAllocated(const void* p)

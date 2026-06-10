@@ -70,6 +70,19 @@ ALWAYS_INLINE VM& HeapCell::vm() const
         return preciseAllocation().vm();
     return markedBlock().vm();
 }
+
+// TSAN-annotated stale-probe variant (thread-closeout final review): use at
+// blessed sites that may probe a cell on a RECYCLED MarkedBlock (e.g. the
+// ownerForSlowPath consumers in JITOperations.cpp). Routes through
+// MarkedBlock::vmConcurrentProbe(), whose HAPPENS_AFTER pairs with the
+// Header-ctor HAPPENS_BEFORE; plain vm() stays unannotated so TSAN's
+// cross-thread visibility is preserved engine-wide. No-op outside TSAN.
+ALWAYS_INLINE VM& HeapCell::vmConcurrentProbe() const
+{
+    if (isPreciseAllocation())
+        return preciseAllocation().vm();
+    return markedBlock().vmConcurrentProbe();
+}
     
 ALWAYS_INLINE size_t HeapCell::cellSize() const
 {

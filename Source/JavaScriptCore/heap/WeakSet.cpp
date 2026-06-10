@@ -31,6 +31,13 @@
 
 namespace JSC {
 
+// UNGIL §A.3 (AB-10) cross-TU seams — defined in runtime/VMManager.cpp;
+// declaration pattern matches heap/Heap.cpp:151, heap/LocalAllocator.cpp:45,
+// heap/BlockDirectory.cpp:45 and heap/MarkedSpace.cpp. Signatures must stay
+// byte-identical.
+bool jsThreadsThreadGranularWorldIsStopped(); // §A.3.2 post-quiescence depth.
+bool jsThreadsCurrentThreadIsStopConductor(); // §A.3.3 tenure check.
+
 WeakSet::~WeakSet()
 {
     if (isOnList())
@@ -65,7 +72,13 @@ void WeakSet::sweep()
     // lifetime race; teardown (lastChanceToFinalize) holds MSPL with no
     // other mutator left. So a mutator-concurrent arrival here only ever
     // sees an empty m_blocks list.
-    ASSERT(!heap()->isSharedServer() || heap()->worldIsStoppedForAllClients() || heap()->mutatorSlowPathLock().isHeld());
+    // UNGIL §K.5 class-4 (AB-10): a §A.3 thread-granular window's CONDUCTOR
+    // is also licensed — every other entered mutator is parked at a poll
+    // site (so the lock-free WeakSet::deallocate cannot be in flight) and
+    // the window's GCL bracket excludes any shared GC (so no concurrent
+    // finalizer). Reached from the conductor's in-window allocation slow
+    // path (the class-4 allocating body, ANNEX HBT2.1).
+    ASSERT(!heap()->isSharedServer() || heap()->worldIsStoppedForAllClients() || heap()->mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
 
     for (WeakBlock* block = m_blocks.head(); block;) {
         heap()->sweepNextLogicallyEmptyWeakBlock();
@@ -88,8 +101,9 @@ void WeakSet::sweep()
 
 void WeakSet::shrink()
 {
-    // SharedGC (review round 4): weak-mutation protocol — see sweep().
-    ASSERT(!heap()->isSharedServer() || heap()->worldIsStoppedForAllClients() || heap()->mutatorSlowPathLock().isHeld());
+    // SharedGC (review round 4): weak-mutation protocol — see sweep(),
+    // including the §A.3 conductor disjunct (AB-10).
+    ASSERT(!heap()->isSharedServer() || heap()->worldIsStoppedForAllClients() || heap()->mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
 
     WeakBlock* next;
     for (WeakBlock* block = m_blocks.head(); block; block = next) {

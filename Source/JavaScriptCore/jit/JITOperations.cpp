@@ -83,6 +83,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "TypeProfilerLog.h"
 #include "VMInlines.h"
 #include "VMTrapsInlines.h"
+#include <wtf/ThreadSanitizerSupport.h>
 
 IGNORE_WARNINGS_BEGIN("frame-address")
 
@@ -98,6 +99,24 @@ ALWAYS_INLINE ICSlowPathCallFrameTracer::ICSlowPathCallFrameTracer(VM& vm, CallF
     UNUSED_PARAM(vm);
     UNUSED_PARAM(callFrame);
     ASSERT(callFrame);
+    // TSAN §4.4 retired-artifact audit (TSAN-RESULTS residual 1, closed
+    // 2026-06-09): pairs with the TSAN_ANNOTATE_HAPPENS_BEFORE on this
+    // PropertyInlineCache at its publication point (the m_jitData install in
+    // CodeBlock::setupWithUnlinkedBaselineCode / DFG::JITFinalizer::finalize).
+    // The propertyCache pointer arrives here materialized by JIT'd code, so
+    // the real ordering edge (payload init -> storeStoreFence -> m_jitData
+    // store -> dependent loads in the emitted IC path) is invisible to TSAN.
+    // Lifetime is proven, not assumed: the audit (AS AMENDED at the closeout
+    // final review — TSAN-TRIAGE §17.2, incl. the row-16 MetadataTable
+    // ref-escape in ~CodeBlock that closed the one bypass the original table
+    // missed) showed every flag-on deallocation path of the containing
+    // DFG::JITData / BaselineJITData is either pre-publication
+    // (single-thread: JITData::tryCreate failure) or leaked in ~CodeBlock per
+    // SPEC-jit §5.3/I7, and every displaced handler chain rides
+    // RetiredJITArtifacts, which flag-on never frees
+    // (epochCoversEveryJSThread, RetiredJITArtifacts.cpp) — the block TSAN
+    // pairs the read with is live. No-op outside TSAN builds.
+    TSAN_ANNOTATE_HAPPENS_AFTER(propertyCache);
     // UNGIL §A.1.3 mode split (U-T4): GIL-off, doVMEntry publishes topEntryFrame
     // and prepareCallOperation (AssemblyHelpers.h:121, emission side already
     // converted) stores the frame pointer through the current thread's
@@ -2555,7 +2574,11 @@ JSC_DEFINE_JIT_OPERATION(operationCallDirectEvalStrictTaintedByWithScope, Encode
 JSC_DEFINE_JIT_OPERATION(operationPolymorphicCall, UCPURegister, (CallFrame* calleeFrame, CallLinkInfo* callLinkInfo))
 {
     JSCell* owner = callLinkInfo->ownerForSlowPath(calleeFrame);
-    VM& vm = owner->vm();
+    // vmConcurrentProbe: owner may sit on a freshly (re-)handed-out
+    // MarkedBlock (residual-2 recycled-block class); the TSAN-only
+    // HAPPENS_AFTER pairs with the MarkedBlock::Header ctor's BEFORE.
+    // Identical codegen to vm() outside TSAN builds.
+    VM& vm = owner->vmConcurrentProbe();
     NativeCallFrameTracer tracer(vm, calleeFrame);
     sanitizeStackForVM(vm);
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -2575,7 +2598,11 @@ JSC_DEFINE_JIT_OPERATION(operationPolymorphicCall, UCPURegister, (CallFrame* cal
 JSC_DEFINE_JIT_OPERATION(operationVirtualCall, UCPURegister, (CallFrame* calleeFrame, CallLinkInfo* callLinkInfo))
 {
     JSCell* owner = callLinkInfo->ownerForSlowPath(calleeFrame);
-    VM& vm = owner->vm();
+    // vmConcurrentProbe: owner may sit on a freshly (re-)handed-out
+    // MarkedBlock (residual-2 recycled-block class); the TSAN-only
+    // HAPPENS_AFTER pairs with the MarkedBlock::Header ctor's BEFORE.
+    // Identical codegen to vm() outside TSAN builds.
+    VM& vm = owner->vmConcurrentProbe();
     NativeCallFrameTracer tracer(vm, calleeFrame);
     sanitizeStackForVM(vm);
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -2592,7 +2619,11 @@ JSC_DEFINE_JIT_OPERATION(operationVirtualCall, UCPURegister, (CallFrame* calleeF
 JSC_DEFINE_JIT_OPERATION(operationDefaultCall, UCPURegister, (CallFrame* calleeFrame, CallLinkInfo* callLinkInfo))
 {
     JSCell* owner = callLinkInfo->ownerForSlowPath(calleeFrame);
-    VM& vm = owner->vm();
+    // vmConcurrentProbe: owner may sit on a freshly (re-)handed-out
+    // MarkedBlock (residual-2 recycled-block class); the TSAN-only
+    // HAPPENS_AFTER pairs with the MarkedBlock::Header ctor's BEFORE.
+    // Identical codegen to vm() outside TSAN builds.
+    VM& vm = owner->vmConcurrentProbe();
     NativeCallFrameTracer tracer(vm, calleeFrame);
     sanitizeStackForVM(vm);
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -3353,7 +3384,10 @@ JSC_DEFINE_JIT_OPERATION(operationTryOSREnterAtCatchAndValueProfile, UGPRPair, (
     codeBlock->ensureCatchLivenessIsComputedForBytecodeIndex(bytecodeIndex);
     auto bytecode = codeBlock->instructions().at(bytecodeIndex)->as<OpCatch>();
     auto& metadata = bytecode.metadata(codeBlock);
-    metadata.m_buffer->forEach([&] (ValueProfileAndVirtualRegister& profile) {
+    // THREADS (TSAN r12 report 4): acquire load pairing with the release
+    // publish in ensureCatchLivenessIsComputedForBytecodeIndexSlow — same as
+    // the other m_buffer readers (CodeBlock.cpp:3387, LLIntSlowPaths.cpp).
+    WTF::atomicLoad(&metadata.m_buffer, std::memory_order_acquire)->forEach([&] (ValueProfileAndVirtualRegister& profile) {
         profile.storeBucketConcurrently(0, JSValue::encode(callFrame->uncheckedR(profile.m_operand).jsValue())); // THREADS §5.7.4
     });
 
@@ -3516,7 +3550,7 @@ JSC_DEFINE_JIT_OPERATION(operationIteratorNextTryFast, UGPRPair, (JSGlobalObject
         }
 
         metadata.m_iterableProfile.observeStructureID(array->structureID());
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | mode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, mode); // THREADS §5.7.7 relaxed profiling word.
 
         auto& indexSlot = arrayIterator->internalField(JSArrayIterator::Field::Index);
         int64_t index = indexSlot.get().asAnyInt();
@@ -3566,7 +3600,7 @@ JSC_DEFINE_JIT_OPERATION(operationIteratorNextTryFast, UGPRPair, (JSGlobalObject
             mode = IterationMode::FastMapEntries;
             break;
         }
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | mode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, mode); // THREADS §5.7.7 relaxed profiling word.
 
         auto result = mapIterator->nextWithAdvance(vm);
         bool done = result.key.isEmpty();
@@ -3600,7 +3634,7 @@ JSC_DEFINE_JIT_OPERATION(operationIteratorNextTryFast, UGPRPair, (JSGlobalObject
             mode = IterationMode::FastSetEntries;
             break;
         }
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | mode;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, mode); // THREADS §5.7.7 relaxed profiling word.
 
         JSValue nextKey = setIterator->nextWithAdvance(vm);
         bool done = nextKey.isEmpty();
@@ -3621,7 +3655,7 @@ JSC_DEFINE_JIT_OPERATION(operationIteratorNextTryFast, UGPRPair, (JSGlobalObject
     }
 
     if (auto* stringIterator = dynamicDowncast<JSStringIterator>(iterator)) {
-        metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::FastString;
+        CommonSlowPaths::mergeIterationModeSeenModesConcurrently(metadata.m_iterationMetadata, IterationMode::FastString); // THREADS §5.7.7 relaxed profiling word.
         JSString* nextValue = stringIterator->nextWithAdvance(globalObject, vm);
         OPERATION_RETURN_IF_EXCEPTION(scope, makeUGPRPair(0, 0));
         bool done = !nextValue;
@@ -4749,14 +4783,14 @@ JSC_DEFINE_JIT_OPERATION(operationResolveScopeForBaseline, EncodedJSValue, (JSGl
             OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
             if (hasProperty) {
                 ConcurrentJSLocker locker(codeBlock->m_lock);
-                metadata.m_resolveType = needsVarInjectionChecks(resolveType) ? GlobalPropertyWithVarInjectionChecks : GlobalProperty;
+                WTF::atomicStore(&metadata.m_resolveType, static_cast<ResolveType>(needsVarInjectionChecks(resolveType) ? GlobalPropertyWithVarInjectionChecks : GlobalProperty), std::memory_order_relaxed); // THREADS: lock-free readers load this atomically.
                 metadata.m_globalObject.set(vm, codeBlock, globalObject);
                 metadata.m_globalLexicalBindingEpoch = globalObject->globalLexicalBindingEpoch();
             }
         } else if (resolvedScope->isGlobalLexicalEnvironment()) {
             JSGlobalLexicalEnvironment* globalLexicalEnvironment = uncheckedDowncast<JSGlobalLexicalEnvironment>(resolvedScope);
             ConcurrentJSLocker locker(codeBlock->m_lock);
-            metadata.m_resolveType = needsVarInjectionChecks(resolveType) ? GlobalLexicalVarWithVarInjectionChecks : GlobalLexicalVar;
+            WTF::atomicStore(&metadata.m_resolveType, static_cast<ResolveType>(needsVarInjectionChecks(resolveType) ? GlobalLexicalVarWithVarInjectionChecks : GlobalLexicalVar), std::memory_order_relaxed); // THREADS: lock-free readers load this atomically.
             metadata.m_globalLexicalEnvironment.set(vm, codeBlock, globalLexicalEnvironment);
         }
         break;

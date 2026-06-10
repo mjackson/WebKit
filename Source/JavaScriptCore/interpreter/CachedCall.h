@@ -59,7 +59,7 @@ public:
         // this store — too late.
         if (g_jscConfig.gilOffProcess) [[unlikely]]
             removeOnDestruction();
-        m_addressForCall = nullptr;
+        WTF::atomicStore(&m_addressForCall, static_cast<void*>(nullptr), std::memory_order_relaxed); // THREADS: see unlinkOrUpgradeImpl.
     }
 
     ALWAYS_INLINE JSValue call()
@@ -93,14 +93,19 @@ public:
         if (isOnList())
             removeOnDestruction();
 
+        // THREADS: the owning thread reads these words lock-free in
+        // executeCachedCall/tryCallWithArguments while the install drain on
+        // another Thread rewrites them; write the codeBlock FIRST, then
+        // release-publish the entry (reader acquires the entry, then reads the
+        // codeBlock — never a new entry with a stale codeBlock).
         if (newCodeBlock && m_protoCallFrame.codeBlock() == oldCodeBlock) {
             newCodeBlock->m_shouldAlwaysBeInlined = false;
-            m_addressForCall = newCodeBlock->jitCode()->addressForCall();
             m_protoCallFrame.setCodeBlock(newCodeBlock);
+            WTF::atomicStore(&m_addressForCall, newCodeBlock->jitCode()->addressForCall(), std::memory_order_release);
             newCodeBlock->linkIncomingCall(nullptr, this);
             return;
         }
-        m_addressForCall = nullptr;
+        WTF::atomicStore(&m_addressForCall, static_cast<void*>(nullptr), std::memory_order_relaxed);
     }
 
     void relink();

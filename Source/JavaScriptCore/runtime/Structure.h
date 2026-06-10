@@ -42,6 +42,7 @@
 #include "StructureTransitionTable.h"
 #include "TypeInfoBlob.h"
 #include "Watchpoint.h"
+#include <type_traits>
 #include <wtf/Atomics.h>
 #include <wtf/CompactPointerTuple.h>
 #include <wtf/CompactPtr.h>
@@ -443,9 +444,13 @@ public:
     }
 
     // Type accessors.
-    TypeInfo typeInfo() const { return m_blob.typeInfo(m_outOfLineTypeFlags); }
+    // TSAN family structure-fields (§8.9): m_outOfLineTypeFlags/m_classInfo
+    // are constructor-written words read lock-free by foreign threads (54
+    // classInfoForCells + 29 typeInfo keys); reader and constructor sides pair
+    // through the TSAN-build-only relaxed helpers below (plain load non-TSAN).
+    TypeInfo typeInfo() const { return m_blob.typeInfo(concurrentRelaxedLoad(m_outOfLineTypeFlags)); }
     bool isObject() const { return typeInfo().isObject(); }
-    const ClassInfo* classInfoForCells() const { return m_classInfo; }
+    const ClassInfo* classInfoForCells() const { return concurrentRelaxedLoad(m_classInfo); }
     CellState typeInfoDefaultCellState() const { return m_blob.defaultCellState(); }
 protected:
     // You probably want typeInfo().type()
@@ -513,20 +518,46 @@ public:
     // Returns true if this structure is now marked.
     template<typename Visitor> bool markIfCheap(Visitor&);
     
+    // TSAN family structure-fields (OM §5 / UG §K): flag-on, the
+    // m_previousOrRareData slot is install-raced by allocateRareData()'s
+    // fence+CAS publish (Structure.cpp) and by clearPreviousID()'s CAS below,
+    // so every lock-free read of the slot must be an atomic load — a plain
+    // load against those CASes is C++ UB. Relaxed is sufficient: the install
+    // CAS is release-or-stronger and the rare-data cell's fields are
+    // fence-published before the pointer; readers that dereference pair the
+    // relaxed load with the existing dependent-load fence (consume-style, free
+    // on every supported target). Codegen is the identical plain mov/ldr, so
+    // flag-off behavior is unchanged.
+    ALWAYS_INLINE JSCell* previousOrRareDataConcurrently() const
+    {
+#if TSAN_ENABLED
+        // §8.9 wave 3: acquire (TSAN builds only) pairs with allocateRareData's
+        // CAS publish of the freshly constructed StructureRareData, making the
+        // rare-data constructor stores happen-before every dereference below —
+        // TSAN cannot see the writer-side storeStoreFence that carries this
+        // ordering for real hardware. Non-TSAN builds keep the relaxed load
+        // (consume-style dependent load, identical codegen, I22-safe).
+        return WTF::atomicLoad(const_cast<WriteBarrier<JSCell>&>(m_previousOrRareData).slot(), std::memory_order_acquire);
+#else
+        return WTF::atomicLoad(const_cast<WriteBarrier<JSCell>&>(m_previousOrRareData).slot(), std::memory_order_relaxed);
+#endif
+    }
+
     bool hasRareData() const
     {
-        return isRareData(m_previousOrRareData.get());
+        return isRareData(previousOrRareDataConcurrently());
     }
 
     StructureRareData* rareData()
     {
-        ASSERT(hasRareData());
-        return static_cast<StructureRareData*>(m_previousOrRareData.get());
+        JSCell* cell = previousOrRareDataConcurrently();
+        ASSERT(isRareData(cell));
+        return static_cast<StructureRareData*>(cell);
     }
 
     StructureRareData* tryRareData()
     {
-        JSCell* value = m_previousOrRareData.get();
+        JSCell* value = previousOrRareDataConcurrently();
         WTF::dependentLoadLoadFence();
         if (isRareData(value))
             return static_cast<StructureRareData*>(value);
@@ -535,13 +566,15 @@ public:
 
     const StructureRareData* rareData() const
     {
-        ASSERT(hasRareData());
-        return static_cast<const StructureRareData*>(m_previousOrRareData.get());
+        JSCell* cell = previousOrRareDataConcurrently();
+        ASSERT(isRareData(cell));
+        return static_cast<const StructureRareData*>(cell);
     }
 
     const StructureRareData* rareDataConcurrently() const
     {
-        JSCell* cell = m_previousOrRareData.get();
+        JSCell* cell = previousOrRareDataConcurrently();
+        WTF::dependentLoadLoadFence();
         if (isRareData(cell))
             return static_cast<StructureRareData*>(cell);
         return nullptr;
@@ -598,17 +631,21 @@ public:
     {
         return outOfLineSize(maxOffset());
     }
+    // TSAN family structure-fields: m_inlineCapacity is written only during
+    // construction but read by concurrent threads holding stale/recycled cell
+    // references (OM GT: stale reads re-dispatch); the relaxed atomic load is
+    // the blessed access (identical codegen to the plain byte load).
     bool hasInlineStorage() const
     {
-        return !!m_inlineCapacity;
+        return !!inlineCapacity();
     }
     unsigned inlineCapacity() const
     {
-        return m_inlineCapacity;
+        return WTF::atomicLoad(const_cast<uint8_t*>(&m_inlineCapacity), std::memory_order_relaxed);
     }
     unsigned inlineSize() const
     {
-        return std::min<unsigned>(maxOffset() + 1, m_inlineCapacity);
+        return std::min<unsigned>(maxOffset() + 1, inlineCapacity());
     }
     unsigned totalStorageCapacity() const
     {
@@ -620,7 +657,7 @@ public:
     {
         return JSC::isValidOffset(offset)
             && offset <= maxOffset()
-            && (offset < m_inlineCapacity || offset >= firstOutOfLineOffset);
+            && (offset < static_cast<PropertyOffset>(inlineCapacity()) || offset >= firstOutOfLineOffset);
     }
 
     bool hijacksIndexingHeader() const
@@ -887,7 +924,11 @@ public:
     // while the TTL sets are valid (creator's TID; copied to transition
     // targets). Butterfly-BEARING ownership is keyed on the instance's tag
     // (E4); this TID plays no part there.
-    ButterflyTID transitionThreadLocalTID() const { return m_transitionThreadLocalTID; }
+    // TSAN family structure-fields (§8.9): constructor-written, read by
+    // foreign lock-free transitioners; TSAN-relaxed pair (plain non-TSAN).
+    // The direct read in StructureInlines.h:transitionThreadLocalIsCurrent
+    // stays with that header's owning slice.
+    ButterflyTID transitionThreadLocalTID() const { return concurrentRelaxedLoad(m_transitionThreadLocalTID); }
 
     // E1 (I14): fast paths may omit the TID != notTTLTID check iff this is true
     // and a watchpoint is installed on the set. M6: JIT-side state reads need no
@@ -964,7 +1005,16 @@ public:
     
     ConcurrentJSLock& lock() LIFETIME_BOUND { return m_lock; }
 
+    // TSAN family structure-fields (§8.9 + r4 "Structure::add (3)"): read
+    // lock-free by getConcurrently-side planners. The member type
+    // (ConcurrentPropertyHashWord, defined below) routes this load AND the
+    // lock-held updaters in StructureInlines.h (Structure::add/remove/
+    // attributeChange) through relaxed atomics — both sides of the pair are
+    // now defined, with no edit to that header (another slice's file).
     unsigned propertyHash() const { return m_propertyHash; }
+    // SeenProperties copy construction already goes through TinyBloomFilter's
+    // relaxed-atomic m_bits copy ctor (heap/TinyBloomFilter.h), so this
+    // by-value read is TSAN-paired as-is.
     SeenProperties seenProperties() const { return m_seenProperties; }
 
     static bool shouldConvertToPolyProto(const Structure* a, const Structure* b);
@@ -1033,6 +1083,94 @@ public:
     // instruction sequence executes flag-on.
     NEVER_INLINE void setBitFieldConcurrently(uint32_t setBits, uint32_t fieldBits);
 
+    // TSAN family structure-fields (triage §8.9 fixShape (2); wave-3 review
+    // amendment §9.1): concurrently-readable scalar members. A Structure
+    // under construction occupies recycled IsoSubspace memory that foreign
+    // threads may still probe through stale StructureIDs (blessed reader
+    // side, OM GT — stale reads re-dispatch), and after the single-word
+    // publish (cell-header StructureID store / transition-table insert)
+    // readers load these words without this structure's m_lock; the real
+    // ordering is the constructor-tail storeStoreFence (UG §K), which TSAN
+    // cannot model.
+    //
+    // Two helper pairs, per the campaign convention:
+    // - concurrentRelaxedLoad/Store: UNCONDITIONAL relaxed atomics, used by
+    //   every post-construction accessor site. Single-word relaxed atomic is
+    //   the identical mov flag-off; this removes the mixed
+    //   atomic-reader/plain-writer pairs in production builds.
+    // - tsanRelaxedLoad/Store: TSAN-build-only, used ONLY inside the
+    //   constructor member-init bulk sequences (Structure.cpp), where
+    //   unconditional atomics would defeat the bench-sensitive store
+    //   coalescing (ITEM-2, V5b gate). The retained production-UB acceptance
+    //   for that class is recorded in docs/threads/TSAN-TRIAGE.md §9.1.
+    template<typename T>
+    static ALWAYS_INLINE T concurrentRelaxedLoad(const T& field)
+    {
+        static_assert(std::is_trivially_copyable_v<T>);
+        T result;
+        __atomic_load(const_cast<T*>(&field), &result, __ATOMIC_RELAXED);
+        return result;
+    }
+
+    template<typename T>
+    static ALWAYS_INLINE void concurrentRelaxedStore(T& field, std::type_identity_t<T> value)
+    {
+        static_assert(std::is_trivially_copyable_v<T>);
+        __atomic_store(&field, &value, __ATOMIC_RELAXED);
+    }
+
+    template<typename T>
+    static ALWAYS_INLINE T tsanRelaxedLoad(const T& field)
+    {
+#if TSAN_ENABLED
+        return concurrentRelaxedLoad(field);
+#else
+        return field;
+#endif
+    }
+
+    template<typename T>
+    static ALWAYS_INLINE void tsanRelaxedStore(T& field, std::type_identity_t<T> value)
+    {
+#if TSAN_ENABLED
+        concurrentRelaxedStore(field, value);
+#else
+        field = value;
+#endif
+    }
+
+    // TSAN family structure-fields (r4 residual "Structure::add (3)"): the
+    // m_propertyHash updaters live in StructureInlines.h
+    // (add/remove/attributeChange: `m_propertyHash = m_propertyHash ^ hash`,
+    // serialized by m_lock) — another slice's file — while compiler-side
+    // planners read the word lock-free via propertyHash(). Routing every
+    // access through the member TYPE fixes the writer without touching that
+    // header: the conversion operator is the relaxed load, operator=(uint32_t)
+    // the relaxed store (identical mov/ldr/str codegen everywhere, so flag-off
+    // is unchanged). RMW atomicity is NOT required — updaters hold m_lock;
+    // only word-level definedness against the lock-free readers is. The
+    // constructor bulk-init sites (Structure.cpp) still go through
+    // tsanRelaxedStore, which non-TSAN performs the plain copy-assignment and
+    // so preserves the ITEM-2 store-coalescing shape.
+    class ConcurrentPropertyHashWord {
+    public:
+        ConcurrentPropertyHashWord() = default;
+        constexpr ConcurrentPropertyHashWord(uint32_t value)
+            : m_word(value)
+        {
+        }
+        ALWAYS_INLINE operator uint32_t() const { return concurrentRelaxedLoad(m_word); }
+        ALWAYS_INLINE ConcurrentPropertyHashWord& operator=(uint32_t value)
+        {
+            concurrentRelaxedStore(m_word, value);
+            return *this;
+        }
+
+    private:
+        uint32_t m_word;
+    };
+    static_assert(std::is_trivially_copyable_v<ConcurrentPropertyHashWord>);
+
 #define DEFINE_BITFIELD(type, lowerName, upperName, width, offset) \
     static constexpr uint32_t s_##lowerName##Shift = offset;\
     static constexpr uint32_t s_##lowerName##Mask = ((1 << (width - 1)) | ((1 << (width - 1)) - 1));\
@@ -1079,7 +1217,11 @@ public:
         WebAssemblyGC,
     };
 
-    StructureVariant variant() const { return m_structureVariant; }
+    // TSAN family structure-fields (§8.9/§9.1): constructor-written,
+    // immutable afterwards, read by concurrent stale-reference holders;
+    // unconditional relaxed load (identical byte mov). Pairs with the
+    // ctor-class tsanRelaxedStore — retained ctor-side UB is doc'd in §9.1.
+    StructureVariant variant() const { return concurrentRelaxedLoad(m_structureVariant); }
     bool isBrandedStructure() { return variant() == StructureVariant::Branded; }
 
     static_assert(s_bitWidthOfTransitionKind <= sizeof(TransitionKind) * 8);
@@ -1099,14 +1241,18 @@ public:
         ));
     }
 
-    TransitionPropertyAttributes transitionPropertyAttributes() const { return m_transitionPropertyAttributes; }
-    void setTransitionPropertyAttributes(TransitionPropertyAttributes transitionPropertyAttributes) { m_transitionPropertyAttributes = transitionPropertyAttributes; }
+    // TSAN family structure-fields (§8.9/§9.1): written in the constructors
+    // and on freshly created (not yet published) transition targets, read
+    // lock-free by concurrent transition lookups; unconditional relaxed
+    // atomics at this accessor pair (identical single-byte codegen).
+    TransitionPropertyAttributes transitionPropertyAttributes() const { return concurrentRelaxedLoad(m_transitionPropertyAttributes); }
+    void setTransitionPropertyAttributes(TransitionPropertyAttributes transitionPropertyAttributes) { concurrentRelaxedStore(m_transitionPropertyAttributes, transitionPropertyAttributes); }
 
     int transitionCountEstimate() const
     {
         // Since the number of transitions is often the same as the last offset (except if there are deletes)
         // we keep the size of Structure down by not storing both.
-        return numberOfSlotsForMaxOffset(maxOffset(), m_inlineCapacity);
+        return numberOfSlotsForMaxOffset(maxOffset(), inlineCapacity());
     }
 
     void finalizeUnconditionally(VM&, CollectionScope);
@@ -1219,9 +1365,12 @@ private:
         // monotonic: Structure*/null -> StructureRareData*, never back.
         JSCell** slot = m_previousOrRareData.slot();
         while (true) {
-            JSCell* cell = m_previousOrRareData.get();
+            JSCell* cell = WTF::atomicLoad(slot, std::memory_order_relaxed);
             if (isRareData(cell)) {
-                static_cast<StructureRareData*>(cell)->clearPreviousID();
+                // Route through the relaxed-atomic clear: previousID() readers
+                // (Structure::previousID -> StructureRareData::previousID) are
+                // lock-free relative to this writer.
+                static_cast<StructureRareData*>(cell)->clearPreviousIDConcurrently();
                 return;
             }
             if (!cell)
@@ -1280,13 +1429,154 @@ private:
 
     void clearCachedPrototypeChain()
     {
-        m_cachedPrototypeChain.clear();
-        if (!hasRareData())
+        if (!Options::useJSThreads()) [[likely]] {
+            // Flag-off: today's code, bit-identical (I22).
+            m_cachedPrototypeChain.clear();
+            if (!hasRareData())
+                return;
+            rareData()->clearCachedPropertyNameEnumerator();
             return;
-        rareData()->clearCachedPropertyNameEnumerator();
+        }
+        // TSAN family structure-fields (AUD1.N4(3) UAF window,
+        // races/forin-enumerator-cache.js): flag-on, the sole caller is the
+        // lock-free Structure::prototypeChain (StructureInlines.h), racing
+        //   (a) lock-free readers of m_cachedPrototypeChain
+        //       (canCachePropertyNameEnumerator, isValid) — so the null store
+        //       must be atomic (relaxed; same str), and
+        //   (b) the m_lock-holding enumerator-cache installer
+        //       (setCachedPropertyNameEnumerator, Structure.cpp) — so the
+        //       enumerator teardown takes m_lock and RETIRES the
+        //       StructureChainInvalidationWatchpoint FixedVector through the
+        //       GC (freed at finalizeUnconditionally, mutators stopped)
+        //       instead of freeing watchpoints other threads can still reach
+        //       through watched structures' transition watchpoint sets.
+        ConcurrentJSLocker locker(m_lock);
+        WTF::atomicStore(m_cachedPrototypeChain.slot(), static_cast<StructureChain*>(nullptr), std::memory_order_relaxed);
+        if (StructureRareData* rare = tryRareData())
+            rare->clearCachedPropertyNameEnumeratorRetiringWatchpoints();
+    }
+
+    // TSAN family structure-fields: m_cachedPrototypeChain is written
+    // lock-free (prototypeChain in StructureInlines.h), nulled by the flag-on
+    // clearCachedPrototypeChain above and by concurrent marking
+    // (visitChildrenImpl) — every read that can race those writers goes
+    // through this relaxed atomic load (identical codegen).
+    StructureChain* cachedPrototypeChainConcurrently() const
+    {
+        return WTF::atomicLoad(m_cachedPrototypeChain.slot(), std::memory_order_relaxed);
     }
 
     bool NODELETE holesMustForwardToPrototypeSlow(JSObject*) const;
+
+#if TSAN_ENABLED
+    // TSAN family structure-fields (triage §10.9 fixShape (1)): members whose
+    // TYPE wraps WTF::Atomic words — m_lock's byte, the InlineWatchpointSet
+    // state words, the seen-properties Bloom word, the transition-table word
+    // — initialize through their constructors, and the std::atomic
+    // CONSTRUCTOR is a plain (non-atomic) store. TSAN pairs those init-list
+    // stores against concurrent relaxed-atomic readers probing recycled /
+    // just-published Structures (TinyBloomFilter::ruleOut from
+    // getConcurrently, the m_lock CAS from
+    // findStructuresAndMapForMaterialization, watchpoint state loads): the
+    // r3 keys at Structure.cpp:438/:440/:442. tsanRelaxedStore cannot help
+    // after the fact — the constructor's plain store is already in the TSAN
+    // shadow history — so under TSAN we DEFER construction: the member is a
+    // union (no constructor runs on the member storage), the wrapped value
+    // is built in a LOCAL buffer and its object representation is copied
+    // into place with relaxed __atomic stores. Call sites are unchanged via
+    // the conversion operator + the method forwarders below. Non-TSAN builds
+    // use the plain member type (ConcurrentCtorMember<T> = T): zero codegen
+    // change, per the flag-off rule; the retained production-UB acceptance
+    // for the plain ctor stores (ordering = constructor-tail
+    // storeStoreFence + single-word publish, blessed stale reads) stays
+    // recorded in docs/threads/TSAN-TRIAGE.md §9.1.
+    template<typename T>
+    class TsanDeferredCtorMember {
+        WTF_MAKE_NONCOPYABLE(TsanDeferredCtorMember);
+    public:
+        template<typename... Args>
+        ALWAYS_INLINE TsanDeferredCtorMember(Args&&... args)
+        {
+            union Local {
+                Local() { }
+                ~Local() { }
+                T value;
+            } local;
+            new (&local.value) T(std::forward<Args>(args)...);
+            if constexpr (sizeof(T) == 1)
+                __atomic_store_n(reinterpret_cast<uint8_t*>(&m_storage.value), *reinterpret_cast<uint8_t*>(&local.value), __ATOMIC_RELAXED);
+            else if constexpr (sizeof(T) == 2)
+                __atomic_store_n(reinterpret_cast<uint16_t*>(&m_storage.value), *reinterpret_cast<uint16_t*>(&local.value), __ATOMIC_RELAXED);
+            else if constexpr (sizeof(T) == 4)
+                __atomic_store_n(reinterpret_cast<uint32_t*>(&m_storage.value), *reinterpret_cast<uint32_t*>(&local.value), __ATOMIC_RELAXED);
+            else {
+                static_assert(!(sizeof(T) % sizeof(uintptr_t)));
+                static_assert(alignof(T) >= alignof(uintptr_t));
+                for (size_t i = 0; i < sizeof(T) / sizeof(uintptr_t); ++i)
+                    __atomic_store_n(reinterpret_cast<uintptr_t*>(&m_storage.value) + i, reinterpret_cast<uintptr_t*>(&local.value)[i], __ATOMIC_RELAXED);
+            }
+            local.value.~T();
+        }
+        ALWAYS_INLINE ~TsanDeferredCtorMember() { unwrap().~T(); }
+
+        ALWAYS_INLINE T& unwrap() const { return m_storage.value; }
+        ALWAYS_INLINE operator T&() const { return unwrap(); }
+        // No operator& overload: WTF::Locker takes &lockable internally and
+        // must get a wrapper*, and OBJECT_OFFSETOF uses __builtin_offsetof.
+        // Pointer-form call sites use Structure::lock() (identical codegen).
+
+        // Forwarders for the direct member-call sites (Structure.h/.cpp,
+        // StructureInlines.h, StructureInlinesLight.h) so the non-TSAN call
+        // syntax is unchanged. Each is a template, so only the names actually
+        // called on a given T are instantiated.
+        // Trailing decltype return type (not decltype(auto)): clang parses
+        // late-parsed member bodies in declaration order, so enclosing-class
+        // members textually above this nested class could not use a forwarder
+        // whose return type is only deduced from its body. The object
+        // expression goes through unwrapDependent<Args...>() so it stays
+        // type-dependent on the forwarder's own template parameters: member
+        // lookup of methodName is deferred to each call site (only the names
+        // actually called on a given T are looked up, as with the original
+        // decltype(auto) form).
+        template<typename... Args>
+        ALWAYS_INLINE T& unwrapDependent() const { return unwrap(); }
+#define JSC_TSAN_DEFERRED_MEMBER_FORWARD(methodName) \
+        template<typename... Args> ALWAYS_INLINE auto methodName(Args&&... args) const -> decltype(this->template unwrapDependent<Args...>().methodName(std::forward<Args>(args)...)) { return unwrap().methodName(std::forward<Args>(args)...); }
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(lock)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(unlock)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(ruleOut)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(add)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(bits)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(hasBeenInvalidated)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(isStillValid)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(isBeingWatched)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(state)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(startWatching)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(invalidate)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(fireAll)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(touch)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(trySingleTransition)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(get)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(getMatching)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(contains)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(size)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(forEachTransition)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(finalizeUnconditionally)
+#undef JSC_TSAN_DEFERRED_MEMBER_FORWARD
+
+    private:
+        union Storage {
+            Storage() { }
+            ~Storage() { }
+            T value;
+        };
+        static_assert(sizeof(Storage) == sizeof(T));
+        mutable Storage m_storage;
+    };
+    template<typename T> using ConcurrentCtorMember = TsanDeferredCtorMember<T>;
+#else
+    template<typename T> using ConcurrentCtorMember = T;
+#endif
 
     // These need to be properly aligned at the beginning of the 'Structure'
     // part of the object.
@@ -1295,13 +1585,21 @@ private:
 
     uint8_t m_inlineCapacity;
 
-    ConcurrentJSLock m_lock;
+    // §10.9 fixShape (1): Atomic-bearing member types route through
+    // ConcurrentCtorMember so TSAN builds skip the plain constructor store on
+    // the member storage (see TsanDeferredCtorMember above). Non-TSAN this
+    // alias IS the plain type — declarations, layout and codegen unchanged.
+    ConcurrentCtorMember<ConcurrentJSLock> m_lock;
 
     uint32_t m_bitField;
-    TransitionPropertyAttributes m_transitionPropertyAttributes { 0 };
+    // §8.9 wave 3: no NSDMIs on the scalar members below — an NSDMI is a plain
+    // store racing concurrent stale-reference readers; every constructor
+    // initializes them via tsanRelaxedStore instead (plain store non-TSAN,
+    // same instruction count as the NSDMI it replaces).
+    TransitionPropertyAttributes m_transitionPropertyAttributes;
 
     // FIXME: We should probably have a brandedStructureStructure/webAssemblyGCStructureStructure instead of this.
-    StructureVariant m_structureVariant { StructureVariant::Normal };
+    StructureVariant m_structureVariant;
 
     uint16_t m_transitionOffset;
     uint16_t m_maxOffset;
@@ -1309,10 +1607,16 @@ private:
     // SPEC-objectmodel §5/§2.1 N1: creator's ButterflyTID, copied to transition
     // targets; keys lock-free butterfly-less transitions while the TTL sets are
     // valid. Sits in what was padding between m_maxOffset and m_propertyHash.
-    uint16_t m_transitionThreadLocalTID { 0 };
+    // No NSDMI (§8.9 wave 3, see above): constructors tsanRelaxedStore it.
+    uint16_t m_transitionThreadLocalTID;
 
-    uint32_t m_propertyHash;
-    SeenProperties m_seenProperties;
+    // Relaxed-atomic word wrapper; see ConcurrentPropertyHashWord above
+    // (closes the StructureInlines.h add/remove/attributeChange plain RMWs
+    // against the lock-free propertyHash() readers). Layout-identical to the
+    // uint32_t it replaces (JIT/LLInt offset reads unchanged).
+    ConcurrentPropertyHashWord m_propertyHash;
+    static_assert(sizeof(ConcurrentPropertyHashWord) == sizeof(uint32_t));
+    ConcurrentCtorMember<SeenProperties> m_seenProperties;
 
 
     WriteBarrier<JSGlobalObject> m_realm;
@@ -1325,13 +1629,13 @@ private:
 
     const ClassInfo* m_classInfo;
 
-    StructureTransitionTable m_transitionTable;
+    ConcurrentCtorMember<StructureTransitionTable> m_transitionTable;
 
     // Should be accessed through ensurePropertyTable(). During GC, it may be set to 0 by another thread.
     // During a Heap Snapshot GC we avoid clearing the table so it is safe to use.
     WriteBarrier<PropertyTable> m_propertyTableUnsafe;
 
-    mutable InlineWatchpointSet m_transitionWatchpointSet;
+    mutable ConcurrentCtorMember<InlineWatchpointSet> m_transitionWatchpointSet;
 
     // SPEC-objectmodel §5 (frozen member set, Structure.h:1107 anchor): the two
     // TTL watchpoint sets. NSDMI ClearWatchpoint (inert, I22) so the flag-off
@@ -1340,8 +1644,8 @@ private:
     // ClearWatchpoint set yields the identical IsWatched encoding as
     // constructing with IsWatched. Fired only world-stopped (I13), via the
     // §9.4 fire functions above.
-    mutable InlineWatchpointSet m_transitionThreadLocalWatchpointSet { ClearWatchpoint };
-    mutable InlineWatchpointSet m_writeThreadLocalWatchpointSet { ClearWatchpoint };
+    mutable ConcurrentCtorMember<InlineWatchpointSet> m_transitionThreadLocalWatchpointSet { ClearWatchpoint };
+    mutable ConcurrentCtorMember<InlineWatchpointSet> m_writeThreadLocalWatchpointSet { ClearWatchpoint };
 
     static_assert(firstOutOfLineOffset < 256);
 
@@ -1380,8 +1684,9 @@ inline Structure* Structure::previousID() const
 {
     ASSERT(structure()->classInfoForCells() == info());
     // This is so written because it's used concurrently. We only load from m_previousOrRareData
-    // once, and this load is guaranteed atomic.
-    JSCell* cell = m_previousOrRareData.get();
+    // once, via the relaxed atomic accessor (the slot is CAS-published by
+    // allocateRareData/clearPreviousID flag-on; plain load would be UB).
+    JSCell* cell = previousOrRareDataConcurrently();
     if (isRareData(cell))
         return static_cast<StructureRareData*>(cell)->previousID();
     return static_cast<Structure*>(cell);
@@ -1396,53 +1701,62 @@ inline bool Structure::transitivelyTransitionedFrom(Structure* structureToFind)
     return false;
 }
 
+// TSAN family structure-fields (OM I34): m_maxOffset/m_transitionOffset (and
+// their rare-data overflow twins) are written under the structure's m_lock by
+// the add/remove paths but read lock-free by getConcurrently-side planners and
+// foreign mutators; a torn/plain-raced maxOffset breaks I34. All accesses go
+// through relaxed WTF atomics — bitwise-identical codegen (plain mov/ldr/str),
+// so flag-off behavior and the JIT's 16-bit field loads are unchanged. The
+// rare-data overflow arm keeps its existing storeStoreFence publication
+// (value-before-flag), now paired with atomic loads on the reader side.
+
 inline PropertyOffset Structure::maxOffset() const
 {
-    uint16_t maxOffset = m_maxOffset;
+    uint16_t maxOffset = WTF::atomicLoad(const_cast<uint16_t*>(&m_maxOffset), std::memory_order_relaxed);
     if (maxOffset == shortInvalidOffset)
         return invalidOffset;
     if (maxOffset == useRareDataFlag)
-        return rareData()->m_maxOffset;
+        return WTF::atomicLoad(const_cast<PropertyOffset*>(&rareData()->m_maxOffset), std::memory_order_relaxed);
     return maxOffset;
 }
 
 inline void Structure::setMaxOffset(VM& vm, PropertyOffset offset)
 {
     if (offset == invalidOffset)
-        m_maxOffset = shortInvalidOffset;
+        WTF::atomicStore(&m_maxOffset, shortInvalidOffset, std::memory_order_relaxed);
     else if (offset < useRareDataFlag && offset < shortInvalidOffset)
-        m_maxOffset = offset;
-    else if (m_maxOffset == useRareDataFlag)
-        rareData()->m_maxOffset = offset;
+        WTF::atomicStore(&m_maxOffset, static_cast<uint16_t>(offset), std::memory_order_relaxed);
+    else if (WTF::atomicLoad(&m_maxOffset, std::memory_order_relaxed) == useRareDataFlag)
+        WTF::atomicStore(&rareData()->m_maxOffset, offset, std::memory_order_relaxed);
     else {
-        ensureRareData(vm)->m_maxOffset = offset;
+        WTF::atomicStore(&ensureRareData(vm)->m_maxOffset, offset, std::memory_order_relaxed);
         WTF::storeStoreFence();
-        m_maxOffset = useRareDataFlag;
+        WTF::atomicStore(&m_maxOffset, useRareDataFlag, std::memory_order_relaxed);
     }
 }
 
 inline PropertyOffset Structure::transitionOffset() const
 {
-    uint16_t transitionOffset = m_transitionOffset;
+    uint16_t transitionOffset = WTF::atomicLoad(const_cast<uint16_t*>(&m_transitionOffset), std::memory_order_relaxed);
     if (transitionOffset == shortInvalidOffset)
         return invalidOffset;
     if (transitionOffset == useRareDataFlag)
-        return rareData()->m_transitionOffset;
+        return WTF::atomicLoad(const_cast<PropertyOffset*>(&rareData()->m_transitionOffset), std::memory_order_relaxed);
     return transitionOffset;
 }
 
 inline void Structure::setTransitionOffset(VM& vm, PropertyOffset offset)
 {
     if (offset == invalidOffset)
-        m_transitionOffset = shortInvalidOffset;
+        WTF::atomicStore(&m_transitionOffset, shortInvalidOffset, std::memory_order_relaxed);
     else if (offset < useRareDataFlag && offset < shortInvalidOffset)
-        m_transitionOffset = offset;
-    else if (m_transitionOffset == useRareDataFlag)
-        rareData()->m_transitionOffset = offset;
+        WTF::atomicStore(&m_transitionOffset, static_cast<uint16_t>(offset), std::memory_order_relaxed);
+    else if (WTF::atomicLoad(&m_transitionOffset, std::memory_order_relaxed) == useRareDataFlag)
+        WTF::atomicStore(&rareData()->m_transitionOffset, offset, std::memory_order_relaxed);
     else {
-        ensureRareData(vm)->m_transitionOffset = offset;
+        WTF::atomicStore(&ensureRareData(vm)->m_transitionOffset, offset, std::memory_order_relaxed);
         WTF::storeStoreFence();
-        m_transitionOffset = useRareDataFlag;
+        WTF::atomicStore(&m_transitionOffset, useRareDataFlag, std::memory_order_relaxed);
     }
 }
 

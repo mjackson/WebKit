@@ -72,19 +72,19 @@ public:
     
     uint32_t internalLength() const
     {
-        return m_length;
+        return WTF::atomicLoad(const_cast<uint32_t*>(&m_length), std::memory_order_relaxed); // THREADS: see constructor.
     }
     
     uint32_t length(JSGlobalObject*) const;
     
     bool isMappedArgument(uint32_t i) const
     {
-        return i < m_length && (!m_mappedArguments || !m_mappedArguments.at(i));
+        return i < internalLength() && (!m_mappedArguments || !WTF::atomicLoad(&m_mappedArguments.at(i), std::memory_order_relaxed));
     }
 
     bool isMappedArgumentInDFG(uint32_t i) const
     {
-        return i < m_length && !overrodeThings();
+        return i < internalLength() && !overrodeThings();
     }
 
     JSValue getIndexQuickly(uint32_t i) const
@@ -112,7 +112,7 @@ public:
     WriteBarrier<Unknown>& argument(DirectArgumentsOffset offset)
     {
         ASSERT(offset);
-        ASSERT_WITH_SECURITY_IMPLICATION(offset.offset() < std::max(m_length, m_minCapacity));
+        ASSERT_WITH_SECURITY_IMPLICATION(offset.offset() < std::max(internalLength(), WTF::atomicLoad(const_cast<uint32_t*>(&m_minCapacity), std::memory_order_relaxed)));
         return storage()[offset.offset()];
     }
     
@@ -124,17 +124,17 @@ public:
 
     void initModifiedArgumentsDescriptorIfNecessary(JSGlobalObject* globalObject)
     {
-        GenericArgumentsImpl<DirectArguments>::initModifiedArgumentsDescriptorIfNecessary(globalObject, m_length);
+        GenericArgumentsImpl<DirectArguments>::initModifiedArgumentsDescriptorIfNecessary(globalObject, internalLength());
     }
 
     void setModifiedArgumentDescriptor(JSGlobalObject* globalObject, unsigned index)
     {
-        GenericArgumentsImpl<DirectArguments>::setModifiedArgumentDescriptor(globalObject, index, m_length);
+        GenericArgumentsImpl<DirectArguments>::setModifiedArgumentDescriptor(globalObject, index, internalLength());
     }
 
     bool isModifiedArgumentDescriptor(unsigned index)
     {
-        return GenericArgumentsImpl<DirectArguments>::isModifiedArgumentDescriptor(index, m_length);
+        return GenericArgumentsImpl<DirectArguments>::isModifiedArgumentDescriptor(index, internalLength());
     }
 
     void copyToArguments(JSGlobalObject*, JSValue* firstElementDest, unsigned offset, unsigned length);

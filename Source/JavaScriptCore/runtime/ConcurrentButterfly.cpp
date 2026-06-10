@@ -2347,9 +2347,16 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
         // copy bit-exactly; world stopped, so nothing races the copy).
         ButterflyFragment* oldHeaderFragment = spine->indexedFragment(0);
         ButterflyFragment* newHeaderFragment = newSpine->indexedFragment(0);
-        *std::bit_cast<uint64_t*>(&newHeaderFragment->slots[0]) = *std::bit_cast<uint64_t*>(&oldHeaderFragment->slots[0]);
+        // TSAN (r11 report 12): the source lanes were written with relaxed
+        // atomic lane stores (trySetIndexQuicklyConcurrent) BEFORE the stop
+        // landed; the stop handshake is the real happens-before edge, but
+        // TSAN cannot see it through the safepoint, so read the lanes with
+        // relaxed atomic loads (same instruction; world is stopped, the
+        // values cannot change under us). Destination writes stay plain:
+        // newSpine is pre-publication (tsanPublish below).
+        *std::bit_cast<uint64_t*>(&newHeaderFragment->slots[0]) = WTF::atomicLoad(std::bit_cast<uint64_t*>(&oldHeaderFragment->slots[0]), std::memory_order_relaxed);
         for (uint32_t i = 0; i < spine->vectorLengthConcurrent(); ++i)
-            *std::bit_cast<uint64_t*>(newSpine->indexedSlot(i)) = *std::bit_cast<uint64_t*>(spine->indexedSlot(i));
+            *std::bit_cast<uint64_t*>(newSpine->indexedSlot(i)) = WTF::atomicLoad(std::bit_cast<uint64_t*>(spine->indexedSlot(i)), std::memory_order_relaxed);
         newSpine->tsanPublish(); // V7: last pre-publication store done (mode (b): inside the stop).
         WTF::storeStoreFence(); // Contents before publication.
         // World-stopped => unraced; CAS anyway so the publication stays
@@ -2393,7 +2400,7 @@ bool ensureLengthSlowConcurrent(VM& vm, JSObjectWithButterfly* object, unsigned 
 
         // ---- Segmented: T2.
         if (isSegmentedButterfly(word)) [[unlikely]] {
-            if (butterflySpine(word)->vectorLength >= length)
+            if (butterflySpine(word)->vectorLengthConcurrent() >= length) // V7 (TSAN): relaxed read of the published spine.
                 return true;
             tryGrowSegmentedVectorLength(vm, object, length);
             continue; // Success and failure both re-dispatch; the next pass re-reads the fresh spine.
@@ -2456,8 +2463,20 @@ bool ensureLengthSlowConcurrent(VM& vm, JSObjectWithButterfly* object, unsigned 
             // thread and foreign first-writers - who must flip SW first,
             // changing the word and failing the CAS below; a torn copy is
             // therefore discarded, never published (I21).
-            memcpy(newButterfly->base(0, propertyCapacity), butterfly->base(0, propertyCapacity),
-                propertyCapacity * sizeof(EncodedJSValue) + sizeof(IndexingHeader) + static_cast<size_t>(oldVectorLength) * sizeof(EncodedJSValue));
+            // V7 (TSAN): TSAN-visible relaxed word copy instead of memcpy — the
+            // source payload's words may be concurrently stored ATOMICALLY by a
+            // foreign first-writer that has not yet flipped SW (its flip changes
+            // the word and fails our CAS, so a torn copy is discarded, never
+            // published — the protocol argument above is unchanged; this only
+            // makes the racing reads defined). Flag-on-only path.
+            {
+                size_t copyBytes = propertyCapacity * sizeof(EncodedJSValue) + sizeof(IndexingHeader) + static_cast<size_t>(oldVectorLength) * sizeof(EncodedJSValue);
+                ASSERT(!(copyBytes % sizeof(uint64_t)));
+                uint64_t* dst = std::bit_cast<uint64_t*>(newButterfly->base(0, propertyCapacity));
+                uint64_t* src = std::bit_cast<uint64_t*>(butterfly->base(0, propertyCapacity));
+                for (size_t wordIndex = 0; wordIndex < copyBytes / sizeof(uint64_t); ++wordIndex)
+                    WTF::atomicStore(&dst[wordIndex], WTF::atomicLoad(&src[wordIndex], std::memory_order_relaxed), std::memory_order_relaxed); // dst store atomic too: fresh aux memory at a recycled address can pair with stale readers.
+            }
             if (hasDouble(type)) {
                 for (unsigned i = oldVectorLength; i < newVectorLength; ++i)
                     newButterfly->indexingPayload<double>()[i] = PNaN;

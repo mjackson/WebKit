@@ -55,8 +55,13 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 namespace JSC {
 
 inline JSCell::JSCell(CreatingEarlyCellTag)
-    : m_cellState(CellState::DefinitelyWhite)
 {
+    // V7 (TSAN, cell-header family): ctor header init can race with foreign
+    // cellHeaderConcurrentLoad readers on a recycled cell (the cell address
+    // was previously published; stale-header readers re-dispatch per OM
+    // §3.0/GT#2). Store relaxed so the pair is atomic/atomic under TSAN;
+    // non-TSAN this is the identical plain store the init-list produced.
+    cellHeaderConcurrentStore(m_cellState, CellState::DefinitelyWhite);
     ASSERT(!isCompilationThread());
 }
 
@@ -82,6 +87,30 @@ inline JSCell::JSCell(VM&, Structure* structure)
 
 // This constructor should not be used directly. Exceptions are for quite few well-defined builtin objects, e.g. JSString, empty JSFinalObject etc.
 // Structure must be kept alive somehow (e.g. by JSGlobalObject, or ensureStillAliveHere).
+#if TSAN_ENABLED && USE(JSVALUE64) && CPU(LITTLE_ENDIAN)
+ALWAYS_INLINE JSCell::JSCell(CreatingWellDefinedBuiltinCellTag, StructureID structureID, uint32_t blob)
+{
+    // V7 (TSAN, cell-header family): on a recycled cell this init races with
+    // foreign cellHeaderConcurrentLoad readers holding a stale reference
+    // (blessed reader side, OM §3.0/GT#2 — stale headers re-dispatch). Make
+    // the writer side atomic too: assemble the full 8-byte header
+    // {m_structureID, m_blob} and publish it with a single 64-bit relaxed
+    // store. TSAN-build-only path; the non-TSAN ctor below is the original
+    // member-init-list (zero codegen delta flag-off).
+    //
+    // Recorded residual: m_structureID is omitted from the mem-init-list, so
+    // its NSDMI default-init still emits a plain 4-byte zero store before
+    // this atomic store. It is dead (unconditionally overwritten by the
+    // covering atomic store) and DSE runs before the TSan instrumentation
+    // pass, so it is expected to vanish; if ctor frames persist in the next
+    // snapshot, that store is the cause and StructureID needs a no-init tag
+    // constructor (next wave).
+    static_assert(OBJECT_OFFSETOF(JSCell, m_structureID) + sizeof(StructureID) == OBJECT_OFFSETOF(JSCell, m_blob));
+    static_assert(sizeof(StructureID) == sizeof(uint32_t));
+    uint64_t header = static_cast<uint64_t>(structureID.bits()) | (static_cast<uint64_t>(blob) << 32);
+    __atomic_store_n(reinterpret_cast<uint64_t*>(&m_structureID), header, __ATOMIC_RELAXED);
+}
+#else
 ALWAYS_INLINE JSCell::JSCell(CreatingWellDefinedBuiltinCellTag, StructureID structureID, uint32_t blob)
     : m_structureID(structureID)
 #if CPU(LITTLE_ENDIAN)
@@ -94,6 +123,7 @@ ALWAYS_INLINE JSCell::JSCell(CreatingWellDefinedBuiltinCellTag, StructureID stru
 #endif
 {
 }
+#endif
 
 inline void JSCell::finishCreation(VM& vm)
 {
@@ -116,10 +146,12 @@ inline void JSCell::finishCreation(VM& vm, Structure* structure, CreatingEarlyCe
     vm.setInitializingObjectClass(0);
     if (structure) {
 #endif
-        m_structureID = structure->id();
-        m_indexingTypeAndMisc = structure->indexingModeIncludingHistory();
-        m_type = structure->typeInfo().type();
-        m_flags = structure->typeInfo().inlineTypeFlags();
+        // V7 (TSAN, cell-header family): relaxed header stores pairing with
+        // cellHeaderConcurrentLoad readers; plain stores non-TSAN.
+        cellHeaderConcurrentStore(m_structureID, structure->id());
+        cellHeaderConcurrentStore(m_indexingTypeAndMisc, structure->indexingModeIncludingHistory());
+        cellHeaderConcurrentStore(m_type, structure->typeInfo().type());
+        cellHeaderConcurrentStore(m_flags, structure->typeInfo().inlineTypeFlags());
 #if ENABLE(GC_VALIDATION)
     }
 #else
@@ -271,14 +303,19 @@ ALWAYS_INLINE void JSCell::setStructure(VM& vm, Structure* structure)
     ASSERT(!this->structure()
         || this->structure()->transitionWatchpointSetHasBeenInvalidated()
         || structure->id().decode() == structure);
-    m_structureID = structure->id();
-    m_flags = TypeInfo::mergeInlineTypeFlags(structure->typeInfo().inlineTypeFlags(), m_flags);
-    m_type = structure->typeInfo().type();
+    // V7 (TSAN, cell-header family): header-byte writers store relaxed so
+    // they pair with the (blessed, OM §3.0/GT#2) cellHeaderConcurrentLoad
+    // readers; identical plain stores non-TSAN. The m_indexingTypeAndMisc
+    // reads feeding the CAS loop below load relaxed for the same reason —
+    // the CAS itself was already atomic.
+    cellHeaderConcurrentStore(m_structureID, structure->id());
+    cellHeaderConcurrentStore(m_flags, TypeInfo::mergeInlineTypeFlags(structure->typeInfo().inlineTypeFlags(), cellHeaderConcurrentLoad(m_flags)));
+    cellHeaderConcurrentStore(m_type, structure->typeInfo().type());
     IndexingType newIndexingType = structure->indexingModeIncludingHistory();
-    if (m_indexingTypeAndMisc != newIndexingType) {
+    if (cellHeaderConcurrentLoad(m_indexingTypeAndMisc) != newIndexingType) {
         ASSERT(!(newIndexingType & ~AllArrayTypesAndHistory));
         for (;;) {
-            IndexingType oldValue = m_indexingTypeAndMisc;
+            IndexingType oldValue = cellHeaderConcurrentLoad(m_indexingTypeAndMisc);
             IndexingType newValue = (oldValue & ~AllArrayTypesAndHistory) | structure->indexingModeIncludingHistory();
             if (WTF::atomicCompareExchangeWeakRelaxed(&m_indexingTypeAndMisc, oldValue, newValue))
                 break;

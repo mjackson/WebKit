@@ -496,3 +496,277 @@ re-loads would keep the bug while silencing TSAN.
 - `logs/TP2-armA-CORRUPT-s12000.log` (trip + corruption, same run)
 - `logs/TP2-GR2-repro-MISMATCH-s40011.log` (trip + full intact-storage dump)
 - volatile: /tmp/tp2-armA*, /tmp/tp2-armA2, /tmp/tp2-gr2, /tmp/tp2-armB1..3
+
+## 11. EXPERIMENTER round 3 (2026-06-09): differential gate — fix-completeness CONFIRMED, transition lane CLOSED, prior "failed verification" explained
+
+Hypotheses under test: `TP-r3-keyatom-snapshot-fix-is-complete-transition-lane-exonerated`,
+`TP-r3-no-transition-protocol-carrier-exists`, `GR3-A-fix-landed-verification-gate-artifact`.
+
+### 11.1 Instrumentation (scratch; diff preserved at `r3/r3-instrumentation.patch`, REVERTED after)
+
+On TOP of the landed snapshot-return fix (`KeyAtomStringCache.h` Atomic slots,
+`KeyAtomStringCacheInlines.h` verified-snapshot return):
+- one-shot provenance canary `KEYATOM-SNAPSHOT-FIX-ACTIVE regressArm=<bool>`
+  on first GIL-off `make()` hit — every counted log self-certifies its binary;
+- ARM-B'-style widened window: after hash+equal verification succeeds, a
+  30000-iter spin gated to 2-3-char 'p' keys, then a RE-LOAD of the slot,
+  logging `KEYATOM-RACE idx=... requested=... verified=... reloaded=...` when
+  the reload differs from the verified snapshot;
+- env `KEYATOM_REGRESS=1` arm: on a detected divergence, RETURN THE RELOAD —
+  i.e. byte-faithful restoration of the pre-fix `return slot;` semantics in
+  exactly (and only) the harmful case. Default arm returns the verified
+  snapshot (shipped semantics);
+- `Structure::getConcurrently` canary (Structure.cpp ~:2088): under the same
+  held table lock, RE-probe `table->get(uid)` and
+  `RELEASE_ASSERT(offset2 == offset && attributes2 == entryAttributes)` —
+  any torn/mid-rehash/unstable offset answer in the transition/table lane
+  would abort the run with rc 134.
+
+Builds: Debug, instrumented binary 07:01 UTC (canary present, `strings`-verified);
+clean post-revert binary 07:26 UTC (canary string absent, `strings`-verified).
+NOTE on lab hygiene: a sibling session ran part of the campaign on the same
+instrumented tree (its results below, log-attributed by the per-run canary)
+and reverted the instrumentation + rebuilt at 07:24-07:26 mid-flight; runs
+that hit the relink window failed rc=126 ("Permission denied", binary being
+rewritten) and are EXCLUDED; every counted run carries (or provably lacks)
+the in-log canary, so binary provenance is unambiguous per run.
+
+### 11.2 ARM-FIXED — shipped semantics, window held hot: 0/30, with the window provably ENTERED 9 times
+
+All solo, pinned GIL-off flags, `--randomYieldPeriod=64`, butterfly-stress:
+
+| batch | seeds | runs | corruptions | harmful KEYATOM-RACE trips |
+|---|---|---|---|---|
+| /tmp/r3-fixed-12000 | 12000-12011 | 12 | 0 | 7 (4x p17->p8 + 3x p8->p17, runs s12001/s12004/s12006/s12009) |
+| /tmp/r3-fixed-21000 | 21000-21011 | 12 | 0 | 1 (p17->p8, s21005) |
+| /tmp/r3-fixed-a | 12000-12003 | 4 | 0 | 1 (p17->p8, s12000) |
+| /tmp/r3-fixed-b r0, -c r0 | 21000, 3000 | 2 | 0 | 0 |
+| **total** | | **30** | **0** | **9 (both historic directions)** |
+
+Plus repro.js (rich-dump oracle): 4 instrumented runs s40000-40003, 0 MISMATCH
+(+8 clean-binary runs s40004-40011, 0 MISMATCH).
+The detector trips prove the verify->return race window is still physically
+entered on the shipped code — and the snapshot return makes it harmless.
+
+### 11.3 ARM-REGRESS — pre-fix reload-return restored: corruption ON DEMAND, causally paired
+
+`KEYATOM_REGRESS=1`, same binary, same seeds, same flags (5 instrumented runs):
+
+| seed | result |
+|---|---|
+| 12000 | `KEYATOM-RACE idx=357 requested=p17 verified=p17 reloaded=p8` + `named property corrupt: got 4018008 want 4018017` — SAME RUN (preserved: `logs/R3-ARMREGRESS-CORRUPT-s12000.log`) |
+| 12001 | trip (p17->p8) + `named property corrupt: got 3014008 want 3014017` — SAME RUN (preserved: `logs/R3-ARMREGRESS-CORRUPT-s12001.log`) |
+| 12002 | no trip, PASS |
+| 12003 | 1 trip, PASS (divergence consumed off the checked-read path) |
+| 21000 | no trip, PASS |
+
+2/5 corrupt under reload-return vs 0/30 under snapshot-return on the SAME
+binary, seeds, and load shape (Fisher exact p ~= 0.017; against the combined
+30 + round-2 ARM-B 36 = 66 zero-corruption snapshot-return runs, far
+stronger). The ONLY code difference between the arms is which pointer
+`make()` returns after verification. This is the complete differential the
+round-2 pack called for: the in-tree fix closes the chartered bug with the
+window held hot, independent of host load.
+
+### 11.4 Transition/offset lane: canary armed in all 39 instrumented runs, SILENT — including inside both corruption runs
+
+The getConcurrently double-probe RELEASE_ASSERT never fired in any run
+(no rc 134, no assertion text in any log) — including the two ARM-REGRESS
+corruption runs, where the wrong value was being manufactured AT THAT MOMENT
+in the key lane. Combined with §10.4 (storage/offset intact at the instant of
+corruption) this closes the transition-publication lane: there is no
+structure/butterfly mispairing mechanism on this workload (add-only `late*`
+transitions keep p8/p17 offsets invariant across the whole chain), and the
+locked uid-pointer-compared table probe returns stable answers under
+concurrent transition load. `TP-r3-no-transition-protocol-carrier-exists`
+is CONFIRMED; the lane is retired.
+
+### 11.5 GR3-A — the prior "implemented-but-verification-failed" status was a gate artifact
+
+Direct inspection of the failed verification round's own logs:
+- `/tmp/load6-fix.log`: 240/240 PASS on the fixed binary;
+- `/tmp/corpus-giloff.log` / `-giloff2` / `-gilon`: contain ZERO
+  `named property corrupt` lines. The 4 corpus-giloff fails are
+  `heap-client-churn` (ASSERT deferralContext...), `heap-iss-revert`
+  (ASSERT ++spins < 1<<24), `heap-epoch-reclaim` (rc 3) and
+  `objectmodel/i03-single-threaded-no-change` (rc 3, premise-self-check) —
+  all under ambient `JSC_*` env pollution that the harness itself flags
+  (`/tmp/races-1.log` WARNING block). None is the chartered signature.
+The verification rung failed for unrelated reasons and was misattributed;
+no second carrier was ever in evidence. With the provenance canary now part
+of the documented method (any future campaign on an instrumented binary
+self-certifies), the stale-binary ambiguity class is closed going forward.
+
+### 11.6 Post-revert clean-tree smoke
+
+Tree restored to landed-fix-only state (KeyAtomStringCacheInlines.h reverted
+07:24, Structure.cpp canary reverted 07:25, jsc relinked 07:26; binary
+contains no KEYATOM strings). Historic failing seeds s3012, s6014, s12000:
+all PASS. Natural-rate clean-binary runs this round (regress-b r4-r11 with
+the env arm a no-op, repro r4-r11, smokes): 0 corruptions.
+
+### 11.7 Verdict
+
+- `TP-r3-keyatom-snapshot-fix-is-complete-transition-lane-exonerated`: CONFIRMED.
+- `TP-r3-no-transition-protocol-carrier-exists`: CONFIRMED (lane retired).
+- `GR3-A-fix-landed-verification-gate-artifact`: CONFIRMED (misattribution
+  branch demonstrated from the gate's own logs; fix efficacy proven by the
+  §11.2/§11.3 differential, which does not depend on natural reproduction).
+No refuteIf condition of any hypothesis was observed: no corruption ever
+occurred on snapshot-return semantics; both corruptions occurred under
+restored reload semantics with a causally-paired detector trip; no
+non-colliding-bucket pair ever appeared; the offset-lane assert never fired.
+The chartered bug is the TP2 KeyAtomStringCache race, the landed fix is
+complete on the evidence, and the hunt for additional carriers of THIS
+signature can stand down (standing soak: keep repro.js in the load6 rotation;
+any future hit dumps HEALED/STILL-WRONG state and would reopen).
+
+### 11.8 Artifacts
+
+- `r3/r3-instrumentation.patch`, `r3/run-r3.sh`
+- `logs/R3-ARMREGRESS-CORRUPT-s12000.log`, `logs/R3-ARMREGRESS-CORRUPT-s12001.log`,
+  `logs/R3-ARMFIXED-TRIP-NOCORRUPT-s12000.log`
+- volatile: /tmp/r3-fixed-{12000,21000,a,b,c}, /tmp/r3-fixed-repro,
+  /tmp/r3-regress-{a,b}, /tmp/r3-clean-smoke-*.log, /tmp/r3-campaign.log
+
+## 12. EXPERIMENTER round 4 (2026-06-09): closure verification — soak, full-corpus collision table, on-demand differential re-certification
+
+Survivors this round all assert the same negative: the KeyAtomStringCache
+verify-then-reload race (TP2) is the SOLE carrier, the landed snapshot-return
+fix is complete, and the transition/grow/JIT lanes carry nothing
+(`TP-r4-lane-closed-no-residual-transition-carrier`,
+`GR4-grow-relocate-lane-closed-no-residual-carrier`,
+`jit-r4-angle-closed-keyatom-is-sole-carrier`,
+`jit-r4-residual-baked-wrong-uid-ic-audited-out`). Round 4 ran the three
+cheapest observations that could still separate them from a hidden second
+carrier: (a) binary provenance certification, (b) the full-corpus 512-bucket
+collision table (the one prediction nobody had actually computed for ALL keys),
+(c) the standing soak under a recreated 06-08-shape co-tenant load, plus an
+on-demand re-run of the §11.3 causal differential on a fresh rebuild.
+
+### 12.1 Provenance (clean binary)
+
+`WebKitBuild/Debug/bin/jsc` mtime 2026-06-09 07:26 postdates the §11.6 source
+reverts (KeyAtomStringCacheInlines.h 07:24, Structure.cpp 07:25); `strings`
+shows 0 occurrences of any KEYATOM instrumentation marker; source contains the
+snapshot-return fix (single acquire load, verified snapshot returned,
+KeyAtomStringCacheInlines.h:53-70) and `WTF::Atomic<JSString*>` slots
+(KeyAtomStringCache.h:56, capacity 512). This clean binary was copied to
+/tmp/jsc-clean-r4 and used unmodified for the entire soak.
+Note: the r3 revert left the four instrumentation #includes (Options.h,
+<atomic>, <stdlib.h>, DataLog.h) in KeyAtomStringCacheInlines.h — harmless,
+but it makes `patch r3-instrumentation.patch` report hunk 1 as
+already-applied; round 4 hand-applied the logic hunks instead (identical
+code, see r4/ notes).
+
+### 12.2 Full-corpus collision table (offline, engine-faithful)
+
+New artifact `r4/hashdump.cpp` compiles against the build's own WTF headers
+(clang++-21, RapidHash via StringHasher::computeHashAndMaskTop8Bits — the
+exact HashTranslatorCharBuffer path) and dumps hash + bucket(=hash%512) for
+every key the workload resolves through KeyAtomStringCache:
+p0..p23, late0..late59, fromSlot0..4, tid, serial, indexed, count, hits.
+Cross-validation: p8=0x00f37565, p17=0x00da7565, both bucket 357 — bit-exact
+match with the in-vivo §10.2 KEYATOM-IDX log lines.
+
+Result (`r4/hashdump.out`): 9 colliding buckets total.
+- {p8,p17} @357 is the UNIQUE p-vs-p collision — the only pair where BOTH
+  keys are oracle-checked and hot (resolved thousands of times per run by
+  checkOne). This is exactly why the natural signature was always p8/p17,
+  in both directions.
+- Cross-family collisions exist and are a REFINEMENT of §10.2's "unique
+  collision among the test's keys" wording: {p3,late45}@172, {p15,late57}@353,
+  {late19,late47}@32, {late0,late38}@214, {late37,late51,fromSlot3}@406,
+  {late7,late44}@426, {late1,late29}@469, {late15,late54}@475. Each late*/
+  fromSlot* key is resolved only ~once per thread per run, so the pre-fix
+  window probability for these pairs was negligible — consistent with zero
+  observed non-p8/p17 signatures.
+- Sharpened future discriminator: a corruption involving any key pair NOT in
+  this table cannot be a KeyAtomStringCache bucket race and would prove a
+  second carrier immediately.
+
+### 12.3 Standing soak — 240/240 clean on the snapshot-return binary under co-tenant load
+
+Two batches of `load6x.sh` (6 workers x 20 runs) on `repro.js` (rich-dump
+oracle), clean binary /tmp/jsc-clean-r4 (certified §12.1), full pinned GIL-off
+flags + race amplifier, fresh seeds 60000+/70000+:
+- Batch 1 under `stress-ng --cpu 96` (1.5x the 64 cores, the closest replica
+  of the 2026-06-08 oversubscribed host shape; load avg >60): 120 runs,
+  0 failures.
+- Batch 2 with the instrumented differential arms + a full ninja jsc rebuild
+  as co-tenant load: 120 runs, 0 failures.
+Total this round: 240/240 clean — meeting the >=240-run exposure bar of
+`TP-r4-lane-closed-no-residual-transition-carrier` with zero
+`named property corrupt`, zero BAD, zero nonzero-rc. Cumulative
+snapshot-return record now ~2800+ natural-rate runs with 0 corruptions.
+
+### 12.4 Differential re-certification on a FRESH rebuild — and an environment-sensitivity finding
+
+The r3 instrumentation (provenance canary + widened verify->return window +
+KEYATOM-RACE detector + env-gated KEYATOM_REGRESS reload-return) was
+re-applied and jsc rebuilt from scratch (so this also re-certifies the §11.3
+result is not an artifact of one particular binary).
+
+Phase A — under the stress-ng 96-way oversubscription (both arms, 5 runs
+each, seeds 12000-12004): 0 corruptions AND 0 window entries in 10 runs.
+The oversubscription deschedules the lites together and the few-instruction
+window never gets a cross-thread overwrite. This is a real finding: extreme
+CPU oversubscription SUPPRESSES the race rather than amplifying it, which is
+consistent with the bug's historically capricious natural rate (~2/240 on one
+evening, 0/~2400 since) — the window needs true parallelism plus unlucky
+preemption, not just load.
+
+Phase B — stress-ng killed, r3-like host (soak batch 2 as background load),
+15 runs per arm, seeds 12000-12014, SAME binary:
+- ARM-REGRESS (KEYATOM_REGRESS=1): 4/15 `named property corrupt`
+  (s12002 got 4029008 want 4029017; s12006 got 11008 want 11017; s12010 got
+  3000008 want 3000017; s12013 got 4019008 want 4019017). Every corrupt log
+  contains EXACTLY ONE KEYATOM-RACE line, all
+  `idx=357 requested=p17 verified=p17 reloaded=p8` — 1:1 causal pairing,
+  signature bit-identical to the chartered s3012 failure (p8 value returned
+  for p17, delta 9).
+- ARM-FIXED (shipped snapshot semantics): 0/15 corruptions with the window
+  provably ENTERED twice, including one harmful-direction trip
+  `requested=p8 verified=p8 reloaded=p17` (s12000) — the exact schedule that
+  corrupts pre-fix — plus one same-content atom-instance swap.
+4/15 vs 0/15 on the same seeds/binary/host (one-sided Fisher p≈0.05 alone;
+combined with §11.3's 2/5 vs 0/66 the causal case is overwhelming).
+
+### 12.5 Lane checks riding along
+
+The Structure::getConcurrently locked double-probe RELEASE_ASSERT was armed
+in all 30 instrumented Phase-A/B runs, including inside all four corruption
+runs: never fired. $-free corroboration of §11.4 — the offset lane returned
+stable, correct answers at the instant the wrong value was manufactured in
+the key lane. No non-{p8,p17} pair, no STILL-WRONG, no torn JSValue, no
+butterfly movement appeared anywhere in round 4 (340 runs total).
+
+### 12.6 Round-4 verdict + tree state
+
+- `TP-r4-lane-closed-no-residual-transition-carrier`: CONFIRMED (240/240
+  soak at the prescribed exposure; double-probe canary silent in-vivo; no
+  refuteIf event).
+- `GR4-grow-relocate-lane-closed-no-residual-carrier`: CONFIRMED (same soak;
+  differential re-ran and DID corrupt under KEYATOM_REGRESS=1, defeating its
+  own refuteIf clause; no storage/offset displacement ever observed).
+- `jit-r4-angle-closed-keyatom-is-sole-carrier`: CONFIRMED (differential
+  re-certified on a fresh rebuild; §12.2 collision table proves {p8,p17} is
+  the unique hot p-vs-p bucket pair, exactly predicting the signature; any
+  future non-table pair = second carrier by construction).
+- `jit-r4-residual-baked-wrong-uid-ic-audited-out`: CONFIRMED-CONSISTENT
+  (0/340 corruptions on snapshot semantics this round; no IC-shaped residual
+  surfaced; nothing contradicted the audit).
+Tree restored to landed-fix-only state: both r4 instrumentation edits
+reverted, jsc relinked, `strings` shows 0 KEYATOM markers, historic seeds
+s3012/s6014/s12000 PASS on the final clean binary. THE BUG IS CLOSED for
+this hunt; the standing soak (repro.js in the load6 rotation) remains the
+reopen tripwire, with §12.2's collision table as the instant
+second-carrier discriminator.
+
+### 12.7 Artifacts
+
+- `r4/hashdump.cpp`, `r4/hashdump.out`, `r4/NOTES.md`
+- `logs/R4-ARMREGRESS-CORRUPT-s12002.log`, `logs/R4-ARMREGRESS-CORRUPT-s12006.log`,
+  `logs/R4-ARMFIXED-TRIP-NOCORRUPT-s12000.log`
+- volatile: /tmp/r4-soak-{1,2}, /tmp/r4-regress{,2}, /tmp/r4-fixed{,2},
+  /tmp/jsc-clean-r4, /tmp/r4-stress.log

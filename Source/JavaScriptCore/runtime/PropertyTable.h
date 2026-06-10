@@ -202,6 +202,18 @@ public:
     void addDeletedOffset(PropertyOffset);
 
     // S6 L3/L4 in-place-edit stamp (see m_concurrentEditCount).
+    // PROTOCOL (§3.25, re-derived after the wave-5 review): writers bump the
+    // stamp AFTER the in-place mutation completes, still under the table's
+    // serialization (cell lock). A lock-free reader snapshots the stamp, does
+    // its lock-free reads, then ACQUIRES THE LOCK and rechecks the stamp:
+    //   - any edit that completed in the window bumped after its mutation,
+    //     so the recheck differs and the reader RESTARTs;
+    //   - an edit still in progress at recheck time is impossible (the
+    //     reader holds the lock the writer mutates under).
+    // A pre-mutation-only bump would be a one-sided seqlock: a snapshot
+    // landing after the bump but mid-mutation would validate torn reads.
+    // The recheck MUST happen under the lock; there is no odd/in-progress
+    // marker, so a lock-free recheck is NOT sound.
     uint32_t concurrentEditCount() const { return m_concurrentEditCount.load(std::memory_order_acquire); }
     ALWAYS_INLINE void bumpConcurrentEditCount()
     {
@@ -219,7 +231,9 @@ public:
         uint64_t epoch; // Owning heap's ButterflyQuarantineEpochs stamp at deletion (§6).
     };
 
-    unsigned quarantinedDeletedOffsetCount() const { return m_quarantinedDeletedOffsets ? m_quarantinedDeletedOffsets->size() : 0; }
+    // TSAN family 25 quarantine counters: relaxed mirror read - lock-free
+    // count readers must not dereference the Vector (see the member comment).
+    unsigned quarantinedDeletedOffsetCount() const { return concurrentRelaxedLoad(m_quarantinedDeletedOffsetCount); }
     bool quarantinedDeletedOffsetsContains(PropertyOffset) const; // debug/assert helper
 
     PropertyOffset nextOffset(PropertyOffset inlineCapacity);
@@ -289,7 +303,7 @@ private:
     template<typename Index, typename Entry>
     ALWAYS_INLINE FindResult findImpl(const Index*, const Entry*, const KeyType&);
 
-    bool isCompact() const { return m_indexVector & isCompactFlag; }
+    bool isCompact() const { return indexVector() & isCompactFlag; }
 
     template<typename Functor>
     void forEachPropertyMutable(const Functor&);
@@ -312,10 +326,10 @@ private:
         return std::bit_cast<const PropertyTableEntry*>(index + indexSize);
     }
 
-    CompactPropertyTableEntry* tableFromIndexVector(uint8_t* index) { return tableFromIndexVector(index, m_indexSize); }
-    const CompactPropertyTableEntry* tableFromIndexVector(const uint8_t* index) const { return tableFromIndexVector(index, m_indexSize); }
-    PropertyTableEntry* tableFromIndexVector(uint32_t* index) { return tableFromIndexVector(index, m_indexSize); }
-    const PropertyTableEntry* tableFromIndexVector(const uint32_t* index) const { return tableFromIndexVector(index, m_indexSize); }
+    CompactPropertyTableEntry* tableFromIndexVector(uint8_t* index) { return tableFromIndexVector(index, indexSize()); }
+    const CompactPropertyTableEntry* tableFromIndexVector(const uint8_t* index) const { return tableFromIndexVector(index, indexSize()); }
+    PropertyTableEntry* tableFromIndexVector(uint32_t* index) { return tableFromIndexVector(index, indexSize()); }
+    const PropertyTableEntry* tableFromIndexVector(const uint32_t* index) const { return tableFromIndexVector(index, indexSize()); }
 
     CompactPropertyTableEntry* tableEndFromIndexVector(uint8_t* index)
     {
@@ -349,7 +363,7 @@ private:
     template<typename Func>
     ALWAYS_INLINE auto withIndexVector(Func&& function) const -> decltype(auto)
     {
-        return withIndexVector(m_indexVector, std::forward<Func>(function));
+        return withIndexVector(indexVector(), std::forward<Func>(function));
     }
 
     static constexpr uintptr_t isCompactFlag = 0x1;
@@ -359,6 +373,45 @@ private:
     // addDeletedOffset's flag-on quarantine leg - stamps the owning heap's
     // current epoch and caches the heap's epoch slot on first use.
     void quarantineDeletedOffset(PropertyOffset);
+
+    // TSAN family 25 (TSAN-TRIAGE.md §3.25; OM §6/L6): the table's counted /
+    // index header words below are MUTATED only under the table's
+    // serialization (the owning Structure's m_lock, or the table is still
+    // private to its creating thread, L6), but are READ lock-free by
+    // concurrent readers that re-validate (compiler-thread size() /
+    // forEachProperty re-validation reads, e.g. Structure.cpp's
+    // table->size() != values.size() check and forEachPropertyConcurrently).
+    // Mixed plain access is UB, so both sides go through relaxed atomics:
+    // identical plain-mov codegen on every supported target, flag-off
+    // behavior and semantics unchanged. Mutation stays locked - these are
+    // NOT lock-free writers; relaxed load+store (not RMW) is sufficient
+    // because every writer already holds the serialization. Same pattern and
+    // rationale as Structure::concurrentRelaxedLoad/Store (§9.1).
+    template<typename T>
+    static ALWAYS_INLINE T concurrentRelaxedLoad(const T& field)
+    {
+        static_assert(std::is_trivially_copyable_v<T>);
+        T result;
+        __atomic_load(const_cast<T*>(&field), &result, __ATOMIC_RELAXED);
+        return result;
+    }
+
+    template<typename T>
+    static ALWAYS_INLINE void concurrentRelaxedStore(T& field, std::type_identity_t<T> value)
+    {
+        static_assert(std::is_trivially_copyable_v<T>);
+        __atomic_store(&field, &value, __ATOMIC_RELAXED);
+    }
+
+    ALWAYS_INLINE unsigned indexSize() const { return concurrentRelaxedLoad(m_indexSize); }
+    ALWAYS_INLINE unsigned indexMask() const { return concurrentRelaxedLoad(m_indexMask); }
+    ALWAYS_INLINE uintptr_t indexVector() const { return concurrentRelaxedLoad(m_indexVector); }
+    ALWAYS_INLINE unsigned keyCount() const { return concurrentRelaxedLoad(m_keyCount); }
+    ALWAYS_INLINE unsigned deletedCount() const { return concurrentRelaxedLoad(m_deletedCount); }
+    // Relaxed mirror of m_deletedOffsets->size(): lets lock-free count
+    // readers (propertyStorageSize) avoid dereferencing the unique_ptr /
+    // Vector internals, which a locked mutator may be reallocating.
+    ALWAYS_INLINE unsigned deletedOffsetCount() const { return concurrentRelaxedLoad(m_deletedOffsetCount); }
 
     unsigned m_indexSize;
     unsigned m_indexMask;
@@ -376,7 +429,14 @@ private:
     std::atomic<uint32_t> m_concurrentEditCount { 0 };
     std::unique_ptr<Vector<PropertyOffset>> m_deletedOffsets; // §6 Reusable list flag-on; the only list flag-off (I22).
     std::unique_ptr<Vector<QuarantinedDeletedOffset>> m_quarantinedDeletedOffsets; // §6 Quarantined list; flag-on only.
-    WTF::Atomic<uint64_t>* m_quarantineEpochSlot { nullptr }; // Cached owning-heap slot (stable address); set at first quarantine.
+    // TSAN family 25 quarantine counters (OM §6): relaxed mirrors of the two
+    // deleted-offset Vector sizes, updated (relaxed store) at every list
+    // mutation - which always holds the table's serialization - and read
+    // (relaxed load) by lock-free count readers. The Vectors themselves are
+    // only ever dereferenced under the serialization.
+    unsigned m_deletedOffsetCount { 0 };
+    unsigned m_quarantinedDeletedOffsetCount { 0 };
+    WTF::Atomic<uint64_t>* m_quarantineEpochSlot { nullptr }; // Cached owning-heap slot (stable address); set at first quarantine, read via relaxed load.
 
     static constexpr unsigned MinimumTableSize = 16;
     static_assert(MinimumTableSize >= 16, "compact index is uint8_t and we should keep 16 byte aligned entries after this array");
@@ -386,7 +446,7 @@ template<typename Index, typename Entry>
 PropertyTable::FindResult PropertyTable::findImpl(const Index* indexVector, const Entry* table, const KeyType& key)
 {
     unsigned hash = IdentifierRepHash::hash(key);
-    unsigned indexMask = m_indexMask;
+    unsigned indexMask = this->indexMask();
     unsigned probeCount = 0;
     unsigned index = hash & indexMask;
 
@@ -434,7 +494,7 @@ inline std::tuple<PropertyOffset, unsigned> PropertyTable::get(const KeyType& ke
     ASSERT(key->isAtom() || key->isSymbol());
     ASSERT(key != PROPERTY_MAP_DELETED_ENTRY_KEY);
 
-    if (!m_keyCount)
+    if (!keyCount())
         return std::tuple { invalidOffset, 0 };
 
     FindResult result = find(key);
@@ -455,7 +515,6 @@ inline std::tuple<PropertyOffset, unsigned> PropertyTable::get(const KeyType& ke
 
 ALWAYS_INLINE std::tuple<PropertyOffset, unsigned, bool> PropertyTable::addAfterFind(VM& vm, const ValueType& entry, FindResult&& result)
 {
-    bumpConcurrentEditCount(); // S6 L3/L4: in-place insert.
 #if DUMP_PROPERTYMAP_STATS
     ++propertyTableStats->numAdds;
 #endif
@@ -465,7 +524,7 @@ ALWAYS_INLINE std::tuple<PropertyOffset, unsigned, bool> PropertyTable::addAfter
 
     // ensure capacity is available.
     if (!canInsert(entry)) {
-        rehash(vm, m_keyCount + 1, canFitInCompact(entry));
+        rehash(vm, keyCount() + 1, canFitInCompact(entry));
         result = find(entry.key());
         ASSERT(result.offset == invalidOffset);
         ASSERT(result.entryIndex == EmptyEntryIndex);
@@ -480,7 +539,11 @@ ALWAYS_INLINE std::tuple<PropertyOffset, unsigned, bool> PropertyTable::addAfter
         tableFromIndexVector(vector)[entryIndex - 1] = entry;
     });
 
-    ++m_keyCount;
+    // TSAN family 25: in-place insert under the table's serialization vs
+    // lock-free concurrent size() readers - relaxed store (§3.25).
+    concurrentRelaxedStore(m_keyCount, keyCount() + 1);
+
+    bumpConcurrentEditCount(); // S6 L3/L4: in-place insert — bump AFTER the mutation (see protocol comment).
 
     return std::tuple { entry.offset(), entry.attributes(), true };
 }
@@ -499,20 +562,22 @@ inline void PropertyTable::remove(VM& vm, KeyType key, unsigned entryIndex, unsi
     });
     key->deref();
 
-    ASSERT(m_keyCount >= 1);
-    --m_keyCount;
-    ++m_deletedCount;
+    // TSAN family 25: in-place removal under the table's serialization vs
+    // lock-free concurrent size() readers - relaxed stores (§3.25).
+    ASSERT(keyCount() >= 1);
+    concurrentRelaxedStore(m_keyCount, keyCount() - 1);
+    concurrentRelaxedStore(m_deletedCount, deletedCount() + 1);
 
-    if (m_deletedCount * 4 >= m_indexSize)
-        rehash(vm, m_keyCount, true);
+    if (deletedCount() * 4 >= indexSize())
+        rehash(vm, keyCount(), true);
 }
 
 inline std::tuple<PropertyOffset, unsigned> PropertyTable::take(VM& vm, const KeyType& key)
 {
     FindResult result = find(key);
     if (result.offset != invalidOffset) {
-        bumpConcurrentEditCount(); // S6 L3/L4: in-place removal.
         remove(vm, key, result.entryIndex, result.index);
+        bumpConcurrentEditCount(); // S6 L3/L4: in-place removal — bump AFTER the mutation (see protocol comment).
     }
     return std::tuple { result.offset, result.attributes };
 }
@@ -524,8 +589,8 @@ inline PropertyOffset PropertyTable::updateAttributeIfExists(const KeyType& key,
         FindResult result = findImpl(vector, table, key);
         if (result.offset == invalidOffset)
             return invalidOffset;
-        bumpConcurrentEditCount(); // S6 L3/L4: in-place attribute edit.
         table[result.entryIndex - 1].setAttributes(attributes);
+        bumpConcurrentEditCount(); // S6 L3/L4: in-place attribute edit — bump AFTER the mutation (see protocol comment).
         return result.offset;
     });
 }
@@ -533,12 +598,13 @@ inline PropertyOffset PropertyTable::updateAttributeIfExists(const KeyType& key,
 // returns the number of values in the hashtable.
 inline unsigned PropertyTable::size() const
 {
-    return m_keyCount;
+    // Read lock-free by concurrent re-validating readers (§3.25).
+    return keyCount();
 }
 
 inline bool PropertyTable::isEmpty() const
 {
-    return !m_keyCount;
+    return !keyCount();
 }
 
 inline unsigned PropertyTable::propertyStorageSize() const
@@ -546,7 +612,9 @@ inline unsigned PropertyTable::propertyStorageSize() const
     // Quarantined slots still occupy property storage: maxOffset/outOfLineSize
     // never shrink while a slot is quarantined (§6 D1/I30 - the slot stays
     // GC-visited and dereferenceable by tardy readers until released).
-    return size() + (m_deletedOffsets ? m_deletedOffsets->size() : 0) + quarantinedDeletedOffsetCount();
+    // TSAN family 25 quarantine counters: both list sizes are read through
+    // their relaxed mirrors - never dereference the Vectors lock-free.
+    return size() + deletedOffsetCount() + quarantinedDeletedOffsetCount();
 }
 
 inline void PropertyTable::clearDeletedOffsets()
@@ -558,6 +626,8 @@ inline void PropertyTable::clearDeletedOffsets()
     // reader holds a pre-flatten offset, I18/I34).
     m_deletedOffsets = nullptr;
     m_quarantinedDeletedOffsets = nullptr;
+    concurrentRelaxedStore(m_deletedOffsetCount, 0u);
+    concurrentRelaxedStore(m_quarantinedDeletedOffsetCount, 0u);
 }
 
 inline bool PropertyTable::hasDeletedOffset()
@@ -568,8 +638,9 @@ inline bool PropertyTable::hasDeletedOffset()
         // surrounding table mutation already holds the Structure's m_lock or
         // owns the table privately (L6), which serializes the list edits.
         if (m_quarantinedDeletedOffsets && !m_quarantinedDeletedOffsets->isEmpty()) {
-            ASSERT(m_quarantineEpochSlot);
-            releaseQuarantinedSlots(m_quarantineEpochSlot->load(std::memory_order_acquire));
+            WTF::Atomic<uint64_t>* epochSlot = concurrentRelaxedLoad(m_quarantineEpochSlot);
+            ASSERT(epochSlot);
+            releaseQuarantinedSlots(epochSlot->load(std::memory_order_acquire));
         }
     }
     return m_deletedOffsets && !m_deletedOffsets->isEmpty();
@@ -580,7 +651,9 @@ inline PropertyOffset PropertyTable::takeDeletedOffset()
     // §6/I18: draws ONLY from the Reusable list. Quarantined entries reach it
     // solely through releaseQuarantinedSlots() (hasDeletedOffset() promotes
     // lazily before this is reached via nextOffset()).
-    return m_deletedOffsets->takeLast();
+    PropertyOffset offset = m_deletedOffsets->takeLast();
+    concurrentRelaxedStore(m_deletedOffsetCount, static_cast<unsigned>(m_deletedOffsets->size()));
+    return offset;
 }
 
 inline void PropertyTable::addDeletedOffset(PropertyOffset offset)
@@ -605,6 +678,7 @@ inline void PropertyTable::addDeletedOffset(PropertyOffset offset)
     if (!m_deletedOffsets)
         m_deletedOffsets = makeUnique<Vector<PropertyOffset>>();
     m_deletedOffsets->append(offset);
+    concurrentRelaxedStore(m_deletedOffsetCount, static_cast<unsigned>(m_deletedOffsets->size()));
 }
 
 inline bool PropertyTable::quarantinedDeletedOffsetsContains(PropertyOffset offset) const
@@ -636,11 +710,11 @@ inline PropertyOffset PropertyTable::nextOffset(PropertyOffset inlineCapacity)
 
 inline PropertyTable* PropertyTable::copy(VM& vm, unsigned newCapacity)
 {
-    ASSERT(newCapacity >= m_keyCount);
+    ASSERT(newCapacity >= keyCount());
 
     // Fast case; if the new table will be the same m_indexSize as this one, we can memcpy it,
     // save rehashing all keys.
-    if (sizeForCapacity(newCapacity) == m_indexSize)
+    if (sizeForCapacity(newCapacity) == indexSize())
         return PropertyTable::clone(vm, *this);
     return PropertyTable::clone(vm, newCapacity, *this);
 }
@@ -669,7 +743,7 @@ inline void PropertyTable::reinsert(Index* indexVector, Entry* table, const Valu
     ASSERT(canInsert(entry));
 
     unsigned hash = IdentifierRepHash::hash(entry.key());
-    unsigned indexMask = m_indexMask;
+    unsigned indexMask = this->indexMask();
     unsigned probeCount = 0;
     unsigned index = hash & indexMask;
 
@@ -689,7 +763,9 @@ inline void PropertyTable::reinsert(Index* indexVector, Entry* table, const Valu
     indexVector[index] = entryIndex;
     table[entryIndex - 1] = entry;
 
-    ++m_keyCount;
+    // Relaxed: reinsert runs during rehash of a published table (addAfterFind
+    // slow path) while concurrent readers may load size() lock-free (§3.25).
+    concurrentRelaxedStore(m_keyCount, keyCount() + 1);
 }
 
 inline void PropertyTable::rehash(VM& vm, unsigned newCapacity, bool canStayCompact)
@@ -698,21 +774,25 @@ inline void PropertyTable::rehash(VM& vm, unsigned newCapacity, bool canStayComp
     ++propertyTableStats->numRehashes;
 #endif
 
-    uintptr_t oldIndexVector = m_indexVector;
+    uintptr_t oldIndexVector = indexVector();
     bool oldIsCompact = oldIndexVector & isCompactFlag;
-    unsigned oldIndexSize = m_indexSize;
+    unsigned oldIndexSize = indexSize();
     unsigned oldUsedCount = usedCount();
     size_t oldDataSize = dataSize(oldIsCompact, oldIndexSize);
 
-    m_indexSize = sizeForCapacity(newCapacity);
-    m_indexMask = m_indexSize - 1;
-    m_keyCount = 0;
-    m_deletedCount = 0;
+    // TSAN family 25 (§3.25): rehash mutates the index header words under the
+    // table's serialization while concurrent readers may load them lock-free
+    // and re-validate (L6). Relaxed stores keep the words tear-free per word;
+    // cross-word consistency is the readers' re-validation problem by spec.
+    concurrentRelaxedStore(m_indexSize, sizeForCapacity(newCapacity));
+    concurrentRelaxedStore(m_indexMask, indexSize() - 1);
+    concurrentRelaxedStore(m_keyCount, 0u);
+    concurrentRelaxedStore(m_deletedCount, 0u);
 
     // Once table gets non-compact, we do not change it back to compact again.
     // This is because some of property offset can be larger than UINT8_MAX already.
     bool isCompact = canStayCompact && oldIsCompact && tableCapacity() < UINT8_MAX;
-    m_indexVector = allocateZeroedIndexVector(isCompact, m_indexSize);
+    concurrentRelaxedStore(m_indexVector, allocateZeroedIndexVector(isCompact, indexSize()));
     withIndexVector([&](auto* vector) {
         auto* table = tableFromIndexVector(vector);
         withIndexVector(oldIndexVector, [&](const auto* oldVector) {
@@ -733,7 +813,7 @@ inline void PropertyTable::rehash(VM& vm, unsigned newCapacity, bool canStayComp
         vm.heap.reportExtraMemoryAllocated(this, newDataSize - oldDataSize);
 }
 
-inline unsigned PropertyTable::tableCapacity() const { return m_indexSize >> 1; }
+inline unsigned PropertyTable::tableCapacity() const { return indexSize() >> 1; }
 
 inline unsigned PropertyTable::deletedEntryIndex() const { return tableCapacity() + 1; }
 
@@ -748,7 +828,8 @@ inline T* PropertyTable::skipDeletedEntries(T* valuePtr, T* endValuePtr)
 inline unsigned PropertyTable::usedCount() const
 {
     // Total number of  used entries in the values array - by either valid entries, or deleted ones.
-    return m_keyCount + m_deletedCount;
+    // Read lock-free by concurrent iteration (forEachProperty end bound, §3.25).
+    return keyCount() + deletedCount();
 }
 
 inline size_t PropertyTable::dataSize(bool isCompact, unsigned indexSize)
@@ -762,7 +843,7 @@ inline size_t PropertyTable::dataSize(bool isCompact)
 {
     // The size in bytes of data needed for by the table.
     // Ensure that this function can be called concurrently.
-    return dataSize(isCompact, m_indexSize);
+    return dataSize(isCompact, indexSize());
 }
 
 ALWAYS_INLINE uintptr_t PropertyTable::allocateIndexVector(bool isCompact, unsigned indexSize)

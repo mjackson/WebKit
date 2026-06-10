@@ -56,7 +56,10 @@ bool JSString::equal(JSGlobalObject* globalObject, JSString* other) const
 {
     if (isRope() || other->isRope())
         return equalSlowCase(globalObject, other);
-    return WTF::equal(*valueInternal().impl(), *other->valueInternal().impl());
+    // TSAN family rope-stringimpl: read both published impls through the
+    // annotated relaxed load — a plain valueInternal().impl() read of m_fiber
+    // races a concurrent resolver/atomizer republish on another thread.
+    return WTF::equal(*getValueImpl(), *other->getValueImpl());
 }
 
 ALWAYS_INLINE bool JSString::equalInline(JSGlobalObject* globalObject, JSString* other) const
@@ -382,8 +385,20 @@ inline JSString* repeatCharacter(JSGlobalObject* globalObject, CharacterType cha
 
 inline void JSRopeString::convertToNonRope(String&& string) const
 {
-    // Concurrent compiler threads can access String held by JSString. So we always emit
-    // store-store barrier here to ensure concurrent compiler threads see initialized String.
+    // Concurrent compiler threads can access String held by JSString, and lock-free
+    // mutator readers snapshot m_fiber through fiberConcurrently() while we republish
+    // it here, so the publish must be an annotated atomic store.
+    //
+    // TSAN family rope-stringimpl (TSAN-TRIAGE §11.17, the release-atomic
+    // companion to swapToAtomString): resolution-republication is PUBLICATION,
+    // not stale-tolerable data — the resolved StringImpl's contents (buffer,
+    // length, hash) must happen-before any reader that observes the new
+    // m_fiber bits, so this is a RELEASE store, not relaxed. The release
+    // ordering replaces (and subsumes) the storeStoreFence the plain
+    // placement-new publication used; the store itself is the same single
+    // pointer-sized store and ownership transfer (String holds exactly one
+    // RefPtr<StringImpl>, leaked into the cell, reclaimed by the JSString
+    // destructor via valueInternal()).
     static_assert(sizeof(String) == sizeof(RefPtr<StringImpl>), "JSString's String initialization must be done in one pointer move.");
     if (vm().gilOff()) [[unlikely]] {
         // GIL-off: multiple mutators can race to resolve the same rope, so this
@@ -401,8 +416,7 @@ inline void JSRopeString::convertToNonRope(String&& string) const
             Locker locker { cellLock() };
             if (!(fiberConcurrently() & isRopeInPointer))
                 return; // Lost the race; the winner's value is already published.
-            WTF::storeStoreFence();
-            new (&uninitializedValueInternal()) String(WTF::move(string));
+            WTF::atomicStore(&m_fiber, std::bit_cast<uintptr_t>(string.releaseImpl().leakRef()), std::memory_order_release);
         }
         // We do not clear the trailing fibers and length information (fiber1 and fiber2) because we could be reading the length concurrently.
         ASSERT(!JSString::isRope());
@@ -410,8 +424,10 @@ inline void JSRopeString::convertToNonRope(String&& string) const
         return;
     }
     ASSERT(JSString::isRope());
-    WTF::storeStoreFence();
-    new (&uninitializedValueInternal()) String(WTF::move(string));
+    // GIL-on / flag-off: single mutator; release store == plain store + the
+    // old storeStoreFence on every supported target (same shape accepted for
+    // swapToAtomString), so flag-off behavior is unchanged.
+    WTF::atomicStore(&m_fiber, std::bit_cast<uintptr_t>(string.releaseImpl().leakRef()), std::memory_order_release);
     // We do not clear the trailing fibers and length information (fiber1 and fiber2) because we could be reading the length concurrently.
     ASSERT(!JSString::isRope());
     notifyNeedsDestruction();

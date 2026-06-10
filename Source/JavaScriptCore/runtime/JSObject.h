@@ -863,10 +863,15 @@ public:
 
     // SPEC-objectmodel §9.5 word-level accessors. Flag-off every flat tag is
     // all-zero (I22), so taggedButterflyWord() == the raw pointer bits.
+    // TSAN-TRIAGE §3.15 (butterfly-words): this load races concurrent installs
+    // (AuxiliaryBarrier::setWithoutBarrier / setButterflyConcurrent DCAS). The
+    // value race is spec-blessed (C4 bounds, §3 re-dispatch on divergence) but
+    // a plain C++ load is UB, so it is a RELAXED atomic load — identical
+    // codegen to the plain load on x86-64/arm64 (flag-off unchanged).
     ALWAYS_INLINE uint64_t taggedButterflyWord() const // raw 64-bit load, never masked
     {
 #if USE(JSVALUE64)
-        uint64_t word = *std::bit_cast<const uint64_t*>(std::bit_cast<const char*>(this) + butterflyOffset());
+        uint64_t word = butterflyConcurrentLoad(std::bit_cast<const uint64_t*>(std::bit_cast<const char*>(this) + butterflyOffset()));
         if (type() == WebAssemblyGCObjectType) [[unlikely]]
             word = 0;
         return word;
@@ -1582,7 +1587,8 @@ public:
     ALWAYS_INLINE uint64_t taggedButterflyWord() const // raw 64-bit load, never masked (§9.5)
     {
 #if USE(JSVALUE64)
-        return *std::bit_cast<const uint64_t*>(&m_butterfly);
+        // TSAN-TRIAGE §3.15: relaxed atomic load — see JSObject::taggedButterflyWord().
+        return butterflyConcurrentLoad(std::bit_cast<const uint64_t*>(&m_butterfly));
 #else
         return static_cast<uint64_t>(std::bit_cast<uintptr_t>(m_butterfly.get()));
 #endif

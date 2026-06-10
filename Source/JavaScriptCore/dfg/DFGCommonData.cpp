@@ -63,15 +63,15 @@ bool CommonData::invalidateLinkedCode()
         return true;
     }
 
-    if (!m_isStillValid)
+    if (!m_isStillValid.load(std::memory_order_relaxed))
         return false;
 
-    if (m_hasVMTrapsBreakpointsInstalled) [[unlikely]] {
+    if (m_hasVMTrapsBreakpointsInstalled.load(std::memory_order_relaxed)) [[unlikely]] {
         Locker locker { pcCodeBlockMapLock };
         auto& map = pcCodeBlockMap();
         for (auto& jumpReplacement : m_jumpReplacements)
             map.remove(jumpReplacement.dataLocation());
-        m_hasVMTrapsBreakpointsInstalled = false;
+        m_hasVMTrapsBreakpointsInstalled.store(false, std::memory_order_relaxed);
     }
 
     // SPEC-jit I2/section 5.3: with shared-memory threads enabled, linked code
@@ -83,7 +83,9 @@ bool CommonData::invalidateLinkedCode()
     for (unsigned i = m_jumpReplacements.size(); i--;)
         m_jumpReplacements[i].fire();
 
-    m_isStillValid = false;
+    // Relaxed per TSAN-TRIAGE §3.5: validity is advisory off-owner; the
+    // authoritative transition happens inside the STW window asserted above.
+    m_isStillValid.store(false, std::memory_order_relaxed);
     return true;
 }
 
@@ -91,7 +93,7 @@ CommonData::~CommonData()
 {
     if (m_isUnlinked)
         return;
-    if (m_hasVMTrapsBreakpointsInstalled) [[unlikely]] {
+    if (m_hasVMTrapsBreakpointsInstalled.load(std::memory_order_relaxed)) [[unlikely]] {
         Locker locker { pcCodeBlockMapLock };
         auto& map = pcCodeBlockMap();
         for (auto& jumpReplacement : m_jumpReplacements)
@@ -111,9 +113,9 @@ void CommonData::installVMTrapBreakpoints(CodeBlock* owner)
     RELEASE_ASSERT(!Options::useJSThreads() || Options::usePollingTraps());
     ASSERT(!m_isUnlinked);
     Locker locker { pcCodeBlockMapLock };
-    if (!m_isStillValid || m_hasVMTrapsBreakpointsInstalled)
+    if (!m_isStillValid.load(std::memory_order_relaxed) || m_hasVMTrapsBreakpointsInstalled.load(std::memory_order_relaxed))
         return;
-    m_hasVMTrapsBreakpointsInstalled = true;
+    m_hasVMTrapsBreakpointsInstalled.store(true, std::memory_order_relaxed);
 
     auto& map = pcCodeBlockMap();
 #if !defined(NDEBUG)

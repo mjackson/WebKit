@@ -159,13 +159,29 @@ private:
     public:
         InferredValueWatchpointSet(WatchpointState state, JSCellType* value)
             : WatchpointSet(state)
-            , m_value(value)
         {
+            // TSAN r12 (splay-like flicker): initialize via a relaxed STORE,
+            // not the Atomic value constructor — the value constructor is a
+            // plain store (wave-5 precedent, Watchpoint.cpp), and it runs
+            // AFTER the base constructor's HAPPENS_BEFORE annotation, so it
+            // paired against compiler-thread inferredValue() probes. Re-issue
+            // the publication annotation after the member is initialized.
+            m_value.store(value, std::memory_order_relaxed);
+            TSAN_ANNOTATE_HAPPENS_BEFORE(this);
         }
 
         // May be called from compiler threads; a stale value is already part
         // of the contract (see class comment), so relaxed is sufficient.
-        JSCellType* inferredValue() const { return m_value.load(std::memory_order_relaxed); }
+        // TSAN r11 (reports 25/28): the HAPPENS_AFTER pairs with the
+        // HAPPENS_BEFORE at the end of the WatchpointSet constructor (this
+        // class derives from it) — same consume-publication shape as
+        // state(); see Watchpoint.cpp. `this` aliases the base for TSAN's
+        // address-keyed annotation map (single-inheritance first base).
+        JSCellType* inferredValue() const
+        {
+            TSAN_ANNOTATE_HAPPENS_AFTER(this);
+            return m_value.load(std::memory_order_relaxed);
+        }
 
         void invalidate(VM& vm, const FireDetail& detail)
         {

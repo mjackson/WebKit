@@ -53,7 +53,10 @@ void ToFTLForOSREntryDeferredCompilationCallback::compilationDidBecomeReadyAsync
         "Optimizing compilation of ", *codeBlock, " (for ", *profiledDFGCodeBlock,
         ") did become ready.");
 
-    *m_forcedOSREntryTrigger = JITCode::TriggerReason::CompilationDone;
+    // THREADS: relaxed atomic store on the single-byte trigger (the DFGJITCode.h
+    // carve-out: stable post-link address, advisory payload). The mutator-side
+    // readers in tierUpCommon use matching relaxed loads; plain byte store codegen.
+    WTF::atomicStore(m_forcedOSREntryTrigger, JITCode::TriggerReason::CompilationDone, std::memory_order_relaxed);
 }
 
 void ToFTLForOSREntryDeferredCompilationCallback::compilationDidComplete(

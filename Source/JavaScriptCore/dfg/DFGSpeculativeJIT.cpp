@@ -14803,6 +14803,22 @@ void SpeculativeJIT::compileMaterializeNewObject(Node* node)
 
 void SpeculativeJIT::compileRecordRegExpCachedResult(Node* node)
 {
+    if (vm().gilOff()) [[unlikely]] {
+        // UNGIL A16 EXTENSION (AUD1.K2/SD19, U-T4b) — FAIL-STOP TRIPWIRE,
+        // mirroring the FTL sibling (compileRecordRegExpCachedResult,
+        // FTLLowerDFGToB3.cpp): the stores below are five plain writes into
+        // the SHARED m_regExpGlobalData cachedResult; interleaved with
+        // another thread's record()/lastResult() they cross-pair (input,
+        // start/end), and leftContext()/createRegExpMatchesArray then read
+        // out of bounds — MEMORY-SAFETY, not just stale legacy statics, and
+        // invisible to TSAN (JIT code is uninstrumented). gilOff compiles
+        // must never reach here: DFGStrengthReductionPhase refuses the
+        // folding that creates this node when gilOff. GIL-on/flag-off
+        // emission below is byte-for-byte unchanged.
+        DFG_CRASH(m_graph, node, "RecordRegExpCachedResult gilOff emission requires the lite-resident m_regExpGlobalData copy (A16-ext, not landed)");
+        return;
+    }
+
     Edge globalObjectEdge = m_graph.varArgChild(node, 0);
     Edge regExpEdge = m_graph.varArgChild(node, 1);
     Edge stringEdge = m_graph.varArgChild(node, 2);

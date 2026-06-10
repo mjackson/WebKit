@@ -149,6 +149,7 @@ namespace JSC {
 // Signatures must stay byte-identical to the definitions.
 bool jsThreadsStopPendingFor(VM&); // seq_cst stop-word load (SB1; sole accessor pair lives in VMManager.cpp — U20).
 bool jsThreadsCurrentThreadIsStopConductor(); // §A.3.3 tenure check (HBT3.2 self-exemption).
+bool jsThreadsThreadGranularWorldIsStopped(); // §A.3.2 post-quiescence depth (AB-10 class-4 conductor disjuncts).
 void jsThreadsParkForStopWindow(VM&); // NVS ticket park; pre: caller holds NO heap access.
 void jsThreadsNotifyMutatorQuiesced(); // wakes the conductor's §A.3.2 predicate wait.
 void jsThreadsSyncToStopGenerationBeforeJITEntry(); // ANNEX ISB1.2 (VMLite.cpp).
@@ -480,6 +481,20 @@ Heap::Heap(VM& vm, HeapType heapType)
     // §11 (T7): the epoch is a by-value member; wire its server back-pointer
     // here so bumpAndReclaim() can assert I11 and walk the client registry.
     m_safepointEpoch.setServer(*this);
+
+    // GIL-off shared-GC-heap: Heap::addToRememberedSet appends to
+    // m_mutatorMarkStack from the write-barrier slow path of EVERY attached
+    // mutator thread, so its append()s must serialize (see MarkStack.h —
+    // postIncTop is a non-atomic RMW of both the cached top and the head
+    // segment's top, and append can expand the segment list; a lost
+    // increment is a lost remembered-set entry => live old-gen object's
+    // young reference never re-scanned => use-after-free). The other shared
+    // stacks are already serialized elsewhere: m_raceMarkStack by
+    // m_raceMarkStackLock (SlotVisitor.cpp appendToMarkStack race arm),
+    // m_sharedCollectorMarkStack / m_sharedMutatorMarkStack by
+    // m_markingMutex; per-SlotVisitor stacks are single-producer.
+    if (Options::useSharedGCHeap())
+        m_mutatorMarkStack->setMultiProducerAccess();
 
     for (unsigned i = 0, numberOfParallelThreads = heapHelperPool().numberOfThreads(); i < numberOfParallelThreads; ++i) {
         std::unique_ptr<SlotVisitor> visitor = makeUnique<SlotVisitor>(*this, toCString("P", i + 1));
@@ -1430,7 +1445,11 @@ void Heap::addToRememberedSet(const JSCell* constCell)
     JSCell* cell = const_cast<JSCell*>(constCell);
     ASSERT(cell);
     ASSERT(!Options::useConcurrentJIT() || !isCompilationThread());
-    m_barriersExecuted++;
+    // Relaxed load + store (not an RMW): m_barriersExecuted is a stats/heuristic
+    // counter (JIT SPEC §5.7.7 advisory datum); with N mutators the increments
+    // race by design and lost updates are tolerated. The relaxed accesses remove
+    // the plain-access UB without changing flag-off codegen (plain mov/inc).
+    WTF::atomicStore(&m_barriersExecuted, WTF::atomicLoad(&m_barriersExecuted, std::memory_order_relaxed) + 1, std::memory_order_relaxed);
     if (m_mutatorShouldBeFenced) {
         WTF::loadLoadFence();
         if (!isMarked(cell)) {
@@ -1908,7 +1927,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             ":"_s, " "_s);
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         
-        dataLog("v=", bytesVisited() / 1024, "kb (", perVisitorDump, ") o=", m_opaqueRoots.size(), " b=", m_barriersExecuted, " ");
+        dataLog("v=", bytesVisited() / 1024, "kb (", perVisitorDump, ") o=", m_opaqueRoots.size(), " b=", WTF::atomicLoad(&m_barriersExecuted, std::memory_order_relaxed), " ");
     }
         
     if (visitor.didReachTermination()) {
@@ -2316,7 +2335,7 @@ NEVER_INLINE void Heap::resumeThePeriphery()
     // - During collection cycle: it reinstates the last active block.
     m_objectSpace.resumeAllocating();
     
-    m_barriersExecuted = 0;
+    WTF::atomicStore(&m_barriersExecuted, static_cast<uintptr_t>(0), std::memory_order_relaxed);
     
     if (!WTF::atomicLoad(&m_worldIsStopped, std::memory_order_relaxed)) {
         dataLog("Fatal: collector does not believe that the world is stopped.\n");
@@ -3313,10 +3332,11 @@ void Heap::sweepAllLogicallyEmptyWeakBlocks()
 
 bool Heap::sweepNextLogicallyEmptyWeakBlock()
 {
-    // SharedGC (T8 audit): callers — WeakSet::sweep (MSPL or conductor),
+    // SharedGC (T8 audit): callers — WeakSet::sweep (MSPL or conductor,
+    // including the §A.3 class-4 conductor, AB-10 — see WeakSet.cpp),
     // IncrementalSweeper (gated off once shared), and
     // sweepAllLogicallyEmptyWeakBlocks (takes MSPL).
-    ASSERT(!isSharedServer() || worldIsStoppedForAllClients() || mutatorSlowPathLock().isHeld());
+    ASSERT(!isSharedServer() || worldIsStoppedForAllClients() || mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
     if (m_indexOfNextLogicallyEmptyWeakBlockToSweep == WTF::notFound)
         return false;
 
@@ -3742,7 +3762,7 @@ void Heap::addCoreConstraints()
                 // UNGIL r6 F5: m_terminationException stays VM-global (a
                 // per-VM singleton, not per-thread Group-3 state) — rooted
                 // here in BOTH modes.
-                visitor.appendUnbarriered(vm.m_terminationException);
+                visitor.appendUnbarriered(WTF::atomicLoad(&vm.m_terminationException, std::memory_order_relaxed)); // THREADS: concurrent marker vs lazy creation.
             }
         })),
         ConstraintVolatility::GreyedByExecution);

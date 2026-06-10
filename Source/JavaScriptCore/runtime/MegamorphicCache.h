@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Atomics.h>
+
 #include "Structure.h"
 #include <wtf/TZoneMalloc.h>
 
@@ -298,12 +300,17 @@ public:
         m_hasCachePrimaryEntries[primaryIndex].init(structureID, uid, m_epoch, false);
     }
 
-    uint16_t epoch() const { return m_epoch; }
+    uint16_t epoch() const { return WTF::atomicLoad(const_cast<uint16_t*>(&m_epoch), std::memory_order_relaxed); } // THREADS: advisory cache epoch; racy bumps tolerated (stale entries just miss/revalidate).
 
     void bumpEpoch()
     {
-        ++m_epoch;
-        if (m_epoch == invalidEpoch) [[unlikely]]
+        // THREADS: atomic RMW — a LOST bump would be a missed invalidation
+        // (an entry stamped with the new epoch by a racing filler would
+        // survive this bump), so unlike the advisory profiling counters this
+        // one must not drop increments. Invalidation slow path only; no
+        // codegen impact on cache hits.
+        uint16_t epoch = static_cast<uint16_t>(WTF::atomicExchangeAdd(&m_epoch, static_cast<uint16_t>(1), std::memory_order_relaxed) + 1);
+        if (epoch == invalidEpoch) [[unlikely]]
             clearEntries();
     }
 

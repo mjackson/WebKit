@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "DFGGraph.h"
+#include <wtf/ThreadSanitizerSupport.h>
 
 #if ENABLE(DFG_JIT)
 
@@ -2106,7 +2107,13 @@ const ConcatKeyAtomStringCache* Graph::tryAddConcatKeyAtomStringCache(const Stri
     if ((s0.length() + s1.length()) > ConcatKeyAtomStringCache::maxStringLengthForCache)
         return nullptr;
     m_concatKeyAtomStringCaches.append(makeUnique<ConcatKeyAtomStringCache>(m_codeBlock, mode));
-    return m_concatKeyAtomStringCaches.last().get();
+    ConcatKeyAtomStringCache* cache = m_concatKeyAtomStringCaches.last().get();
+    // THREADS/TSAN: the cache pointer is baked as a CONSTANT into the JIT'd
+    // code this compilation produces; mutators receive it through code
+    // installation (fence-published), which TSAN cannot model. Annotate the
+    // happens-before edge so getOrInsert's reads pair with this construction.
+    TSAN_ANNOTATE_HAPPENS_BEFORE(cache);
+    return cache;
 }
 
 void Prefix::dump(PrintStream& out) const

@@ -2204,13 +2204,13 @@ bool JSArray::shiftCountWithArrayStorageConcurrent(VM& vm, unsigned startIndex, 
     Butterfly* newButterfly = Butterfly::tryCreateUninitialized(vm, this, 0, propertyCapacity, true, ArrayStorage::sizeFor(vectorLength));
     if (!newButterfly) [[unlikely]]
         return false; // OOM: the generic path makes its own attempt.
-    memcpy(newButterfly->propertyStorage() - propertyCapacity, butterfly->propertyStorage() - propertyCapacity,
-        propertyCapacity * sizeof(EncodedJSValue) + sizeof(IndexingHeader) + ArrayStorage::sizeFor(0));
+    butterflyConcurrentCopyWords(newButterfly->propertyStorage() - propertyCapacity, butterfly->propertyStorage() - propertyCapacity,
+        propertyCapacity * sizeof(EncodedJSValue) + sizeof(IndexingHeader) + ArrayStorage::sizeFor(0)); // TSAN-visible word copy (recycled-address pairing).
     ArrayStorage* newStorage = newButterfly->arrayStorage();
     newStorage->m_indexBias = 0;
     newStorage->setVectorLength(vectorLength);
-    memcpy(newStorage->m_vector, storage->m_vector, startIndex * sizeof(JSValue));
-    memcpy(newStorage->m_vector + startIndex, storage->m_vector + startIndex + count,
+    butterflyConcurrentCopyWords(newStorage->m_vector, storage->m_vector, startIndex * sizeof(JSValue));
+    butterflyConcurrentCopyWords(newStorage->m_vector + startIndex, storage->m_vector + startIndex + count,
         (usedVectorLength - (startIndex + count)) * sizeof(JSValue));
     for (unsigned i = usedVectorLength - count; i < vectorLength; ++i)
         newStorage->m_vector[i].clear();

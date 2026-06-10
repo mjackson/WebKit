@@ -24,6 +24,7 @@
 #include "ConcurrentJSLock.h"
 #include "MatchResult.h"
 #include "RegExpKey.h"
+#include <wtf/Atomics.h>
 #include "Structure.h"
 #include "Yarr.h"
 #include <JavaScriptCore/YarrErrorCode.h>
@@ -67,7 +68,10 @@ public:
 
     const String& pattern() const LIFETIME_BOUND { return m_patternString; }
 
-    bool isValid() const { return !Yarr::hasError(m_constructionErrorCode); }
+    // THREADS: relaxed atomic — recompile paths re-run the YarrPattern parse into a
+    // LOCAL error code under cellLock() and publish the result with a relaxed store,
+    // so lock-free readers here never see a mid-parse transient.
+    bool isValid() const { return !Yarr::hasError(WTF::atomicLoad(const_cast<Yarr::ErrorCode*>(&m_constructionErrorCode), std::memory_order_relaxed)); }
     ASCIILiteral errorMessage() const { return Yarr::errorMessage(m_constructionErrorCode); }
     JSObject* errorToThrow(JSGlobalObject* globalObject) { return Yarr::errorToThrow(globalObject, m_constructionErrorCode); }
     void reset()
@@ -180,7 +184,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     bool hasValidAtom() const { return !m_atom.isNull(); }
     const String& atom() const LIFETIME_BOUND { return m_atom; }
-    Yarr::SpecificPattern specificPattern() const { return m_specificPattern; }
+    Yarr::SpecificPattern specificPattern() const { return WTF::atomicLoad(const_cast<Yarr::SpecificPattern*>(&m_specificPattern), std::memory_order_relaxed); } // THREADS: advisory matcher hint; racy vs cellLock'd recompile by design.
 
 private:
     friend class RegExpCache;

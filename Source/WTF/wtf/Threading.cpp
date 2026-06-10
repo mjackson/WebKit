@@ -374,7 +374,7 @@ void Thread::didExit()
         // We would like to say "thread is exited" after unregistering threads from thread groups.
         // So we need to separate m_isShuttingDown from m_didExit.
         Locker locker { m_mutex };
-        m_didExit = true;
+        atomicStore(&m_didExit, true, std::memory_order_relaxed); // Dedicated byte; see Threading.h.
     }
 }
 
@@ -419,7 +419,7 @@ bool Thread::mayBeGCThread()
 void Thread::registerJSThread(Thread& thread)
 {
     ASSERT(&thread == &Thread::currentSingleton());
-    thread.m_isJSThread = true;
+    atomicStore(&thread.m_isJSThread, true, std::memory_order_relaxed); // Dedicated byte; see Threading.h.
 }
 
 void Thread::setCurrentThreadIsUserInteractive(int relativePriority)

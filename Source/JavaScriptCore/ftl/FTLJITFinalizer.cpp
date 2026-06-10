@@ -35,6 +35,7 @@
 #include "PropertyInlineCache.h"
 #include "ThunkGenerators.h"
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/ThreadSanitizerSupport.h>
 
 namespace JSC { namespace FTL {
 
@@ -79,6 +80,17 @@ bool JITFinalizer::finalize()
         for (auto* propertyCache : m_jitCode->common.m_handlerPropertyInlineCaches)
             propertyCache->initializeHandlerForOptimizingJIT(codeBlock);
         RELEASE_ASSERT(m_jitCode->common.m_repatchingPropertyInlineCaches.isEmpty());
+#if TSAN_ENABLED
+        // TSAN §4.4 retired-artifact audit (TSAN-RESULTS residual 1, closed
+        // 2026-06-09): same release-publish annotation as the DFG/Baseline
+        // install points (DFGJITFinalizer.cpp / CodeBlock.cpp) — pairs with
+        // the TSAN_ANNOTATE_HAPPENS_AFTER in ICSlowPathCallFrameTracer. The
+        // FTL handler ICs are reached by sibling lites via pointers baked
+        // into the installed code; lifetime is the leaked-flag-on JITCode
+        // (retireOptimizedJITCode) per SPEC-jit §5.3/I7. No-op outside TSAN.
+        for (auto* propertyCache : m_jitCode->common.m_handlerPropertyInlineCaches)
+            TSAN_ANNOTATE_HAPPENS_BEFORE(propertyCache);
+#endif
     }
 
     if (Options::dumpFTLCodeSize()) [[unlikely]] {

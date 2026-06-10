@@ -50,14 +50,17 @@ void LazyProperty<OwnerType, ElementType>::initLater(const Func&)
     // variable. The "theFunc" variable is guaranteed to be native-aligned, i.e. at least a
     // multiple of 4.
     static constexpr FuncType theFunc = &callFunc<Func>;
-    m_pointer = lazyTag | std::bit_cast<uintptr_t>(&theFunc);
+    WTF::atomicStore(&m_pointer, lazyTag | std::bit_cast<uintptr_t>(&theFunc), std::memory_order_relaxed); // THREADS: see getInitializedOnMainThread().
 }
 
 template<typename OwnerType, typename ElementType>
 void LazyProperty<OwnerType, ElementType>::setMayBeNull(VM& vm, const OwnerType* owner, ElementType* value)
 {
-    m_pointer = std::bit_cast<uintptr_t>(value);
-    RELEASE_ASSERT(!(m_pointer & lazyTag));
+    // THREADS: release store — publishes the fully initialized element to
+    // concurrent relaxed/dependent readers on other mutators.
+    uintptr_t pointer = std::bit_cast<uintptr_t>(value);
+    RELEASE_ASSERT(!(pointer & lazyTag));
+    WTF::atomicStore(&m_pointer, pointer, std::memory_order_release);
     vm.writeBarrier(owner, value);
 }
 
@@ -72,39 +75,42 @@ template<typename OwnerType, typename ElementType>
 template<typename Visitor>
 void LazyProperty<OwnerType, ElementType>::visit(Visitor& visitor)
 {
-    if (m_pointer && !(m_pointer & lazyTag))
-        visitor.appendUnbarriered(std::bit_cast<ElementType*>(m_pointer));
+    uintptr_t pointer = WTF::atomicLoad(&m_pointer, std::memory_order_relaxed); // THREADS: concurrent marker vs mutator publication.
+    if (pointer && !(pointer & lazyTag))
+        visitor.appendUnbarriered(std::bit_cast<ElementType*>(pointer));
 }
 
 template<typename OwnerType, typename ElementType>
 void LazyProperty<OwnerType, ElementType>::dump(PrintStream& out) const
 {
-    if (!m_pointer) {
+    uintptr_t pointer = WTF::atomicLoad(const_cast<uintptr_t*>(&m_pointer), std::memory_order_relaxed);
+    if (!pointer) {
         out.print("<null>");
         return;
     }
-    if (m_pointer & lazyTag) {
-        out.print("Lazy:", RawHex(m_pointer & ~lazyTag));
-        if (m_pointer & initializingTag)
+    if (pointer & lazyTag) {
+        out.print("Lazy:", RawHex(pointer & ~lazyTag));
+        if (pointer & initializingTag)
             out.print("(Initializing)");
         return;
     }
-    out.print(RawHex(m_pointer));
+    out.print(RawHex(pointer));
 }
 
 template<typename OwnerType, typename ElementType>
 template<typename Func>
 ElementType* LazyProperty<OwnerType, ElementType>::callFunc(const Initializer& initializer)
 {
-    if (initializer.property.m_pointer & initializingTag)
+    if (WTF::atomicLoad(&initializer.property.m_pointer, std::memory_order_relaxed) & initializingTag)
         return nullptr;
 
     DeferTerminationForAWhile deferTerminationForAWhile { initializer.vm };
-    initializer.property.m_pointer |= initializingTag;
+    WTF::atomicStore(&initializer.property.m_pointer, WTF::atomicLoad(&initializer.property.m_pointer, std::memory_order_relaxed) | initializingTag, std::memory_order_relaxed);
     callStatelessLambda<void, Func>(initializer);
-    RELEASE_ASSERT(!(initializer.property.m_pointer & lazyTag));
-    RELEASE_ASSERT(!(initializer.property.m_pointer & initializingTag));
-    return std::bit_cast<ElementType*>(initializer.property.m_pointer);
+    uintptr_t result = WTF::atomicLoad(&initializer.property.m_pointer, std::memory_order_relaxed);
+    RELEASE_ASSERT(!(result & lazyTag));
+    RELEASE_ASSERT(!(result & initializingTag));
+    return std::bit_cast<ElementType*>(result);
 }
 
 } // namespace JSC

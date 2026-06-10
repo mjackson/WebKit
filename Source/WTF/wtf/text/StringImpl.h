@@ -29,6 +29,7 @@
 #include <unicode/uchar.h>
 #include <unicode/ustring.h>
 #include <wtf/ASCIICType.h>
+#include <wtf/Atomics.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/CompactPtr.h>
 #include <wtf/DebugHeap.h>
@@ -339,9 +340,18 @@ public:
     WTF_EXPORT_PRIVATE static Ref<StringImpl> adopt(StringBuffer<char16_t>&&);
     WTF_EXPORT_PRIVATE static Ref<StringImpl> adopt(StringBuffer<Latin1Character>&&);
 
-    unsigned length() const { return m_length; }
+    // TSAN family rope-stringimpl: a stale lock-free reader (concurrent
+    // compiler / GC thread holding a racy snapshot per the object-model
+    // ground truth) can probe a recycled allocation while a new StringImpl's
+    // constructor stores m_length, so the read must be an annotated relaxed
+    // atomic load. Identical plain-load codegen on every supported target;
+    // JIT'd code keeps reading the word at lengthMemoryOffset(). The
+    // const_cast (rather than making the field mutable) keeps the constexpr
+    // ConstructWithConstExpr constructors able to read m_length at compile
+    // time; the load never writes, so static/rodata instances are fine.
+    unsigned length() const { return WTF::atomicLoad(const_cast<unsigned*>(&m_length), std::memory_order_relaxed); }
     static constexpr ptrdiff_t lengthMemoryOffset() { return OBJECT_OFFSETOF(StringImpl, m_length); }
-    bool isEmpty() const { return !m_length; }
+    bool isEmpty() const { return !length(); }
 
     bool is8Bit() const { return hashAndFlags() & s_hashFlag8BitBuffer; }
     ALWAYS_INLINE std::span<const Latin1Character> span8() const LIFETIME_BOUND { ASSERT(is8Bit()); return unsafeMakeSpan(m_data8, length()); }
@@ -980,22 +990,37 @@ SUPPRESS_NODELETE inline bool deprecatedIsNotSpaceOrNewline(char16_t character)
     return !deprecatedIsSpaceOrNewline(character);
 }
 
+// TSAN family rope-stringimpl: a freed StringImpl's memory can be recycled by
+// the allocator while a stale lock-free reader (concurrent compiler / GC
+// thread holding a racy snapshot per the object-model ground truth) still
+// probes m_refCount/m_hashAndFlags. The std::atomic member-initializer is a
+// plain (non-atomic) construction store, so the atomic members of the
+// runtime-constructed shapes are initialized with annotated relaxed stores in
+// the body instead — identical codegen, defined behavior against stale
+// readers. The ConstructWithConstExpr constructors below are compile-time
+// (static/literal storage, never recycled) and must stay constexpr
+// member-inits.
 inline StringImplShape::StringImplShape(uint32_t refCount, std::span<const Latin1Character> data, unsigned hashAndFlags)
-    : m_refCount(refCount)
-    , m_length(data.size())
-    , m_data8(data.data())
-    , m_hashAndFlags(hashAndFlags)
+    : m_data8(data.data())
 {
+    // TSAN family rope-stringimpl: m_length joins m_refCount/m_hashAndFlags as
+    // an annotated relaxed constructor store (see the comment above) so a
+    // stale lock-free reader's StringImpl::length() on this recycled
+    // allocation is defined. Identical plain-store codegen.
     RELEASE_ASSERT(data.size() <= MaxLength);
+    m_refCount.store(refCount, std::memory_order_relaxed);
+    atomicStore(&m_length, static_cast<unsigned>(data.size()), std::memory_order_relaxed);
+    m_hashAndFlags.store(hashAndFlags, std::memory_order_relaxed);
 }
 
 inline StringImplShape::StringImplShape(uint32_t refCount, std::span<const char16_t> data, unsigned hashAndFlags)
-    : m_refCount(refCount)
-    , m_length(data.size())
-    , m_data16(data.data())
-    , m_hashAndFlags(hashAndFlags)
+    : m_data16(data.data())
 {
+    // TSAN family rope-stringimpl: see the Latin1 constructor above.
     RELEASE_ASSERT(data.size() <= MaxLength);
+    m_refCount.store(refCount, std::memory_order_relaxed);
+    atomicStore(&m_length, static_cast<unsigned>(data.size()), std::memory_order_relaxed);
+    m_hashAndFlags.store(hashAndFlags, std::memory_order_relaxed);
 }
 
 constexpr StringImplShape::StringImplShape(uint32_t refCount, ASCIILiteral literal, unsigned hashAndFlags, ConstructWithConstExprTag)
@@ -1236,7 +1261,7 @@ inline size_t StringImpl::cost() const
     // report the cost (benign, same as the pre-atomic code), but neither can
     // drop a concurrently published flag bit.
     m_hashAndFlags.fetch_or(s_hashFlagDidReportCost, std::memory_order_relaxed);
-    size_t result = m_length;
+    size_t result = length();
     if (!is8Bit())
         result <<= 1;
     return result;
@@ -1250,7 +1275,10 @@ inline size_t StringImpl::costDuringGC()
     if (bufferOwnership() == BufferSubstring)
         return divideRoundedUp<size_t>(substringBuffer()->costDuringGC(), refCount());
 
-    size_t result = m_length;
+    // TSAN family rope-stringimpl: GC-thread cost accounting can race a
+    // recycled allocation's constructor store of m_length; read through the
+    // annotated relaxed accessor.
+    size_t result = length();
     if (!is8Bit())
         result <<= 1;
     return divideRoundedUp<size_t>(result, refCount());
@@ -1352,7 +1380,16 @@ inline void StringImpl::deref()
         // (deliberately NOT seq_cst). Refcount 0 is final: tryRefAtom() fails
         // at 0, so no table hit can revive the string and exactly one thread
         // reaches the zero transition and destroys it.
+#if TSAN_ENABLED
+        // TSAN r12 (reports 1/2/5): TSAN does not model
+        // std::atomic_thread_fence, so the acquire fence below is invisible
+        // and the destroying thread's free() pairs against other threads'
+        // release decrements. acq_rel RMW under TSAN only; production keeps
+        // release + acquire-fence-on-zero (identical ordering guarantees).
+        auto oldRefCount = m_refCount.fetch_sub(s_refCountIncrement, std::memory_order_acq_rel);
+#else
         auto oldRefCount = m_refCount.fetch_sub(s_refCountIncrement, std::memory_order_release);
+#endif
         if (oldRefCount != s_refCountIncrement)
             return;
         std::atomic_thread_fence(std::memory_order_acquire);
@@ -1568,7 +1605,7 @@ template<typename CharacterType, typename Predicate> ALWAYS_INLINE Ref<StringImp
     if (from.empty())
         return *this;
 
-    StringBuffer<CharacterType> data(m_length);
+    StringBuffer<CharacterType> data(length());
     auto to = data.span();
     unsigned outc = from.data() - characters.data();
 

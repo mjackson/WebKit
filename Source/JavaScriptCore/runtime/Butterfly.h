@@ -187,6 +187,8 @@ public:
     PropertyStorage propertyStorage() { return indexingHeader()->propertyStorage(); }
     ConstPropertyStorage propertyStorage() const { return indexingHeader()->propertyStorage(); }
     
+    // TSAN-TRIAGE §3.15: these delegate to the IndexingHeader accessors, which
+    // are relaxed atomics (C4 stale-tolerant; flag-off codegen unchanged).
     uint32_t publicLength() const { return indexingHeader()->publicLength(); }
     uint32_t vectorLength() const { return indexingHeader()->vectorLength(); }
     void setPublicLength(uint32_t value) { indexingHeader()->setPublicLength(value); }
@@ -385,6 +387,38 @@ template<typename T>
 ALWAYS_INLINE void butterflyConcurrentStore(T* location, T value)
 {
     WTF::atomicStore(location, value, std::memory_order_relaxed);
+}
+
+// THREADS/TSAN-gated bulk copy/zero of butterfly payload words. A fresh (or
+// in-resize) butterfly's words can pair with STALE concurrent readers'/writers'
+// atomics at GC-recycled aux addresses, and resize sources can be written
+// atomically by racing element stores — both blessed by the object-model
+// staleness rules, but the bulk memcpy/memset must be word-wise atomics to be
+// defined and TSAN-visible. Production builds keep memcpy/memset. Regions must
+// be 8-byte aligned multiples of 8.
+ALWAYS_INLINE void butterflyConcurrentCopyWords(void* dst, const void* src, size_t bytes)
+{
+#if TSAN_ENABLED
+    ASSERT(!(bytes % sizeof(uint64_t)));
+    uint64_t* to = static_cast<uint64_t*>(dst);
+    const uint64_t* from = static_cast<const uint64_t*>(src);
+    for (size_t i = 0; i < bytes / sizeof(uint64_t); ++i)
+        WTF::atomicStore(&to[i], WTF::atomicLoad(const_cast<uint64_t*>(&from[i]), std::memory_order_relaxed), std::memory_order_relaxed);
+#else
+    memcpy(dst, src, bytes);
+#endif
+}
+
+ALWAYS_INLINE void butterflyConcurrentZeroWords(void* dst, size_t bytes)
+{
+#if TSAN_ENABLED
+    ASSERT(!(bytes % sizeof(uint64_t)));
+    uint64_t* to = static_cast<uint64_t*>(dst);
+    for (size_t i = 0; i < bytes / sizeof(uint64_t); ++i)
+        WTF::atomicStore(&to[i], static_cast<uint64_t>(0), std::memory_order_relaxed);
+#else
+    memset(dst, 0, bytes);
+#endif
 }
 
 struct ButterflySpine {

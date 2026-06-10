@@ -83,12 +83,12 @@ const ClassInfo UnlinkedFunctionExecutable::s_info = { "UnlinkedFunctionExecutab
 // change. GIL-on/flag-off never reaches the lock (one predicted-untaken
 // branch), so flag-off identity (V5a) is preserved.
 //
-// Known-benign residual (AB18-R1-C amendment A): FunctionExecutable's
-// setSingletonHasBeenInvalidated() sets m_singletonHasBeenInvalidated from any
-// thread without this lock. That bit lives in the same contiguous bitfield run
-// as the recordParse() fields, so TSAN may flag it; it is practically benign
-// (idempotent single-bit set; word-width accesses) and is deliberately left
-// for a follow-up rather than widening this change beyond the codegen path.
+// (Resolved residual, AB18-R1-C amendment A: setSingletonHasBeenInvalidated()
+// used to set a bit in the same contiguous bitfield run as the recordParse()
+// fields from any thread without this lock. The bit has since been hoisted
+// out of the bitfield into its own std::atomic<bool>, accessed relaxed via
+// the singletonHasBeenInvalidated() accessors — see the member comment in
+// UnlinkedFunctionExecutable.h.)
 //
 // Declared locally (not in a header) — keep in sync with the definition in
 // runtime/ScriptExecutable.cpp and the declarations in
@@ -192,7 +192,6 @@ UnlinkedFunctionExecutable::UnlinkedFunctionExecutable(VM& vm, Structure* struct
     , m_unlinkedFunctionEnd(node->startStartOffset() + node->source().length() - 1)
     , m_needsClassFieldInitializer(static_cast<unsigned>(needsClassFieldInitializer))
     , m_parameterCount(node->parameterCount())
-    , m_singletonHasBeenInvalidated(false)
     , m_privateBrandRequirement(static_cast<unsigned>(privateBrandRequirement))
     , m_features(0)
     , m_constructorKind(static_cast<unsigned>(node->constructorKind()))
@@ -289,7 +288,7 @@ FunctionExecutable* UnlinkedFunctionExecutable::link(VM& vm, ScriptExecutable* t
         SourceProfiler::profile(SourceProfiler::Type::Function, source);
 
     FunctionExecutable* result = FunctionExecutable::create(vm, topLevelExecutable, source, this, intrinsic, isInsideOrdinaryFunction);
-    if (m_singletonHasBeenInvalidated)
+    if (singletonHasBeenInvalidated())
         result->singleton().invalidate(vm, StringFireDetail("Singleton was previously invalidated"));
     if (overrideLineNumber)
         result->setOverrideLineNumber(*overrideLineNumber);

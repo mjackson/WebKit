@@ -32,6 +32,7 @@
 #include "PropertySlot.h"
 #include "StructureCreateInlines.h"
 #include "TypeError.h"
+#include <wtf/Atomics.h>
 
 namespace JSC {
 
@@ -40,6 +41,18 @@ const ClassInfo SparseArrayValueMap::s_info = { "SparseArrayValueMap"_s, nullptr
 SparseArrayValueMap::SparseArrayValueMap(VM& vm)
     : Base(vm, vm.sparseArrayValueMapStructure.get())
 {
+    // TSAN wave 5 (triage family 10 jsvalue-slots): ctor publication — a
+    // GIL-off reader with a stale ref to this recycled cell can hit
+    // flagsRelaxed() while these words are initialized; relaxed atomic
+    // stores instead of plain NSDMI stores (see the member declarations).
+    // Codegen-identical flag-off.
+    WTF::atomicStore(&m_flags, static_cast<unsigned>(Normal), std::memory_order_relaxed);
+    WTF::atomicStore(&m_reportedCapacity, static_cast<size_t>(0), std::memory_order_relaxed);
+    // r19 (post-closeout review): publish the m_map header NSDMI stores to
+    // TSAN — pairs with tsanAcquireCtorPublication() at the cellLock()
+    // sites (the lock alone gives no edge back to this thread). No-op
+    // outside TSAN; see the helper's comment in the header.
+    TSAN_ANNOTATE_HAPPENS_BEFORE(this);
 }
 
 SparseArrayValueMap* SparseArrayValueMap::create(VM& vm)
@@ -65,6 +78,7 @@ SparseArrayValueMap::AddResult SparseArrayValueMap::add(JSObject* array, unsigne
     size_t increasedCapacity = 0;
     {
         Locker locker { cellLock() };
+        tsanAcquireCtorPublication();
         result = m_map.add(i, SparseArrayEntry());
         size_t capacity = m_map.capacity();
         if (capacity > m_reportedCapacity) {
@@ -80,12 +94,14 @@ SparseArrayValueMap::AddResult SparseArrayValueMap::add(JSObject* array, unsigne
 void SparseArrayValueMap::remove(iterator it)
 {
     Locker locker { cellLock() };
+    tsanAcquireCtorPublication();
     m_map.remove(it);
 }
 
 void SparseArrayValueMap::remove(unsigned i)
 {
     Locker locker { cellLock() };
+    tsanAcquireCtorPublication();
     m_map.remove(i);
 }
 
@@ -121,6 +137,7 @@ bool SparseArrayValueMap::putEntry(JSGlobalObject* globalObject, JSObject* array
         JSValue getterSetter;
         {
             Locker locker { cellLock() };
+            tsanAcquireCtorPublication();
             auto it = m_map.find(i);
             if (it == m_map.end())
                 return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError); // racing remove
@@ -171,6 +188,7 @@ bool SparseArrayValueMap::putDirect(JSGlobalObject* globalObject, JSObject* arra
 
     if (Options::useJSThreads()) [[unlikely]] {
         Locker locker { cellLock() }; // objectmodel round 4 (§61): re-find; `entry` may dangle (racing rehash).
+        tsanAcquireCtorPublication();
         auto it = m_map.find(i);
         if (it == m_map.end())
             return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError); // racing remove
@@ -192,6 +210,7 @@ bool SparseArrayValueMap::putDirect(JSGlobalObject* globalObject, JSObject* arra
 JSValue SparseArrayValueMap::getConcurrently(unsigned i)
 {
     Locker locker { cellLock() };
+    tsanAcquireCtorPublication();
     auto iterator = m_map.find(i);
     if (iterator == m_map.end())
         return JSValue();
@@ -201,10 +220,18 @@ JSValue SparseArrayValueMap::getConcurrently(unsigned i)
 std::optional<SparseArrayEntry> SparseArrayValueMap::getEntry(unsigned i)
 {
     Locker locker { cellLock() };
+    tsanAcquireCtorPublication();
     auto it = m_map.find(i);
     if (it == m_map.end())
         return std::nullopt;
-    return it->value;
+    // TSAN wave 5 (triage family 10 jsvalue-slots, r4 key 'data race x
+    // SparseArrayValueMap::getEntry'): do NOT memcpy the shared entry into
+    // the optional — unlocked relaxed-atomic writers (putIndexedDescriptor's
+    // forceSet under defineOwnIndexedProperty) race a plain copy. Snapshot
+    // field-wise through the relaxed accessors; the lock still serializes
+    // against rehash (entry address stability), the entry words themselves
+    // carry the OM §1 racy-value tolerance.
+    return it->value.copySnapshotConcurrent();
 }
 
 void SparseArrayEntry::get(JSObject* thisObject, PropertySlot& slot) const
@@ -212,17 +239,25 @@ void SparseArrayEntry::get(JSObject* thisObject, PropertySlot& slot) const
     JSValue value = Base::get();
     ASSERT(value);
 
+    // TSAN wave 3 (triage §3.10 jsvalue-slots): sparse-map entry value/attribute
+    // pairs are intentionally racy under shared-heap threading; the locked
+    // writer (forceSet) pairs with relaxed-atomic reads here — codegen-identical
+    // flag-off. Read the attribute word once so value/attributes stay a
+    // self-consistent-enough pair (staleness is blessed; tearing is not).
+    unsigned attributes = WTF::atomicLoad(const_cast<unsigned*>(&m_attributes), std::memory_order_relaxed);
+
     if (!value.isGetterSetter()) [[likely]] {
-        slot.setValue(thisObject, m_attributes, value);
+        slot.setValue(thisObject, attributes, value);
         return;
     }
 
-    slot.setGetterSlot(thisObject, m_attributes, uncheckedDowncast<GetterSetter>(value));
+    slot.setGetterSlot(thisObject, attributes, uncheckedDowncast<GetterSetter>(value));
 }
 
 void SparseArrayEntry::get(PropertyDescriptor& descriptor) const
 {
-    descriptor.setDescriptor(Base::get(), m_attributes);
+    // TSAN wave 3 (triage §3.10): relaxed-atomic read of the racy attribute word.
+    descriptor.setDescriptor(Base::get(), WTF::atomicLoad(const_cast<unsigned*>(&m_attributes), std::memory_order_relaxed));
 }
 
 JSValue SparseArrayEntry::getConcurrently() const
@@ -232,8 +267,15 @@ JSValue SparseArrayEntry::getConcurrently() const
     // By emitting store-store-fence and load-load-fence between value setting and attributes setting,
     // we can ensure that the value is what we want once the attributes get ReadOnly & DontDelete:
     // once attributes get this state, the value should not be changed.
-    unsigned attributes;
-    Dependency attributesDependency = Dependency::loadAndFence(&m_attributes, attributes);
+    // TSAN wave 3 (triage §3.10): Dependency::loadAndFence performs a plain
+    // (non-atomic) load, which is UB against the locked plain store in
+    // forceSet. Do the load as a relaxed atomic (codegen-identical: one word
+    // load) and build the dependency from the loaded value with
+    // Dependency::fence — same consume chain on ARM, and the atomic load
+    // already defeats the cross-load CSE that loadAndFence's opaque() guards
+    // against.
+    unsigned attributes = WTF::atomicLoad(const_cast<unsigned*>(&m_attributes), std::memory_order_relaxed);
+    Dependency attributesDependency = Dependency::fence(attributes);
     if (attributes & PropertyAttribute::Accessor)
         return JSValue();
 
@@ -251,8 +293,13 @@ bool SparseArrayEntry::put(JSGlobalObject* globalObject, JSValue thisValue, Spar
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    if (!(m_attributes & PropertyAttribute::Accessor)) {
-        if (m_attributes & PropertyAttribute::ReadOnly)
+    // TSAN wave 4 (triage §3.10): read the attribute word once, relaxed, via
+    // attributes(). This path is GIL-on only (flag-on putEntry takes its
+    // locked branch instead), but the accessor keeps every read of the shared
+    // word atomic and codegen-identical.
+    unsigned attributes = this->attributes();
+    if (!(attributes & PropertyAttribute::Accessor)) {
+        if (attributes & PropertyAttribute::ReadOnly)
             return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
 
         set(vm, map, value);
@@ -264,7 +311,9 @@ bool SparseArrayEntry::put(JSGlobalObject* globalObject, JSValue thisValue, Spar
 
 JSValue SparseArrayEntry::getNonSparseMode() const
 {
-    ASSERT(!m_attributes);
+    // TSAN wave 4 (triage §3.10): attributes() loads relaxed — same predicate,
+    // no plain read of the shared attribute word.
+    ASSERT(!attributes());
     return Base::get();
 }
 

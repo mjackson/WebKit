@@ -387,7 +387,7 @@ void GenericArgumentsImpl<Type>::setModifiedArgumentDescriptor(JSGlobalObject* g
         // null -> pointer exactly once, so the accessor's own re-read cannot
         // observe an older value than the acquire load did.
         ASSERT(GenericArgumentsImplInternal::acquireLoadDescriptor(m_modifiedArgumentsDescriptor)); // length > 0 => the init above published (or threw, returned above).
-        m_modifiedArgumentsDescriptor.at(index) = true; // Per-bit store: ordered by the carrying OM put (see the AUD1.N3 banner).
+        WTF::atomicStore(&m_modifiedArgumentsDescriptor.at(index), true, std::memory_order_relaxed); // Per-bit store: SAB-grade racy-tolerated (AUD1.N3 banner); relaxed atomic so the race is defined.
     }
 }
 
@@ -399,7 +399,7 @@ bool GenericArgumentsImpl<Type>::isModifiedArgumentDescriptor(unsigned index, un
     if (!GenericArgumentsImplInternal::acquireLoadDescriptor(m_modifiedArgumentsDescriptor))
         return false;
     if (index < length)
-        return m_modifiedArgumentsDescriptor.at(index);
+        return WTF::atomicLoad(&m_modifiedArgumentsDescriptor.at(index), std::memory_order_relaxed); // Relaxed per-bit read (see setModifiedArgumentDescriptor).
     return false;
 }
 

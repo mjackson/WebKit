@@ -221,17 +221,16 @@ CompilationResult JITWorklist::enqueue(Ref<JITPlan> plan)
         // CodeBlock — so with N lites, distinct linked CodeBlocks sharing one
         // UnlinkedCodeBlock (= one JITCompilationKey) can each win their own latch and
         // race a plan for the same key after the finalize claim is released. Ordering:
-        // the publication runs inside finalize(), sequenced-before the claim release
-        // under *m_lock; an enqueue that acquires *m_lock and misses both m_plans and
-        // finalizingKeys() therefore acquired after that release and must observe the
-        // published RefPtr (the claim set is the ordering token: claim checked FIRST
-        // above, field read second). A CodeBlock whose key already has published
+        // the read takes the §12.2 synchronized snapshot under the UnlinkedCodeBlock
+        // lock (unlinkedBaselineCodeConcurrently) — a bare RefPtr load racing the
+        // locked install would be a C++ data race / torn-pointer hazard even though
+        // the claim-set ordering argues visibility. A CodeBlock whose key already has
         // baseline code picks it up via the LLIntSlowPaths shared-code fast path on its
         // next slow-path entry instead of recompiling; admitting the plan would trip
         // RELEASE_ASSERT(!JITCode::isJIT(...)) in JIT::compileAndLinkWithoutFinalizing
         // (JIT.cpp:808), which is KEPT as the invariant check. The jitType() re-check is
         // same-CodeBlock belt-and-suspenders. GIL-on / flag-off: branch unreachable.
-        if (plan->codeBlock()->unlinkedCodeBlock()->m_unlinkedBaselineCode
+        if (plan->codeBlock()->unlinkedCodeBlock()->unlinkedBaselineCodeConcurrently()
             || JITCode::isJIT(plan->codeBlock()->jitType()))
             isDuplicate = true;
     }

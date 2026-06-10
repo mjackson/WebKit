@@ -99,8 +99,20 @@ inline Butterfly* Butterfly::tryCreate(VM& vm, JSObject*, size_t preCapacity, si
     if (!base)
         return nullptr;
     Butterfly* result = fromBase(base, preCapacity, propertyCapacity);
-    if (hasIndexingHeader)
+    if (hasIndexingHeader) {
+#if USE(JSVALUE64)
+        // TSAN-TRIAGE §3.15 (butterfly-words): a fresh butterfly is
+        // pre-publication, but auxiliary memory is recycled and the spec's
+        // stale-tolerant readers (M5/C4 re-dispatch paths) may still issue
+        // relaxed loads through a stale pointer into this allocation. Make
+        // the header init a single relaxed 64-bit store so that pairing is
+        // defined; codegen-identical to the plain copy, flag-off unchanged.
+        static_assert(sizeof(IndexingHeader) == sizeof(uint64_t));
+        butterflyConcurrentStore(std::bit_cast<uint64_t*>(result->indexingHeader()), std::bit_cast<uint64_t>(indexingHeader));
+#else
         *result->indexingHeader() = indexingHeader;
+#endif
+    }
     // Use memcpy since this butterfly is not tied to any object yet.
     memset(result->propertyStorage() - propertyCapacity, 0, propertyCapacity * sizeof(EncodedJSValue));
     return result;
@@ -137,12 +149,13 @@ inline Butterfly* Butterfly::createOrGrowPropertyStorage(
     size_t indexingPayloadSizeInBytes = oldButterfly->indexingHeader()->indexingPayloadSizeInBytes(structure);
     bool hasIndexingHeader = structure->hasIndexingHeader(intendedOwner);
     Butterfly* result = createUninitialized(vm, intendedOwner, preCapacity, newPropertyCapacity, hasIndexingHeader, indexingPayloadSizeInBytes);
-    // Use memcpy since this butterfly is not tied to any object yet.
-    memcpy(
+    // The fresh butterfly is not tied to any object yet, but TSAN pairs these
+    // words with stale atomics at recycled aux addresses; word-wise racy copy.
+    butterflyConcurrentCopyWords(
         result->propertyStorage() - oldPropertyCapacity,
         oldButterfly->propertyStorage() - oldPropertyCapacity,
         totalSize(0, oldPropertyCapacity, hasIndexingHeader, indexingPayloadSizeInBytes));
-    memset(result->propertyStorage() - newPropertyCapacity, 0, (newPropertyCapacity - oldPropertyCapacity) * sizeof(EncodedJSValue));
+    butterflyConcurrentZeroWords(result->propertyStorage() - newPropertyCapacity, (newPropertyCapacity - oldPropertyCapacity) * sizeof(EncodedJSValue));
     return result;
 }
 

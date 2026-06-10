@@ -196,7 +196,10 @@ inline bool JSObject::classifyConcurrentLockedAdd(Structure* structure, Concurre
 
     if (isSegmentedButterfly(word)) {
         if (growthPossible
-            && static_cast<uint64_t>(butterflyFragmentSlots) * butterflySpine(word)->outOfLineFragmentCount < capacityAfterFreshOffset) {
+            // TSAN r12 (reports 15/16): outOfLineFragmentCountConcurrent —
+            // a foreign grower publishes the count with
+            // butterflyConcurrentStore; the plain field read raced it.
+            && static_cast<uint64_t>(butterflyFragmentSlots) * butterflySpine(word)->outOfLineFragmentCountConcurrent() < capacityAfterFreshOffset) {
             action = ConcurrentLockedAddSlowAction::GrowSegmentedOutOfLine;
             return false;
         }
@@ -281,7 +284,12 @@ inline void JSObject::growOutOfLineStorageForConcurrentLockedAdd(VM& vm, Structu
         // a newer spine since the classification. The butterfly word is left
         // alone (no copy, no nuke): the §4.5 segmented visit bounds itself by
         // the SPINE's coverage and didRaces on outOfLineSize overruns.
-        RELEASE_ASSERT(static_cast<uint64_t>(butterflyFragmentSlots) * butterflySpine(lockedWord)->outOfLineFragmentCount >= newOutOfLineCapacity);
+        // Concurrent accessor (r18 report, post-closeout review): a racing
+        // sibling's ensureSegmentedOutOfLineCapacity publishes the count
+        // with butterflyConcurrentStore; the plain read here was the lone
+        // unpaired reader (the monotonicity argument above is what makes
+        // the racy VALUE safe — the access itself must still be atomic).
+        RELEASE_ASSERT(static_cast<uint64_t>(butterflyFragmentSlots) * butterflySpine(lockedWord)->outOfLineFragmentCountConcurrent() >= newOutOfLineCapacity);
         structure->setMaxOffset(vm, newMaxOffset);
         return;
     }

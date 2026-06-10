@@ -1,0 +1,3 @@
+JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
+Exception: Error: round 0: present sparse key read undefined twice (I31)
+@/root/WebKit/JSTests/threads/objectmodel/i03-as-sparse-holes.js:49:32

@@ -164,16 +164,21 @@ void ScriptExecutable::destroy(JSCell* cell)
 
 void ScriptExecutable::clearCode(IsoCellSet& clearableCodeSet)
 {
+    // TSAN code-lifecycle (section 3.5): retract the published pointers with
+    // atomic release stores. The m_jitCodeFor* assignments go through
+    // ConcurrentJITCodePtr (release exchange); the arity mirrors and the
+    // CodeBlock WriteBarrier slots are stored atomically here because foreign
+    // lites read them lock-free (entrypointFor / codeBlockFor relaxed loads).
     m_jitCodeForCall = nullptr;
     m_jitCodeForConstruct = nullptr;
-    m_jitCodeForCallWithArityCheck = CodePtr<JSEntryPtrTag>();
-    m_jitCodeForConstructWithArityCheck = CodePtr<JSEntryPtrTag>();
+    concurrentCodePtrStore(m_jitCodeForCallWithArityCheck, CodePtr<JSEntryPtrTag>());
+    concurrentCodePtrStore(m_jitCodeForConstructWithArityCheck, CodePtr<JSEntryPtrTag>());
 
     switch (type()) {
     case FunctionExecutableType: {
         FunctionExecutable* executable = static_cast<FunctionExecutable*>(this);
-        executable->m_codeBlockForCall.clear();
-        executable->m_codeBlockForConstruct.clear();
+        WTF::atomicStore(executable->m_codeBlockForCall.slot(), static_cast<CodeBlock*>(nullptr), std::memory_order_release);
+        WTF::atomicStore(executable->m_codeBlockForConstruct.slot(), static_cast<CodeBlock*>(nullptr), std::memory_order_release);
         break;
     }
     case EvalExecutableType: {
@@ -264,8 +269,8 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
     // then codeBlockFor, plain loads) and call-link reads of m_jitCodeFor*
     // never take the compilation lock, so field-store ORDER is the only
     // writer-side guarantee we can give them. On clear, retract the gating
-    // jit-code pointer FIRST (before replaceCodeBlockWith clears the
-    // CodeBlock pointer below), so a sibling that still observes a non-null
+    // jit-code pointer FIRST (before the CodeBlock-slot stores in the
+    // switch(codeType) below clear the CodeBlock pointer), so a sibling that still observes a non-null
     // jit-code pointer also still observes the matching CodeBlock. The
     // switch(kind) further down stores nullptr again — harmless.
     //
@@ -285,15 +290,22 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
     // reader that sees the null gate slow-paths outright. Reader-side
     // ordering on weak-memory targets remains the recorded IT-8 KNOWN
     // RESIDUAL; x86-64 TSO is sound with this store order.
+    // TSAN code-lifecycle (section 3.5): both the retract stores here and the
+    // publish stores below go through atomic accessors (ConcurrentJITCodePtr
+    // release exchange for the RefPtr words — this is what replaced the bare
+    // RefPtr::operator= std::exchange that TSAN flagged at this site — and
+    // concurrentCodePtrStore release for the arity mirrors), pairing with the
+    // consume-ordered lock-free readers (hasJITCodeFor / entrypointFor /
+    // call-link thunks).
     if (vm.gilOffWithProcessGate()) [[unlikely]] {
         switch (kind) {
         case CodeSpecializationKind::CodeForCall:
             m_jitCodeForCall = nullptr;
-            m_jitCodeForCallWithArityCheck = nullptr;
+            concurrentCodePtrStore(m_jitCodeForCallWithArityCheck, CodePtr<JSEntryPtrTag>());
             break;
         case CodeSpecializationKind::CodeForConstruct:
             m_jitCodeForConstruct = nullptr;
-            m_jitCodeForConstructWithArityCheck = nullptr;
+            concurrentCodePtrStore(m_jitCodeForConstructWithArityCheck, CodePtr<JSEntryPtrTag>());
             break;
         }
         WTF::storeStoreFence();
@@ -305,10 +317,29 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
     case GlobalCode: {
         ProgramExecutable* executable = uncheckedDowncast<ProgramExecutable>(this);
         ProgramCodeBlock* codeBlock = static_cast<ProgramCodeBlock*>(genericCodeBlock);
-        
+
         ASSERT(kind == CodeSpecializationKind::CodeForCall);
-        
-        oldCodeBlock = executable->replaceCodeBlockWith(vm, codeBlock);
+
+        // TSAN code-lifecycle (section 3.5, WRITER side, r4 residual
+        // `CodeBlock::replacement x GlobalExecutable::replaceCodeBlockWith`):
+        // publish the CodeBlock WriteBarrier slot with an atomic release
+        // store, exactly like the FunctionCode case below. The previous path
+        // — GlobalExecutable::replaceCodeBlockWith ->
+        // WriteBarrierBase<CodeBlock>::setMayBeNull -> setEarlyValue ->
+        // RawPtrTraits std::exchange — was a plain store racing the atomic
+        // readers (CodeBlock::replacement's relaxed load, the
+        // prepareForExecution fast gate); the FunctionCode writer got this
+        // fix in wave 3, the GlobalCode/ModuleCode/EvalCode writers did not.
+        // A release store to a pointer-sized slot is codegen-equivalent to
+        // the plain store on our targets, so flag-off semantics are
+        // unchanged; the GC write barrier setMayBeNull performed is
+        // reproduced verbatim below. The oldCodeBlock read is relaxed-atomic
+        // for the same atomic/atomic pairing (installs to this slot are
+        // serialized by the compilation lock / world-stopped contexts above,
+        // but the slot is concurrently read lock-free).
+        oldCodeBlock = WTF::atomicLoad(executable->m_codeBlock.slot(), std::memory_order_relaxed);
+        WTF::atomicStore(executable->m_codeBlock.slot(), static_cast<CodeBlock*>(codeBlock), std::memory_order_release);
+        vm.writeBarrier(executable, static_cast<JSCell*>(codeBlock));
         break;
     }
 
@@ -318,25 +349,51 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
 
         ASSERT(kind == CodeSpecializationKind::CodeForCall);
 
-        oldCodeBlock = executable->replaceCodeBlockWith(vm, codeBlock);
+        // TSAN code-lifecycle: atomic release publication; see GlobalCode above.
+        oldCodeBlock = WTF::atomicLoad(executable->m_codeBlock.slot(), std::memory_order_relaxed);
+        WTF::atomicStore(executable->m_codeBlock.slot(), static_cast<CodeBlock*>(codeBlock), std::memory_order_release);
+        vm.writeBarrier(executable, static_cast<JSCell*>(codeBlock));
         break;
     }
 
     case EvalCode: {
         EvalExecutable* executable = uncheckedDowncast<EvalExecutable>(this);
         EvalCodeBlock* codeBlock = static_cast<EvalCodeBlock*>(genericCodeBlock);
-        
+
         ASSERT(kind == CodeSpecializationKind::CodeForCall);
-        
-        oldCodeBlock = executable->replaceCodeBlockWith(vm, codeBlock);
+
+        // TSAN code-lifecycle: atomic release publication; see GlobalCode above.
+        oldCodeBlock = WTF::atomicLoad(executable->m_codeBlock.slot(), std::memory_order_relaxed);
+        WTF::atomicStore(executable->m_codeBlock.slot(), static_cast<CodeBlock*>(codeBlock), std::memory_order_release);
+        vm.writeBarrier(executable, static_cast<JSCell*>(codeBlock));
         break;
     }
         
     case FunctionCode: {
         FunctionExecutable* executable = uncheckedDowncast<FunctionExecutable>(this);
         FunctionCodeBlock* codeBlock = static_cast<FunctionCodeBlock*>(genericCodeBlock);
-        
-        oldCodeBlock = executable->replaceCodeBlockWith(vm, kind, codeBlock);
+
+        // TSAN code-lifecycle (section 3.5, WRITER side): publish the
+        // CodeBlock WriteBarrier slot with an atomic release store, pairing
+        // with the consume-ordered lock-free readers (codeBlockForCall /
+        // codeBlockForConstruct in FunctionExecutable.h,
+        // CodeBlock::replacement, the prepareForExecution fast gate) and
+        // matching clearCode's release retract above. The previous path —
+        // FunctionExecutable::replaceCodeBlockWith ->
+        // WriteBarrierBase<CodeBlock>::setMayBeNull -> setEarlyValue ->
+        // RawPtrTraits std::exchange — was a plain store racing those atomic
+        // readers (the wave-3 95-report writer gap). A release store to a
+        // pointer-sized slot is codegen-equivalent to the plain store on our
+        // targets, so flag-off semantics are unchanged; the GC write barrier
+        // that setEarlyValue performed is reproduced verbatim below (and the
+        // unconditional vm.writeBarrier(this) at the end of installCode
+        // covers this executable as well).
+        oldCodeBlock = executable->codeBlockFor(kind);
+        WriteBarrier<CodeBlock>& codeBlockSlot = kind == CodeSpecializationKind::CodeForCall
+            ? executable->m_codeBlockForCall
+            : executable->m_codeBlockForConstruct;
+        WTF::atomicStore(codeBlockSlot.slot(), static_cast<CodeBlock*>(codeBlock), std::memory_order_release);
+        vm.writeBarrier(executable, static_cast<JSCell*>(codeBlock));
         break;
     }
     }
@@ -344,24 +401,29 @@ void ScriptExecutable::installCode(VM& vm, CodeBlock* genericCodeBlock, CodeType
     // UNGIL IT-8 (R1c, install direction): publish the CodeBlock pointer
     // stores above strictly BEFORE the jit-code pointer that gates the
     // lock-free fast path, so a sibling that observes a non-null jit-code
-    // pointer observes the matching CodeBlock. KNOWN RESIDUAL: this is a
-    // writer-side fence only; the fast-path reader does two independent plain
-    // loads (hasJITCodeFor then codeBlockFor) with no acquire/dependency
-    // ordering, so ARM64 load-load reordering can still pair a fresh jit-code
-    // observation with a stale CodeBlock read. Closing that requires a
-    // CodeBlock.h reader-side change (out of this change's scope) — recorded
-    // for the next IT-8 round.
+    // pointer observes the matching CodeBlock. TSAN code-lifecycle update
+    // (section 3.5): the reader's two loads (hasJITCodeFor then codeBlockFor)
+    // are now consume-ordered ATOMICS (no more plain-load UB), but they are
+    // still two independent loads of different slots with no cross-slot
+    // acquire in production builds, so the IT-8 KNOWN RESIDUAL stands
+    // unchanged in substance: ARM64 load-load reordering can still pair a
+    // fresh jit-code observation with a stale CodeBlock read. (Under TSAN the
+    // loads are acquire, so the checker sees the writer-side ordering — i.e.
+    // TSAN is deliberately BLIND to this residual from here on.)
+    // Recorded as TSAN-TRIAGE §7.2: x86-64-sound (TSO), ARM64-suspect;
+    // designated coverage is the object-model protocol amplifier, and the
+    // closing fix is on the IT-8 follow-up worklist.
     if (genericCodeBlock && vm.gilOffWithProcessGate()) [[unlikely]]
         WTF::storeStoreFence();
 
     switch (kind) {
     case CodeSpecializationKind::CodeForCall:
-        m_jitCodeForCall = genericCodeBlock ? genericCodeBlock->jitCode() : nullptr;
-        m_jitCodeForCallWithArityCheck = nullptr;
+        m_jitCodeForCall = genericCodeBlock ? genericCodeBlock->jitCode() : RefPtr<JSC::JITCode>();
+        concurrentCodePtrStore(m_jitCodeForCallWithArityCheck, CodePtr<JSEntryPtrTag>());
         break;
     case CodeSpecializationKind::CodeForConstruct:
-        m_jitCodeForConstruct = genericCodeBlock ? genericCodeBlock->jitCode() : nullptr;
-        m_jitCodeForConstructWithArityCheck = nullptr;
+        m_jitCodeForConstruct = genericCodeBlock ? genericCodeBlock->jitCode() : RefPtr<JSC::JITCode>();
+        concurrentCodePtrStore(m_jitCodeForConstructWithArityCheck, CodePtr<JSEntryPtrTag>());
         break;
     }
 
@@ -397,8 +459,8 @@ bool ScriptExecutable::hasClearableCode() const
 {
     if (m_jitCodeForCall
         || m_jitCodeForConstruct
-        || m_jitCodeForCallWithArityCheck
-        || m_jitCodeForConstructWithArityCheck)
+        || concurrentCodePtrLoad(m_jitCodeForCallWithArityCheck)
+        || concurrentCodePtrLoad(m_jitCodeForConstructWithArityCheck))
         return true;
 
     if (structure()->classInfoForCells() == FunctionExecutable::info()) {
@@ -614,7 +676,10 @@ void ScriptExecutable::prepareForExecutionImpl(VM& vm, JSFunction* function, JSS
 
     bool installedUnlinkedBaselineCode = false;
 #if ENABLE(JIT)
-    if (RefPtr<BaselineJITCode> baselineRef = codeBlock->unlinkedCodeBlock()->m_unlinkedBaselineCode) {
+    // §12.2: snapshot under the UnlinkedCodeBlock lock — a bare RefPtr load can
+    // race a concurrent plan-finalize install on another mutator (see the
+    // contract comment in UnlinkedCodeBlock.h). Cold codeBlock-creation path.
+    if (RefPtr<BaselineJITCode> baselineRef = codeBlock->unlinkedCodeBlock()->unlinkedBaselineCodeConcurrently()) {
         codeBlock->setupWithUnlinkedBaselineCode(baselineRef.releaseNonNull());
         installedUnlinkedBaselineCode = true;
     }

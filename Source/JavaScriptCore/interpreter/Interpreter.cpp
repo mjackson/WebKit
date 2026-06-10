@@ -735,7 +735,16 @@ CatchInfo::CatchInfo(const HandlerInfo* handler, CodeBlock* codeBlock)
     if (m_valid) {
         m_type = handler->type();
 #if ENABLE(JIT)
-        m_nativeCode = handler->nativeCode;
+        // GIL-off (TSAN residual 2, CatchInfo vs setupWithUnlinkedBaselineCode):
+        // a sibling Thread's baseline finalization retargets
+        // handler.nativeCode (relaxed atomic store, CodeBlock.cpp) while this
+        // Thread unwinds through an LLInt frame of the same CodeBlock. Both
+        // the old (LLInt) and new (baseline) entries are valid catch targets
+        // — upstream already retargets handlers under live LLInt frames on
+        // tier-up — and m_jitData is fence-published before the retarget
+        // (AB18-B), so a relaxed atomic word load is sufficient.
+        static_assert(sizeof(handler->nativeCode) == sizeof(uintptr_t));
+        m_nativeCode = std::bit_cast<CodeLocationLabel<ExceptionHandlerPtrTag>>(WTF::atomicLoad(const_cast<uintptr_t*>(std::bit_cast<const uintptr_t*>(&handler->nativeCode)), std::memory_order_relaxed));
 #endif
 
         // handler->target is meaningless for getting a code offset when catching
@@ -1444,7 +1453,7 @@ CodeBlock* Interpreter::prepareForCachedCall(CachedCall& cachedCall, JSFunction*
     ASSERT(newCodeBlock);
     newCodeBlock->m_shouldAlwaysBeInlined = false;
 
-    cachedCall.m_addressForCall = newCodeBlock->jitCode()->addressForCall();
+    WTF::atomicStore(&cachedCall.m_addressForCall, newCodeBlock->jitCode()->addressForCall(), std::memory_order_release); // THREADS: see CachedCall::unlinkOrUpgradeImpl.
     newCodeBlock->linkIncomingCall(nullptr, &cachedCall);
     return newCodeBlock;
 }
@@ -1462,7 +1471,12 @@ CodeBlock* Interpreter::prepareForMicrotaskCall(MicrotaskCall& microtaskCall, JS
     ASSERT(newCodeBlock);
     newCodeBlock->m_shouldAlwaysBeInlined = false;
 
-    microtaskCall.m_addressForCall = newCodeBlock->jitCode()->addressForCall();
+    // THREADS: write codeBlock/numParameters BEFORE the release publish of the
+    // entry address (same order as MicrotaskCall::unlinkOrUpgradeImpl), so a
+    // cross-thread reader that acquires the entry sees a matching codeBlock.
+    WTF::atomicStore(&microtaskCall.m_codeBlock, newCodeBlock, std::memory_order_relaxed);
+    WTF::atomicStore(&microtaskCall.m_numParameters, newCodeBlock->numParameters(), std::memory_order_relaxed);
+    WTF::atomicStore(&microtaskCall.m_addressForCall, newCodeBlock->jitCode()->addressForCall(), std::memory_order_release);
     newCodeBlock->linkIncomingCall(nullptr, &microtaskCall);
     return newCodeBlock;
 }
