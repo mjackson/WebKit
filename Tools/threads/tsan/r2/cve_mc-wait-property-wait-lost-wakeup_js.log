@@ -1,3 +1,0 @@
-JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
-Exception: Error: MC-WAIT S3a HIT: round 32 returned 'timed-out' although a store+notify pair was issued well before the deadline — the pair landed in the read->enqueue window and was lost (missing SPEC-ungil §C.3 under-listLock SVZ re-validation).
-global code@/root/WebKit/JSTests/threads/cve/mc-wait-property-wait-lost-wakeup.js:108:24

@@ -102,3 +102,7 @@ CLAUDE.md
 
 Tools/threads/tsan/reports-*.log
 Tools/threads/bughunt/logs/
+Tools/threads/tsan/r*/
+Tools/threads/tsan/*.log
+Tools/threads/bughunt/**/*.log
+Tools/threads/bughunt/*/logs/

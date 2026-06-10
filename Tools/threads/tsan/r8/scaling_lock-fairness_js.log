@@ -1,2 +1,0 @@
-JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
-lock-fairness[run1]: threads=4 window=2000ms totals=[43540,36822,43371,37495] inWindow=[43539,36821,43371,37495] minW=36821 maxW=43539 ratioW=1.18

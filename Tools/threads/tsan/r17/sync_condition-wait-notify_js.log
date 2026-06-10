@@ -1,5 +1,0 @@
-JSC: disabling useWasm under GIL-off (wasm glue still reads the raw VM-block exception word; not yet audited for UNGIL §A.1.3 COMPILED-FOR-VM; see AB-17 status block in VMEntryScope.cpp).
-Exception: Error: wait released the lock while parked: expected true but got false
-shouldBe@/root/WebKit/JSTests/threads/resources/assert.js:30:24
-shouldBeTrue@/root/WebKit/JSTests/threads/resources/assert.js:34:13
-global code@/root/WebKit/JSTests/threads/sync/condition-wait-notify.js:69:17
