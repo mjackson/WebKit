@@ -134,6 +134,17 @@ static bool crossThreadDWTIsInternalArm(DeferredWorkTimer* timer, DeferredWorkTi
     return state->internalArmTickets.contains(ticket);
 }
 
+// Out-of-line (and exported): referenced from the inline target() ASSERT in
+// the header, so debug builds of any TU including DeferredWorkTimer.h
+// odr-use it — it must have exactly one real definition.
+bool DeferredWorkTimer::TicketData::isTargetObject()
+{
+    if (m_dependencies.isEmpty())
+        return false;
+    JSCell* cell = m_dependencies.last();
+    return cell && cell->isObject();
+}
+
 inline DeferredWorkTimer::TicketData::TicketData(WorkType type, JSObject* scriptExecutionOwner, Vector<JSCell*>&& dependencies)
     : m_type(type)
     , m_dependencies(WTF::move(dependencies))

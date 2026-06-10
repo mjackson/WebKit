@@ -195,11 +195,32 @@ public:
     // SparseArrayEntry::copySnapshotConcurrent) is a usable snapshot; the
     // JSValue/GetterSetter cell it names is GC-stable.
     std::optional<SparseArrayEntry> getEntry(unsigned i);
+
+    // Out-of-line cell-lock acquisition: JSCellLock::lock()/unlock() are
+    // defined in JSCellInlines.h, which (by inlines layering) this header
+    // must not include — constructing Locker<JSCellLock> here references
+    // those inlines and trips -Wundefined-inline (an error on the Windows
+    // builds) in any TU that includes this header without the inlines.
+    void acquireCellLock() const;
+    void releaseCellLock() const;
+    class HeldCellLock {
+        WTF_MAKE_NONCOPYABLE(HeldCellLock);
+    public:
+        explicit HeldCellLock(const SparseArrayValueMap& map)
+            : m_map(map)
+        {
+            m_map.acquireCellLock();
+        }
+        ~HeldCellLock() { m_map.releaseCellLock(); }
+    private:
+        const SparseArrayValueMap& m_map;
+    };
+
     template<typename Functor> void forEachEntry(const Functor& functor)
     {
         // Functor runs under the cell lock: it must not run JS, allocate GC
         // memory, or re-enter this map (regime-3 lock rules).
-        Locker locker { cellLock() };
+        HeldCellLock locker { *this };
         tsanAcquireCtorPublication();
         for (auto& entry : m_map)
             functor(entry.key, entry.value);
@@ -224,7 +245,7 @@ public:
     {
         if (Options::useJSThreads()) [[unlikely]] {
             // AB18-G: serialize the probe against a racing add()/remove() rehash.
-            Locker locker { cellLock() };
+            HeldCellLock locker { *this };
             tsanAcquireCtorPublication();
             return m_map.isEmpty();
         }
@@ -233,7 +254,7 @@ public:
     bool contains(unsigned i) const
     {
         if (Options::useJSThreads()) [[unlikely]] {
-            Locker locker { cellLock() };
+            HeldCellLock locker { *this };
             tsanAcquireCtorPublication();
             return m_map.contains(i);
         }
@@ -242,7 +263,7 @@ public:
     size_t size() const
     {
         if (Options::useJSThreads()) [[unlikely]] {
-            Locker locker { cellLock() };
+            HeldCellLock locker { *this };
             tsanAcquireCtorPublication();
             return m_map.size();
         }

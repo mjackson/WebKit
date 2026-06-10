@@ -61,7 +61,7 @@ public:
         WorkType type() const { return m_type; }
         inline VM& NODELETE vm();
         JSObject* target();
-        bool isTargetObject();
+        JS_EXPORT_PRIVATE bool isTargetObject();
         inline const FixedVector<JSCell*>& dependencies(bool mayBeCancelled = false);
         inline JSObject* scriptExecutionOwner();
 

@@ -38,6 +38,20 @@ namespace JSC {
 
 const ClassInfo SparseArrayValueMap::s_info = { "SparseArrayValueMap"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(SparseArrayValueMap) };
 
+// Out-of-line so the header never references JSCellLock's inline
+// lock()/unlock() (defined in JSCellInlines.h, which headers must not
+// include — see the declaration comment; -Wundefined-inline is an error on
+// the Windows builds).
+void SparseArrayValueMap::acquireCellLock() const
+{
+    const_cast<SparseArrayValueMap*>(this)->cellLock().lock();
+}
+
+void SparseArrayValueMap::releaseCellLock() const
+{
+    const_cast<SparseArrayValueMap*>(this)->cellLock().unlock();
+}
+
 SparseArrayValueMap::SparseArrayValueMap(VM& vm)
     : Base(vm, vm.sparseArrayValueMapStructure.get())
 {
