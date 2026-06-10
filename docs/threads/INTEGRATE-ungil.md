@@ -238,11 +238,28 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
   Task 14 and re-reviewing §C's third arm AND the amend-round locked
   undefined-disambiguation arm (this file's locked-arm code is the surface
   to re-review).
-  OPEN (owned by U-T11 per the task split): §C.3 PWT pre-enqueue routing —
-  atomicsWaitOnProperty/atomicsWaitAsyncOnProperty now reach the §9.5 atomic
-  load via atomicsLoadOnProperty's gilOff branch (forcing conversions outside
-  listLock, as §C.3(a) requires), but the under-listLock SVZ re-validation +
-  dequeue-and-restart arm and the 4.5-1a/G11 gate edits are U-T11's.
+  ~~OPEN (owned by U-T11 per the task split)~~ **§C.3(b) LANDED 2026-06-10
+  (CVE-close round, MC-WAIT S3a):** atomicsWaitOnProperty and
+  atomicsWaitAsyncOnProperty now re-validate SVZ(o[k], expected) via the §9.5
+  load UNDER the list lock after the enqueue (ThreadAtomics.cpp:
+  sameValueZeroForAtomicsUnderListLock /
+  revalidateEnqueuedPropertyWaiterUnderListLock + the per-function
+  dequeue-and-restart loops). Mismatch => dequeue + "not-equal"; rope re-read
+  or accessor Restart (I34 provenance) => dequeue, re-derive outside any
+  lock, FRESH enqueue (the I10 eats-one-notify class, r7 F3). The enqueue
+  stays inside findOrCreateList's listLock section (lost-waiter closeout
+  fix); the re-validation re-takes listLock — equivalent ordering, argued in
+  the §C.3(b) banner in-file. Under-lock compare is alloc-free (rope pairs
+  punt to restart; restart's step-1 SVZ resolves both ropes in place outside
+  locks, so progress needs an external mutation — the declared
+  bounded-adversarial class). waitAsync revoked-registration disposal:
+  AsyncTicket::retireUnsettled (win settle CAS, cancelPendingWork, clear
+  promise Strong — no settler can have observed the node, RELEASE_ASSERTed).
+  GIL-on: one loop iteration, every new arm gilOff-gated — landed body
+  byte-equivalent. Regression test: mc-wait-property-wait-lost-wakeup.js
+  (20/20 GIL-off Release, Debug, and GIL-on). The §C.3(a) routing was
+  already landed (this row's previous state); the 4.5-1a/G11 gate edits were
+  landed separately (C.4) — no §C.3 obligation remains OPEN.
 
   **AMEND round (adversarial review, 2 reviewers) — LANDED:**
   1. **U5 D1-sentinel hardening (blocker, CONFIRMED).** The lock-free

@@ -179,3 +179,25 @@ Caveat: the corpus in `fuzzilli-storage/corpus` was left in place; campaigns
 run with `--resume` and will continue from it. A later jsc rebuild changes
 edge numbering — Fuzzilli re-evaluates imported programs on resume, so this
 is safe, just slower on the first sync.
+
+## Re-verification (2026-06-10)
+
+The Fuzz jsc was rebuilt incrementally against the current bring-up tree
+(`build-jsc-fuzz.sh`, exit 0, post-build Thread API check OK) and the
+10-minute smoke re-run:
+
+- 1,200,910 edges instrumented; startup tests pass (REPRL handshake, crash
+  detection, Thread API exposure, spawn/join round-trip).
+- Resume import works: prior corpus re-evaluated against the new binary;
+  corpus 503 in-fuzzer at stop, on-disk corpus grew 936 -> 1006 files.
+- Coverage feedback works: 6.19% edge coverage at stop (up from 5.58% on
+  2026-06-07).
+- Correctness 76%, timeout rate 2.6%, ~60 execs/s steady-state (single
+  worker, nice -n 10, shared box).
+- 9 crashes found this run (crashes/ 45 -> 47 files after dedup). Still
+  untriaged — triage is thread-fuzz's job.
+
+Operational note: if a smoke/campaign is interrupted mid corpus import,
+Fuzzilli leaves `fuzzilli-storage/old_corpus/` behind and refuses to start.
+If it is empty, `rmdir` it; if not, move its contents back into `corpus/`
+before relaunching.

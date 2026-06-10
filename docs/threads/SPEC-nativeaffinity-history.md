@@ -195,6 +195,10 @@ ANNEX EX1).
 ## ANNEX EX1 — re-entry drop scope (BINDING; spec §3.3 index)
 ## (CTOR FORMS REWRITTEN rev 5 — R4.5; rev-4 single-signature text
 ## of record in PART B round 4)
+## ([r10] AMENDED — the NA-I12 verification anchors trimmed from
+## spec §3.3 at rev 9 are restored by the ANNEX EX1 AMENDMENT
+## (r10) record at the end of this file; they read as part of
+## this annex.)
 
     class NativeLockDropScope {  // also the public embedder type
     public:
@@ -549,7 +553,10 @@ is SUPERSEDED by ANNEX BL1.8, recorded both sides with SPEC-congc
 (CG-I19/CGD6.1/§13.5(4)): a sync-collection requester DROPS NL
 (BL1.8), it does not hold it through the bracket. The
 haveABadTime/§A.3 walk below STANDS, bounded per the congc CGS2.3
-budget ledger.] SPEC-ungil makes the CALLER of a Class-4
+budget ledger.] [r9: the CGS2.3 budget this walk leans on is now
+LANDED ungil-side (SPEC-ungil rev 33 §A.3 rule 5 WAIT BOUND;
+STRUCTURAL via congc F45/§9.1(2a)/CG-I26) and the §13.5(4) gate
+is closed; the bracket walk below otherwise stands unamended.] SPEC-ungil makes the CALLER of a Class-4
 invalidation the §A.3 conductor: §K.5 rule 5
 (SPEC-ungil.md:768-780) — JSGlobalObject::haveABadTime,
 JS-reachable, "whole body under ONE §A.3 stop; conductor = caller"
@@ -640,7 +647,13 @@ walk and option analysis is SPEC-congc ANNEX CGD6.1, BINDING
 there; this annex is the NL-side mechanism. Supersession recorded
 BOTH sides: BL1.6's sync-collection leg + NA-T4's rev-5
 sync-collection sub-arm superseded here; congc CG-I19/§3.7/
-§13.5(4) is the other side).
+§13.5(4) is the other side). [r9: congc §13.5(4) adoption gate
+CLOSED — this row + congc CG-I19 read RECORDED-BOTH-SIDES per
+the PART B rev-9 record (back-cites congc ANNEX CGS2.2 edge
+removal + CGS2.3 NL terms; ungil-side consumer = SPEC-ungil
+rev 33 §LK row 9d / history ANNEX CGS2A.2); item 6's budget cite
+is now STRUCTURAL (congc F45/§9.1(2a)/CG-I26), landed in
+SPEC-ungil §A.3 rule 5 [r33].]
 
 Problem: BL1.6 licensed "a Locked native can reach ... a sync
 collection mid-body WITH NL held" against the landed
@@ -649,7 +662,8 @@ bracket, one re-acquire). SPEC-congc §3 makes a shared collection
 a tenure of N stop windows: per-window blocking GCL re-acquires,
 per-window GBL barriers, between-window donateAll/
 waitForTermination condvar waits, the F28 GCL inter-cycle
-handoff, the tail access re-acquire (`Heap.cpp:4955`). An
+handoff, the tail access re-acquire (`Heap.cpp:5031` [r11;
+rev-8 anchor :4955]). An
 NL-holding mutator-conductor would hold NL across the ENTIRE
 cycle — serializing every Locked native, custom accessor (§2.6),
 JSClassRef callback (§2.7) and handleHostCall funnel (NA-I28)
@@ -668,9 +682,17 @@ MECHANISM (normative):
    depth SAVED, NL FULLY released, BEFORE the first
    arbitration/park/GCL step of the funnel.
 2. Reacquire: via the park-capable §3.2/NL1 loop, AFTER the
-   conduct's access-reacquire tail (`Heap.cpp:4955`, conductor
-   case) or the follower's ticket-served resume (follower case),
-   before control returns to the native frame. Exception path
+   funnel's CALLER-SIDE GCL release [r11 RE-PIN, r11 record —
+   the rev-8 anchor ("after the conduct's access-reacquire
+   tail", `Heap.cpp:4955`, present tree :5031) sat INSIDE the
+   caller-held GCL and licensed an NL acquire by a heap-rank-2
+   holder, contradicting NA-I10]: election `Heap.cpp:4606`,
+   poll tail :4669/:4673, or the F28 successor's final release
+   (conductor cases) — or the follower's ticket-served resume
+   (follower case), before control returns to the native
+   frame. NORMATIVE: the §3.2 reacquire loop runs holding NO
+   heap rank >= 2 lock — textually equivalent to NA-I10, not
+   merely consistent with it. Exception path
    per NA-I12 (destructor reacquires on exception-pending too);
    a TERMINATION-ONLY trap completes the reacquire (NL1
    trap-class split).
@@ -691,6 +713,13 @@ MECHANISM (normative):
    bounded (§A.3 single-window conducts), with the total
    conductor wait budget stated ONCE in congc ANNEX CGS2.3
    (cited, not restated, here).
+7. [r11] NL-acquire guard (the assert CG-I19 does NOT cover —
+   its depth==0 assert fires at conducting ENTRY only, not at
+   the reacquire site): the §3.2 acquire path debug-asserts the
+   acquiring thread holds NO heap rank >= 2 lock
+   (m_gcConductorLock foremost); U20's NL-edge extension
+   (§3.5/BL1.7) gains the matching no-*-over-NL-acquire lint
+   obligation. gilOffProcess-only, item-5 gating.
 Arms: NA-T4 rev-8 multi-window arm (TC1) + congc CGT1.1 F40
 sub-arm — composed run required before either spec's flag ships.
 
@@ -2783,3 +2812,217 @@ intro, NA-I29 parenthetical, NA-T6/NA-T9 index entries and the
 §3.3 funnel parentheticals compressed to annex pointers (full
 texts already in NL1/BL1.3/SC3.1/CF1.2/SC1.4/SC2.4/TC1/EX1).
 Body measured at 49997/50000 bytes post-edit.
+
+## Rev 9 record (2026-06-10) — SPEC-congc §13.5 adoption-gate
+## closure (gate (4) this side; gates (1)-(3) = SPEC-ungil
+## rev 33). NOT a review round; no findings; solo amender.
+
+AUTHORITY: CONGC-HANDOUT.md §0 gates (1)-(4) +
+SPEC-congc-history.md ANNEX CGS2 (rows CGS2.1-CGS2.4,
+SUPERSESSION-PENDING at congc rev 12). Landed as ONE coherent
+change with SPEC-ungil rev 33 (its history REV 33 record + ANNEX
+CGS2A carry the adopted row texts and the cite-anchor refresh
+ledger). The congc files are NOT edited from here; per the §9 /
+congc §13.5(5) convention the rows read RECORDED-BOTH-SIDES
+through these two records' explicit back-cites.
+
+What this rev records, per gate:
+
+- Gate (4) (congc §13.5(4) — BLOCKS C1 in gilOff configs):
+  BL1.8's NL DROP around the sync-collection request funnel +
+  congc CG-I19's `m_nativeLockDepth == 0` conducting-entry assert
+  (election win / poll grant / conductSharedCollection entry;
+  debug) now read RECORDED-BOTH-SIDES: this side = ANNEX BL1.8
+  [r9] note + spec §3.4/NA-I13(b) [r9] notes; congc side =
+  CG-I19/CGD6.1/§13.5(4) (pre-existing); ungil side consumes the
+  GC-CONDUCT NL>GCL edge removal in §LK row 9d (CGS2A.2
+  back-cite). F40 closed in kind.
+- Gate (2) shared story (congc §13.5(2), CGS2.3 — BL1.6/BL1.8
+  adjacent): the conductor wait BUDGET stays stated ONCE in congc
+  ANNEX CGS2.3; it is now LANDED ungil-side (SPEC-ungil §A.3
+  rule 5 WAIT BOUND, [r33]) and is STRUCTURAL per congc F45
+  (§9.1(2a) foreign-waiter fairness, CG-I26), no longer
+  probabilistic. BL1.6's bounded-bracket license and NA-T4's
+  watchdog arm re-point at the landed, structural form (spec §8
+  [r9] note: the arm asserts the bound, not samples it). NA-I10's
+  conductor-exclusion negative edge is unchanged and is what
+  keeps the nativeaffinity NL term of the budget ZERO.
+- Gates (1)/(3) (congc §13.5(1)/(3)): no nativeaffinity-side
+  obligation; recorded here for the one-story stamp — SPEC-ungil
+  rev 33 lands §LK rows 9c/9d + the U20 extension (CGS2.1-2; the
+  CGS2.2 chain walk cites BL1.6/NA-I10/BL1.8 exactly as this
+  spec states them) and the HBT4 window-re-entry extension
+  (CGS2.4(b)). §3.5/BL1.7's LK.1c row, the §LK.4b held-with
+  amendment and the SPEC-api §5.9 companion row are NOT landed by
+  this — §9.1 REMAINS OPEN (spec §9.1 [r9] note); the row 9d
+  text cites LK.1c as a pending nativeaffinity row.
+
+Spec-body deltas (rev 9): header restamp; §3.4 [r9] gate-closed
+note (BL1.8 paragraph); §9.1 [r9] status note (congc §13.5(1)-(3)
+closed; LK.1c et al. still open); NA-I13 INV row [r9] note; NA-T4
+[r9] structural-budget note. Cite hygiene: the two drifted
+SPEC-ungil.md line cites re-anchored via the ungil r33 ledger
+(§A.3.8 F8 revert :289-298 -> :311-321; §LK table :867-925 ->
+:834-915); all other SPEC-ungil.md:NNN cites in body+annexes
+re-read through that ledger (SPEC-ungil-history.md REV 33,
+"Cite-anchor refresh ledger").
+
+Size-cap actions this rev (no semantic change; full texts in the
+named BINDING annexes): §3.1 rationale (round-1 R1.1 text), §3.2
+intro (NL1), §3.3 NA-I26/NA-I12 cite parentheticals (EX1/SC2.1),
+§2.1 macro/wasm bullets (SC2.5/CF1.1), §2.6 NA-I20 (SC1.4), §2.7
+NA-I27 (SC2.2), §4.4.1 d/e-f + NA-I29 (SC1.1/SC1.2/SC2.4).
+Body measured at 49775/50000 bytes post-edit.
+
+No SDs; no INV renumbering (NA-I* IDs frozen); NA-X* unchanged.
+Mode gating: every [r9]-referenced behavior is flag-gated
+useConcurrentSharedGCMarking on the congc side and gilOffProcess
+on this side; flag-off/GIL-on unchanged (NA-I1; congc CG-I0).
+
+## Rev 10 record (2026-06-10) — ANNEX EX1 cite restore (external
+## review finding F-C, REAL; solo amender, no review round) +
+## SPEC-ungil r34 coordination note
+
+F-C (major, REAL — verified before ruling): the rev-9 size-cap
+action list claimed "§3.3 NA-I26/NA-I12 cite parentheticals
+(EX1/SC2.1)" — i.e. the trimmed NA-I12 full text lives in ANNEX
+EX1 — but EX1 only paraphrases the mechanism ("return value +
+per-lite m_exception word, never by C++ unwinding") and carried
+NEITHER file:line anchor NOR the loadException symbol; the two
+anchors appeared in none of the four
+SPEC-{ungil,nativeaffinity}{,-history}.md files. Under the
+frozen-spec convention (normative clauses cite file:line; trimmed
+full text must stay in the cited annex), the verification anchors
+were lost and the body's "(cites: ANNEX EX1)" pointer dangled.
+FIX = the EX1 amendment below (history form chosen — the body
+keeps its pointer, which now resolves; the rev-9 size-cap action
+list stands as written; no body byte change beyond the header
+restamp).
+
+## ANNEX EX1 AMENDMENT (r10; BINDING; evidence note under the
+## destructor's NA-I12 paragraph)
+
+The NA-I12 verification anchors trimmed from spec §3.3 at rev 9,
+restored verbatim (rev-8-baseline anchors, internally consistent
+with the body's §4.2/§4.3 anchors :3161-3219 / :535-536):
+
+  per-lite GIL-off m_exception: LLInt pending-exception check
+  LowLevelInterpreter64.asm:3199-3217; thunk loadException
+  ThunkGenerators.cpp:524-536.
+
+Present-tree drift note (2026-06-10 tree; for the next
+cite-refresh ledger, congc CGD7.4 pattern — anchors re-verified
+against the tree this rev): nativeCallTrampoline now
+LowLevelInterpreter64.asm:3240-3298 with the per-lite
+`.checkLiteException` arm at :3278-3296 (the
+internalFunctionCallTrampoline mirror at :3331-3344); the thunk
+loadException comment+load now ThunkGenerators.cpp:547-556.
+
+## SPEC-ungil r34 coordination note (no nativeaffinity
+## obligation; recorded for the one-story stamp)
+
+SPEC-ungil rev 34 (its REV 34 record + ANNEX CGS2A [r34]
+markers) splits the conductor wait story: the congc CGS2.3
+windowed sum bounds ONE WINNER's GCL leg (structural per
+§9.1(2a)/CG-I26), while the LANDED 30s watchdog budget is
+per-REQUESTER end-to-end and adds an explicit queue term
+(k earlier winners x (GCL leg + full stop window), k <=
+supported fan-in; congc-counterpart pending for the CGS2.3
+ledger + CG-T8 storm arm). BL1.6's bounded-bracket license, the
+§3.4/NA-I13 rows and NA-T4's watchdog arm all cite the
+per-WINNER GCL leg and are UNAFFECTED; NA-I10's
+conductor-exclusion negative edge still zeroes the NL term in
+BOTH quantities (per-winner sum AND queue term). The ungil r34
+WATCHDOG COVERAGE obligations (timed sampled pause,
+blocking-ctor requestStart, VM-threaded watchdog ctor) name no
+nativeaffinity surface — NL never participates in the stop-scope
+bracket (NA-I10; BL1.8 drop).
+
+Spec-body deltas (rev 10): header restamp only. Body measured
+49844/50000 bytes post-edit. No SDs; NA-I*/NA-T*/NA-X*
+unchanged; §9 gate table unchanged (§9.1 REMAINS OPEN as at r9).
+
+## Rev 11 record (2026-06-10) — BL1.8 reacquire re-pin (external
+## composition-review finding, REAL — the ungil REV 35 round's
+## G-C; solo amender, no review round) + SPEC-ungil r35
+## coordination note
+
+FINDING (verified against the tree before ruling): ANNEX BL1.8
+item 2 anchored the park-capable NL reacquire "AFTER the
+conduct's access-reacquire tail (`Heap.cpp:4955`, conductor
+case)". In the present tree that tail is
+`conductorClient.acquireHeapAccess()` at `Heap.cpp:5031`, which
+executes INSIDE `conductSharedCollection` while the CALLER still
+holds GCL — the §10.2 election releases GCL only afterwards
+(`Heap.cpp:4606`; poll tail :4669/:4673), and under congc F23
+the FINAL WND-close likewise leaves GCL held through the tail
+(SPEC-congc §3.2). The literal anchor therefore licensed an
+implementation that re-acquires NL in the window
+[post-:5031, pre-:4606] — a heap-rank-2 (GCL) holder ACQUIRING
+NL, directly contradicting NA-I10 (the negative edge that IS the
+acyclicity proof of congc CGS2.2 / ungil CGS2A.2) and closing
+the ONE constructible cycle in the rebuilt merged table:
+  T1 = a BL1.6 §A.3 conductor holding NL, blocked in its
+       HBT4-bracket GCL acquire (`Heap.cpp:5568-5590` tryLock
+       loop) on T2's GCL;
+  T2 = a BL1.8 sync requester holding GCL post-final-close,
+       parked in the NL reacquire behind T1.
+Outcome: deterministic 30s watchdogAssertStopProgress fail-stop
+(`JSThreadsSafepoint.cpp:512`) — loud, not silent, but a real
+deadlock from BINDING text whose congc §13.5(4) adoption gate
+CLOSED at rev 9, and no assert covered the bad reading (congc
+CG-I19's `m_nativeLockDepth == 0` fires at conducting ENTRY
+only, never at the reacquire site).
+
+RULING (= ANNEX BL1.8 in-place [r11] edits, BINDING):
+- Item 2 RE-PINNED: reacquire AFTER the funnel's CALLER-SIDE GCL
+  release (election `Heap.cpp:4606`; poll tail :4669/:4673; the
+  F28 successor's final release), with the NORMATIVE sentence
+  "the §3.2 reacquire loop runs holding NO heap rank >= 2 lock"
+  — textually equivalent to NA-I10 instead of in tension with
+  it. The follower-resume arm is unchanged (followers never
+  touch GCL, HBT4.3).
+- NEW item 7: NL-acquire-side debug assert (acquiring thread
+  holds no heap rank >= 2 lock, m_gcConductorLock foremost) +
+  the U20 NL-edge lint obligation; this is the guard CG-I19
+  structurally cannot provide.
+- Stale anchor refreshed: `Heap.cpp:4955` -> `:5031` at both
+  BL1.8 sites (preamble tail cite; item 2, kept as the
+  bracketed rev-8 provenance).
+- BOTH-SIDES: recorded HERE with explicit back-cites to congc
+  CGD6.1 / CG-I19 / ANNEX CGS2.2 (the reversed-direction
+  convention — the congc history is not edited from this
+  workflow; its CGS2.2 acyclicity walk is RE-GROUNDED by this
+  re-pin, as is ungil §LK row 9d's "GC-conduct NL>GCL edge
+  REMOVED" clause; ungil-side consumer note = SPEC-ungil-history
+  REV 35 G-C). No congc-side text change is REQUIRED — CG-I19
+  and CGD6.1 stand as written; the defect was this annex's
+  anchor, not their assert.
+- Spec body §3.4 (BL1.8 index paragraph) re-pinned to match;
+  NA-T4's TC1 multi-window arm inherits the re-pin (the arm
+  exercises the funnel; no charter text change).
+
+SPEC-ungil r35 coordination note: the r10 coordination note's
+"k <= supported fan-in" clause re-reads per ungil REV 35 G-B —
+the queue term is a COUNT bound, 'supported fan-in' RETIRED
+(never defined), the per-requester 30s fail-stop is the sole
+TIME bound, and the CG-T8 storm arm is attribution-only. This
+changes no nativeaffinity quantity: NA-I10 still zeroes the NL
+term in both the per-winner sum and the queue term. Cite
+hygiene: SPEC-ungil.md anchors re-read through the r35
+cite-anchor refresh ledger (SPEC-ungil-history REV 35; covers
+the r34+r35 moves — r34 shipped no ledger): the two body cites
+re-anchored at r9 re-resolve :311-321 -> :314-323 (§A.3.8) and
+:834-915 -> :837-917 (§LK table); both updated in the body this
+rev at zero net byte cost.
+
+Spec-body deltas (rev 11): header restamp; §3.4 BL1.8 index
+paragraph re-pinned ([r11]); the two r9-re-anchored SPEC-ungil
+cites refreshed to the r35 ledger values. Body measured
+49979/50000 bytes post-edit. No SDs; NA-I*/
+NA-T*/NA-X* IDs unchanged; §9 gate table unchanged (§9.1 REMAINS
+OPEN as at r9; the congc §13.5(4) closure STANDS — this rev
+amends the closed record's mechanism text both-sides-style, it
+does not reopen the gate). Mode gating unchanged (gilOffProcess
+/ useConcurrentSharedGCMarking; flag-off/GIL-on dead, NA-I1 /
+congc CG-I0).

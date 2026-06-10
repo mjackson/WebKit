@@ -143,7 +143,37 @@ OOM attribution in the error message. Recommend chartering in the heap
 workstream before ship; until then embedders must treat every spawned
 thread as trusted with the whole heap budget.
 
-## S4. Property-waiter table — needs-test
+## S4. Property-waiter table — **needs-test → TEST RAN, FOUND A REAL LEAK, FIXED (CLOSED 2026-06-10)**
+
+**Outcome:** the reclamation arm (arm 3) of mc-dos-waiter-table-storm.js
+failed 20/20 GIL-off — 0/128 waited-on-then-drained cells collectable. The
+adversarial worry below ("a single path that ... converts the table into a
+monotonic root set") was right in spirit but wrong in location: the table's
+own drains are sound (cellProtect/uidProtect cleared, lists removed). The
+leak was one layer down: a NOTIFIED `Atomics.waitAsync`'s settle ran through
+`AsyncTicket::scheduleViaDeferredWorkTimer`, which never CANCELLED the
+underlying `DeferredWorkTimer::TicketData` — and `JSGlobalObject::
+visitChildren` marks target+dependencies of every live, un-cancelled
+TicketData in the realm's `m_weakTickets` set. The 5.6 finite-timeout timer
+lambda pins a `Ref<AsyncTicket>` (hence the TicketData) for the FULL
+timeout, so a notified waiter's cell+promise stayed GC-rooted for the whole
+60s window (discriminator: the TIMED-OUT path reclaimed — its timer lambda
+dies at fire, dropping the last TicketData ref). Fix: the settle-tail
+wrapper now does `dwtTicket->cancel()` after the settle task — the same
+§E.4 retirement triple the registrant-routed ThreadTask path already
+performed (ThreadManager.cpp `runQueuedSettleTaskOnRegistrant`). Test now
+20/20 GIL-off Release and GIL-on Release. **Debug correction (2026-06-10,
+family-2 re-verify):** Debug runs currently abort 6/6 BEFORE this test's
+oracles run, on a PRE-EXISTING, flag-off-vanilla-reachable
+waitAsync/DWT/microtask GC UAF (`ASSERTION FAILED: isSymbol()` in
+synthesizePrototype from a PromiseReactionJob; deterministic minimal repros
++ triage in Tools/threads/bughunt/waitasync-dwt-uaf/EVIDENCE.md). NOT
+caused by the S4 cancel() fix — the vanilla TA-lane repro never constructs
+an AsyncTicket (WaiterListManager.cpp:436 banner) — and not a threads-flag
+regression (crashes with no options at all, any GIL mode). Release passes
+are masking the UAF (no cell scribbling outside ASSERT_ENABLED), so the S4
+closure verdict stands on its own oracles; the Debug rung re-arms when the
+bughunter fix lands. Original analysis follows:
 
 Surface: `PropertyWaiterTable` (ThreadAtomics.cpp:814-960) is a
 process-global singleton: `HashMap<(JSCell*, UniquedStringImpl*),
@@ -332,7 +362,8 @@ inspector transport ever ships in the flag-on configuration.
 | Verdict | Surfaces |
 |---|---|
 | immune-by-construction | S1, S2 (tested elsewhere), S5, S8, S9 |
-| needs-test | S4 (waiter table reclaim), S6 (retire backlog drain) |
+| needs-test | S6 (retire backlog drain) |
+| tested — leak found+fixed, CLOSED 2026-06-10 | S4 (waiter table reclaim: un-retired TicketData on the notify-settle tail; fixed in AsyncTicket::scheduleViaDeferredWorkTimer) |
 | susceptible-suspected | S3 (no per-thread heap quota/attribution — design gap, availability-only), S7 (chartered flag-on JIT-artifact leak — close condition: per-thread epoch publication + R2 scan) |
 
 Action items carried out of this audit: charter a per-client allocation

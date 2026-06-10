@@ -3786,7 +3786,14 @@ sides cited).
    re-acquire access. Losers park on the job-slot mutex
    access-released (counts as parked for the winner's
    section-A.3.2 predicate, per HBT3 item 3) and NEVER block raw
-   on GCL.
+   on GCL. [r33: under useConcurrentSharedGCMarking the
+   release-before-GCL order EXTENDS to GC-conduct window
+   RE-ENTRY (the per-window blocking GCL acquire, legal because
+   the conductor is access-released all tenure, SPEC-congc
+   §3.1(a)-(b)/CG-I19; F15 first-window tryLock carve-out
+   unchanged; election/poll tryLock-only) - SPEC-congc ANNEX
+   CGS2.4(b)/§13.5(3), recorded both sides via the REV 33
+   record + ANNEX CGS2A; flag-off this item stands as written.]
 2. SUPERSESSION (both sides; the frozen jit text stands
    unedited, superseded here): (a) jit R1.i's step order
    "release access -> JSThreadsStopScope (GCL) -> stop"
@@ -3797,6 +3804,11 @@ sides cited).
    INVERTED: job-slot/STWR arbitration is OUTER to GCL. R1.i's
    access-release-first step, client scoping, resume order, and
    (for default conductors) allocation-free closure all stand.
+   [r33: the "allocation-free closure" clause of the previous
+   sentence is STRUCK under useConcurrentSharedGCMarking
+   (SPEC-congc F43/CGS2.4(a), recorded both sides via the REV 33
+   record + ANNEX CGS2A - the conductor is a FULL CLIENT
+   in-window, congc §9.1(8)/CGD7.1); flag-off the clause stands.]
 3. Soundness (re-derived for the promoted order): at most ONE
    thread - the arbitration winner - is ever blocked in
    GCL.lock(), and it blocks access-released, so the heap
@@ -8050,3 +8062,631 @@ This ruling records the deferral explicitly rather than leaving it implied:
   PWT pre-enqueue load routing.
 - The U-T14 close audit's supersession-completeness claim is repaired by
   this record; AB-7 narrows to the bench run itself.
+
+# REV 33 (2026-06-10) - SPEC-congc §13.5 adoption-gate closure
+# (gates (1)-(3), ungil side; solo amender, no review round -
+# the adopted texts carry SPEC-congc's six-round review record)
+
+AUTHORITY: CONGC-HANDOUT.md §0 gates (1)-(4) + SPEC-congc-history.md
+ANNEX CGS2 rows CGS2.1-CGS2.4 (BINDING there; marked
+SUPERSESSION-PENDING at congc rev 12). This rev lands the
+SPEC-ungil side of congc §13.5 gates (1), (2) and (3) as ONE
+change with SPEC-nativeaffinity rev 9 (gate (4) + the shared
+CGS2.3/BL1.6/BL1.8 story - one lock-rank narrative across the
+three specs). The congc history is NOT edited from here (not this
+amender's file): per the congc §13.5(5) convention ("rows NOT in
+force until the named owner lands the cross-cite"), the CGS2 rows
+now read RECORDED-BOTH-SIDES through this record's explicit
+back-cites - CGS2.1, CGS2.2, CGS2.3, CGS2.4(a), CGS2.4(b) - plus
+the nativeaffinity r9 record for §13.5(4). The CGS1+CGS2
+fold-at-freeze obligation (congc §13(4)) is UNCHANGED; ANNEX CGS2A
+below is the ungil-side ADOPTION record, not the fold.
+
+## Gate-by-gate landing record
+
+- GATE (1) (congc §13.5(1); blocks the congc §5.2 CMS lock + C1):
+  SPEC-ungil §LK gains rows 9c/9d (body :856-863 / :864-879, [r33]
+  marked) = ANNEX CGS2.1 as proposed, with the CGD7.4 cite refresh
+  applied (SINFAC I6 Heap.cpp:5125-5127 -> :5216). The U20 lint
+  extension lands as proposed: U20 PROPER covers both rows; congc
+  CG-T2 IS that extension; the rev-7 "U20-class" private lint
+  stays retired (no second lock-order authority). CGS2.2's
+  composed-chain walk (NL > GCL > m_markingMutex > CMS) is
+  recorded in row 9d; its acyclicity argument is ADOPTED VERBATIM
+  (ANNEX CGS2A). The heap §6 leaf-row supersession for the CMS
+  lock ("never 7-9b" -> §LK.8 destructor-leaf-class shape) is
+  recorded both sides per the CGS2.1 text (heap §6 + §LK.8 class
+  list); nativeaffinity LK.1c remains a PENDING nativeaffinity
+  §9.1 row - row 9d cites it as pending, not as landed.
+- GATE (2) (congc §13.5(2); blocks C1): §A.3 rule 5 (body
+  :254-292) amended per CGS2.4(a) + CGS2.3: the
+  Heap::JSThreadsStopScope ctor pause obligation (BOTH ctors,
+  congc F18/F47; markers only, F29; pause after a successful
+  tryLock only in the watchdog ctor) + the dtor
+  resume-BEFORE-GCL-release order; the F43 "allocation-free
+  closure" STRIKE (see the HBT4 amendment below); and the WAIT
+  BOUND reconciliation: the frozen U32/HBT4.5 stop-progress
+  reading (under which a conductor's GCL wait could span one
+  whole synchronous conduct, watched only by the 30s
+  watchdogAssertStopProgress fail-stop) is SUPERSEDED by the
+  congc CGS2.3 windowed budget - stated ONCE in congc ANNEX
+  CGS2.3 (cited, never restated, here and in nativeaffinity);
+  STRUCTURAL only via congc §9.1(2a)/CG-I26 (F45); congc CG-T8
+  verifies the sum against the watchdog. U32 itself (EXIT1.7
+  lifetime form) is NOT amended - the rule-5 text records that
+  the waiting conductor keeps the EXIT1/U32 sampling discipline
+  (no lite/client pointer cached across the added in-bracket
+  wait; registry re-walked per sample); the superseded reading is
+  the U32/HBT4.5-derived WAIT-SPAN characterization, not the
+  lifetime invariant. INV IDs frozen; no new INV.
+- GATE (3) (congc §13.5(3); blocks the congc §3.1 re-entry
+  blocking GCL acquire): §A.3 rule 3's HBT4 order pin (body
+  :232-248) gains the [r33] window-RE-ENTRY extension per
+  CGS2.4(b); ANNEX HBT4 item 1 carries the in-place [r33] marker;
+  the F15 first-window carve-out (tryLock access-held) and
+  tryLock-only election/poll are restated unchanged.
+- GATE (4) (congc §13.5(4)): nativeaffinity side - see
+  SPEC-nativeaffinity rev 9 (BL1.8/CG-I19 recorded both sides
+  there). Row 9d's "GC-conduct NL>GCL edge REMOVED" clause is
+  this spec's consuming cite.
+
+MODE GATING (all four): every [r33] clause is flag-gated
+useConcurrentSharedGCMarking (prefix-ruled on useSharedGCHeap,
+congc §7/§13.2); flag-off and GIL-on keep the frozen rev-32 text
+operative BYTE-FOR-BYTE in behavior (congc CG-I0; ungil master
+rule unchanged). No new SD (SD attribution: r27-r33 add none).
+
+## ANNEX CGS2A (BINDING) - congc CGS2 rows AS ADOPTED ungil-side
+
+The four rows below are the SPEC-congc-history.md ANNEX CGS2
+texts (rev 12 state, incl. the rev-9 F43/F45 amendments) ADOPTED
+as ungil-side normative text of record behind the body indexes
+(§LK 9c/9d; §A.3 rules 3/5). Deltas from the CGS2 source are
+LIMITED to the CGD7.4 cite refresh and are flagged inline; on any
+other textual divergence the congc CGS2 row governs and the
+divergence is a defect here.
+
+CGS2A.1 (= CGS2.1, gate §13.5(1)) - §LK rows 9c/9d:
+- 9c GCH::m_mutatorMarkStackLock (CMS lock) - TERMINAL leaf:
+  nothing of any rank acquired while holding it; ordered INSIDE
+  m_markingMutex (drain/donation sites only); MAY be taken with
+  heap ranks 7-9b held (the congc §5.2 addToRememberedSet append
+  path). §LK.8 destructor-leaf-class shape; like §LK.8 it
+  supersedes heap §6's leaf-row "never 7-9b" for this lock - BOTH
+  SIDES (heap §6 + SPEC-ungil §LK.8 class list). Soundness: the
+  holder appends to a segmented array (may fastMalloc a segment),
+  acquires nothing, never waits.
+- 9d marking-internal group (m_markingMutex,
+  m_parallelSlotVisitorLock, m_raceMarkStackLock, visitor
+  m_rightToRun) - ordered INSIDE GCL/GBL; mutually ordered as
+  landed (markingMutex > CMS at drains; the others mutually
+  unnested vs CMS); DISJOINT from MSPL-9b except landed in-window
+  uses. NEW under SPEC-congc: mutator threads reach the group
+  OUT-OF-WINDOW at exactly three sites - the §5.2(ii) SINFAC-tail
+  CMS donation (m_markingMutex; access held, no 7-9b - SINFAC I6
+  Heap.cpp:5216 [refreshed from :5125-5127 per congc CGD7.4]),
+  the §9.2(1) DCT final flush (m_markingMutex; post permanent
+  access drop), and the §9.2(1)/§9.3(3) ACT/DCT pending-list
+  enqueue (m_parallelSlotVisitorLock only). U20 PROPER extends to
+  BOTH rows: SPEC-congc CG-T2 IS the U20 extension - the rev-7
+  "U20-class" private lint is retired (no second lock-order
+  authority exists).
+
+CGS2A.2 (= CGS2.2; U20-linted via CGS2A.1) - composed-chain walk:
+NL > GCL > m_markingMutex > CMS. Edges: NL > GCL - a
+nativeaffinity BL1.6 §A.3 conductor (haveABadTime-class) MAY hold
+NL on entry through its HBT4 bracket's GCL acquire; GCL >
+m_markingMutex - the congc §9.1(2) stop-scope ctor calls
+pauseConcurrentMarkingForForeignStop while holding GCL;
+m_markingMutex > CMS - WND-open drain + SINFAC-tail donation
+(congc §5.2). Acyclicity: CMS is TERMINAL (CG-I10(2)); GCL /
+m_markingMutex holders never ACQUIRE NL (nativeaffinity NA-I10
+negative edge); the barrier-append path takes CMS under 7-9b
+WITHOUT m_markingMutex (CG-I10(1)); no reverse edge exists. Under
+the congc rev-8 F40 ruling the GC-CONDUCT NL>GCL edge is REMOVED
+(BL1.8 drop) - the chain survives only through the BOUNDED §A.3
+conduct. nativeaffinity LK.1c's "OUTER to ... all leaves" was
+written before these leaves existed; it HOLDS (an NL holder doing
+a barrier append takes only the CMS terminal leaf; no reverse
+edge), and this row makes that consistency CHARTERED and
+lint-enforced rather than accidental. [LK.1c itself stays
+SUPERSESSION-PENDING - nativeaffinity §9.1, NOT closed by this
+rev.]
+
+CGS2A.3 (= CGS2.3 as AMENDED congc rev 9 F45, gate §13.5(2)) -
+conductor in-bracket wait BUDGET vs the 30s watchdog
+(JSThreadsSafepoint.cpp:512 [refreshed from :401/:412 per congc
+CGD7.4]); amends the frozen U32/HBT4.5 stop-progress reading.
+Stated ONCE in congc ANNEX CGS2.3; this spec and
+SPEC-nativeaffinity BL1.6/BL1.8 cite that ledger rather than
+restating it. Budget terms (cited for the record): (1) one GC
+window (CG-I12); (2) one marker-pause batch (congc §9.1(2)/ANNEX
+CGP1); (3) with an F28 successor: the inter-cycle re-stop + the
+successor's FIRST window; (4) C3: <= one sweeper quantum (congc
+§9.1(7)); (5) nativeaffinity NL terms: ZERO - conductors never
+ACQUIRE NL (NA-I10), the GC-conduct NL hold is removed
+(F40/BL1.8), the BL1.6 conductor-HOLD case adds nothing to a
+FOREIGN conductor's wait. The frozen whole-conduct reading is
+superseded by this windowed bound; STRUCTURAL only via the congc
+§9.1(2a) fairness rule (CGD7.2/CG-I26) - the landed §A.3
+acquisition is an unqueued 1ms tryLock poll (watchdog ctor
+Heap.cpp:5568-5590; real-conductor use VMManager.cpp:577) with no
+queue position; failure mode = the watchdogAssertStopProgress
+fail-stop. congc CG-T8 VERIFIES the sum against the watchdog.
+[r34 AMENDED - REV 34 record, finding F-B: the sum bounds ONE
+WINNER's GCL leg only; the landed budget is per-REQUESTER
+end-to-end and adds a queue term; CG-T8 split into the
+per-winner arm + an OWED storm arm; PENDING-CONGC-COUNTERPART
+for the CGS2.3 ledger + CG-T8 charter.]
+[r35 AMENDED - REV 35 record, finding G-B: the queue term is a
+COUNT bound; 'supported fan-in' RETIRED (referenced at four
+sites, defined nowhere in the family); the per-requester 30s
+fail-stop is the SOLE TIME bound; the storm arm is re-chartered
+ATTRIBUTION-ONLY. A congc-defined cap (proposed home: ANNEX
+CGT1) is an OPTIONAL owed item, not assumed here.]
+
+CGS2A.4 (= CGS2.4 with the rev-9 F43 strike, gates
+§13.5(2)-(3)). (a) Heap::JSThreadsStopScope ctor obligation
+(congc §9.1(2), F18 as AMENDED by F47): BOTH ctors (blocking
+Heap.cpp:5546-5566 AND watchdog :5568-5590; shared
+!isSharedServer() early-return), after acquiring GCL - watchdog
+ctor: after a SUCCESSFUL tryLock only - when m_currentPhase !=
+NotRunning, BLOCK in pauseConcurrentMarkingForForeignStop
+(markers only - the C3 sweeper gate is phase-independent, F29);
+the shared dtor (:5592-5596) resumes BEFORE releasing GCL. This
+amends the frozen §A.3 rule 5/HBT4.5 characterization of the
+conductor bracket (rev-32 body :256-268; now :254-292): the
+"closure stays ALLOCATION-FREE" clause is STRUCK (congc rev 9
+F43 - the IMPLEMENTED conductor re-acquires its own client
+access and allocates in-window: AB-21 VMManager.cpp:631-646,
+AB-10 weak-sweep license WeakSet.cpp:81/:106 + Heap.cpp:3339,
+ungil ANNEX HBT2.1 class-4 allocating body; conductor-as-client
+rules = congc §9.1(8)/ANNEX CGD7.1 - supersession recorded BOTH
+sides: the congc CGS2.4 row carried the strike for this fold;
+ANNEX HBT4 item 2 carries the in-place [r33] strike); the ctor is
+also no longer non-blocking past the GCL acquire; the added wait
+is bounded per CGS2A.3 and acquires no api-rank or heap >= 7
+lock (CG-I16). [r34 AMENDED - REV 34 record, finding F-A:
+WATCHDOG COVERAGE obligations (1)-(4) - timed sampled pause,
+blocking-ctor requestStart, watchdog ctor threads the target VM,
+CG-T8 wedged-marker arm; (1)/(4) PENDING-CONGC-COUNTERPART.]
+[r35 AMENDED - REV 35 record, finding G-A: items (1)/(4) are
+PROMOTED from a bookkeeping marker to a BLOCKING SHIP GATE - C1
+and any useConcurrentSharedGCMarking stage implementing the
+§9.1(2) pause MUST NOT ship until the congc owner records them
+(back-cites congc ANNEX CGS2.4(a) + CGT1).]
+(b) The HBT4 release-before-GCL order (§A.3.3)
+EXTENDS to window RE-ENTRY: the conductor's per-window blocking
+GCL acquire is legal exactly because it is access-released all
+tenure (congc §3.1(a)-(b)); first-window carve-out F15 (tryLock
+access-held) unchanged. Election/poll stay tryLock-only.
+
+## ANNEX HBT4 AMENDMENT (r33; BINDING; amendment record - the
+## rev-19 annex remains the annex of record except as follows)
+
+- Item 1 gains the in-place [r33] window-re-entry extension
+  (text at the marker; = CGS2A.4(b)).
+- Item 2's "(for default conductors) allocation-free closure all
+  stand" clause is STRUCK under useConcurrentSharedGCMarking
+  (in-place [r33] marker; = CGS2A.4(a)'s F43 strike); flag-off
+  the clause stands.
+- Items 3-6 and HBT2/HBT3 stand; HBT2.1's class-4 allocating-body
+  analysis is now ALSO load-bearing for the F43 strike (cited by
+  CGS2A.4(a) and congc §9.1(8)).
+
+## Cite-anchor refresh ledger (r33; for cross-spec readers -
+## congc/nativeaffinity cites into SPEC-ungil.md re-read here;
+## pattern per congc ANNEX CGD7.4)
+
+| old (rev 32) | new (rev 33) | anchor |
+|---|---|---|
+| :867-925 | :834-915 | §LK merged lock table |
+| :256-268 | :254-292 | §A.3 rule 5 (R1.i bracket) |
+| :240-247 | :232-248 | §A.3 rule 3 HBT4 order pin |
+| :873-886 | :846-855 | §LK.4b slot-mutex row |
+| :902-907 | :893-899 | §LK long-hold NLS row |
+| :768-780 | :751-759 | §K.5 haveABadTime rule |
+| :289-298 | :311-321 | §A.3 rule 8 (F8 GC-stop revert) |
+| :668-670 | :659-661 | §F.6(e) spawned no-nested-VM |
+
+## Spec-body wording compressions (r33; byte budget for the gate
+## landings; no semantic change - every trimmed clause's FULL
+## text stays in the cited BINDING annex/rev; pointer targets +
+## supersession records intact)
+
+Compressed to annex pointers/index form: §0 U0c (annex U0C);
+§A.1.3 identity-supersession parenthetical + GC-roots tail (r10
+F6 / r8 item 11); §A.1.5 service routing; §A.1.6 (A16); §A.2.4
+(TERM1); §A.2.6 (A26); §A.2.7 debugger; §A.2.8 (W); §A.3.1 EXIT1
+index; §A.3.2b/2c (SB1/ISB1); §A.3.6 (A36/A36C); §A.3.8; §B.2
+(EXIT1.3/A36); §C.1 (C1); §C.3 (C3); §D.1 (D1/D1R); §E intro;
+§E.1 task-queue/host-hook bullets; §E.1b.2/.4/.5 (E1B/r16
+F3/ALS1); §E.2 (E2A); §E.3 (E3); §E.4 precondition + DWT
+retirement (r17 F2); §E.5 (TERM1); §E.7.3/.5 (E7/r18 F4); §F.1
+(F1B); §F.2 (F2); §F.3 carve-outs (r10 F1); §F.4 (DAL2); §F.6
+checklist; §H; §I (r9 F8/r22); §J.3 (r10 F5); §K.3 (LZ1/LZ2);
+§K.5 (HBT); §K.6/§N.9 (AUD1); §N.1/.2/.5 (history); §N.6 (N6);
+§N.8 (CBI); §LK WS rows (WS1); §IM. IDs/cross-refs preserved;
+"r33 compressed" markers at the larger trims.
+
+## Rev-33 section deltas
+
+- Header: rev 33 + r33 cite stamp (tree 2026-06-10; congc cites
+  re-read through congc CGD7.4).
+- §A.3 rules 3/5: as recorded above. §LK: rows 9c/9d inserted.
+- §SD: attribution "r27-r33 add none". §T: "r10-r33 deltas"; no
+  task scope changes - the congc-side work (CG-1..CG-7) is congc
+  §14's; U-T5/U-T14's flag-off golden gates now ALSO witness the
+  [r33] clauses' flag-off deadness (CG-I0 oracle).
+- Body measured 49976/50000 bytes post-edit; this history file
+  uncapped.
+
+# REV 34 (2026-06-10) - watchdog-coverage + queue-term review
+# fixes (external review round vs the r33 adoption; 4 findings,
+# ALL VERIFIED REAL, 0 refuted; F-A/F-B/F-D land here, F-C lands
+# in SPEC-nativeaffinity-history.md r10)
+
+Every finding was re-verified against the tree before ruling:
+Heap.cpp:5546-5596 (both stop-scope ctors + dtor),
+VMManager.cpp:547-600 (requestStart sampling + comment),
+JSThreadsSafepoint.cpp:395-455 (jettison bracket) and :512
+(watchdogAssertStopProgress(MonotonicTime, VM*));
+pauseConcurrentMarkingForForeignStop confirmed to exist in NO
+source file (design-only, C1 flag-gated congc text).
+
+## F-A (major, REAL) - watchdog coverage hole in the adopted
+## CGS2A.4(a)/rule-5 text
+
+The [r33] claim "failure mode = the watchdogAssertStopProgress
+fail-stop" held ONLY for the watchdog ctor's GCL tryLock loop
+(Heap.cpp:5584-5587). Two waits inside the same bracket had NO
+sampling site:
+(a) the CGS2A.4(a) pauseConcurrentMarkingForForeignStop BLOCK -
+    specified to run AFTER a successful tryLock, i.e. holding GCL
+    AND the §LK.4b slot mutex, with no watchdogAssertStopProgress
+    call between tryLock success and pause return (the
+    conductor's next sample sits in the VMManager predicate loop,
+    never reached if the pause wedges);
+(b) the BLOCKING ctor (Heap.cpp:5546-5566; landed user: the
+    jettison stop bracket, JSThreadsSafepoint.cpp:445-451) - a
+    raw m_gcConductorLock.lock() with no requestStart parameter
+    at all.
+A wedged marker batch (the thread-ab17b watchdog family) would
+hang the conductor silently forever if no second requester is
+queued; if one IS queued, the bystander's watchdog fires at 30s
+with nullptr VM context (the watchdog ctor passes nullptr,
+Heap.cpp:5586) - reproducing the known nil-Class-A-context
+misattribution signature. The CGS2.3 marker-pause-batch term (2)
+is a structural bound ASSUMING marker progress; the watchdog
+exists precisely for the non-progress case and observed neither
+leg. The finder's U32 sub-claim is CONFIRMED-FINE (no fix
+needed): the waiting conductor holds only the server Heap&
+(conductor-outlived, not U32-covered); no lite/client ptr is
+cached across the wait.
+
+RULING (CGS2A.4(a) [r34] amendment; body rule-5 [r34] WATCHDOG
+COVERAGE clause):
+(1) the CGS2A.4(a) pause becomes a TIMED wait that samples
+    watchdogAssertStopProgress(requestStart, vm) per quantum
+    (same 1ms quantum family as the ctor tryLock loop);
+(2) the blocking ctor gains a requestStart parameter (or its
+    callers are re-pointed at the watchdog ctor) so
+    JSThreadsSafepoint.cpp:445 is covered - the jettison caller
+    samples MonotonicTime::now() before its
+    ClientHeapAccessReleaseScope;
+(3) the watchdog ctor threads the TARGET VM instead of nullptr,
+    so a timeout attributes to the requesting VM (kills the
+    nil-Class-A-context misattribution for this site);
+(4) congc CG-T8 gains a wedged-marker arm proving the fail-stop
+    fires ON THE CONDUCTOR ITSELF, not only on queued bystanders.
+Items (1) and (4) amend congc-owned text (the CGS2.4(a) pause
+body; the CG-T8 charter, ANNEX CGT1): PENDING-CONGC-COUNTERPART
+- recorded here with explicit back-cites to congc ANNEX
+CGS2.4(a)/CGT1, not in force congc-side until that owner
+cross-cites (the congc §13.5(5) convention, direction reversed).
+Items (2)-(3) are this-side obligations, in force now; flag-off
+observable behavior unchanged (the ctor parameter is
+mode-independent plumbing on a shared-server-only path; the
+tryLock loop is isSharedServer()-gated).
+
+## F-B (major, REAL) - CGS2.3 per-winner budget vs the single
+## end-to-end 30s watchdog: the multi-requester queue term
+
+CGS2.3/CGS2A.3 bound ONE winner's GCL wait (window +
+marker-pause batch + F28 terms + sweeper quantum + zero NL). The
+LANDED budget is sampled ONCE before slot arbitration and covers
+all three legs end-to-end (VMManager.cpp:556-566: "One 30s
+budget covers all three legs end-to-end"; slot losers park in
+the 1ms tryLock loop under the SAME requestStart). A loser's
+total wait = sum over earlier winners of (their CGS2.3 GCL
+budget + their FULL stop window: pause + predicate quiescence +
+closure) - queue-depth-scaled, with no CGS2.3 term. So the r33
+sentence "congc CG-T8 VERIFIES the sum against the watchdog"
+verified a PER-WINNER bound against a PER-REQUESTER budget. The
+two specs also disagreed on what a timeout MEANS: congc F45
+framed budget excess as lost progress, while VMManager.cpp:553-
+555 rules that long LEGITIMATE queues exceeding 30s "must
+distinguish loudly".
+
+RULING (option B of the finding; CGS2A.3 [r34] amendment - keep
+the landed end-to-end budget, make the queue term explicit):
+- The VMManager comment is ADOPTED as the operative reading: the
+  30s watchdog is a per-REQUESTER end-to-end fail-stop. A
+  Class-A fire storm whose queue legitimately serializes past
+  30s IS a deliberate loud failure - the supported-fan-in cap
+  below bounds when that is reachable, and the F-A item-(3) VM
+  threading makes the diagnostic attributable instead of the
+  nullptr signature.
+- CGS2A.3 gains the explicit queue term: requester total <=
+  k x (per-winner CGS2.3 sum + one full §A.3 stop window), k =
+  earlier winners ahead of this requester, k <= the supported
+  fan-in cap. The §9.1(2a)/CG-I26 fairness rule makes the
+  PER-WINNER bound structural; slot losers stay unqueued 1ms
+  pollers (ordering among losers probabilistic) - the cap is
+  over COUNT, not order.
+- congc CG-T8 splits: the existing arm verifies the per-winner
+  sum; a NEW STORM ARM is OWED (no fail-stop at/below supported
+  fan-in; a loud, attributable one above it).
+- The CGS2.3 ledger amendment + the CG-T8 storm arm are
+  congc-owned: PENDING-CONGC-COUNTERPART (back-cites: congc
+  ANNEX CGS2.3 + its rev-9 F45 note + ANNEX CGT1;
+  VMManager.cpp:553-566).
+- Option A (re-arm requestStart per leg) REJECTED: it erases the
+  end-to-end property the VMManager change deliberately
+  introduced (the pre-predicate legs were previously unbounded
+  unwatched blocks) and a perpetual slot loser could starve
+  unwatched across re-arms.
+
+## F-C (major, REAL; cross-file) - NA-I12's r9-trimmed LLInt/
+## thunk anchors absent from the claimed home ANNEX EX1
+
+Fixed in SPEC-nativeaffinity-history.md r10 (ANNEX EX1 AMENDMENT
+restoring the two anchors + present-tree drift note); see that
+record. No ungil-side text involved.
+
+## F-D (major, REAL; this file) - the r33 §A.1.5 compression
+## dropped a named routine binding with no history home
+
+The r33 "Spec-body wording compressions" record's blanket
+license ("every trimmed clause's FULL text stays in the cited
+BINDING annex/rev") was FALSE for the §A.1.5 entry: the rev-32
+body's named-routine binding survived nowhere in this spec set
+(the UNGIL-HANDOUT.md:227 copy is a downstream implementation
+handout, not a binding home). Sole loss found - the finder's
+other spot-checks across both spec pairs verified clean.
+COMPLETION (this paragraph is now the BINDING home; the r33
+record's §A.1.5 list entry reads through here):
+
+  §A.1.5 trimmed clause, FULL text (rev-32 body): "ctor/dtor +
+  executeEntryScopeServicesOnExit use the CURRENT lite" - i.e.
+  executeEntryScopeServicesOnExit (the VMEntryScope dtor
+  service drain) resolves the CURRENT lite, the same binding as
+  the ctor/dtor. The r33 body's "ctor/dtor use the CURRENT
+  lite" is an INDEX of this line; the routine binding is
+  normative.
+
+## ANNEX CGS2A AMENDMENT (r34; BINDING; in-place [r34] markers
+## at CGS2A.3 and CGS2A.4(a))
+
+- CGS2A.3: "congc CG-T8 VERIFIES the sum against the watchdog"
+  AMENDED per F-B (per-winner sum = the existing arm; the
+  per-requester end-to-end budget carries the queue term and the
+  OWED storm arm; timeout meaning = the adopted VMManager
+  reading).
+- CGS2A.4(a): gains the F-A WATCHDOG COVERAGE obligations
+  (1)-(4).
+- Both amendments PENDING-CONGC-COUNTERPART exactly where they
+  touch congc-owned text (CGS2.3 ledger; CGS2.4(a) pause body;
+  CG-T8/CGT1 charter); the this-side obligations (F-A (2)-(3))
+  are in force.
+
+## Rule-5/rule-3 [r34] compressions (license: full text stays in
+## the cited annex; no semantic change)
+
+- Rule-5 FULL-CLIENT cite triple (AB-21 VMManager.cpp:631-646;
+  AB-10 WeakSet.cpp:81/:106 + Heap.cpp:3339; HBT2.1 class-4
+  body) -> "(AB-21/AB-10/HBT2.1 class-4; CGS2A.4(a))" - full
+  text CGS2A.4(a), unchanged.
+- Rule-5 STOP-SCOPE PAUSE: "pause after a SUCCESSFUL tryLock
+  only" + "(markers only - C3 sweeper gate phase-independent,
+  F29)" trimmed to the CGS2A.4(a) pointer - full text there,
+  unchanged.
+- Rule-5 WAIT BOUND term enumeration (window + marker-pause
+  batch + F28 terms; NL ZERO per BL1.8/NA-I10) -> "(terms:
+  CGS2A.3)" - full text CGS2A.3, unchanged.
+- Rule-3 [r33] window-re-entry block compressed to the
+  CGS2A.4(b) pointer; trimmed wording ("the congc §3.1
+  per-window blocking GCL acquire is legal exactly because the
+  conductor is access-released all tenure"; "first-window
+  tryLock carve-out"; "Flag-gated useConcurrentSharedGCMarking;
+  flag-off frozen text operative") - full text CGS2A.4(b),
+  unchanged.
+- §A.3 rule-5 HBT2-HBT4 pointer: "(BINDING; r27 compressed; r33
+  amendment record)" -> "(BINDING; r27/r33 records)" - both
+  records unchanged.
+
+## Rev-34 section deltas
+
+- Header: rev 34 stamp.
+- §A.3 rule 3 (window re-entry) + rule 5: as recorded above
+  ([r34] markers in place).
+- No SD additions; no §T task scope changes; CG-I0 oracle holds:
+  every [r34] clause is either flag-gated
+  useConcurrentSharedGCMarking text or watchdog plumbing with no
+  flag-off observable delta (U-T5/U-T14 golden gates unchanged).
+- Body measured 49997/50000 bytes post-edit; this history file
+  uncapped.
+
+# REV 35 (2026-06-10) - composition-review fixes vs the r34
+# landing (external round; 4 findings, ALL VERIFIED REAL, 0
+# refuted; G-A/G-B/G-D land here, G-C lands in
+# SPEC-nativeaffinity-history.md r11)
+
+Re-verified vs the tree before ruling: Heap.cpp:4596-4673
+(election/poll GCL brackets - caller-side releases :4606,
+:4669, :4673), :5031 (the conduct's access-reacquire tail,
+conductorClient.acquireHeapAccess(), INSIDE
+conductSharedCollection), :5546-5596 (stop-scope ctors/dtor),
+:5584-5587 (quantum tryLock loop); JSThreadsSafepoint.cpp:445
+and :512; VMManager.cpp:553-566; SPEC-congc.md §9.1(2) (the
+governing untimed pause text) and §13.5(5) (gates (1)-(4), no
+r34-counterpart gate).
+
+## G-A (major, REAL) - PENDING-CONGC-COUNTERPART was a
+## bookkeeping marker, not a gate
+
+A congc-side implementer following only their governing annex
+ships the §9.1(2) pause exactly as written there: an untimed,
+unsampled BLOCK taken holding GCL AND the §LK.4b slot mutex,
+the conductor's next watchdog sample unreachable (it sits in
+the VMManager predicate loop) - with all four congc §13.5(5)
+gates green, because that list predates r34 and binds CG-3 to
+none of the F-A obligations. Composition status, stated
+honestly: the GCL leg's bound is STRUCTURAL
+(CGD7.2/CG-I26 + the :5584-5587 quantum loop); the PAUSE leg is
+NOT bounded until F-A items (1)/(4) land congc-side. (For the
+wait-under-rank composition question: no wait is added under
+heap rank 3 - m_worldLock is not held across §A.3 windows,
+VMManager.cpp:227-231 - or under api rank 3, CG-I16 + the §LK
+negative edges; the added waits sit under slot(4b)+GCL(2)
+only.)
+RULING: the marker is PROMOTED to a blocking SHIP GATE in the
+congc §13.5(5) style, direction reversed (recorded in the files
+this side owns): C1 and ANY useConcurrentSharedGCMarking stage
+implementing the §9.1(2) pause MUST NOT ship until the congc
+owner records F-A items (1) (timed, per-quantum-sampled pause)
+and (4) (CG-T8 wedged-marker arm) - back-cites congc ANNEX
+CGS2.4(a) + CGT1. Body rule-5 [r35] SHIP GATE sentence = the
+index; CGS2A.4(a) carries the in-place [r35] note.
+
+## G-B (major, REAL) - 'supported fan-in' referenced at four
+## sites, defined nowhere: the F-B queue-term bound was
+## non-falsifiable and the owed storm arm uncharterable
+
+Grep across SPEC-ungil{,-history}, SPEC-congc{,-history},
+SPEC-nativeaffinity{,-history} and CONGC-HANDOUT.md: the term
+existed only at the r34 citation sites (r34 body :278; this
+file's F-B ruling; the nativeaffinity r10 coordination note) -
+no numeric value, no formula, no owning annex; the definition
+obligation dangled between owners (term introduced ungil-side,
+cap congc-adjacent). Confirmed consequences: the boundedness
+claim degenerated to 'bounded by the 30s fail-stop' for ANY k;
+the storm arm had no pass/fail threshold; and the per-winner
+terms the cap multiplies carry no time bound of their own
+(window duration includes cooperative mutator convergence).
+RULING (option (b) of the finding - the honest downgrade; a
+number invented here would be unowned authority, congc owns the
+slot-arbitration design):
+- The queue term is a COUNT bound: requester total <= k x
+  (per-winner CGS2.3 sum + one full §A.3 stop window), k =
+  earlier winners, NO normative cap. 'Supported fan-in' is
+  RETIRED from normative text.
+- The SOLE TIME bound is the per-requester 30s fail-stop
+  (JSThreadsSafepoint.cpp:512); the adopted VMManager.cpp:553-
+  566 reading stands - a legitimate >30s queue fails LOUDLY.
+- The CG-T8 storm arm is RE-CHARTERED ATTRIBUTION-ONLY: any
+  fail-stop fired by queue serialization must name the
+  requesting VM (F-A item (3) threading); no
+  no-fail-stop-below-cap claim survives, none is testable.
+- The owed-congc list gains an OPTIONAL item: IF congc wants a
+  tighter-than-30s storm guarantee it must DEFINE a fan-in cap
+  in its own annex (proposed home: ANNEX CGT1 row) and
+  re-charter the arm; until then attribution-only IS the
+  chartered arm.
+
+## G-C (major, REAL; cross-file) - BL1.8 item-2 NL-reacquire
+## anchor sits inside the caller-held GCL
+
+Fixed in SPEC-nativeaffinity-history.md r11 (ANNEX BL1.8
+AMENDMENT: reacquire re-pinned AFTER the funnel's caller-side
+GCL release - election Heap.cpp:4606 / poll tail :4669,:4673 /
+the F28 successor's final release - with the NORMATIVE
+no-heap-rank>=2-held sentence (textual NA-I10 equivalence), the
+NL-acquire debug assert / U20 NL-edge lint obligation, and the
+stale :4955 anchor refreshed to :5031). Ungil-side consumer
+note: §LK row 9d's CGS2.2 chain walk ("GC-conduct NL>GCL edge
+REMOVED - nativeaffinity BL1.8") is RE-GROUNDED by that re-pin.
+Before it, BL1.8's literal item-2 anchor ("after the conduct's
+access-reacquire tail") licensed an NL reacquire in the window
+[post-Heap.cpp:5031, pre-:4606] - a heap-rank-2 holder ACQUIRING
+NL, contradicting NA-I10 and closing the ONE constructible cycle
+in the rebuilt merged table (T1 = BL1.6 §A.3 conductor holding
+NL, blocked in its HBT4-bracket tryLock loop :5568-5590 on T2's
+GCL; T2 = sync requester holding GCL post-final-close, parked in
+the NL reacquire behind T1; outcome = deterministic 30s
+watchdogAssertStopProgress fail-stop, JSThreadsSafepoint.cpp:512
+- loud, but a real deadlock from BINDING text, and CG-I19's
+depth==0 assert fires at conducting ENTRY only, not at the
+reacquire site). No ungil body change: row 9d already states the
+edge removal, which the r11 re-pin makes textually true.
+
+## G-D (major, REAL) - r34 moved body anchors and shipped no
+## cite-anchor refresh ledger
+
+The r34 edits shifted everything from §A.3 rule 3 onward by 1-3
+lines; the REV 34 record carries no ledger (unlike REV 33),
+while SPEC-nativeaffinity-history.md r9 re-anchored its two
+drifted cites explicitly "per the ungil r33 ledger" and directs
+ALL other SPEC-ungil.md:NNN cites through it - so
+nativeaffinity-side cross-refs mis-resolved by 1-3 lines. Fixed
+by the ledger below, which covers the r34 AND r35 moves
+cumulatively (old column = the values cross-spec readers
+currently hold from the r33 ledger/record).
+
+## Cite-anchor refresh ledger (r35; covers the r34+r35 moves;
+## for cross-spec readers - congc/nativeaffinity cites into
+## SPEC-ungil.md re-read here; the r33 ledger re-reads THROUGH
+## this one; pattern per congc ANNEX CGD7.4)
+
+| old (r33 ledger/record) | new (rev 35) | anchor |
+|---|---|---|
+| :232-248 | :229-247 | §A.3 rule 3 HBT4 order pin |
+| :254-292 | :253-295 | §A.3 rule 5 (R1.i bracket) |
+| :311-321 | :314-323 | §A.3 rule 8 (F8 GC-stop revert) |
+| :834-915 | :837-917 | §LK merged lock table |
+| :856-863 | :859-866 | §LK row 9c (CMS lock) |
+| :864-879 | :867-882 | §LK row 9d (marking-internal group) |
+
+Also re-verified this rev (r33-ledger rows below the moved
+region; all shifted, added for completeness):
+| :846-855 | :849-856 | §LK.4b slot-mutex row |
+| :893-899 | :896-902 | §LK long-hold NLS row |
+| :751-759 | :754-762 | §K.5 haveABadTime rule |
+| :659-661 | :662-664 | §F.6(e) spawned no-nested-VM |
+Unmoved: §A.1.5 index line :104 (the F-D home's body line;
+above the first r34 edit). nativeaffinity r9's two re-anchored
+cites (:311-321, :834-915) re-resolve via this ledger; its r11
+record carries the coordination note.
+
+## ANNEX CGS2A AMENDMENT (r35; BINDING; in-place [r35] notes at
+## CGS2A.3 and CGS2A.4(a))
+
+- CGS2A.3: queue term DOWNGRADED to a COUNT bound; 'supported
+  fan-in' RETIRED; sole TIME bound = the per-requester 30s
+  fail-stop; storm arm ATTRIBUTION-ONLY; congc cap optional
+  (G-B).
+- CGS2A.4(a): F-A items (1)/(4) PROMOTED to a BLOCKING ship
+  gate on C1/§9.1(2)-pause stages (G-A).
+
+## Rev-35 section deltas
+
+- Header: rev 35 stamp.
+- §A.3 rule 5: [r35] SHIP GATE sentence (index of G-A); queue
+  term re-worded to the COUNT-bound form (G-B); byte-funding
+  compressions (license: full text stays in the cited
+  annex/record; no semantic change): "conductor-as-client =
+  congc §9.1(8)/CGD7.1" -> CGS2A.4(a); "phase != NotRunning
+  BLOCK in pauseConcurrentMarkingForForeignStop" -> "phase-gated
+  pause BLOCK" (full ctor obligation: CGS2A.4(a) + congc
+  §9.1(2)); WATCHDOG COVERAGE routine name + "not nullptr" ->
+  REV 34 items (1)/(3); WAIT BOUND "the frozen ... reading" +
+  "(no lite/client ptr cached)" -> CGS2A.3 / REV 34 F-A
+  (U32 sub-claim); "r17 F1 + r18 F1, FULL text: history
+  ANNEXES" -> "r17/r18 F1 FULL: ANNEXES"; "OWED storm arm" ->
+  "ATTRIBUTION storm arm" (G-B re-charter); "HBT4.2 in-place
+  [r33] strike" -> "HBT4.2 [r33] strike".
+- No SD additions; no §T changes; CG-I0 oracle holds: every
+  [r35] clause is flag-gated useConcurrentSharedGCMarking text
+  with no flag-off observable delta.
+- Body measured 49999/50000 bytes post-edit; this history file
+  uncapped.

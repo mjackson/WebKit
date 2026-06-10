@@ -1,7 +1,10 @@
 # SPEC-nativeaffinity — per-NativeExecutable concurrency bit + native serial lock
 
-Status: DRAFT rev 8 (2026-06-07; review rounds 1-7 applied — history
-PART B; round 7 = the SPEC-congc cross-document pass). Frozen-spec
+Status: DRAFT rev 11 (2026-06-10; review rounds 1-7 applied — history
+PART B; round 7 = the SPEC-congc cross-document pass; rev 9 = the
+congc §13.5 gate-closure record, no review round — history PART B
+r9; rev 10 = EX1 cite restore + ungil-r34 coordination — history
+r10; rev 11 = BL1.8 reacquire re-pin — history r11). Frozen-spec
 conventions per the
 SPEC-{heap,vmstate,objectmodel,jit,api,ungil}.md family: normative
 clauses cite `file:line` (tree at branch jarred/threads as of this
@@ -180,20 +183,18 @@ conservatively safe by construction. Sites:
   path plumbs it into the funnel above (the marker is the unit the
   §5 audit flips).
 - Macro/registration layer (NEW rev 6, R5.5 — NA-I30; FULL text =
-  ANNEX SC2.5, BINDING): a defaulted `NativeConcurrency` parameter
-  (default Locked, NA-I6) threaded through
-  putDirectNativeFunction/WithoutTransition (JSObject.h:1007-1009)
-  + JSFunction::create into getHostFunction, plus trailing
-  defaulted JSC_NATIVE_* macro arguments (macro block
-  JSObject.h:2212-2228) — the opt-in stays greppable at the
-  prototype finishCreation call site.
+  ANNEX SC2.5, BINDING; r9 compressed): a defaulted
+  `NativeConcurrency` parameter (default Locked) threaded through
+  putDirectNativeFunction/WithoutTransition + JSFunction::create
+  into getHostFunction, plus trailing defaulted JSC_NATIVE_*
+  macro arguments — the opt-in stays greppable at the prototype
+  finishCreation call site.
 - Direct site, EXEMPT-CITED: `WebAssemblyFunction::create`
   (wasm/js/WebAssemblyFunction.cpp:101) mints a deliberately
   NON-interned CallIC-identity clone of the :99 funneled base.
-  Disposition: Locked UNCONDITIONALLY; consults the NA-I5 table
-  per-PAIR — clones are one entry, cannot diverge (CF1.1; DROP
-  side = NA-I26). NA-T7 NINTH
-  token family: `NativeExecutable::create(` callers.
+  Locked UNCONDITIONALLY; consults the NA-I5 table per-PAIR
+  (CF1.1; DROP side = NA-I26). NA-T7 NINTH token family:
+  `NativeExecutable::create(` callers.
 
 ### 2.2 Seed allowlist (index; FULL table = history ANNEX PT1, BINDING)
 
@@ -264,37 +265,33 @@ bypassing every §4 emitter (sites = SC1.4).
 
 NA-I20 (v1 disposition — conservative, NA-I8-style; REGROUNDED
 rev 3 R2.7, rev 4 R3.6; FULL enumeration + cites = ANNEX SC1.4,
-BINDING): on NL-eligible lites, every custom-accessor invocation
-is NL-bracketed AT THE DISPATCH FUNNEL — wrapping the typed
-`FunctionPtr` INVOCATION, NOT "the slow-path operation"; bracket
-form = NA-I31/ACQ1 (rev 7). Bracketed
-funnels (lint-pinned): `PropertySlot::customGetter`'s
-`m_data.custom.getValue(...)` (runtime/PropertySlot.cpp:36-48) and
-the put-side `customSetter(...)` invocations
-(runtime/JSObject.cpp:1449-1493 + PutPropertySlot-driven sites).
-Tag/symbol set = FIVE tags + TWO vmEntry symbols, ALL NA-T7 token
-families (SC1.4). gilOff IC suppression: the FOUR custom
-AccessCase kinds are NOT CREATED in gilOff mode
-(bytecode/Repatch.cpp:711-715/:1251; details SC1.4); the slow path
-reaches the bracketed funnels (unconditionally Locked v1 — no
-executable byte exists). DFG/FTL direct-call nodes are SEPARATE
-(§4.4.3, NA-I23). NA-X4: static-table marker, post-v1. Gate §9.2.
+BINDING; r9 compressed): on NL-eligible lites, every
+custom-accessor invocation is NL-bracketed AT THE DISPATCH
+FUNNEL — wrapping the typed `FunctionPtr` INVOCATION; bracket
+form = NA-I31/ACQ1 (rev 7). Bracketed funnels (lint-pinned):
+`PropertySlot::customGetter`'s `m_data.custom.getValue(...)`
+(runtime/PropertySlot.cpp:36-48) and the put-side
+`customSetter(...)` invocations (SC1.4). Tag/symbol set = FIVE
+tags + TWO vmEntry symbols, ALL NA-T7 token families (SC1.4).
+gilOff IC suppression: the FOUR custom AccessCase kinds are NOT
+CREATED in gilOff mode (bytecode/Repatch.cpp:711-715/:1251); the
+slow path reaches the bracketed funnels. DFG/FTL direct-call
+nodes are SEPARATE (§4.4.3, NA-I23). NA-X4: static-table marker,
+post-v1. Gate §9.2.
 
 ### 2.7 JSClassRef / JSCallbackObject embedder callbacks (NEW rev 6)
 
 NA-I27 (R5.2 — major; FULL text + site enumeration = ANNEX SC2.2,
-BINDING). JSCallbackObject's ClassInfo-methodTable overrides
-(API/JSCallbackObject.h:211-225) invoke raw JSClassRef embedder
-callbacks (enumerated SC2.2) — arbitrary client C
-reachable from a SPAWNED thread's plain property access on a
-shared-heap callback object; no NativeExecutable, no §4/§2.6
-surface, NOT a GlobalObjectMethodTable hook. v1: on NL-eligible
-lites every JSClassRef-callback INVOCATION EXPRESSION is
-NL-bracketed (no byte exists — the §2.6 rationale; bracket form =
-NA-I31/ACQ1, rev 7); finalize
-EXEMPT-CITED (GC context, NA-I10). NA-T7 ELEVENTH token family.
-NA-I24 amended: its exclusion covers GlobalObjectMethodTable hooks
-ONLY. NA-X7: refusal alternative, post-v1.
+BINDING; r9 compressed). JSCallbackObject's ClassInfo-methodTable
+overrides invoke raw JSClassRef embedder callbacks — arbitrary
+client C reachable from a SPAWNED thread's plain property access
+on a shared-heap callback object; no NativeExecutable, no §4/§2.6
+surface. v1: on NL-eligible lites every JSClassRef-callback
+INVOCATION EXPRESSION is NL-bracketed (bracket form = NA-I31/
+ACQ1, rev 7); finalize EXEMPT-CITED (GC context, NA-I10). NA-T7
+ELEVENTH token family. NA-I24 amended: exclusion covers
+GlobalObjectMethodTable hooks ONLY. NA-X7: refusal alternative,
+post-v1.
 
 ## 3. The native serial lock (NL)
 
@@ -314,24 +311,20 @@ lite registration, same append region and recipe as
     nativeLockEligible = vm.m_gilOff   // EVERY lite of the gilOff
                                        // VM: spawned AND carrier
 
-Rationale (normative; FULL text = history round 1, R1.1): GIL-off
-carriers run JS in PARALLEL with spawned threads
-(SPEC-ungil.md:272) — a carrier-exempt NL falsifies §0.3; carrier
-TIDs are NONZERO GIL-off (JSLock.cpp:350/:522), same NL1 loop.
-
-Flag-off and GIL-on processes never reach the byte at all (level-0
-discriminator, §4.1); a GIL-on VM's lites coexisting in a gilOff
-process emit 0 (vm.m_gilOff is per-VM). Today's instruction
-sequences execute unchanged in those modes (NA-I1, rev 4).
+Rationale (normative; FULL text = history round 1, R1.1; r9
+compressed): GIL-off carriers run JS in PARALLEL with spawned
+threads (SPEC-ungil §A.3.6) — a carrier-exempt NL falsifies §0.3;
+carrier TIDs are NONZERO GIL-off, same NL1 loop. Flag-off and
+GIL-on processes never reach the byte (level-0 discriminator,
+§4.1); a GIL-on VM's lites in a gilOff process emit 0. Today's
+instruction sequences execute unchanged in those modes (NA-I1).
 
 ### 3.2 Acquisition protocol (index; FULL pseudocode = history ANNEX NL1, BINDING)
 
-NL is park-capable and safepoint-polling. Cited protocol: SPEC-ungil
-§A.3.2/2b — threads park at poll sites on their own NVS ticket;
-"every park site polls post-wake BEFORE re-acquiring access or
-running JS/JIT" (§A.3.2b(ii)); the conductor proceeds when every
-entered thread is parked / not-entered / access-released (§A.3.1-2,
-per EXIT1).
+NL is park-capable and safepoint-polling. Cited protocol:
+SPEC-ungil §A.3.2/2b — NVS-ticket parks, post-wake polls before
+re-acquiring access or running JS/JIT; conductor predicate per
+§A.3.1-2/EXIT1.
 
 1. Fast path: CAS acquire (owner = lite/tid + depth word). Reentrant
    per-thread via a per-lite `m_nativeLockDepth` (depth survives the
@@ -381,10 +374,9 @@ family. NA-I26: `vmEntryToWasm` callers (LLIntThunks.h:72; three
 sites — WebAssemblyFunction.cpp:94, Interpreter.cpp:1316,
 JSMicrotask.cpp:203) are the SECOND callee-defined family, EX1
 site 9 / NA-T7 TWELFTH token family: each instantiates the drop
-scope around the WHOLE wasm activation (wasm->JS imports ride the
-wasmToJS stub, WasmToJS.cpp:350, invisible to vmEntry-symbol
-greps; FULL walk = ANNEX SC2.1, BINDING). The drop
-hook is a
+scope around the WHOLE wasm activation (wasm->JS imports ride
+the wasmToJS stub, invisible to vmEntry-symbol greps; FULL walk
+= ANNEX SC2.1, BINDING). The drop hook is a
 RAII `NativeLockDropScope` keyed on the per-lite depth word
 (`m_nativeLockDepth != 0` => save+release; destructor reacquires):
 zero work when depth is 0. Mode gating (rev 4 R3.11; rev 5 R4.5;
@@ -397,13 +389,12 @@ BL1.2).
 
 NA-I12 (exception safety of the drop). JSC propagates host
 exceptions by RETURN + pending-exception state (per-lite GIL-off
-`m_exception`: LLInt check LowLevelInterpreter64.asm:3199-3217;
-thunk `loadException` ThunkGenerators.cpp:524-536), NOT by C++
-unwinding through host frames. The RAII destructor therefore runs
-on every exit path INCLUDING exception-pending and MUST re-acquire
-even then, via the park-capable §3.2 loop; a termination trap
-observed mid-reacquire never bypasses re-acquisition — the frame
-above releases to depth 0 through the §4 brackets.
+`m_exception`), NOT by C++ unwinding through host frames. The
+RAII destructor therefore runs on every exit path INCLUDING
+exception-pending and MUST re-acquire even then, via the
+park-capable §3.2 loop; a termination trap observed mid-reacquire
+never bypasses re-acquisition — the frame above releases to depth
+0 through the §4 brackets (cites: ANNEX EX1).
 
 ### 3.4 Blocking and heap-access transitions while holding NL
 
@@ -414,8 +405,8 @@ NA-I13. NL never held across a VOLUNTARY heap-access transition
 (debug-assert `m_nativeLockDepth == 0`) or an indefinite block
 another mutator must release. EXEMPT from the assert: (a) §J.3
 park-site MANDATORY reverts — the rule-8 GC-stop F8 revert
-(SPEC-ungil.md:289-298) is legal WITH NL held at an NL1 stop poll
-(BL1.1); (b) rev 5, R4.7 — NARROWED rev 8, R7.1 (BL1.6's
+(SPEC-ungil §A.3.8; r35 anchor :314-323) is legal WITH NL held at
+an NL1 stop poll (BL1.1); (b) rev 5, R4.7 — NARROWED rev 8, R7.1 (BL1.6's
 sync-collection leg, derived vs the landed SINGLE-window
 conduct, is FALSIFIED by the SPEC-congc §3 window model;
 superseded BOTH sides, congc CGD6.1): the HBT4
@@ -428,10 +419,18 @@ park, or F28 successor — an N-window tenure under congc) instead
 instantiates the BL1.8 NL DROP SCOPE: NA-I11-style depth-saved
 FULL release BEFORE the request funnel
 (election/follower-park/conduct), park-capable §3.2 reacquire
-after the conduct tail / follower resume; congc CG-I19 carries
+[r11] after the funnel's CALLER-SIDE GCL release, holding NO
+heap rank >= 2 lock (= NA-I10; BL1.8 items 2/7) / follower
+resume; congc CG-I19 carries
 the matching `m_nativeLockDepth == 0` conducting-entry assert
 (F40 there). VOLUNTARY native-side transitions remain forbidden
-and asserted.
+and asserted. [r9] congc §13.5(4) GATE CLOSED: the BL1.8/CG-I19
+supersession reads RECORDED-BOTH-SIDES (this side BL1 [r9] note;
+congc side CG-I19/CGD6.1/§13.5(4), back-cite congc ANNEX
+CGS2.2-2.3 NL terms; ungil side SPEC-ungil rev 33 §LK row 9d
+consumes the edge removal). The CGS2.3 wait budget this clause
+leans on is now STRUCTURAL (congc F45, §9.1(2a)/CG-I26 fairness),
+landed ungil-side in SPEC-ungil §A.3 rule 5 [r33].
 
 NA-I21 (cross-VM nesting, R2.1; BL1.2). The §F.5 nested foreign-VM
 entry funnel (carrier-only, §F.6(e)) instantiates
@@ -455,8 +454,9 @@ negative edge, each with a constructible deadlock if violated.
 ### row = ANNEX BL1.7, BINDING; MOVED rev 7 under the size cap)
 
 Proposed SPEC-ungil §LK row **LK.1c "NativeSerialLock"**
-(SPEC-ungil.md:867-925): inner to heap rank 1; OUTER to api ranks
-1-3, heap ranks 2-10b (range VERBATIM, rev 4 R3.7) and all leaves.
+(SPEC-ungil §LK; r35 anchor :837-917): inner to heap rank 1;
+OUTER to api ranks 1-3, heap ranks 2-10b (range VERBATIM, rev 4
+R3.7) and all leaves.
 LONG-HOLD; acyclicity by the NA-I10 negative edge; §E.2 exemption
 LIMITED to §J.3 MANDATORY F8 reverts (NA-I13; U20 gains the
 matching exemption); conductor-HOLD clause (rev 5, R4.7; BL1.6 —
@@ -569,36 +569,25 @@ ftl/FTLLowerDFGToB3.cpp:14749-14796 — :14787/:14789); governed by
    c. DFG constant-InternalFunction lowering
       (dfg/DFGByteCodeParser.cpp:6080-6140; §2.5 caveat).
    d. DOMJIT signature dispatch (rev 4, R3.3; FULL text = ANNEX
-      SC1.1, BINDING): `signatureFor` -> `handleDOMJITCall` emits
-      CallDOM — direct, keyed on `DOMJIT::Signature`, NOT an
-      Intrinsic. RULE (mirrors b): gilOff getHostFunction passes
-      nullptr signature unless ConcurrentOk. $vm signatures
-      PT1-LOCKED. NA-I23's CallDOMGetter row does NOT cover
-      CallDOM.
+      SC1.1, BINDING; r9 compressed): `handleDOMJITCall` emits
+      CallDOM — direct, NOT an Intrinsic. RULE (mirrors b):
+      gilOff getHostFunction passes nullptr signature unless
+      ConcurrentOk. $vm signatures PT1-LOCKED. NA-I23's
+      CallDOMGetter row does NOT cover CallDOM.
    e./f. Intrinsic GETTER inlining, DFG + IC arms (rev 4, R3.4;
-      FULL text = ANNEX SC1.2): `handleIntrinsicGetter`
-      (DFGByteCodeParser.cpp:5263/:6743) and
+      FULL text = ANNEX SC1.2): `handleIntrinsicGetter` and
       `IntrinsicGetterAccessCase`/`emitIntrinsicGetter` execute
-      getter-native semantics with no call; closed by NA-I29 (the
-      rev-5 "disabled alongside b" wording is SUPERSEDED — see
-      below).
+      getter-native semantics with no call; closed by NA-I29.
    NA-I29 (NEW rev 6, R5.4 — the b/d nullptr RULEs do NOT close
    (a)/(e)/(f); FULL text = ANNEX SC2.4, BINDING; predicate
-   RE-TYPED rev 7, R6.2 per the SC2.4 rev-7 note —
-   handleIntrinsicCall's callee population is MIXED: builtin-JS
-   intrinsics reach the guard by design,
-   ExecutableBaseInlines.h:43-48 +
-   DFGByteCodeParser.cpp:2103-2104): in gilOff configs,
-   handleIntrinsicCall (DFGByteCodeParser.cpp:2095-2098),
-   handleIntrinsicGetter and canEmitIntrinsicGetter
-   (InlineCacheCompiler.cpp:4473) BAIL IFF the callee executable
-   isHostFunction() AND its NativeExecutable's m_concurrentOk
-   byte is clear (constant-foldable, NA-I3; NA-I23's
-   admission-side style). ScriptExecutable-carried intrinsics are
-   OUT OF SCOPE (JS semantics, ruled by core SPEC-ungil/SPEC-jit)
-   and remain admitted; the getter arms are host-only today but
-   use the same discriminator. The b/d suppressions remain for
-   the thunk/CallDOM arms.
+   RE-TYPED rev 7, R6.2 per the SC2.4 rev-7 note; r9
+   compressed): in gilOff configs, handleIntrinsicCall,
+   handleIntrinsicGetter and canEmitIntrinsicGetter BAIL IFF the
+   callee executable isHostFunction() AND its m_concurrentOk
+   byte is clear (constant-foldable, NA-I3).
+   ScriptExecutable-carried intrinsics are OUT OF SCOPE and
+   remain admitted; the b/d suppressions remain for the
+   thunk/CallDOM arms.
    Lint NA-T6 over the union sets (enumerated TC1); rev 6: the
    three NA-I29 guards exist and fire (SC2.4 witness) — a
    locked-but-bypassed member is a build error in gilOff test
@@ -773,7 +762,8 @@ carrier-queued, refused, unreachable}. The bit COMPLEMENTS this:
          indefinite blocks; exempt: rule-8 F8 reverts (BL1.1) +
          §A.3 conductor/loser transitions ONLY (rev 5; NARROWED
          rev 8 — sync-collection conduct = the BL1.8 drop, congc
-         CG-I19 both sides; §3.4/BL1.6/BL1.8).
+         CG-I19 both sides RECORDED [r9], §13.5(4) closed;
+         §3.4/BL1.6/BL1.8).
 - NA-I14 Emitters release NL before the post-call exception branch
          (§4.1).
 - NA-I15 The check shape is load8+branch on the gilOff-mode-split
@@ -847,7 +837,8 @@ normative and includes every rev 2-4 arm.)
   NA-I11/NA-I12; CachedCall, module, small-arity (With2),
   microtask-runner and rev-6 wasm arms (TC1).
 - NA-T4 Conductor liveness vs NL holder/waiters within watchdog
-  (rev 8: vs the congc CGS2.3 budget);
+  (rev 8: vs the congc CGS2.3 budget; [r9] budget STRUCTURAL per
+  congc F45/§9.1(2a) — arm asserts, not samples);
   wake-mid-stop, lost-wakeup, multi-waiter, GC-stop-with-NL arms;
   rev 5 conductor-holds-NL arm (haveABadTime leg; sync-collection
   leg RE-ARMED rev 8 per BL1.8 — drop expected, not hold); rev 6
@@ -894,7 +885,13 @@ normative and includes every rev 2-4 arm.)
    clause lands NARROWED (§A.3 conducts only; sync-collection =
    the BL1.8 drop, both sides with congc CG-I19/CGD6.1); the §LK
    delta is COORDINATED with congc §13.5(1)-(3) — watchdog
-   budget stated ONCE (congc CGS2.3).
+   budget stated ONCE (congc CGS2.3). [r9] congc §13.5(1)-(3)
+   are CLOSED (SPEC-ungil rev 33: §LK rows 9c/9d + U20 ext, the
+   rule-5/HBT4.5 amendment incl. the CGS2.3 budget + F43 strike,
+   the HBT4 re-entry extension — anchors per the ungil r33
+   ledger); LK.1c/§LK.4b/api-§5.9 REMAIN OPEN — this gate does
+   NOT close; the row 9d chain walk (CGS2A.2) cites LK.1c as
+   pending.
 2. SPEC-jit gilOff-mode codegen note (jit R1.e family extension,
    both sides) covering BY NAME (rev 4, R3.9; rev 6 R5.4; rev 7
    R6.2/R6.6): (a) the §4.3/§4.4 bracket arms INCLUDING the

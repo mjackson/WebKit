@@ -1,6 +1,6 @@
 # SPEC-congc-history.md
 
-Companion to `SPEC-congc.md` (draft rev 8). Per the frozen-spec
+Companion to `SPEC-congc.md` (draft rev 10). Per the frozen-spec
 convention: this file is NON-NORMATIVE EXCEPT the sections marked
 ANNEX ... (BINDING), which are part of the binding spec text and
 exist here only for the body size cap (50000 bytes).
@@ -942,6 +942,327 @@ Open items for the review loop (tracked, not yet ruled):
     CGA2/CGP1 body indexes compressed (annexes already GOVERN);
     body 49,992 bytes.
 
+- rev 9 (2026-06-10): DIRECTED REVISION ROUND 1 (triage +
+  confirmed findings; reviewed against tree commit 43fd5fb94387,
+  "GIL removal complete" — the IMPLEMENTED engine is now ground
+  truth). TRIAGE RESULT (recorded as the round's first finding):
+  all 6 round-6 findings (F35-F39, 5 distinct) and all 3
+  compose-round findings (F40-F42) are REAL-AND-FIXED; zero
+  REAL-AND-UNFIXED; zero CHURN (0 refuted across all rounds; the
+  14->13->7->8->7->6 plateau decomposes into fix-induced cascades
+  — F37<-F31, F28<-F23, F29/F30<-F26, F20<-F10 — plus reviewers
+  reaching later-stage surfaces only after earlier text
+  stabilized). Engine symbols spot-verified live:
+  conductTIDRebiasUnderSharedStop (Heap.cpp:4763),
+  rebiasSnapshotForConductor/noteRebiasRestampComplete/
+  sawFullCollectionThisStop (:4924-4978); CGA2 R10 consumers
+  (:2865, :4402, :4571, :5136). FREEZE GATE: UNMET — the rev-7/8
+  fix texts have never survived an adversarial round; given the
+  demonstrated fix-induced-finding rate, rev 9 freezes ONLY after
+  a clean pass over the rev-7/8/9 deltas (§8.3/CGD5.1, §9.2(1)
+  F36 deletion, CGA1 A4, CGA2 R10, §9.2(5)/CGD5.2, CGD6.1,
+  LK.9c/9d + §13.5 gates, CGS2, and rev 9's F43-F47). The §13.5
+  counterpart edits (SPEC-ungil §LK rows + U20 extension +
+  CGS2 fold; SPEC-nativeaffinity NA-I13/BL1.8 rows) remain
+  PENDING on their owners — gates stay open. Open items 2
+  (§5.3(3) fence-pin cost, perf-only) and 4 (CG-I12 window
+  bound, measured by CG-T8) remain open by design.
+  New findings, ALL ACCEPTED after verification; none refuted:
+  - F43 (blocker): §9.1/CGS2.4(a) modeled the §A.3 conductor as
+    an allocation-free, access-less closure; the IMPLEMENTED
+    conductor re-acquires its own client heap access inside the
+    JSThreadsStopScope/GCL window (AB-21, commit 353a3100fd61 —
+    PREDATING rev 8's verification stamp; VMManager.cpp:631-646;
+    Class-A fire bodies take DeferGC and run write barriers) and
+    is licensed to run WeakSet::sweep/shrink +
+    Heap::sweepNextLogicallyEmptyWeakBlock from its in-window
+    allocation slow path (AB-10, commit 43fd5fb94387; assert
+    disjuncts WeakSet.cpp:81/:106, Heap.cpp:3339) —
+    WeakBlock::destroy from a mid-GC-cycle §A.3 window is
+    neither epoch reclaim nor quarantine-routed jettison, so
+    §9.1(4) was false the moment §9.1(1) lands; and the spec had
+    NO row for conductor-client CMS appends with markers paused,
+    conductor allocation under m_isMarking, or conductor
+    sweep-to-freelist vs CG-I5. FIX: §9.1(4) carve-out + new
+    §9.1(8) (conductor = FULL CLIENT in-window) + CG-I25 +
+    CG-T8 F43 arm; CGS2.4(a) "ALLOCATION-FREE" STRUCK (both
+    sides — the pending ungil-side row text amended here);
+    full walk ANNEX CGD7.1.
+  - F44 (major): §5.2's motivating claim was STALE — commit
+    43fd5fb94387 already serializes the server stack
+    (m_mutatorMarkStack->setMultiProducerAccess() when
+    useSharedGCHeap, Heap.cpp:485-497, with the exact
+    lost-increment-UAF rationale in-tree) and made
+    m_barriersExecuted relaxed-atomic (:1448-1452). The CMS
+    soundness motivation is solved in-tree by a different
+    mechanism; "!C1R byte-for-byte" must mean the LANDED
+    multi-producer shape. FIX: §5.2 re-grounded (CMS =
+    contention/scaling + window-drain accounting); NORMATIVE:
+    the server stack KEEPS multi-producer mode under C1R (its
+    remaining producers are the F31/F43 conductor-context
+    appends; narrowing is a chartered perf follow-up); CGA1
+    A4/A6 amended. Superseded both sides within this spec (the
+    rev 2-8 "lock-free, one mutator" text reads through this
+    entry).
+  - F45 (major): CGS2.3's §A.3 GCL-wait budget had NO enforcing
+    mechanism — the landed acquisition is an unqueued 1ms
+    tryLock poll (watchdog ctor Heap.cpp:5568-5590, used by the
+    real conductor at VMManager.cpp:577) with no ParkingLot
+    queue position, racing the spec's BLOCKING per-window
+    re-acquire; with back-to-back fixpoint windows nothing
+    structural made the §A.3 requester win a gap, and the
+    failure mode is watchdogAssertStopProgress's deterministic
+    fail-stop (JSThreadsSafepoint.cpp:512 — the spec's :401/:412
+    cites were stale). FIX: §9.1(2a) foreign-waiter fairness
+    rule (m_foreignGCLWaiters counter; WND-open re-entry defers
+    while nonzero); CG-I26; CGS2.3 amended (budget STRUCTURAL;
+    CG-T8 verifies, not samples); mechanism ANNEX CGD7.2.
+  - F46 (major): conductSharedCollection installs the main VM's
+    AtomStringTable on the conductor thread for the WHOLE
+    conduct (Heap.cpp:4885-4889) under an "every mutator is
+    parked" license — false BETWEEN windows, where the table's
+    owner runs JS and mutates it; CGA2 R3 mischaracterized the
+    install as an in-window site (it is a tenure-wide TLS
+    install). FIX: §3.7 ATOM-TABLE PIN — per-window
+    install/restore once any §13.2 flag is on, no AtomString
+    ops between windows, debug null-out between windows;
+    CG-I27; CGA2 R3 amended; ruling ANNEX CGD7.3.
+  - F47 (major): §9.1(2)/F18 said "the ctor" (singular) — the
+    tree has TWO JSThreadsStopScope ctors (blocking
+    Heap.cpp:5546-5566; watchdog tryLock-poll :5568-5590, the
+    one the REAL conductor uses); the pause obligation must
+    live in BOTH (watchdog: after tryLock success, never per
+    failed iteration), and the watchdog ctor's tryLock loop is
+    itself a landed GCL tryLock site with no §3.4/CGD6.2
+    disposition (post-spec it succeeds mid-cycle BY DESIGN).
+    FIX: §9.1(2) names both overloads + exact placement +
+    construction sites (VMManager.cpp:577 watchdog;
+    JSThreadsSafepoint.cpp:445 + SharedHeapTestHarness.cpp:1039/
+    :1073/:1107 blocking); CGD6.2 gains the watchdog-ctor row
+    (PROCEED — §9.1(1) legalizes the foreign mid-cycle hold; no
+    back-off; participates in the F45 waiter counter); CG-T1
+    lint covers it.
+  - Cite refresh (the 6th confirmed finding): rev 8's
+    "verified 2026-06-07" stamp predated four Heap-touching
+    commits (through 43fd5fb94387); essentially every Heap.cpp
+    cite >= :1430 was off by +16..+115, with two SEMANTIC
+    drifts: (1) runSafepointHooksAndReclaim gained a
+    hasRetiredItems() early-return (Heap.cpp:5059-5060, commit
+    de1d22dc) — §8.1/CG-I11 restated (hooks unconditional;
+    bump/stamp/suspension only on retiring cycles); (2) the
+    core-constraint m_terminationException root visit is now an
+    atomic load (Heap.cpp:3765) — the CGN1/CG-A2 charter now
+    explicitly includes runtime/-side visitor inputs the
+    heap/**-only grep set cannot catch. Body re-verified and
+    re-stamped vs 43fd5fb94387; earlier-rev annex cites read
+    through the ANNEX CGD7.4 ledger (BINDING).
+  Size cap: §9.1(2a)/(4)/(8), §3.7 atom pin and the rev-9 full
+  walks live in ANNEX CGD7; body compressed back under 50000.
+
+- rev 10 (2026-06-10): DIRECTED REVISION ROUND 2 — a
+  VERIFICATION pass over the rev-9 deltas (F43-F47 + the cite
+  refresh). RESULT: all 7 rev-9 items re-verified ACTUALLY-FIXED
+  with accurate tree grounding; ZERO new blocker/major findings;
+  ZERO churn; NO normative deltas — no ruling moves, so no
+  supersession entry moves (CGS1/CGS2 rows UNCHANGED; the
+  both-sides convention has nothing to record this round beyond
+  this log). Verification anchors (rev-10 body line numbers;
+  the rev-10 status edit preserves all line positions <= :759,
+  so the rev-9 anchors below remain live):
+  - F43 (was blocker): §9.1(8) full-client rule at
+    SPEC-congc.md:597-609, §9.1(4) carve-out at :562-576,
+    CG-I25, ANNEX CGD7.1. Code: conductor self-access
+    re-acquire `VMManager.cpp:631-646` (AB-21); in-window
+    weak-sweep license assert disjuncts `WeakSet.cpp:81`/`:106`,
+    `Heap.cpp:3339` (AB-10).
+  - F44 (was major): §5.2 re-grounding at SPEC-congc.md:259-285;
+    CGA1 A4/A6 amended. Code: `setMultiProducerAccess()` under
+    `useSharedGCHeap` `Heap.cpp:485-497`; relaxed-atomic
+    `m_barriersExecuted` `:1443-1452`; append `:1499`.
+  - F45 (was major): §9.1(2a) foreign-waiter fairness + CG-I26,
+    ANNEX CGD7.2. Code: watchdog-ctor tryLock poll
+    `Heap.cpp:5584-5587`; election hold `:4628`;
+    `watchdogAssertStopProgress` `JSThreadsSafepoint.cpp:512`.
+  - F46 (was major): §3.7 ATOM-TABLE PIN at SPEC-congc.md:199-204
+    + CG-I27, ANNEX CGD7.3. Code: tenure-wide install
+    `Heap.cpp:4885-4889`.
+  - F47 (was major): both-ctors pause text at
+    SPEC-congc.md:521-536; CGD6.2 watchdog row pointer at
+    :156-158. Code: blocking ctor `Heap.cpp:5546-5566`, watchdog
+    ctor `:5568-5590`.
+  - Cite refresh: re-stamp at SPEC-congc.md:12-14 + the CGD7.4
+    ledger; ~25 load-bearing cites spot-checked accurate; both
+    semantic drifts restated in-body (`:5059-5060` reclaim fast
+    path at :466-469 and CG-I11 at :755-759; atomic
+    `m_terminationException` at :478-481).
+  Cross-checks run, all clean: (a) the F45 waiter counter vs the
+  §9.2(5) teardown back-off — livelock-free per CGD7.2 rule 1's
+  decrement-on-hold; (b) F43 vs CG-I1/I5/I15/I19 — consistent;
+  (c) CGD7.1(e) vs the landed SPEC-ungil.md:256-268 R1.i class-4
+  variant — aligned (ungil already licenses in-window alloc for
+  class-4 conductors); (d) HEAD drift: c8de3791 touches only
+  runtime/DeferredWorkTimer*/SparseArrayValueMap — no cited line
+  moved; the 43fd5fb94387 stamp + CGD7.4 ledger remain valid
+  (note appended to CGD7.4).
+  FREEZE GATE: STILL UNMET, by the spec's own rule. (1) The
+  §13.5 adoption gates (body :905-915) are all 4 still OPEN —
+  the SPEC-ungil §LK LK.9c/9d rows + U20 lint extension
+  (CGS2.1-2), the §A.3 rule-5/HBT4.5 + U32 wait-bound amendment
+  (CGS2.3, F45-structural), the HBT4 window-re-entry extension
+  (CGS2.4, carrying the F43 ALLOCATION-FREE strike), and the
+  nativeaffinity NA-I13/BL1.8 rows are PENDING on their owners;
+  they cannot land from this round (write set = the three congc
+  files) and they BLOCK C1/freeze per §13.5. (2) CG-7 (body
+  :942-948) requires a clean adversarial round over the
+  rev-7/8/9 deltas: rev 10 constitutes ONE clean directed pass
+  over the rev-9 deltas; the rev-7/8 deltas (rev 9 log list)
+  still need theirs. Status stays DRAFT, NOT converged.
+  Tracked items 2 (§5.3(3) fence-pin cost, perf-only) and 4
+  (CG-I12 window bound, CG-T8-measured) remain open by design.
+  CLOSURE PLAN recorded: (i) owners land the §13.5 counterparts
+  in a round whose write set includes SPEC-ungil(-history) and
+  SPEC-nativeaffinity(-history), then the gates close in §13.5;
+  (ii) one final adversarial pass scoped to the rev-7/8/9 delta
+  list; clean -> execute CG-7 (CGS1/CGS2 supersessions recorded
+  both sides, size-cap check, freeze).
+  Size cap: the rev-10 status/§13.5/CG-7 edits are offset by
+  compressing §13(3)(b)-(c) and §13(4) — NO content lost: the
+  §13(4) full discipline text lives VERBATIM in ANNEX CGS1/CGS2
+  + the rev 8 log entry above; the §13(3) deltas dropped only
+  prose duplicated at §9.1(2)/F45. Body = 49,983 bytes.
+
+- rev 11 (2026-06-10): DIRECTED REVISION ROUND 3 — one
+  confirmed finding (major): the freeze gate REMAINS UNMET, is
+  accurately tracked, and is UNCLOSABLE within this round's
+  write set (SPEC-congc{,-history}.md + CONGC-HANDOUT.md only);
+  the spec correctly stays DRAFT, NOT converged. Disposition:
+  (1) GATES: all four §13.5(5) adoption gates re-confirmed OPEN
+  (body :905-915, restamped "at rev 11") — CGS2.1-2 (SPEC-ungil
+  §LK LK.9c/9d + U20 extension; blocks the §5.2 CMS lock and
+  C1), CGS2.3 (§A.3 rule-5/HBT4.5 + U32 wait-bound amendment,
+  F45-structural, shared with nativeaffinity BL1.6/BL1.8;
+  blocks C1), CGS2.4 (HBT4 order extended to window re-entry,
+  carrying the F43 ALLOCATION-FREE strike; blocks the §3.1
+  re-entry blocking acquire), nativeaffinity BL1.8 NL-drop
+  (F40; blocks C1 gilOff). Closing them requires edits to
+  SPEC-ungil{,-history}.md and SPEC-nativeaffinity{,-history}
+  .md — outside this round's permitted writes; they stay
+  SUPERSESSION-PENDING per §13.5(4).
+  (2) CG-7 SCOPE RULING (the one normative delta this round;
+  body :942-948 rewritten): the rev-9 deltas (F43-F47 + the
+  cite refresh) are ruled COVERED — rev 10 was a clean directed
+  pass over exactly that delta set, all 7 items re-verified
+  actually-fixed against the tree with 0 new findings (rev 10
+  log anchors), which satisfies CG-7's own wording for that
+  slice. CG-7's remaining precondition narrows to ONE clean
+  adversarial pass over the rev-7 and rev-8 deltas (rev 9 log
+  list). This ruling moves NO frozen-spec text: CG-7 is a
+  congc-internal task row, so the both-sides supersession
+  convention has nothing to record — CGS1/CGS2 rows UNCHANGED.
+  (3) NO new contradictions confirmed at rev 10/11: header,
+  §13.5(5), CG-7, and this log are mutually consistent; the
+  VMManager.cpp:637 "allocation-free" comment is the R1.i
+  DEFAULT-conductor rule and SPEC-ungil.md:256-268 carries the
+  class-4 supersession (access retained, alloc legal
+  in-window), aligned with CGD7.1(e). No new tree-grounding
+  claims made this round (docs-only, no git): the 43fd5fb94387
+  verify stamp + c8de3791 drift check + CGD7.4 ledger stand as
+  recorded at rev 10.
+  (4) Tracked items 2 (§5.3(3) fence-pin cost, perf-only) and 4
+  (CG-I12 window bound, CG-T8-measured) remain open by design;
+  non-blocking.
+  CLOSURE PLAN (unchanged shape, rev-10 step now counted):
+  (i) a round whose write set includes SPEC-ungil{,-history}.md
+  and SPEC-nativeaffinity{,-history}.md lands the four §13.5
+  counterpart rows (CGS2.1-4; NA-I13/BL1.8), then §13.5(5)
+  flips them CLOSED here; (ii) one adversarial pass scoped to
+  the rev-7/8 deltas only; on a clean result execute CG-7
+  (CGS1/CGS2 supersessions recorded both sides, size-cap check,
+  freeze).
+  ANCHOR PRESERVATION: the rev-11 edits keep the body at 952
+  lines with every edited region replaced line-for-line (header
+  :1-14 within :1-17; §13.5(5) :905-915; CG-7 :942-948), so ALL
+  rev-9/rev-10 log anchors remain live at their recorded
+  positions. Size cap: header compression (charter prose
+  shortened, no content lost — full prior wording in the rev 10
+  log above) absorbs the edits; body = 49,962 of 50,000 bytes.
+  CONGC-HANDOUT.md: in the write set but NOT created this
+  round — no finding touches it and no handout exists to
+  restate; deferred to the freeze (CG-7) packaging step.
+
+- rev 12 (2026-06-10): DIRECTED REVISION ROUND 4 — one
+  confirmed finding (major): the freeze gate REMAINS UNMET at
+  rev 11, accurately tracked, and STILL UNCLOSABLE within this
+  round's write set (SPEC-congc{,-history}.md +
+  CONGC-HANDOUT.md only); the spec correctly stays DRAFT, NOT
+  converged. Disposition:
+  (1) GATES: all four §13.5(5) adoption gates re-confirmed
+  OPEN, restamped "at rev 12" (body :907; same rows as the
+  rev 11 log: CGS2.1-2 blocking the §5.2 CMS lock and C1;
+  CGS2.3 F45-structural, shared with nativeaffinity
+  BL1.6/BL1.8, blocking C1; CGS2.4 with the F43
+  ALLOCATION-FREE strike, blocking the §3.1 re-entry blocking
+  acquire; nativeaffinity BL1.8 NL-drop F40, blocking C1
+  gilOff). Closing them still requires edits to
+  SPEC-ungil{,-history}.md and SPEC-nativeaffinity{,-history}
+  .md — outside this round's permitted writes; rows stay
+  SUPERSESSION-PENDING per §13.5(4). CG-7's precondition is
+  unchanged from the rev 11 narrowing: ONE clean adversarial
+  pass over the rev-7/8 deltas only (rev 9 log list); the
+  rev-9-delta coverage ruling stands as recorded in the rev 11
+  log. No frozen-spec text moves this round, so the both-sides
+  supersession convention again has nothing to record —
+  CGS1/CGS2 rows UNCHANGED.
+  (2) CITE FIX (the one textual delta beyond restamps): the
+  GCL-busy/election timed wait — `m_gcElectionCondition
+  .waitFor(*m_threadLock, 1_ms)` — is at `Heap.cpp:4627`, not
+  `:4628`, both at HEAD and at pinned 43fd5fb94387 (`:4628` is
+  the closing brace line). Fixed at BOTH body occurrences:
+  §2.2 (:58, "GCL-busy wait") and §9.1(2a) (:551, election
+  loser's timed wait). The §9.1(3) §10.2 GCL-busy-rule RANGE
+  cite `:4616-4628` is correct as a range (it spans the
+  release/lock/wait block) and is unchanged. The CGD7.4 ledger
+  row that produced the off-by-one (old `:4554` -> new
+  `:4628`, runSharedGCElection internals) is corrected by the
+  rev-12 BINDING addendum appended to CGD7.4 below: `:4554` ->
+  `:4627`. Ledger correction is congc-internal (CGD7.4 is a
+  congc history annex), so both-sides = body + history here.
+  (3) ENGINE GROUND-TRUTH RE-CONFIRMED this round (live tree
+  reads): watchdog-ctor tryLock poll calling
+  watchdogAssertStopProgress at `Heap.cpp:5584-5587`;
+  per-window atom-table install at `Heap.cpp:4885-4889`;
+  `watchdogAssertStopProgress` definition at
+  `JSThreadsSafepoint.cpp:512`; `m_foreignGCLWaiters` absent
+  from Source/JavaScriptCore/** (correct — §9.1(2a) is
+  NORMATIVE, not landed). No other tree-grounding claims made
+  (docs-only, no git): the 43fd5fb94387 verify stamp +
+  c8de3791 drift check + CGD7.4 ledger (as corrected) stand.
+  (4) Tracked items 2 (§5.3(3) fence-pin cost, perf-only) and
+  4 (CG-I12 window bound, CG-T8-measured) remain open by
+  design; non-blocking.
+  CLOSURE PLAN (unchanged from rev 11): (i) a round whose
+  write set includes SPEC-ungil{,-history}.md and
+  SPEC-nativeaffinity{,-history}.md lands the four §13.5
+  counterpart rows (CGS2.1-4; NA-I13/BL1.8), then §13.5(5)
+  flips them CLOSED here; (ii) one adversarial pass scoped to
+  the rev-7/8 deltas only; on a clean result execute CG-7
+  (CGS1/CGS2 supersessions recorded both sides, size-cap
+  check, CONGC-HANDOUT.md created as freeze packaging,
+  freeze).
+  ANCHOR PRESERVATION: rev-12 edits keep the body at 952 lines
+  with every edited line replaced in place (header :1-7 within
+  :1-17; §2.2 :58; §9.1(2a) :551; §13.5(5) :907; CG-7 :946),
+  so ALL rev-9/10/11 log anchors remain live at their recorded
+  positions. The header's rev-9-COVERED parenthetical moved
+  out of the header to make room for the cite-fix note; its
+  full text remains normative in the CG-7 task row
+  (:942-945) and the rev 11 log. Size cap: body = 49,958 of
+  50,000 bytes.
+  CONGC-HANDOUT.md: in the write set but NOT created this
+  round — unchanged ruling from rev 11 (no finding touches it;
+  no handout exists to restate); deferred to the freeze (CG-7)
+  packaging step.
+
 ---
 
 ## ANNEX CGA1 (BINDING) — "the mutator"-singular audit table
@@ -966,9 +1287,9 @@ same discipline). Dispositions per SPEC-congc §4.3.
 | A1 | `m_worldState` bit machine: `Heap.cpp:2348` (stopTheMutator), `:2390` (resumeTheMutator), `:2421-2459` (stopIfNecessarySlow), `:2497-2533` (waitForCollector), `:2534-2600` (acquireAccessSlow), `:2601-2670` (releaseAccessSlow), `:2652-2686` (conn relinquish + unpark), `:2688-2714` (handleNeedFinalize), `:2747` (notifyThreadStopping), asserts `:2354-2384` | LANDED-N-ARY (superseded when ISS) | Unreachable/no-op once ISS (RELEASE_ASSERTs `:2352`, `:2393`; reroute `:2421-2427`, `:2545-2616`); CG-I7 keeps them dead in ALL stages. `!ISS`: untouched (CG-I0). |
 | A2 | `m_mutatorDidRun` writes `Heap.cpp:2433, 2519, 2594` (legacy paths); consumer `:2234-2237` (`m_mutatorExecutionVersion`) | FOLDED | §4.1: per-client `m_didRunSinceLastWindow` set in AHA success tail + SINFAC hot-poll exit; conductor ORs into the `:2234` consumer at WND-open, clears in-window. Legacy writes stay `!ISS`-only. CG-I9. |
 | A3 | `m_mutatorSlotVisitor` (`Heap.h:1182`; ctor `Heap.cpp:378`; `forEachSlotVisitor` `HeapInlines.h:279`; assist use `Heap.cpp:3974`) | STAGE-GATED (C4) | §7.4: per-client assist visitors registered at ACT; the server's `m_mutatorSlotVisitor` remains for `!ISS` and as the conductor's own assist slot. CG-I14. |
-| A4 | `m_mutatorMarkStack` (`Heap.h:1183`; lock-free append `Heap.cpp:1479`; clear `:527`, `:1809`; size log `:1929`; empty assert `:2032`) | FOLDED | §5.2 CMS: per-client stack + leaf lock when C1R; window/threshold drains under `m_markingMutex`. AMENDED rev 7 (F37 — the rev 2 "at endMarking" placement deterministically fired on F31's conductor-context appends, which PRECEDE endMarking at `:2036-2039`): the relocated "all CMS empty" walk stays at the LANDED `:2032` site (top of runEndPhase, after `m_helperClient.finish()`, strictly BEFORE the first conductor-context writeBarrier batch), where it is sound — the final window's §3.1(e) WND-open drain emptied every CMS and WSAC bars client appends since; the server/race-stack asserts stay there too (conductor-context server appends also postdate the site). CG-T11 C1 executing-CodeBlocks arm. CG-I2/I10. |
+| A4 | `m_mutatorMarkStack` (`Heap.h:1215`; append `Heap.cpp:1499` — MULTI-PRODUCER once `useSharedGCHeap`, ctor `:485-497`, F44 rev 9; clear/log/empty-assert sites per CGD7.4; empty assert `:2063-2064`) | FOLDED | §5.2 CMS: per-client stack + leaf lock when C1R; window/threshold drains under `m_markingMutex`. AMENDED rev 7 (F37 — the rev 2 "at endMarking" placement deterministically fired on F31's conductor-context appends, which PRECEDE endMarking at `:2036-2039`): the relocated "all CMS empty" walk stays at the LANDED `:2063-2064` site (top of runEndPhase, after `m_helperClient.finish()`, strictly BEFORE the first conductor-context writeBarrier batch `:2067-2069`), where it is sound — the final window's §3.1(e) WND-open drain emptied every CMS and WSAC bars client appends since; the server/race-stack asserts stay there too (conductor-context server appends also postdate the site). CG-T11 C1 executing-CodeBlocks arm. CG-I2/I10. |
 | A5 | `m_mutatorShouldBeFenced`/`m_barrierThreshold` (`Heap.h:722-726, 1209`; writes `Heap.cpp:473-474`, `:3928-3940`, raises/lowers `:1111`, `:1247`, init `:4456`; readers `:714`, `:746`, `:1433`, `:3324`; JIT bakes `addressOf*` `Heap.h:723,726`) | FOLDED | §5.3: server master mutated in-window only + FEP; per-client copies republished in the mutating window; consumers read current client's copy when ISS. JIT address: §13.3(a) charter; GIL-off pinned always-fenced until it lands. CG-I3. |
-| A6 | `m_barriersExecuted++` (`Heap.cpp:1432`; reset `:2301`) | RACY-TOLERATED | Diagnostic counter; relaxed increments documented benign (TSAN suppression row). |
+| A6 | `m_barriersExecuted` (`Heap.cpp:1448-1452`; reset per CGD7.4) | RACY-TOLERATED | AMENDED rev 9 (F44): landed as relaxed atomic load/store (43fd5fb94387) — no longer a plain `++`; lost updates documented benign in-tree; the TSAN suppression row RETIRES (no plain-access report remains). |
 | A7 | `sanitizeStackForVM(vm())` (`Heap.cpp:1704`, `:2206`, `:2675`) | VM-SINGULAR-DEFERRED | Per-VM, not per-mutator; self-guards on entered state. Post-GIL per-thread stacks are vmstate/ungil territory (lite-owned stacks); conductor calls it only in-window. |
 | A8 | shadow chicken + `vm().topCallFrame` (`Heap.cpp:2253-2254`) | VM-SINGULAR-DEFERRED | In-window read of the one main VM's state; ungil §A.1 reroutes topCallFrame per-lite — when that lands this becomes a registry walk (already noted in-tree `:2249-2252`). |
 | A9 | `mutatorState()` / `m_mutatorState` (`Heap.cpp:583`, `:3337`, `:3384-3390`; slot dispatch `Heap.h:1080-1095`) | LANDED-N-ARY | Already per-client via `mutatorStateSlot()` routing when ISS (Heap.h:1080-1095). No change. |
@@ -1061,7 +1382,7 @@ row; the C2 change adds rows for any site this table misses
 |---|---|---|
 | R1 | `conductSharedCollection(GCClient::Heap&)` signature (`Heap.cpp:4757`) | Parameter becomes nullable (`GCClient::Heap*`); null = standalone conductor (C2). |
 | R2 | Step-3 own-access release (`Heap.cpp:4769-4770`) and tail `conductorClient.acquireHeapAccess()` (`:4955`) | SKIP when null — the collector thread has no access to release/re-acquire; the §10.4 barrier then waits on ALL clients (no "every client except the conductor's own" carve-out). |
-| R3 | Main-VM in-window work: `sanitizeStackForVM(vm())` (`Heap.cpp:1704, :2206`), shadow chicken (`:2253-2254`), AtomStringTable scope | KEEP, executed by the conductor thread IN-WINDOW — licensed by heap §10B rule 2 (phase-loop vm() asserts gain `|| WSAC`); the heap T9 audit classified sites for a client conductor, and every such site is in-window, where client-ness is irrelevant. AMENDED rev 7 (F35): the rev 2 entry "TID-rebias teardown (`:4880-4915` area)" was a MISLABEL — that block is the §D.1 rebias EXECUTION, not teardown, and its window placement is a stage-C1 body rule (§8.3 / ANNEX CGD5.1, GOVERNS); this row merely INHERITS it for the C2 conductor (the rebias is conductor-executed, in the Full cycle's final window, client-ness irrelevant). |
+| R3 | Main-VM in-window work: `sanitizeStackForVM(vm())` (`Heap.cpp:1704, :2206`), shadow chicken (`:2253-2254`), AtomStringTable scope | KEEP, executed by the conductor thread IN-WINDOW — licensed by heap §10B rule 2 (phase-loop vm() asserts gain `|| WSAC`); the heap T9 audit classified sites for a client conductor, and every such site is in-window, where client-ness is irrelevant. AMENDED rev 7 (F35): the rev 2 entry "TID-rebias teardown (`:4880-4915` area)" was a MISLABEL — that block is the §D.1 rebias EXECUTION, not teardown, and its window placement is a stage-C1 body rule (§8.3 / ANNEX CGD5.1, GOVERNS); this row merely INHERITS it for the C2 conductor (the rebias is conductor-executed, in the Full cycle's final window, client-ness irrelevant). AMENDED rev 9 (F46): "every such site is in-window" was FALSE for the AtomStringTable entry — the landed install (`Heap.cpp:4885-4889`) is a TENURE-WIDE TLS install spanning between-window periods, not an in-window execution; superseded by the §3.7 ATOM-TABLE PIN (per-window install/restore, ANNEX CGD7.3); sanitizeStackForVM/shadow-chicken rows stand. |
 | R4 | Step-8 resume pass / per-client TLC loops (`Heap.cpp:4923-4925`) | UNCHANGED — already loop over HCS; the conductor's own (nonexistent) client simply contributes no entry. |
 | R5 | §10D revert poll context (`pollIssRevertIfNeeded`) | NOT run by the collector conductor (main client's thread only, heap §10D); no change. |
 | R6 | VMTraps poll in `runSharedGCElection` (`Heap.cpp:4562-4572`) | SKIPPED for the collector thread: it never enters a VM, so no JSThreads/debugger conductor ever needs IT parked via traps — its §A.3 compatibility is being access-free + condvar-parked (rev 1 open item 1 RESOLVED). |
@@ -1229,7 +1550,15 @@ nativeaffinity NL terms: ZERO — conductors never ACQUIRE NL
 BL1.6 conductor-HOLD case adds nothing to a FOREIGN conductor's
 wait. The frozen reading under which a conductor's GCL wait could
 span one whole synchronous conduct is superseded by this windowed
-bound; CG-T8 measures the sum against the watchdog.
+bound; CG-T8 VERIFIES the sum against the watchdog. AMENDED
+rev 9 (F45): the bound is STRUCTURAL only via the §9.1(2a)
+fairness rule (ANNEX CGD7.2) — the landed §A.3 acquisition is
+an unqueued 1ms tryLock poll (watchdog ctor `Heap.cpp:5568-5590`;
+real-conductor use `VMManager.cpp:577`) with no queue position,
+so absent §9.1(2a) the budget is probabilistic and the failure
+mode is the `watchdogAssertStopProgress` fail-stop
+(`JSThreadsSafepoint.cpp:512`; the `:401`/`:412` cites above are
+pre-refresh — CGD7.4).
 
 CGS2.4 — §A.3 rule-5/HBT4 amendments (gates §13.5(2)-(3)).
 (a) `Heap::JSThreadsStopScope` ctor obligation (§9.1(2), F18):
@@ -1238,8 +1567,15 @@ ctor BLOCKS in `pauseConcurrentMarkingForForeignStop` (markers
 only — the C3 sweeper gate is phase-independent, F29); the dtor
 resumes BEFORE releasing GCL. This amends the frozen §A.3 rule
 5/HBT4.5 characterization of the conductor bracket
-(SPEC-ungil.md:256-268): the closure stays ALLOCATION-FREE, but
-the ctor is no longer non-blocking past the GCL acquire; the
+(SPEC-ungil.md:256-268): the "closure stays ALLOCATION-FREE"
+clause is STRUCK (rev 9, F43 — the IMPLEMENTED conductor
+re-acquires its own client access and allocates in-window:
+AB-21 `VMManager.cpp:631-646`, AB-10 weak-sweep license
+`WeakSet.cpp:81/:106` + `Heap.cpp:3339`, ungil ANNEX HBT2.1
+class-4 allocating body; conductor-as-client rules = SPEC-congc
+§9.1(8)/ANNEX CGD7.1 — supersession recorded BOTH sides: this
+pending row carries the strike for the ungil fold); the ctor is
+also no longer non-blocking past the GCL acquire; the
 added wait is bounded per CGS2.3 and acquires no api-rank or
 heap >= 7 lock (CG-I16). (b) The HBT4 release-before-GCL order
 (ungil §A.3.3) EXTENDS to window RE-ENTRY: the conductor's
@@ -2024,6 +2360,42 @@ quantum); (b) sweeper fully IDLE — no watchdog stall; (c)
 sweeper timer amplifier-delayed into the open §A.3 window —
 quantum entry refused.
 
+### CGT1.5 — CG-T3 (C1): barrier storm (MOVED rev 9; VERBATIM rev-8 body text, cites refreshed)
+
+CG-T3 (C1): barrier storm — N threads store-heavy during forced
+concurrent marking; TSAN no-JIT (TSAN.md target) over the
+corpus; amplifier arms (AMPLIFIER.md hooks) at: WND-open barrier
+entry, CMS donate, fence republish, `m_isMarking` resume edge,
+steal-vs-mark. F19 sub-arm: GIL-off C1, two full cycles, then a
+fence storm asserting the SERVER pair stays tautological.
+
+### CGT1.6 — CG-T4 (C1): allocation/steal storm (MOVED rev 9, verbatim)
+
+CG-T4 (C1): allocation/steal storm during marking
+(`allocationStorm`+marking variant); endMarking liveness debug
+assert (§6.2(5)) enabled.
+
+### CGT1.7 — CG-T5 (C1): cell-lock audit arms (MOVED rev 9, verbatim)
+
+CG-T5 (C1): CG-A2 cell-lock audit executed (ANNEX CGN1 rows
+complete); per-row arm for every CELL-LOCKED and N-PROTOCOL row;
+CG-I18 storm (map/set mutation vs forced fixpoint windows) with
+the cell-lock-depth debug asserts enabled.
+
+### CGT1.8 — CG-T10 (C4): assist storm (MOVED rev 9, verbatim)
+
+CG-T10 (C4): assist storm — per-client balances; assist visitor
+vs WND-open rightToRun handoff arm; §A.3 stop injected
+mid-assist-increment (§9.1(6)): fan-out completes within one
+increment, no paused-count overshoot.
+
+### CGT1.9 — CG-T11 (all): diagnostics-as-asserts (MOVED rev 9, verbatim)
+
+CG-T11 (all): the §2.4 diagnostics as debug asserts gated on the
+stage flags (freelisted-block check per WND-open; endMarking
+root-liveness check); A4-site all-CMS-empty walk exercised at
+C1 with executing CodeBlocks present (F37).
+
 ## ANNEX CGD6 (BINDING) — rev 8 rulings and moved full texts
 
 ### CGD6.1 — F40: NL across a GC conduct tenure (full walk)
@@ -2093,14 +2465,244 @@ restored).
 
 Guard, under `*m_threadLock` after tryLock success:
 `m_gcConductorActive && m_currentPhase != NotRunning` => unlock
-GCL and back off:
-- `:4523` election winner: fall through to the follower wait
-  (`:4550-4554`; else CGD1.1 nesting).
-- `:4585` poll: return false; retry next poll.
-- `:5036` §10D revert poll: return, hint stays armed (F11;
-  CGD1.2 — the landed `:5040-5043` wait deadlocks); bounded
+GCL and back off (cites refreshed rev 9 — CGD7.4):
+- `:4596` election winner: fall through to the follower wait
+  (`:4616-4628`; else CGD1.1 nesting).
+- `:4658` poll: return false; retry next poll.
+- `:5126` §10D revert poll: return, hint stays armed (F11;
+  CGD1.2 — a raw landed-style wait deadlocks); bounded
   wait only when NotRunning.
 - CGA2 R7 (C2): unlock GCL, re-wait on the ticket signal (F24;
   CG-T6 arm).
 (Rev 8 addition per CGD5.2: the §9.2(5) teardown acquire is a
 fifth §3.4 site — unlock + bounded re-wait.)
+- (rev 9, F47) `JSThreadsStopScope` watchdog-ctor tryLock loop
+  (`Heap.cpp:5584-5587`): disposition PROCEED — NO back-off
+  guard; a foreign mid-cycle GCL hold is exactly what §9.1(1)
+  legalizes (today the tryLock succeeds only when no conduct is
+  in flight; post-spec it succeeds between windows BY DESIGN).
+  Obligations on success: the §9.1(2) marker pause (F47
+  placement: after tryLock success only) and the F45 waiter
+  register/deregister (CGD7.2). CG-T1's grep-lint counts this
+  site CLASSIFIED, keeping §3.4's "every site" claim true.
+
+## ANNEX CGD7 (BINDING) — rev 9 rulings, full texts, and the cite-refresh ledger
+
+### CGD7.1 — F43: the §A.3 conductor is a FULL CLIENT during its window (full walk)
+
+GOVERNS SPEC-congc §9.1(4) carve-out and §9.1(8); supersedes
+rev 8's allocation-free/access-less conductor model and
+CGS2.4(a)'s "closure stays ALLOCATION-FREE" clause (struck both
+sides — the strike rides the pending CGS2.4 row into the
+SPEC-ungil fold).
+
+Landed facts (ground truth, 43fd5fb94387):
+1. AB-21 (commit 353a3100fd61): the thread-granular §A.3
+   conductor re-acquires its OWN client heap access inside the
+   JSThreadsStopScope/GCL window (`VMManager.cpp:631-646`)
+   because Class-A fire bodies take DeferGC and run write
+   barriers — the per-VM deferral slots assert
+   `hasHeapAccess() || worldIsStoppedForAllClients()`, and the
+   §A.3 thread-granular witness is invisible to them. The access
+   is dropped again BEFORE resume publication.
+2. AB-10 (commit 43fd5fb94387): the conductor's in-window
+   allocation slow path (ungil ANNEX HBT2.1 class-4 allocating
+   body) may run `WeakSet::sweep`/`shrink` and
+   `Heap::sweepNextLogicallyEmptyWeakBlock` — the asserts gained
+   the `(jsThreadsThreadGranularWorldIsStopped() &&
+   jsThreadsCurrentThreadIsStopConductor())` disjunct
+   (`WeakSet.cpp:81`, `:106`; `Heap.cpp:3339`). `WeakBlock::
+   destroy` can therefore run from a mid-GC-cycle §A.3 window.
+
+Rules (NORMATIVE; the §6.2-rule classification the body's F43
+row points at):
+(a) BARRIERS: the conductor's in-window write barriers route per
+    §5.2 — under C1R to its OWN CMS (its client is current on
+    the thread; the CMS lock is the terminal leaf, legal at any
+    depth); the appends are drained at the NEXT WND-open like
+    any client's (next-cycle grey is sound: the referenced cells
+    are either already grey/black or re-greyed by the drain
+    before the next constraint pass, §5.2 NORMATIVE order).
+    Markers are PAUSED for the whole window (CGP1), so no
+    marker observes the CMS mid-append; !C1R appends go to the
+    multi-producer server stack (F44).
+(b) ALLOCATION while `m_isMarking`: black by §6.2 — the phase
+    fields and `m_isMarking` are stable for the whole §A.3
+    window (the conductor holds GCL; flips are in-window-only,
+    CG-I4); freelist cells are covered by the next WND-open
+    flush of its TLC (§6.2(3)); `m_currentBlock` cells by the
+    next fixpoint window's conservative re-scan (§6.2(5) — the
+    conductor's stack is scanned: it is a registered client).
+(c) SWEEP-TO-FREELIST: conductor-triggered sweeps run under MSPL
+    with access held INSIDE the §A.3 window; CG-I5 ("no sweep
+    straddles a GC window") is unaffected because the §A.3
+    window's GCL hold excludes any GC WND-open until the sweep's
+    MSPL section and the window itself complete.
+(d) WEAK-SWEEP SOUNDNESS (the §9.1(4) carve-out): at the moment
+    the AB-10 license fires, every marker is paused at a batch
+    boundary (the §9.1(2) ctor pause completed before the
+    window's work ran), so no in-flight visit holds WeakBlock
+    interior pointers; logically-empty WeakBlocks contain no
+    live impls by definition; the dtor's marker RESUME postdates
+    the frees, and the window's ISB1.1 bump covers code paths.
+    Epoch/quarantine routing is NOT required for these blocks —
+    this is a third, explicitly-licensed free class, named in
+    §9.1(4).
+(e) CLOSED-LOOP DELTA: ungil's "allocation-free, own client
+    only" default-conductor closure rule (HBT2.2/R1.i) is
+    NARROWED to gilOff Class-A bodies as implemented — the spec
+    no longer claims allocation-freedom anywhere; CG-I25 +
+    CG-T8 F43 arm enforce (a)-(d).
+
+### CGD7.2 — F45: foreign-waiter fairness for the WND-open GCL re-acquire (mechanism)
+
+GOVERNS §9.1(2a); amends CGS2.3 (see its rev-9 note).
+
+Problem: the §A.3 acquisition is an unqueued 1ms tryLock poll
+(`Heap.cpp:5584-5587`; `JSThreadsSafepoint::
+watchdogAssertStopProgress` `JSThreadsSafepoint.cpp:512`); the
+spec's WND-open re-entry is a BLOCKING (barging) acquire issued
+the moment `m_scheduler->timeToStop()` elapses. With
+back-to-back fixpoint windows the inter-window GCL-free gap can
+be repeatedly lost to the conductor; nothing structural makes
+the poller win, so CGS2.3's bound was sampled, not guaranteed,
+and the loss mode is a deterministic 30s fail-stop crash.
+
+Mechanism (NORMATIVE):
+1. `Heap::m_foreignGCLWaiters` (relaxed `Atomic<unsigned>`).
+   BOTH JSThreadsStopScope ctors increment it BEFORE their first
+   lock attempt and decrement it immediately AFTER the lock is
+   held (dtor does not touch it; a !isSharedServer() early
+   return never increments). The §9.2(5) teardown acquire and
+   any stage-added foreign GCL acquirer follow the same
+   bracket.
+2. The GC conductor's WND-open RE-ENTRY (only — the first-window
+   tryLocks and the F28 transfer are untouched): before its
+   blocking acquire, load the counter; while nonzero, DEFER —
+   access-released timed sleep (1ms class) + re-check. Liveness:
+   between windows GCL is FREE (CG-I12) and the conductor is
+   abstaining, so a registered waiter's next tryLock succeeds
+   within one poll quantum; it then decrements, and the
+   conductor proceeds (possibly queueing behind the foreign
+   scope's bounded §9.1(2) window — that term is already in
+   CGS2.3). Multiple waiters drain in poll order; the conductor
+   waits at most the sum of their bounded scopes — all CGS2.3
+   terms.
+3. No counter check inside the blocking lock itself (no barging
+   change to WTF::Lock); fairness is achieved purely by
+   conductor abstention. Flag-off: the counter is maintained but
+   never consulted (one-window conducts never re-enter) — CG-I0
+   byte-for-byte on the GC path; the two extra relaxed RMWs per
+   stop scope are the same class as the landed watchdog
+   bookkeeping.
+4. CG-I26 asserts the abstention; CG-T8's F45 arm storms
+   back-to-back fixpoint windows against a registered waiter
+   and fails on any watchdog fire.
+
+### CGD7.3 — F46: per-window AtomStringTable install (ruling)
+
+GOVERNS the §3.7 ATOM-TABLE PIN; amends CGA2 R3 (see its rev-9
+note). Landed: `conductSharedCollection` installs the main VM's
+atom table at the top of the conduct and restores it at function
+return (`Heap.cpp:4885-4889`) — a TENURE-WIDE TLS install whose
+"every mutator is parked" license is true today (one window)
+and FALSE between windows (the owner thread runs JS and mutates
+the table). Ruling: once any §13.2 flag is on, the install moves
+INTO the window — install at each WND-open after WSAC, restore
+before that close's GCL release; the consumers (finalize(),
+deleteUnmarkedCompiledCode, the step-7 phase loop) are all
+in-window (§8.1), so no consumer loses coverage. Between
+windows the §3.7 closed loop performs NO AtomString
+create/deref — this was previously unstated; it is now CG-I27,
+and debug builds set the conductor thread's table to null
+between windows so any violation crashes deterministically
+(the dataLog/logGC and scheduler paths in the between-window
+wait take no atom operations; CG-T8's F46 arm runs a logGC=true
+cycle to prove it). Flag-off: the landed tenure-wide install
+stands byte-for-byte (CG-I0).
+
+### CGD7.4 — cite-refresh ledger (BINDING; rev 9)
+
+Body cites were re-verified against commit 43fd5fb94387.
+Earlier-rev annex/log text retains pre-refresh numbers as
+historical record; any pre-refresh cite in a BINDING annex reads
+through this table (old -> new; `Heap.cpp` unless noted):
+
+| old | new (43fd5fb94387) | symbol |
+|---|---|---|
+| :521 | :536 | m_worldState scribble comment |
+| :706-740 | :722-756 | reportExtraMemoryAllocatedPossiblyFromAlreadyMarkedCell |
+| :790-792 | :808-810 | activity-callback ISS gating |
+| :993-1020 / :1201-1244 / :2258-2282 | :991-1018 / :1217-1260 / :2295-2320 | fix-shared-heap-corruption diagnostics |
+| :1024-1080 / :1037 | :1038-1096 / :1053 | gatherStackRoots / WSAC assert |
+| :1103-1112 / :1111 | :1119-1128 / :1127 | beginMarking / fence raise |
+| :1190-1248 / :1247 | :1206-1264 / :1263 | endMarking / fence lower |
+| :1427 / :1432 / :1444-1467 / :1479 | :1443 / :1448-1452 / :1464-1487 / :1499 | addToRememberedSet / m_barriersExecuted / re-whiten CAS / append |
+| :1487-1498 | :1502-1518 | sweepSynchronously |
+| :1595-1600 | :1626-1632 | async-trigger reroute |
+| :1631-1648 / :1636-1648 | :1662-1676 | shouldCollectInCollectorThread |
+| :1683 / :1686 | :1702 / :1715 | checkConn / conn assert |
+| :1879 | :1910-area | fixpoint thread-state assert |
+| :1917 | :1948 | executeConvergence |
+| :1957-1958 / :1979 | :1988-1989 / :2010 | fixpoint stays-stopped / Concurrent assert |
+| :1969 | :2000 | m_incrementBalance reset |
+| :1984-1996 / :1997-2002 | :2016-2050 | runConcurrentPhase arms |
+| :2027 | :2058-area | parallelMarkersShouldExit set |
+| :2032 / :2036-2039 / :2085-2088 | :2063-2064 / :2067-2069 / :2116-2118 | runEndPhase empty walk / barrier batches |
+| :2169-2209 / :2213 | :2200-2246 / :2244 | finishChangingPhase / phase stores |
+| :2217(-2256) / :2287 / :2315-2342 | :2248(-2290) / :2324 / :2352-2379 | stopThePeriphery / resumeThePeriphery / rightToRun loop |
+| :2234-2237 | :2265-2268 | m_mutatorExecutionVersion bump |
+| :2348 / :2390 / :2354-2384 / :2421 / :2497 | :2385 / :2427 / :2389-2410 / :2456 / :2530-area | stopTheMutator / resumeTheMutator / bit asserts / stopIfNecessarySlow / waitForCollector |
+| :2652-2680 / :2688-2714 / :2747 | :2681-2706 / :2725-2750 / :2784 | conn relinquish / handleNeedFinalize / notifyThreadStopping |
+| :2753 | :2790 | finalize() |
+| :2806-2823 / :2812 / :2828 | :2843-2860 / :2849 / :2865 | requestCollection legacy asserts |
+| :3127, :3140 | :3200-3212 | didAllocate -> performIncrement routing |
+| :3322(-3333) | :3395(-3406) | writeBarrierSlowPath |
+| :3936(-3940) / :3928-3940 | :4001-4014 | setMutatorShouldBeFenced ISS forcing |
+| :3950(-3951) / :3959-3978 / :3974 | :4015-4023 / :4024-4043 / :4039-area | performIncrement / assist body |
+| :4334 | :4402 | §10B.4 pre-ISS quiescence conjunct |
+| :4456 | :4529 | ISS-flip fence init |
+| :4479 / :4499 / :4503 | :4552 / :4572 / :4571 | requestCollectionShared / conn idempotent / collector-quiesced assert |
+| :4507 / :4523 / :4533-4537 / :4542-4554 / :4550-4554 / :4554 / :4562-4572 | :4580 / :4596 / :4606-4610 / :4616-4628 / :4620-4628 / :4628 / :4629-4644 | runSharedGCElection internals |
+| :4578 / :4585 / :4600-4603 | :4651 / :4658 / :4651-4690 | tryConductSharedCollectionForPoll internals |
+| :4757 / :4768 / :4769-4771 / :4780-4793 / :4817-4834 / :4822 / :4832-4834 | :4830 / :4841 / :4843-4844 / :4849-4866 / :4891-4907 / :4895 / :4905-4907 | conductSharedCollection: entry/GSP/release/barrier/flush banner |
+| :4852-4863 / :4856-4868 / :4870 / :4877-4915 / :4880-4915 | :4925-4937 / :4924-4940 / :4938-4945 / :4946-4978 | ticket drain / rebias aggregate / hooks call / rebias block |
+| :4923-4925 / :4927-4943 / :4945-4950 / :4955 | :4991-5019 / :5000-5016 / :5020-5022 / :5028-5031 | resume pass / ISB bump / clears+GBC / VMM resume+tail |
+| :4961-5008 | :5034-5099 | runSafepointHooksAndReclaim body (+ NEW :5059-5060 fast path) |
+| :5023-5031 / :5036(-5043) / :5040-5043 / :5051 | :5103-5110 / :5126(-5140) / :5130-5136 / :5136 | pollIssRevertIfNeeded internals |
+| :5107-5149 / :5125-5127 | :5197-5259 / :5216 | SINFAC / I6 precondition |
+| :5390-5452 / :5456-5482 | :5480-5544 / :5546-5596 | park hooks / JSThreadsStopScope (now TWO ctors + dtor) |
+| :5656-5838 / :5678 / :5707-5758 / :5723 / :5752 / :5773 | :5820-5908 / :5768-area / :5820-5908 / :5836 / :5865 / :5886 | AHA region / registration / steps 0-3 / three gates |
+| Heap.h:722-726 / :723,:726 / :1061,:1095 / :1169,:1184 / :1183 / :1209 / :1290 / :1325 | :747-751 / :748,:751 / :1684 / :1201,:1216 / :1215 / :1241 / :1323 / :1358-area | fence pair / addressOf / currentThreadClient / race stack / mutator stack / threshold / GCA / collectorRunning |
+| JSThreadsSafepoint.cpp:231-337 / :334-338 / :379,:401,:403,:412 | :250-357 / :445 / :512 | stopTheWorldAndRun / stop-scope construction / watchdogAssertStopProgress |
+| VMManager.cpp:561 | :577 | conductor stop-scope construction (watchdog ctor) |
+| SlotVisitor.cpp:469-486 / :522,:578 / :527-585 / :600-605 / :623-636 / :629,:645 / :661-667 / :664,:673 / :737-751 / :753-765 | :468-486 / :527,:583-area / :532-590 / :599-608 / :620-655 / :634,:650 / :666-669 / :669,:678-area / :738-756 / :758-771 | visitor internals |
+| MarkedBlock.cpp:59-106 / :201-227 / :345 | :59-123 / :218-244 / :355 | isLive / stopAllocating / aboutToMarkSlow |
+| BlockDirectory.cpp:495-519 / :511 / :539-559 / :556 | :505-528 / :521-area / RE-AUDIT at C3 (reader renamed/moved; CGB1 B2 row re-anchors at audit execution) / RE-AUDIT | directory audit anchors |
+
+Semantic drifts called out (not just positional): the
+:5059-5060 reclaim fast path (§8.1/CG-I11 restated) and the
+atomic `m_terminationException` root visit (`Heap.cpp:3765`) —
+the CGN1/CG-A2 audit charter EXPLICITLY extends to runtime/-side
+visitor inputs (constraint-visited VM state), which the
+`heap/**`-only CGA1 grep set cannot catch.
+
+Rev 10 drift check (BINDING addendum): HEAD advanced to
+c8de3791 after the rev-9 stamp; the delta touches only
+`runtime/DeferredWorkTimer*` and `runtime/SparseArrayValueMap` —
+no line cited by this ledger or by the body moved. The
+43fd5fb94387 column above therefore remains the authoritative
+read for every cite; no re-ledger needed at rev 10.
+
+Rev 12 correction (BINDING addendum): in the
+runSharedGCElection-internals row, the single-line mapping
+`old :4554 -> new :4628` was off by one. The election/GCL-busy
+timed wait `m_gcElectionCondition.waitFor(*m_threadLock, 1_ms)`
+sits at `Heap.cpp:4627` (`:4628` is the closing brace of that
+block), both at pinned 43fd5fb94387 and at HEAD c8de3791. Read
+that row's `:4554` entry as `:4627`. The range mappings in the
+same row (`:4542-4554 -> :4616-4628`, `:4550-4554 ->
+:4620-4628`) are UNCHANGED — `:4628` is a correct inclusive
+range end for the release/lock/wait block. Body occurrences
+fixed at rev 12 (§2.2, §9.1(2a)); rev 12 log records the
+disposition.

@@ -143,7 +143,16 @@ lock"), 5.5 (ticket states), 5.10 (Strong liveness), F4 (read-then-enqueue
 under the JSLock), and GIL-off by SPEC-ungil §C.3 (PWT arming re-home + I10
 re-derivation, history annex C3 BINDING).
 
-### S3a. GIL-off lost wakeup: the §C.3 under-listLock re-validation is NOT LANDED — **susceptible-suspected** (+ test)
+### S3a. GIL-off lost wakeup — **CLOSED 2026-06-10** (was susceptible-CONFIRMED: 13/20 runs hit the lost wakeup)
+
+**Closure:** the §C.3(b) under-listLock SVZ re-validation landed
+(ThreadAtomics.cpp: `revalidateEnqueuedPropertyWaiterUnderListLock` +
+`sameValueZeroForAtomicsUnderListLock`, driven by dequeue-and-restart loops
+in both `atomicsWaitOnProperty` and `atomicsWaitAsyncOnProperty`; the
+waitAsync revoked-registration arm retires its ticket via
+`AsyncTicket::retireUnsettled`). mc-wait-property-wait-lost-wakeup.js is the
+regression test, 20/20 GIL-off (Release + Debug) and GIL-on. The original
+finding follows, kept as the design record:
 
 This is the exact "Atomics.wait not-equal ordering bug" exemplar, on our
 new property lane.
@@ -343,7 +352,7 @@ hole.
 |---|---------|----------------|---------|
 | S1 | TA sync wait per-wait nodes (WaiterListManager.cpp:202-314) | SPEC-ungil §C.6/SD6/SD8, D9, annex W W1, r15 F2 | immune-by-construction |
 | S2 | TA waiter lists vs VM/SAB death (WaiterListManager.cpp:599-681) | SPEC-api 5.10; §E.5/TERM1; ThreadObject.cpp:391-396 VM pin | immune-by-construction (two load-bearing mechanisms recorded) |
-| S3a | Property wait GIL-off pre-enqueue re-validation (ThreadAtomics.cpp:980-1011, :1114-1143) | SPEC-ungil §C.3 (annex C3 BINDING) — **OPEN per INTEGRATE-ungil.md:241-245** | **susceptible-suspected** + test: mc-wait-property-wait-lost-wakeup.js |
+| S3a | Property wait GIL-off pre-enqueue re-validation (ThreadAtomics.cpp) | SPEC-ungil §C.3 (annex C3 BINDING) — **LANDED 2026-06-10** | **CLOSED** — regression test mc-wait-property-wait-lost-wakeup.js 20/20 |
 | S3b | Property wait timeout/notify/termination arbitration (ThreadAtomics.cpp:1040-1104, :1168-1194, :1224-1247) | SPEC-api 5.6/5.5, §E.4 | immune-by-construction |
 | S3c | Property-wait cell/list/timer lifetime (ThreadAtomics.cpp:804-958, :1156-1167) | SPEC-api 5.10, D5 | immune-by-construction |
 | S4 | Lock/Condition freed-while-parked (LockObject.h:39-137, LockObject.cpp:542-615, ConditionObject.cpp:100-275) | SPEC-api 5.3/5.4/5.9, F3/I9 | immune-by-construction |

@@ -1,10 +1,14 @@
 # SPEC-ungil.md - N-mutator execution model (GIL removal)
 
-Status: rev 32 (history = SPEC-ungil-history.md). Closes
+Status: rev 35 (history = SPEC-ungil-history.md; r33 = the
+SPEC-congc §13.5(1)-(3) adoption-gate closure, back-cites congc
+ANNEX CGS2.1-4; r34 = watchdog/queue-term fixes, CGS2A
+[r34]; r35 = pause ship-gate + COUNT bound, REV 35). Closes
 UNGIL-PLAN.md Part III/IV
 CHARTERED/GAP A-J. Authorities: THREAD.md;
 SPEC-{heap,vmstate,objectmodel,jit,api}.md (+annexes);
-INTEGRATE-api D1-D13. Verified vs tree 2026-06-06.
+INTEGRATE-api D1-D13. Verified vs tree 2026-06-06; r33 cites
+vs tree 2026-06-10.
 Re-freezes/SUPERSESSIONS cite both sides. vmstate:/api:/om:/
 jit:/heap: = SPEC files; IU = INTEGRATE-ungil.md.
 
@@ -38,14 +42,12 @@ builtin cell-INTERNAL state is NOT - §N rules it.
  storage = §A.1.3's discriminator, r10). Corpus + IU row per
  r22 list.
 - U0c m_gilOff assignment (r11/r12; defines F7's input; FULL
- text: history annex U0C, BINDING). Index: vm.m_gilOff set
- ONCE in the VM ctor, IMMUTABLE; designation = the U0C
- CAS; winner m_gilOff=1
- + noteSharedServerSticky(); loser 0,
- clientSet()<=1; add:69 trigger STAYS (SUPERSESSION vs heap
- §5.1 size-EVER>1, both sides) + gilOffProcess=>server-VM
- assert. ISS-flip(a) discharged; 10D/lite-byte/corpus per
- annex.
+ text: history annex U0C, BINDING; r33 compressed):
+ vm.m_gilOff set ONCE in the VM ctor, IMMUTABLE; designation
+ = the U0C CAS; winner m_gilOff=1 + noteSharedServerSticky();
+ loser 0; add:69 trigger STAYS (SUPERSESSION vs heap §5.1
+ size-EVER>1, both sides) + gilOffProcess=>server-VM assert.
+ ISS-flip(a) discharged; 10D/lite-byte/corpus per annex.
 
 ## A. vmstate Phase B - per-thread execution-state consumption
 
@@ -84,41 +86,37 @@ ABI; only accessor implementations change (L4).
  handoff writes, L7 assert: keyed per-VM. Flag-off
  golden-disasm gate RE-BASELINED once. Flag-off identity
  SUPERSESSION (jit I1 jit:180 + vmstate R3 + api I1 vs this +
- §A.2.6, both sides; history r10 F6) - permitted flag-off
- deltas now ALSO: (a) one not-taken gilOffProcess branch per
- LLInt Group-3 site; (b) atomicsWaitImpl's useJSThreads
- branch; (b2) §N.5's twin intrinsics; (c) nothing else -
- re-audited at U-T14. GC roots (full text history r8 item
- 11; walk r6 F5): registry walk under its lock, per-VM
- filter; ditto §A.1.6/§K.1 + fan-outs. Unqualified
- "gilOff" predicates in this spec = vm.m_gilOff (level (ii))
- unless gilOffProcess is NAMED (r27). U-T1;
- amplifiers per annex.
+ §A.2.6, both sides; history r10 F6; r33 compressed) -
+ permitted flag-off deltas now ALSO: (a) one not-taken
+ gilOffProcess branch per LLInt Group-3 site; (b)
+ atomicsWaitImpl's useJSThreads branch; (b2) §N.5's twin
+ intrinsics; (c) nothing else - re-audited at U-T14. GC roots
+ (full text history r8 item 11; walk r6 F5): registry walk
+ under its lock, per-VM filter. Unqualified "gilOff"
+ predicates = vm.m_gilOff unless gilOffProcess is NAMED
+ (r27). U-T1; amplifiers per annex.
 4. stackPointerAtVMEntry/lastStackTop become per-entry-token lite
  fields; JSLock.cpp:166's L7 RELEASE_ASSERT is GIL-on-only; the
  GIL-off token ctor asserts the *lite's* slot empty (re-entry uses
  the VMEntryRecord chain).
 5. Per-entry record (entryScope race): m_vm.entryScope
  (VMEntryScope.cpp:90/:133), VM::isEntered() + service bits
- move into the lite (L2); ctor/dtor +
- executeEntryScopeServicesOnExit use the CURRENT lite;
+ move into the lite (L2); ctor/dtor use the CURRENT lite;
  isEntered() = "§A.3.1 set non-empty"; VM-wide consumers
  iterate the registry under its lock. GIL-on/flag-off
  unchanged. U23. Service routing (mirrors §A.2.3): services
  classify VM-wide vs thread-local (table, U-T1); VM-wide +
- CONCURRENT_SAFE requests (requester may hold NO lite) set a
- VM-level word + fan into this VM's lites under the registry
- lock; thread-local: current lite (§F.2 gigacage deferred =
- VM-wide).
+ CONCURRENT_SAFE set a VM-level word + fan into this VM's
+ lites under the registry lock; thread-local: current lite
+ (§F.2 gigacage deferred = VM-wide).
 6. Scratch buffers - FULL text: history annex A16 (BINDING;
- r26 ext: §K.6). Index: process-wide ScratchBufferRegistry +
- per-lite append-only segmented tables (L2, lock-free reads);
- every baked scratch ADDRESS becomes loadVMLite -> segment ->
- [index] (all tiers); non-baked = CURRENT
- lite's table; JITCode-RESIDENT buffers -> per-lite indices
- (U-T4); §LK re-rank SUPERSESSION vs vmstate §6.5.1/§7, both
- sides. GIL-on/flag-off keeps baked addresses; GC-scan via
- the registry walk (jit R2).
+ r26 ext: §K.6; r33 compressed): process-wide
+ ScratchBufferRegistry + per-lite append-only segmented
+ tables (L2); baked scratch ADDRESSES become loadVMLite ->
+ segment -> [index] (all tiers); JITCode-RESIDENT buffers ->
+ per-lite indices (U-T4); §LK re-rank SUPERSESSION vs vmstate
+ §6.5.1/§7, both sides. GIL-on/flag-off keeps baked
+ addresses; GC-scan via the registry walk (jit R2).
 7. Cross-thread Group-3 READERS (history r9 F7;
  SamplingProfiler.cpp:391-431, VMInspector/$vm). NORMATIVE:
  every off-thread reader of a rerouted field (i) resolves the
@@ -148,41 +146,37 @@ vmstate §6.8 (per-thread per L2, chained offsets OK):
  the VM word (token acquisition ORs it in; replaces
  notifyGrabAllLocks()). Per-thread: one lite.
 4. Termination is VM-WIDE ONLY v1 (FULL text: history ANNEX
- TERM1, BINDING; r27): sources watchdog/embedder VMTraps/
- corpus --watchdog; NO Thread.prototype.terminate (api 4.1
- stands); every "terminate" arm (SD6/SD8/U19/§T/§E.5) = this
- form, rule-3 fanned to ALL this VM's lites (per-thread arm
- NEVER carries it). The D9 park-poll predicate
- jsThreadParkTerminationRequested re-points at the polling
- thread's PARK lite: spawned = CURRENT lite; main/embedder
- park sites = the §J.3-captured lite (U31).
+ TERM1, BINDING; r27/r33 compressed): sources watchdog/
+ embedder VMTraps/corpus --watchdog; NO
+ Thread.prototype.terminate (api 4.1 stands); every
+ "terminate" arm = this form, rule-3 fanned to ALL this VM's
+ lites. The D9 park-poll predicate re-points at the polling
+ thread's PARK lite (spawned = CURRENT; main/embedder = the
+ §J.3-captured lite, U31).
 5. Async (signal) delivery OFF GIL-off (VMTraps.cpp:305/:80;
- rationale per history): SignalSender never started; delivery =
- bit fan-out (rule 3) + poll sites + D9 quanta; vmIsInactive =
- "no registered lite entered".
+ rationale per history): SignalSender never started; delivery
+ = bit fan-out (rule 3) + poll sites + D9 quanta; vmIsInactive
+ = "no registered lite entered".
 6. Sync-park termination wake BYPASSED under useJSThreads, both
- GIL modes (annex A26): §C.6's per-wait nodes (SD6)
- orphan the VMTraps.cpp:329/:419 vm.syncWaiter() wakes.
- Replacement: TA + §C.3 sync parks wait in D9 10ms
- quanta polling termination (rule-4; PARK lite
- GIL-off) - U2's bound; U19
- terminate-parked arm. Flag-off: vanilla-SAB machinery COMPILED
- AND LIVE; atomicsWaitImpl branches on useJSThreads. §T
- flag-off gates incl. terminate-during-TA-wait.
+ GIL modes (annex A26; r33 compressed): §C.6's per-wait nodes
+ (SD6) orphan the VMTraps.cpp:329/:419 vm.syncWaiter() wakes;
+ replacement: TA + §C.3 sync parks wait in D9 quanta polling
+ termination - U2's bound; U19 terminate-parked arm.
+ Flag-off: vanilla-SAB machinery COMPILED AND LIVE;
+ atomicsWaitImpl branches on useJSThreads. §T flag-off gates
+ incl. terminate-during-TA-wait.
 7. Debugger/inspector (r11 F3; pause state singular,
- Debugger.h:342). v1 GIL-off: trap bit EXEMPT from rule 3 -
- carrier lites only (VMLite::isSpawned, §I); Debugger entry
- hooks early-return on a spawned lite (SD13); pause keeps the
- landed carrier protocol; attach/detach + CodeBlock-wide
- recompile walks under a §A.3 stop. N-thread debugging
- post-ungil. GIL-on unchanged. IU row; corpus per annex.
+ Debugger.h:342). v1 GIL-off: trap bit carrier-only; Debugger
+ entry hooks early-return on a spawned lite (SD13); pause
+ keeps the landed carrier protocol; attach/detach +
+ CodeBlock-wide recompile walks under a §A.3 stop. N-thread
+ debugging post-ungil. GIL-on unchanged. IU row; corpus per
+ annex.
 8. Watchdog (FULL text: history annex W + W ext, BINDING; r15
- F2; r27 compressed): v1 CARRIER-ONLY. W0 budget carrier-only
- (SD14, rule-3 exemption); W1 parked carrier reacquires
- EARLY; W2 last-carrier exit wall-clock; W3 no-carrier
- tokenless timer; W4 the four APILock
- asserts = §F.2 EXCLUSIVITY CONSUMERS,
- serializer REAL m_lock (§F.1). CPU deadlines post-ungil.
+ F2; r27/r33 compressed): v1 CARRIER-ONLY. W0 budget
+ carrier-only (SD14); W1 parked carrier reacquires EARLY; W2
+ last-carrier exit wall-clock; W3 no-carrier tokenless timer;
+ W4 the four APILock asserts = §F.2 EXCLUSIVITY CONSUMERS.
  §K.4 routes here (K4 V.1). GIL-on unchanged. IM
  Watchdog.{h,cpp}; U-T2/U-T11 arms per annex.
 
@@ -198,11 +192,10 @@ RELEASE_ASSERT; real R1.a-i sequence.
  the VMLiteRegistry (§A.1.3 filter); m_worldLock (heap rank
  3) serializes conductors, owns NO
  membership. EXIT1 (FULL text: history ANNEX EXIT1 as AMENDED
- r32, BINDING): every sample RE-WALKS the registry
- UNDER VMLiteRegistry::lock (§LK.6; dropped between samples);
- lite/client ptrs NEVER cached across samples; lite absent
- OR TEARDOWN => EXITED (re-acquire FORBIDDEN); clientHeap null
- => not-entered (write-once, §B.1/§F.1); ~VM BLOCKS until
+ r32, BINDING; r33 compressed): every sample RE-WALKS the
+ registry UNDER VMLiteRegistry::lock (§LK.6); lite/client
+ ptrs NEVER cached across samples; lite absent OR TEARDOWN =>
+ EXITED; clientHeap null => not-entered; ~VM BLOCKS until
  VM-empty (EXIT1.9). U32; U20; U4 arms.
 2. Per-thread NVS park tickets. A stop request sets the stop bit in
  every target lite (§A.2.3); threads park at poll sites (cooperative
@@ -213,27 +206,25 @@ RELEASE_ASSERT; real R1.a-i sequence.
  2b. Re-acquisition gate. A JSThreads stop sets NO client-visible
  GC stop state (Heap::JSThreadsStopScope only). GIL-off: (i)
  acquireHeapAccess()/attachCurrentThread() polls the lite's stop
- bit; set => park on its NVS ticket until resume; (ii) every park
- site polls post-wake BEFORE re-acquiring access or running
- JS/JIT. (i) carries soundness; (ii) defense. Tokens kept while
- parked; makes the access-released exemption sound (§A.3.4 gates
- FRESH acquisition). ORDERING (r24, FULL text+proof: history
- ANNEX SB1 as AMENDED by EXIT1, BINDING): fan-out stores,
- conductor samples + polls ALL seq_cst; acq/rel UNSOUND. U4
- litmus; U20 lint.
+ bit; set => park on its NVS ticket until resume; (ii) every
+ park site polls post-wake BEFORE re-acquiring access or
+ running JS/JIT. (i) carries soundness; (ii) defense. Tokens
+ kept while parked (§A.3.4 gates FRESH acquisition). ORDERING
+ (r24, FULL text+proof: history ANNEX SB1 as AMENDED by
+ EXIT1, BINDING): fan-out stores, conductor samples + polls
+ ALL seq_cst; acq/rel UNSOUND. U4 litmus; U20 lint.
  SUPERSESSION (heap §10A "never blocks" + the F8 AHA step list
  vs this, both sides; IH row): GIL-off AHA gains the stop-bit
- gate; park = F8 mandatory-revert BEFORE the NVS park (r9
- F3). GIL-on/flag-off AHA = frozen F8.
+ gate; park = F8 mandatory-revert BEFORE the NVS park (r9 F3).
+ GIL-on/flag-off AHA = frozen F8.
  2c. JIT re-entry sync (r20 F3, FULL text history ANNEX ISB1,
- BINDING; r26 compressed): process-wide seq_cst
+ BINDING; r26/r33 compressed): process-wide seq_cst
  stop-generation counter bumped in-window; may-execute-JIT
- transitions that bypassed NVS exit (set per ISB1) compare a
- per-lite copy (L2), on mismatch run a context-sync
- instruction BEFORE JIT entry. SUPERSESSION (jit F5
- NVS-exit-only delivery, jit:156 + INTEGRATE-heap:608, vs
- this, both sides; IJ row): delivery set WIDENED; D1R item 2
- re-cited. Flag-off/GIL-on zero cost. U-T5
+ transitions that bypassed NVS exit compare a per-lite copy
+ (L2), on mismatch context-sync BEFORE JIT entry.
+ SUPERSESSION (jit F5 NVS-exit-only delivery, jit:156 +
+ INTEGRATE-heap:608, vs this, both sides; IJ row): delivery
+ set WIDENED. Flag-off/GIL-on zero cost. U-T5
  sleep-through-jettison arm (arm64); U20 lint.
 3. R1.c re-frozen (conductor release): arbitration releases exactly
  one requesting THREAD as conductor; the park-aware mutex on the
@@ -247,17 +238,53 @@ RELEASE_ASSERT; real R1.a-i sequence.
  "[GCL] > [STWR ownership]", jit:164-167, vs this, both sides;
  IJ rows): the :252-304 bracket reordered AND the :208-221
  restoration comment REWRITTEN at U-T5. Slot mutex ranked
- §LK.4b (U20).
+ §LK.4b (U20). [r33] Order EXTENDS to GC-conduct window
+ RE-ENTRY (SUPERSESSION, HBT4 single-stop scope vs this, both
+ sides; congc CGS2.4(b)/§13.5(3) back-cite; HBT4.1 in-place
+ [r33] marker; FULL: CGS2A.4(b), [r34] compressed): legal
+ because access-released all tenure (congc
+ §3.1(a)-(b)/CG-I19); F15 carve-out unchanged; election/poll
+ tryLock-only; flag-gated, flag-off frozen (congc CG-I0).
 4. Entry during a stop parks: token acquisition (§F) checks the
  stop word, parks on a fresh ticket before completing entry.
- Licensed deletions: JSThreadsSafepoint.cpp stub assert + evidence
- walk + s_stubWorldStoppedDepth; M7 tripwire VMEntryScope.cpp:
- 44-70.
+ Licensed deletions: JSThreadsSafepoint.cpp stub assert +
+ evidence walk + s_stubWorldStoppedDepth; M7 tripwire
+ VMEntryScope.cpp:44-70.
 5. R1.i GC bracket (W5): DEFAULT = access-release -> rule-3
  arbitration -> Heap::JSThreadsStopScope (:252-304, GCL AFTER
- arbitration, HBT4.5), client-scoped, allocation-free
- closure, own client. r17 F1 + r18 F1, FULL text: history
- ANNEXES HBT2-HBT4 (BINDING; r27 compressed). (i) CLASS-4
+ arbitration, HBT4.5), client-scoped, own client -
+ "allocation-free closure" STRUCK [r33] (congc F43/CGS2.4(a),
+ both sides; HBT4.2 [r33] strike): the conductor is
+ a FULL CLIENT in-window (AB-21/AB-10/HBT2.1 class-4;
+ CGS2A.4(a), [r34] compressed). [r33] STOP-SCOPE PAUSE (congc
+ CGS2.4(a)/§9.1(2), both sides; FULL: CGS2A.4(a)):
+ BOTH ctors (Heap.cpp:5546-5566 blocking;
+ :5568-5590 watchdog tryLock-poll), GCL held, phase-gated
+ pause BLOCK; dtor (:5592-5596) resumes BEFORE releasing GCL;
+ no api-rank/heap >= 7 lock (CG-I16). [r34] WATCHDOG COVERAGE
+ (CGS2A.4(a) [r34]; PENDING-CONGC-COUNTERPART; FULL: REV 34):
+ pause = TIMED wait sampling per quantum (requestStart, vm);
+ blocking ctor gains requestStart
+ (JSThreadsSafepoint.cpp:445); watchdog ctor threads
+ vm (:5586); CG-T8 owes a wedged-marker arm. [r35] SHIP GATE
+ (REV 35): C1/§9.1(2)-pause stages MUST NOT ship until congc
+ records F-A (1)+(4) (CGS2.4(a)/CGT1).
+ WAIT BOUND (congc CGS2.3 + CGS2A.3
+ [r34/r35], both sides; supersedes U32/HBT4.5 whole-conduct):
+ the CGS2.3 windowed sum (terms: CGS2A.3) bounds ONE WINNER's
+ GCL leg, STRUCTURAL via congc §9.1(2a)/CG-I26; the landed
+ budget is per-REQUESTER end-to-end (VMManager.cpp:556-566),
+ ADDS a QUEUE term (k earlier winners x (GCL leg + full stop
+ window)) - [r35] COUNT bound ('supported fan-in' RETIRED,
+ undefined); SOLE time bound = the 30s fail-stop
+ (JSThreadsSafepoint.cpp:512; CG-T8: per-winner arm
+ + ATTRIBUTION storm arm); waiting conductor keeps EXIT1/U32
+ sampling. [r33-r35] flag-gated
+ useConcurrentSharedGCMarking; flag-off the frozen rule-5
+ text (incl. allocation-free) operative (congc CG-I0); FULL:
+ ANNEX CGS2A (+[r34]/[r35]).
+ r17/r18 F1 FULL: ANNEXES HBT2-HBT4
+ (BINDING; r27/r33 records). (i) CLASS-4
  variant - SUPERSESSION (heap §9 JSThreadsStopScope precond +
  jit R1.i closures vs this, §K.5 conductors ONLY, both sides;
  IH/IJ rows): GCL access-RELEASED, own-client gated
@@ -268,34 +295,32 @@ RELEASE_ASSERT; real R1.a-i sequence.
  alloc = heap L3 pre-grow or fail hard; heap I14 brackets.
 6. Main/embedder carriers (vmstate §6.4.4). FULL text: annexes
  A36 (as AMENDED r32) + A36C (BINDING; r9 F4; SUPERSESSIONs vs
- vmstate §6.7/M6/§6.5.1 + heap I4/§10A.1, both sides). Index:
- GIL-off EVERY thread uses a real carrier lite (lazy) +
- per-(thread,VM) TLS; lock() installs it + swaps the
+ vmstate §6.7/M6/§6.5.1 + heap I4/§10A.1, both sides; r33
+ compressed): GIL-off every thread uses a real carrier lite
+ (lazy, per-(thread,VM) TLS); lock() installs/swaps the
  {lite, TID-tag, §10A.1 client} tuple, LIFO (§F.5);
  installs/restores re-stamp currentThreadClient(),
- {client,epoch}-checked, pre-fast-path + gated AHA
- (A36C). U1 asserts; JSLock.cpp:151 backstop = §J.7; ~VM:
- M6 replaced per annex. I20 holds. U27 arms.
+ {client,epoch}-checked (A36C). U1; JSLock.cpp:151 backstop =
+ §J.7; ~VM: M6 per annex. I20 holds. U27 arms.
 7. Atom-table routing (X1). GIL-off, token acquisition points the
  thread at the shared sharded table (U0); the per-handoff swap
  is GIL-on-only. SUPERSESSION (vmstate §4.3 "None relaxed
- (ex-M5)" vs this): each of the 14 atom-table asserts
+ (ex-M5)" vs this; r33 compressed): the 14 atom-table asserts
  (Identifier.cpp:77; Completion.cpp:63-287 x12; Heap.cpp:2796,
- r16 F4) rewrites its predicate P to "gilOff
- ? sharedAtomStringTableEnabled() : P" - :2796 KEEPS its
+ r16 F4) rewrite predicate P to "gilOff ?
+ sharedAtomStringTableEnabled() : P"; :2796 KEEPS its
  worldIsStoppedForAllClients() disjunct GIL-on.
  GIL-on/flag-off unchanged; IU row.
 8. GC-stop parking, N threads one VM (closes heap Dev 8,
  heap:27; SUPERSESSION vs heap §13.5 one-parked-thread-per-VM
- + notifyVMStop per-VM state machine, both sides). GC stop
- reason THREAD-granular: trap bit fans per rule 3; EACH
- entered thread parks on its OWN ticket (§A.3.2 NVS);
- notifyVMStop asserts per-entered-thread; §13.5a/g
- willPark/didResume on currentThreadClient(), per-client
- m_releasedByGCPark; 5b/5f/5g per thread. Unlike §A.3, the GC
- stop DOES set client-visible stop state (§10A/F8 gates
- re-acquisition). IM: VMManager.cpp + §13.5 hooks (IH).
- Amplifier per annex.
+ + notifyVMStop per-VM state machine, both sides; r33
+ compressed). GC stop reason THREAD-granular: trap bit fans
+ per rule 3; EACH entered thread parks on its OWN ticket
+ (§A.3.2 NVS); §13.5a/g willPark/didResume on
+ currentThreadClient(), per-client m_releasedByGCPark;
+ 5b/5f/5g per thread. Unlike §A.3, the GC stop DOES set
+ client-visible stop state (§10A/F8 gates re-acquisition).
+ IM: VMManager.cpp + §13.5 hooks (IH). Amplifier per annex.
 
 ## B. Per-thread GCClient lifecycle in one VM
 
@@ -308,37 +333,31 @@ B.6).
  GCClient::Heap (ACT), store
  clientHeap in the lite (L2), acquire access (§A.3.2b-gated).
  JSLockHolder degrades to the §F token.
-2. Teardown at exit (EXIT1.3/1.9 as AMENDED r32). T5 (full order
- EXIT1.3): release access (seq_cst
- RHA) -> TEARDOWN mark (registry lock; counted
- EXITED) -> DCT/destroy client -> unregisterLite/free lite
- LAST; ALL physical removals via unregisterLite (U20).
- ~VM BLOCKS (EXIT1.9 NORMATIVE fence; U3/U32) until no other
- lite->vm==this. Exit stays UN-GATED; same order on LIVE-VM
- paths - carrier TLS death; ~VM carrier collection EXCLUDED
- (A36 as AMENDED r32: lock-published state
- LIVE->COLLECTED->DETACHED; COLLECTED+unregister pre-wait;
- lock-free detach; DETACHED flips notify; owner dtor keys
- ONLY on the state - COLLECTED => wait DETACHED; no-dtor bit
- FIXED AT REGISTRATION (main: dtor-free slot) => walk frees
- post-flip; ~VM holds m_lock => no re-entry (VM.cpp:649)).
- Lazy carriers per §F.1.
+2. Teardown at exit (EXIT1.3/1.9 as AMENDED r32; r33
+ compressed). T5: release access (seq_cst RHA) -> TEARDOWN
+ mark (registry lock; counted EXITED) -> DCT/destroy client
+ -> unregisterLite/free lite LAST; ALL physical removals via
+ unregisterLite (U20). ~VM BLOCKS (EXIT1.9 NORMATIVE fence;
+ U3/U32) until no other lite->vm==this. Exit stays UN-GATED;
+ same order on LIVE-VM paths - carrier TLS death; ~VM carrier
+ collection EXCLUDED (A36 as AMENDED r32:
+ LIVE->COLLECTED->DETACHED protocol, full text annex). Lazy
+ carriers per §F.1.
 3. SUPERSESSION (heap §10A ISS forward-to-main-client wiring,
  SPEC-heap.md:281, vs §F.1, both sides; IH row): GIL-off the
  JSLock pair acquires/releases on the CURRENT carrier's OWN
  client (§F.1) - NEVER the main client (heap Dev 8).
  GIL-on/flag-off forwarding + §10A.1 re-stamp unchanged;
- GIL-off the duty = the §A.3.6 swap (A36C extends it to the
- re-stamp clause, both sides, IH row); U-T6/U27 two-VM +
- nested arms.
+ GIL-off the duty = the §A.3.6 swap (A36C, both sides, IH
+ row); U-T6/U27 two-VM + nested arms.
 4. TLC-aware inline allocation: fast paths address
  lite->clientHeap's TLC table, base = loadVMLite + frozen offsets;
  the §5.3 vm-relative chain stays GIL-on (heap Dev 6).
-5. Perf budget (heap Dev 7): {useJSThreads=1, sharedGC=1, GIL-off,
- 1 thread} composite <=10% geomean vs {1,0} flag-on baseline
- (BENCH.md); {1,0} <=5% gate stays; a miss REQUIRES jit §4.3
- LLInt-cache revival pre-ship. 4-thread alloc microbench >=2.5x
- recorded, not gated (history).
+5. Perf budget (heap Dev 7): {useJSThreads=1, sharedGC=1,
+ GIL-off, 1 thread} composite <=10% geomean vs {1,0} flag-on
+ baseline (BENCH.md); {1,0} <=5% gate stays; a miss REQUIRES
+ jit §4.3 LLInt-cache revival pre-ship. 4-thread alloc
+ microbench >=2.5x recorded, not gated (history).
 6. heap Dev-7 GC-throughput items (heap:26 list) -
  SUPERSESSION (heap:26 + api:26 vs this): DEFERRED post-ungil;
  GIL-off ships on the conductor-driven heap §10 protocol +
@@ -353,24 +372,22 @@ content (IA sign-off).
 1. OM §9.5 atomic slot accessors (8g): atomicSlotCompareExchange
  / atomicSlotReadModifyWrite -> JSValue, ONLY plain structure/
  butterfly-backed own NAMED data slots + the indexed pair.
- FULL text: history annex C1 (BINDING; r25 ext; r27
- compressed). Index: lock-free seq_cst (U5); flat SW-set DCAS
- + I34 re-validate FIRST; OM-locked dict/AS (restrict FORCES
- AS); indexed by shape (C1).
- Barrier after success. U5/U28 arms.
+ FULL text: history annex C1 (BINDING; r25 ext; r27/r33
+ compressed): lock-free seq_cst (U5); flat SW-set DCAS + I34
+ re-validate FIRST; OM-locked dict/AS; indexed by shape (C1);
+ barrier after success. U5/U28 arms.
 2. ThreadAtomics re-homing (UNGIL-PLAN P1): the GIL-step
  atomicity block replaced - bodies call the §9.5 accessors.
- CARRIED: D3 exotic-receiver TypeErrors; D7 writability inside the
- atomic body.
+ CARRIED: D3 exotic-receiver TypeErrors; D7 writability inside
+ the atomic body.
 3. PWT arming re-home + I10 re-derivation (F4 GIL-off). FULL
- text: history r9 F1 + annex C3 (BINDING). Index: pre-enqueue
- validation via §9.5 atomic load (conversions OUTSIDE
- listLock; api 3 -> 10a legal); enqueue + SVZ re-validation
- UNDER listLock; mismatch => dequeue "not-equal"; rope/
- convert => dequeue (I10), resolve outside, FRESH
- enqueue. waitAsync settles via §E.4
- (finite timeout: §E.7.5); sync parks per §J.3. U5/U-T11;
- corpus per annex. GIL-on unchanged.
+ text: history r9 F1 + annex C3 (BINDING; r33 compressed):
+ pre-enqueue validation via §9.5 atomic load; enqueue + SVZ
+ re-validation UNDER listLock; mismatch => dequeue
+ "not-equal"; rope/convert => dequeue (I10), resolve outside,
+ FRESH enqueue. waitAsync settles via §E.4 (finite timeout:
+ §E.7.5); sync parks per §J.3. U5/U-T11; corpus per annex.
+ GIL-on unchanged.
 4. 4.5-1a TA gate lifted GIL-OFF ONLY - SUPERSESSION (api I21
  :315 + api:79 vs this, both sides; IU row): the sole
  spawned gate, AtomicsObject.cpp:613-621, becomes
@@ -391,17 +408,14 @@ content (IA sign-off).
 ## D. OM Tasks 13 (TID rebias) + 14
 
 1. Task 13 (om:377, 8c) - IN SCOPE. FULL text: history annexes
- D1 + D1R (BINDING; r27 compressed). Index: rebias
- world-stopped INSIDE the next FULL shared collection (heap
- §10, NOT §A.3); restamp dead TIDs->0,
- fire restamped TTL sets in-stop, jettison baked tid<<48
- immediates pre-reissue; SUPERSESSION (jit/OM I13
- VMM-STW-only fire vs this, both sides; jit §5.6 WSAC =>
- branch 1). Trigger >=75% of 2^15; exhaustion spawns
- RangeError (SD9). Two-phase vs §LK (r9
- F2): dead-TID snapshot under TM::m_lock pre-stop;
- restamp+fire FROM SNAPSHOT; m_freeTIDs released post-resume
- pre-gate-lift. U-T12 arms per annex.
+ D1 + D1R (BINDING; r27/r33 compressed): rebias world-stopped
+ INSIDE the next FULL shared collection (heap §10, NOT §A.3);
+ restamp dead TIDs->0, fire restamped TTL sets in-stop,
+ jettison baked tid<<48 immediates pre-reissue; SUPERSESSION
+ (jit/OM I13 VMM-STW-only fire vs this, both sides). Trigger
+ >=75% of 2^15; exhaustion spawns RangeError (SD9). Two-phase
+ vs §LK (r9 F2): dead-TID snapshot under TM::m_lock pre-stop;
+ restamp+fire FROM SNAPSHOT. U-T12 arms per annex.
 2. Task 14 (om:378) STAYS DEFERRED pending the bench verdict -
  timing SUPERSESSION (both sides; INTEGRATE-om §46 holds NO
  verdict): the gate re-times to a HARD precondition of U-T10
@@ -411,32 +425,28 @@ content (IA sign-off).
 ## E. Per-thread event loop + settlement (THREAD.md:98)
 
 Ground truth replaced (api 4.6.1 GPO drain; DWT settlement).
-Landed inert: inboxLock/inbox/inboxOpen, per-lite microtask slot
-(vmstate §6.6), I11.
-SUPERSESSION (both sides; IA row): api 4.6.1 never-waits +
-4.6.2 SHELL-granular keepalive SUPERSEDED GIL-off by
-§E.2/E.3 (queues-empty + keepalive==0, thread-granular); GIL-on
-keeps the old text (SD1).
+Landed inert: inboxLock/inbox/inboxOpen, per-lite microtask
+slot (vmstate §6.6), I11. SUPERSESSION (both sides; IA row):
+api 4.6.1 never-waits + 4.6.2 SHELL-granular keepalive
+SUPERSEDED GIL-off by §E.2/E.3 (thread-granular); GIL-on keeps
+the old text (SD1).
 
 ### E.1 Queues
 
 Every ThreadState owns, GIL-off:
 - Microtask queue: the per-lite MicrotaskQueue (vmstate §6.6),
- enqueued/drained ONLY by its owner (I11); VM::queueMicrotask/
- drainMicrotasks re-route to the CURRENT lite's queue.
+ enqueued/drained ONLY by its owner (I11); VM::queueMicrotask
+ + drains re-route to the CURRENT lite's queue.
 - inboxOpen (landed default false): set true EXACTLY ONCE on the
  owning spawned thread, under inboxLock, post-§B.1 attach,
  BEFORE fn (HB vs any registration; r22 list). Main/embedder
  NEVER open theirs; increment sites assert spawned+OPEN (U25).
-- Host hook (X1.7): queueMicrotaskToEventLoop (JSGlobalObject.h:
- 1238) consulted ONLY for carrier enqueues; spawned enqueues
- ALWAYS per-lite - else I11/U22 (r22 list).
+- Host hook (X1.7): queueMicrotaskToEventLoop consulted ONLY for
+ carrier enqueues; spawned ALWAYS per-lite (I11/U22; r22 list).
 - Task (macrotask) queue: TS fields under the EXISTING inboxLock
- (api rank 3): Deque<ThreadTask> taskQueue, uint64_t
- keepaliveCount, Condition runLoopCondition, waitDeadlines
- (§C.3/§E.7.5); ThreadTask =
- settle task + Ref<AsyncTicket>; the landed inbox vector IS the
- task queue.
+ (api rank 3): taskQueue, keepaliveCount, runLoopCondition,
+ waitDeadlines (§C.3/§E.7.5); ThreadTask = settle task +
+ Ref<AsyncTicket>; the landed inbox vector IS the task queue.
 
 ### E.1b Ordinary shared-promise settlement (NEW)
 
@@ -447,44 +457,39 @@ NORMATIVE v1:
  to ITS OWN per-lite queue via the rerouted VM::queueMicrotask -
  I11; no per-reaction registrant hop v1. SD10.
 2. Concurrent then()/resolve(): GIL-off, JSPromise internal-state
- transitions under the promise's JSCellLock (10a; fields NOT
- §9.5 slots); bodies restructured per OM I20. FULL text:
- history annex E1B (BINDING). U-T9 audit: every other promise
- internal-field writer/tier-inlined access locks or is
- disabled GIL-off; non-promise = §N. GIL-on unchanged.
+ transitions under the promise's JSCellLock (10a); bodies per
+ OM I20. FULL text: history annex E1B (BINDING; r33
+ compressed). U-T9 audit: every other promise internal-field
+ writer/tier-inlined access locks or is disabled GIL-off;
+ non-promise = §N. GIL-on unchanged.
 3. U22: reactions on the settling thread; AsyncTicket settlements
  on the REGISTERING thread (ThreadTask hops, §E.4).
 4. promiseRejectionTracker (JSPromise.cpp:405-637) - r16 F3,
- FULL text history (BINDING): inline for carriers only;
- spawned events append Strong+op records to the
+ FULL text history (BINDING; r33 compressed): inline for
+ carriers; spawned events append Strong+op records to the
  annex-E7 handoff queue, run at §F.1 carrier drains (SD15).
  U-T8e audit (gates U-T9): every globalObjectMethodTable/host
- hook JS-reachable on a spawned TS gets an IU disposition
- {inline, carrier-queued, refused, unreachable}. Corpus per
- annex.
+ hook JS-reachable on a spawned TS gets an IU disposition.
+ Corpus per annex.
 5. AsyncLocalStorage (Bun; FULL text+cites annex ALS1, BINDING;
- r27 compressed). NORMATIVE: SD10 migrating continuations
- PRESERVE ALS - capture PER-REACTION: then()/await stashes
- m_asyncContextData[0] into the reaction's tuple/job arg, a
- shared-heap cell carried BY THE JOB; runner swap/restores
- it. The CURSOR m_asyncContextData (JSGlobalObject.h:507) =
- GIL-off per-lite (§K.1; ALS1.3). U-T9 arm: ALS inside await
- after foreign resolve == registration store.
+ r27/r33 compressed): SD10 migrating continuations PRESERVE
+ ALS - capture PER-REACTION into the reaction's tuple/job
+ arg; runner swap/restores. The CURSOR m_asyncContextData
+ (JSGlobalObject.h:507) = GIL-off per-lite (§K.1; ALS1.3).
+ U-T9 arm: ALS inside await after foreign resolve ==
+ registration store.
 
 ### E.2 Thread lifecycle (normative drain loop)
 
 FULL text (pseudocode VERBATIM): history annex E2A (BINDING;
-r27 compressed). Index: after fn, loop = drain-own-microtasks
--> release access -> under inboxLock {termination => close
-(§E.5) | take task | keepalive==0 => close | wait
-runLoopCondition min(10ms, earliest waitDeadline) D9 quanta}
--> post-wake §A.3.2b poll + reacquire -> EXPIRE deadlines
-(§E.4 "timed-out") -> run task (§F
-token). close (r16 F5): inboxOpen=false, residue/deadline
-exchange under inboxLock access-released; deadlines => §E.4
-"timed-out"; residue per the
-E.4 dead rule; F1/F5 as landed; T5
-per §B.2 (EXIT1.3/1.9).
+r27/r33 compressed): after fn, loop = drain-own-microtasks ->
+release access -> under inboxLock {termination => close (§E.5)
+| take task | keepalive==0 => close | wait runLoopCondition D9
+quanta} -> post-wake §A.3.2b poll + reacquire -> EXPIRE
+deadlines (§E.4 "timed-out") -> run task (§F token). close
+(r16 F5): inboxOpen=false, residue/deadline exchange under
+inboxLock access-released; F1/F5 as landed; T5 per §B.2
+(EXIT1.3/1.9).
 
 Lock/access rule. Heap-access transitions are NOT leaf: NO
 transition holding any api rank 1-3 lock - release BEFORE,
@@ -500,18 +505,14 @@ task queue. Wakeups: task append, stop, termination, quantum.
 
 ### E.3 Keepalive accounting
 
-FULL text: history annex E3 (BINDING). Index:
+FULL text: history annex E3 (BINDING; r33 compressed):
 keepaliveCount = outstanding registrations that may still
-enqueue here; transitions under the registrant's inboxLock.
-INCREMENT at registration (I20), spawned-TS AsyncTickets
-EXCEPT asyncJoin (SD12) and TA
-waitAsync (SD11). DECREMENT
-exactly-once CAS-gated: settle-enqueue iff open / cancel iff
-won AND open / close kills the counter - later => main
-fallback (U8). U9: decrement + append atomic under inboxLock;
-E.2 exit reads both under it. Intentional leak: never-notified
-waitAsync/asyncHold => join hangs (api 4.6.2); §E.5 escapes.
-U8 mutual-asyncJoin-OPEN arm.
+enqueue here; transitions under the registrant's inboxLock;
+INCREMENT at registration (I20) except asyncJoin (SD12)/TA
+waitAsync (SD11); DECREMENT exactly-once CAS-gated; close
+kills the counter - later => main fallback (U8). U9: decrement
++ append atomic under inboxLock. Intentional leak (api 4.6.2);
+§E.5 escapes. U8 mutual-asyncJoin-OPEN arm.
 
 ### E.4 Cross-thread ticket settlement routing
 
@@ -520,22 +521,21 @@ Implements api:200's open arm; the closed arm is SUPERSEDED
 sides; IA row).
 AsyncTicket::settle GIL-off: CAS m_settled (as landed);
 cancelled => bail; under m_registrant->inboxLock READ
-inboxOpen; open => append ThreadTask, rule-1 decrement (armed
-only), notifyOne; DROP inboxLock; closed => FALLBACK to MAIN
-via the LANDED scheduleWorkSoon path AFTER the drop, NO api
-lock held (r18 F2; §E.7.3-4 apply).
+inboxOpen; open => append ThreadTask, rule-1 decrement,
+notifyOne; DROP inboxLock; closed => FALLBACK to MAIN via the
+LANDED scheduleWorkSoon path AFTER the drop, NO api lock held
+(r18 F2; §E.7.3-4 apply).
 PRECONDITION (r17 F2, history BINDING, incl. the api 5.5a/F5
-SUPERSESSION, GIL-off, both sides; IA row): settle is invoked
-holding NO api rank-1..3 lock - A/P record the grant under QL,
-DROP QL, then settle; asyncJoin drops joinLock pre-settle.
-U-T8 IU settle-site lock-context table; U20 lints rank-3
-settles.
+SUPERSESSION, both sides; IA row; r33 compressed): settle holds
+NO api rank-1..3 lock - record grant under QL, DROP QL, settle;
+asyncJoin drops joinLock pre-settle. U-T8 IU settle-site table;
+U20 lints rank-3 settles.
 
-DWT retirement on the task-queue path (ThreadManager.cpp:
-88-95): ThreadTask body, on the owner under its token: (a)
-settle, (b) cancelPendingWork (fires §E.7.4 wake), (c) clear
-m_promise. Thread keepalive supersedes DWT shell-liveness for
-spawned registrants; dead=>main keeps landed retirement. U24.
+DWT retirement on the task-queue path (ThreadManager.cpp:88-95):
+ThreadTask body, on the owner under its token: settle ->
+cancelPendingWork (§E.7.4 wake) -> clear m_promise. Thread
+keepalive supersedes DWT shell-liveness for spawned registrants;
+dead=>main keeps landed retirement. U24.
 
 I11/I12 satisfied post-GIL. join() parks unchanged;
 GILDroppedSection out (§J.3); §G gates the block.
@@ -544,18 +544,16 @@ GILDroppedSection out (§J.3); §G gates the block.
 
 A termination trap observed by the E.2 loop (or during fn) takes
 the landed Failed path VIA THE §E.2 CLOSE BLOCK - incl. its
-deadline harvest (SD8): close inbox (E.3 r3), residue to
-main, F1/F5 with Phase::Failed. A terminated thread completes with
-keepalive>0; its tickets settle later via main fallback (4.6.2).
-Per-lite microtask residue DROPPED at close (I11; never drained)
-- SD17; published settlements stay visible. Termination = the
-§A.2.4 VM-wide trap (TERM1): EVERY entered thread takes its
-OWN close; the VM SURVIVES (carrier services it, annex W).
-Failed publishes a FRESH ordinary Error("Thread terminated") -
-NEVER the sticky m_terminationException: join() rethrows it
-NORMALLY, asyncJoin rejects with it
-- SD8 ext2; main fallback = scheduleWorkSoon, runs at carrier
-re-entry. U-T11 arms per annex.
+deadline harvest (SD8): close inbox, residue to main, F1/F5 with
+Phase::Failed. A terminated thread completes with keepalive>0;
+tickets settle later via main fallback (4.6.2). Per-lite
+microtask residue DROPPED at close (I11) - SD17; published
+settlements stay visible. Termination = the §A.2.4 VM-wide trap
+(TERM1): EVERY entered thread takes its OWN close; the VM
+SURVIVES (carrier services it, annex W). Failed publishes a
+FRESH ordinary Error("Thread terminated") - NEVER the sticky
+m_terminationException (SD8 ext2); main fallback =
+scheduleWorkSoon at carrier re-entry. U-T11 arms per annex.
 
 ### E.7 DeferredWorkTimer under N threads (NEW)
 
@@ -568,13 +566,12 @@ GIL-off:
 2. DWT's API-lock asserts keep the §F.2 token meaning - incl. the
  NEGATIVE assert at runRunLoop.
 3. Embedder-hook ruling (USE_BUN_EVENT_LOOP; FULL mechanics:
- history r8 + E7 + r17 F3 + r18 F2, all BINDING):
- hooks ONLY for hookManaged tickets ONLY on the carrier;
- spawned ALWAYS internal arm; off-carrier settle/cancel =
- m_pendingLock handoff queue run at §F.1 carrier drains; wake
- = onCrossThreadWorkEnqueued AFTER dropping m_pendingLock
- (constraints per annex).
- U24 Bun arms per annex.
+ history r8 + E7 + r17 F3 + r18 F2, all BINDING; r33
+ compressed): hooks ONLY for hookManaged tickets ONLY on the
+ carrier; spawned ALWAYS internal arm; off-carrier
+ settle/cancel = m_pendingLock handoff queue run at §F.1
+ carrier drains; wake AFTER dropping m_pendingLock. U24 Bun
+ arms per annex.
 4. No-hooks runloop wake: internal-arm cancel/retire while
  m_shouldStopRunLoopWhenAllTicketsFinish dispatches an ON-loop
  re-check via vm.runLoop().dispatch() AFTER dropping
@@ -582,13 +579,13 @@ GIL-off:
  m_pendingLock. U24 shell arm.
 5. vm.runLoop()-bound paths (api 5.5a schedPump P, G28, + the
  5.6 waitAsync finite-timeout timer) route BY REGISTRANT (r10
- F3). SPAWNED: P INLINE on the releasing/notifying thread (no
- JS); 5.6 timer = waitDeadlines on the registrant
- TS (§E.1; §C.3 holds keepalive) - SD16 (r18 F4, history BINDING, incl.
- the api 4.5/5.6 SUPERSESSION): timed-out settles ONLY at
- registrant drain/close; spawned work NEVER via carrier
- drains or vm.runLoop(). MAIN/EMBEDDER: hooks => rule 3; else
- landed (api 4.6.2 class). Corpus per annex.
+ F3; r33 compressed). SPAWNED: P INLINE on the notifying
+ thread (no JS); 5.6 timer = waitDeadlines on the registrant
+ TS - SD16 (r18 F4, history BINDING, incl. the api 4.5/5.6
+ SUPERSESSION): timed-out settles ONLY at registrant
+ drain/close; spawned work NEVER via carrier drains or
+ vm.runLoop(). MAIN/EMBEDDER: hooks => rule 3; else landed.
+ Corpus per annex.
 
 §E.7.1's m_pendingLock = in-tree DWT::m_taskLock, EXTENDED to
 m_pendingTickets (r26; K4 VII.4).
@@ -603,11 +600,11 @@ m_pendingTickets (r26; K4 VII.4).
  symmetric; depth 0 releases access. JSLockHolder = token.
  - Main/embedder: REAL lock - m_lock still mutually excludes
  embedder threads (Bun exclusion kept); FULL text: history
- annex F1B (BINDING). Index: lock() = entry token + §A.3.6
- swap; FIRST entry creates carrier lite/client/ACT; EVERY
- lock() = gated AHA on THAT client; depth-0
- unlock releases; drain-on-release KEPT (I11); park sites
- release m_lock (§J.3). U27/U-T6 negative arm.
+ annex F1B (BINDING; r33 compressed): lock() = entry token +
+ §A.3.6 swap; FIRST entry creates carrier lite/client/ACT;
+ EVERY lock() = gated AHA on THAT client; depth-0 unlock
+ releases; drain-on-release KEPT (I11). U27/U-T6 negative
+ arm.
 2. Two predicates, split.
  - VM::currentThreadIsHoldingAPILock() REDEFINED GIL-off as
  "current thread holds an entry token for this VM" - the host-call
@@ -616,31 +613,28 @@ m_pendingTickets (r26; K4 VII.4).
  §F.4's DAL no-op + m_lockDropDepth LIFO depend on it. Spawned
  unlock() takes the token branch BEFORE the mutex RELEASE_ASSERT.
  - Consumer audit (U-T8): the ~60 consumers of either predicate
- get an IU table - assert (token meaning) / BRANCH / EXCLUSIVITY
- CONSUMER (needs a §K serializer). Fixed rulings: FULL text
- history annex F2 (BINDING; six named sites).
+ get an IU table - assert / BRANCH / EXCLUSIVITY CONSUMER.
+ Fixed rulings: FULL text history annex F2 (BINDING; six
+ named sites; r33 compressed).
 3. Strong-handle discipline (api 5.10). ONE shared HandleSet per
  VM, new leaf HandleSet::m_strongLock inside Strong allocate/
- free/set-slot only (never across user code). Mutation needs an
- entered thread WITH heap access (E.2's close re-acquires
- first); GC scans the set under the heap §10 stop (NOT §A.3).
- Carve-outs (r10 F1): (a) in-lock-sweep Strong FREES under
- MSPL/BVL/9b legal - m_strongLock destructor-leaf (§LK.8);
- ~AsyncTicket assert GIL-off = token meaning; (b) heap
- finalizers clearing Strongs run entered-with-access OUTSIDE
- the stop window (10B(5); conductor: post-resume, own client).
- U-T7 sweep-storm amplifier.
+ free/set-slot only (never across user code). Mutation needs
+ an entered thread WITH heap access; GC scans the set under
+ the heap §10 stop (NOT §A.3). Carve-outs (r10 F1): (a)
+ in-lock-sweep Strong FREES under MSPL/BVL/9b legal -
+ m_strongLock destructor-leaf (§LK.8); (b) heap finalizers
+ clearing Strongs run entered-with-access OUTSIDE the stop
+ window (10B(5); conductor: post-resume, own client). U-T7
+ sweep-storm amplifier.
 4. DropAllLocks GIL-off (IA D1; r20 F1, FULL text history ANNEX
- DAL2, BINDING; r26 compressed). Main/embedder: drops m_lock +
- token. Spawned: a HEAP-ACCESS bracket - ctor releases the
- lite's client access, returns 0,
- token/depth/m_lock untouched; dtor re-acquires
- §A.3.2b/§A.3.8-gated + polls traps; outermost-only, no LIFO.
- SUPERSESSION (D1 phase-1 no-DAL constraint,
- INTEGRATE-api.md:834-847, vs this, both sides; IU row):
- LIFTED GIL-off, KEPT GIL-on. Ctor/dtor are access
- transitions (§E.2 rule; U20). Park sites still §J.3. U14
- re-derived; U24 arm per annex.
+ DAL2, BINDING; r26/r33 compressed). Main/embedder: drops
+ m_lock + token. Spawned: a HEAP-ACCESS bracket - ctor
+ releases client access; dtor re-acquires §A.3.2b/§A.3.8-gated
+ + polls traps; outermost-only. SUPERSESSION (D1 phase-1
+ no-DAL constraint, INTEGRATE-api.md:834-847, vs this, both
+ sides; IU row): LIFTED GIL-off, KEPT GIL-on. Ctor/dtor are
+ access transitions (§E.2 rule; U20). Park sites still §J.3.
+ U14 re-derived; U24 arm per annex.
 5. Nested foreign-VM entry (r10 F2; owns §A.3.6's nested window;
  U30). CALLER SCOPE (r27, TERM1.5): main/embedder carriers
  ONLY - SPAWNED foreign-VM lock() RELEASE_ASSERTs (A36
@@ -667,12 +661,10 @@ m_pendingTickets (r26; K4 VII.4).
  spawn-capable VM (U0b); construct the main VM strictly first
  + boot-assert m_gilOff==1; (e) native code on a spawned
  Thread never enters/creates another VM (§F.5
- RELEASE_ASSERT; A36). IU row = embedder checklist
- (JSLockHolder audit; continuation-affinity disposition;
- blocking-site enumeration, U-T8; (d) construction-order +
- (e) audits). Sign-off SPLIT (r21 F2, §D.2 shape): (b)'s SD10
- disposition = HARD precondition of U-T9 ENTRY; (a)/(c)/(e)
- stay U-T14 close items.
+ RELEASE_ASSERT; A36). IU row = embedder checklist (audits
+ per r21 list). Sign-off SPLIT (r21 F2, §D.2 shape): (b)'s
+ SD10 disposition = HARD precondition of U-T9 ENTRY;
+ (a)/(c)/(e) stay U-T14 close items.
 
 ## G. Per-thread blocking policy
 
@@ -689,10 +681,10 @@ Replaces the per-VM G11 gate (jsThreadsCanBlockOnCurrentThread).
 ## H. SymbolRegistry / Symbol.for
 
 Closes vmstate Dev 8: WTF::SymbolRegistry's m_table gains Lock
-m_lock (destructor-leaf, §LK.8) - symbolForKey, remove, destructor
-walk; ~StringImpl's registered-symbol arm calls remove() under it
-(any thread, incl. in-lock sweep); registries destroyed in ~VM
-after spawned exit (U16).
+m_lock (destructor-leaf, §LK.8) - symbolForKey, remove, dtor
+walk; ~StringImpl's registered-symbol arm calls remove() under
+it (any thread, incl. in-lock sweep); registries destroyed in
+~VM after spawned exit (U16).
 
 ## I. Wasm on spawned threads - REFUSED in v1
 
@@ -704,16 +696,14 @@ returns nullptr AND every generated JSToWasm entry emits a
 spawned-TS prologue check. Discriminator: L2-append uint8_t
 VMLite::isSpawned (=1 BEFORE setCurrent, §B.1); check =
 loadVMLite, null => fall through, else throw - NOT TID-tag.
-isSpawned: SPAWN lites only (carriers 0); spawned single-VM
-(§F.5) => CURRENT-lite byte always agrees with
-isJSThreadCurrent() (ditto §A.2.7). U17
-negative arm: carrier non-GC wasm never throws. C++ gates keep
-isJSThreadCurrent(); GIL-on corpus edited (SD7). EXECUTION only;
-§N.6 rules wasm-buffer grow/detach/shrink. Wasm-GC:
-hasGCObjectTypes() precheck => LinkError (compile-side
-CompileError), both GIL modes - SUPERSESSION (heap §5.5/manifest
-11, both sides; FULL text: r9 F8 + r22 list). U17 positive arm:
-LinkError, no abort. IU row.
+isSpawned: SPAWN lites only (carriers 0); the CURRENT-lite byte
+always agrees with isJSThreadCurrent() (§F.5; ditto §A.2.7).
+U17 negative arm: carrier non-GC wasm never throws. C++ gates
+keep isJSThreadCurrent(); GIL-on corpus edited (SD7). EXECUTION
+only; §N.6 rules wasm buffers. Wasm-GC: hasGCObjectTypes()
+precheck => LinkError, both GIL modes - SUPERSESSION (heap
+§5.5/manifest 11, both sides; FULL text: r9 F8 + r22 list; r33
+compressed). U17 positive arm. IU row.
 
 ## J. GIL-machinery end state (GIL-on unchanged - oracle)
 
@@ -724,13 +714,12 @@ LinkError, no abort. IU row.
  (state per-lite, §A.1); J.5 compiled out;
  unlockAllForThreadParking NOT dead - re-derived J.3.
 - J.3 GILDroppedSection, GIL-off by caller (FULL text: history
- r10 F5, U31 - BINDING). Spawned (token-only) = access
- release + §A.3 park cooperation + §A.3.2b post-wake poll;
- main/embedder park sites ALSO release m_lock + token (drain
- suppressed). Wakes poll ONLY lock-free state off the
- pre-captured lite (U2's bound); full reacquisition EXACTLY
- ONCE per episode, after all rank-3 locks released (§E.2
- exemption). C-API arm per annex.
+ r10 F5, U31 - BINDING; r33 compressed). Spawned = access
+ release + §A.3 park cooperation + post-wake poll;
+ main/embedder park sites ALSO release m_lock + token. Wakes
+ poll ONLY lock-free state off the pre-captured lite; full
+ reacquisition EXACTLY ONCE per episode, after all rank-3
+ locks released (§E.2 exemption). C-API arm per annex.
 - J.6 JSLock handoff body: §F.1 drain + §A.3.6 swap KEPT; rest
  skipped per §§A/B/E/F (GIL-on load-bearing).
 - J.7 JSLock.cpp:151 backstop (L1): REPLACED - GIL-off branch
@@ -751,16 +740,13 @@ unchanged):
  (BINDING list: annex K4 §III). RegExpCache ALREADY locked
  (RegExpCache.h:79); unlocked peers get a leaf Lock (§LK).
 3. Atomic lazy publication (FULL text: history r25 ext + r16
- F2 + ANNEXES LZ1+LZ2, all BINDING; r27 compressed). Index:
- LazyProperty/LazyClassStructure first-touch load-acquire
- fast path; CAS RECORDS the OWNER; winner initializes
- lock-free, release-stores; OWNER re-entry null; FOREIGN
- threads wait PARK-CAPABLE bounded (not an SD).
- Covers initLater + VM ensure*. LZ1: cycle escape/
- abandonment/exit asserts. LZ2: first-touch PRECONDITION (no
- api 1..3, heap 10a/10b, §N cell, §LK.8 hold; never stop
- CONDUCTOR in-window; parked-owner abandonment-CAS UNSOUND).
- U-T8b columns; U20 per LZ2.4; U26 arms per LZ1.4+LZ2.4.
+ F2 + ANNEXES LZ1+LZ2, all BINDING; r27/r33 compressed):
+ first-touch load-acquire fast path; CAS records the OWNER;
+ winner inits lock-free, release-stores; owner re-entry null;
+ foreign threads wait PARK-CAPABLE bounded (not an SD);
+ covers initLater + VM ensure*. LZ1 cycle escape/abandonment;
+ LZ2 first-touch PRECONDITION. U-T8b columns; U20 per LZ2.4;
+ U26 arms per LZ1.4+LZ2.4.
 4. Inventory audit U-T8b EXECUTED -> SPEC-ungil-audit-K4.md
  (BINDING annex K4; rows K4.*). Implementation CONSUMES the
  tables verbatim; §F.2 EXCLUSIVITY CONSUMERS
@@ -769,23 +755,17 @@ unchanged):
  iterate/rewrite OTHER threads' objects.
  JSGlobalObject::haveABadTime (:2900; JS-reachable :2460) -
  FULL text: history annex HBT as AMENDED by HBT2-HBT4 (all
- BINDING): whole body under ONE §A.3 stop; conductor =
- caller, own client, §A.3.5 CLASS-4 variant (§A.3.3 order);
- re-check post-arbitration; re-entry
- blocked (§A.3.2b/§A.3.8); jettison jit I2/R1 (:2854). GIL-on
- unchanged. Class-4 rulings name stop kind + double-entry
- story; peers route here (annex K4 §VI). Corpus per annexes
- (U-T13).
+ BINDING; r33 compressed): whole body under ONE §A.3 stop;
+ conductor = caller, own client, §A.3.5 CLASS-4 variant;
+ re-check post-arbitration; re-entry blocked; jettison jit
+ I2/R1 (:2854). GIL-on unchanged. Peers route here (annex K4
+ §VI). Corpus per annexes (U-T13).
 6. r26 audit-residue rulings (FULL text: history ANNEX AUD1,
- BINDING; rows re-ruled in annex K4 §0; r27 compressed):
- K4-U1 SamplingProfiler main-only capture (§A.1.7(i)) =
- SD18. K4-U2(=N7-U7) m_regExpGlobalData per-lite = SD19;
- tiers per A16 ext. K4-U4 = ANNEX A16 EXTENDED
- (Megamorphic/HOP caches + U2 data lite-indexed GIL-off;
- epoch bumps via registry walk). K4-U3 modules: atomic
- count; per-lite sync queue (§E.1); cross-thread Evaluate()
- = cell-lock status claim (N7.R16), losers adopt/wait per
- AUD1.K3. K4-U5/U6/U7 MECHANICAL (annex K4 §0).
+ BINDING; rows re-ruled in annex K4 §0; r27/r33 compressed):
+ K4-U1 SamplingProfiler = SD18; K4-U2(=N7-U7)
+ m_regExpGlobalData per-lite = SD19 (tiers per A16 ext);
+ K4-U4 = ANNEX A16 EXTENDED; K4-U3 modules per AUD1.K3;
+ K4-U5/U6/U7 MECHANICAL (annex K4 §0).
 
 ## N. Builtin cell-internal mutable state (NEW)
 
@@ -796,15 +776,15 @@ shareable cells was unruled. DEFAULT GIL-off protocol
 reads under the cell's JSCellLock (10a), §E.1b shape - allocate
 OUTSIDE, re-validate under, never allocate/park holding it (OM
 I20). Rulings (full args: history):
-1. JSMap/JSSet (JSOrderedHashTable) + JSWeakMap/Set (WeakMapImpl):
- ALL ops cell-locked, reads too.
- DFG/FTL map intrinsics DISABLED GIL-off -> locked
- native bodies; revival post-ungil.
+1. JSMap/JSSet (JSOrderedHashTable) + JSWeakMap/Set
+ (WeakMapImpl): ALL ops cell-locked, reads too. DFG/FTL map
+ intrinsics DISABLED GIL-off -> locked native bodies; revival
+ post-ungil.
 2. Rope resolution/atomization (JSString.h:637-682): lock-FREE -
  resolver computes into a fresh buffer, publishes by ONE
- release-CAS of the fiber0/flags word; losers discard + re-read;
- readers load-acquire; resolveRopeToAtomString same vs the shared
- table (U0); JIT rope slow calls land here; §C.3's resolve = this.
+ release-CAS of the fiber0/flags word; losers discard +
+ re-read; readers load-acquire; resolveRopeToAtomString same
+ vs the shared table (U0); §C.3's resolve = this.
 3. DateInstance GregorianDateTime cache (DateInstance.h:62-75):
  BYPASSED GIL-off; m_data lazy alloc CAS-published;
  vm.dateCache = §K.1/2.
@@ -814,27 +794,23 @@ I20). Rulings (full args: history):
 5. Non-promise JSInternalFieldObjectImpl (generators, async
  fns/generators, iterator helpers; FULL text: r11 + r15 F1 +
  r17 F5 + r25 ext history, all BINDING; claim sites per
- annex; r26 compressed): single-word resume-claim CAS
- SuspendedX->Running on the STATE field; claim FAILURE
- dispatches on a RE-READ (no SD); at-most-one-resumer keeps
- interior stores WHILE claimed PLAIN + tier-inlined. Twin intrinsics @atomicInternalFieldClaim
- / @atomicInternalFieldPublish (UNCLAIM), emitted
- UNCONDITIONALLY all modes/flags; resume heads'
- check-then-store = ONE claim; LOWERING mode-keyed (r17 F5:
- LLInt/Baseline branch gilOffProcess - false => landed inline
- seq, true => host op; DFG/FTL per compiled-for mode).
- Flag-off: §A.1.3 (b2) uniform bytecode; golden gates
+ annex; r26/r33 compressed): single-word resume-claim CAS
+ SuspendedX->Running on the STATE field; failure dispatches
+ on a RE-READ (no SD); interior stores WHILE claimed stay
+ PLAIN + tier-inlined. Twin intrinsics
+ @atomicInternalFieldClaim/@atomicInternalFieldPublish,
+ emitted UNCONDITIONALLY all modes; LOWERING mode-keyed (r17
+ F5). Flag-off: §A.1.3 (b2) uniform bytecode; golden gates
  re-baselined. Annex N7 lists claim+publish sites; cell lock
  ONLY for named multi-word cases. BENCH.md + §B.5 gates;
  amplifiers per annex.
 6. ArrayBuffer detach/transfer/resize (ArrayBuffer.h:199/:298) +
  wasm grow. FULL text + torn-pair table: annex N6 (BINDING;
- r14 AMENDS arm 2; r25 ext). PRINCIPLE (r12
+ r14 AMENDS arm 2; r25 ext; r33 compressed). PRINCIPLE (r12
  F2): a racing reader never pairs a passing length with an
- unmapped-or-short base. Index: DETACH len=0 seq_cst +
- flag, contents QUARANTINED to a heap §10 stop, hoisted
- vectors jettison; TRANSFER = COPY + source detach; SHRINK
- length seq_cst, tail free deferred; GROW base IMMUTABLE -
+ unmapped-or-short base. DETACH len=0 seq_cst + flag, contents
+ QUARANTINED to a heap §10 stop; TRANSFER = COPY + source
+ detach; SHRINK tail free deferred; GROW base IMMUTABLE -
  commit THEN release-publish length. U28 amplifier per annex.
 7. Audit U-T8c EXECUTED -> SPEC-ungil-audit-N7.md (BINDING
  annex N7; rows R1-R31). Implementation CONSUMES the N7 table
@@ -843,26 +819,20 @@ I20). Rulings (full args: history):
  re-pointed per row. Residue rulings: §N.9. U28 arms per
  annex N7.
 8. ScriptExecutable -> CodeBlock FIRST install (r20 F4, FULL
- text history ANNEX CBI, BINDING; r26 compressed). Racing
- first calls: compile fully OUTSIDE any cell lock
- (UnlinkedCodeBlock generation = §K.3-class); publish =
- release-CAS of m_codeBlockFor{Call,Construct} - loser
- DISCARDS, adopts winner; m_jitCodeFor* + adjacent state
- per-field ruled (annex). CodeBlockSet registration under its
- heap lock. Tier-up = jit §5.7.2 verbatim; debugger
- walks/jettison = §A.2.7/jit §5.3 stops. No frozen text
- superseded. Annex N7 row R12 + first-call amplifier.
+ text history ANNEX CBI, BINDING; r26/r33 compressed):
+ compile OUTSIDE any cell lock; publish = release-CAS of
+ m_codeBlockFor{Call,Construct}, loser discards/adopts;
+ adjacent state per-field ruled (annex); tier-up jit §5.7.2
+ verbatim. No frozen text superseded. Annex N7 row R12 +
+ first-call amplifier.
 9. r26 audit-residue rulings (FULL text: history ANNEX AUD1,
- BINDING; rows re-ruled in annex N7 §0; r27 compressed):
- N7-U1 m_resolutionCache = §N default cell lock (UAF,
- PRIORITY). N7-U2 RegExp::m_ovector = per-lite match buffer
- (K4 §I; consumers/exec thunks re-pointed; UAF, PRIORITY).
- N7-U3/U4 arguments lazy storage CAS-PUBLISH; flag words
- release-stored AFTER the OM puts, foreign slow readers
- acquire (jit F2 checks stay). N7-U5 StructureRareData under
- Structure::m_lock, JIT-read words release-published LAST;
- m_specialPropertyCache = §K.3. N7-U6 Intl: mutation
- cell-locked; ICU verified-const or clone-per-use; no SD.
+ BINDING; rows re-ruled in annex N7 §0; r27/r33 compressed):
+ N7-U1 m_resolutionCache = §N cell lock (UAF, PRIORITY);
+ N7-U2 RegExp::m_ovector = per-lite match buffer (K4 §I; UAF,
+ PRIORITY); N7-U3/U4 arguments CAS-PUBLISH (flags
+ release-stored AFTER the OM puts); N7-U5 StructureRareData
+ under Structure::m_lock, m_specialPropertyCache = §K.3;
+ N7-U6 Intl cell-locked/ICU const-or-clone; no SD.
 
 ## LK. Merged process lock table (ONE order; heap §6 master; api
 §5.9 anchored here; vmstate §7 amended; acyclicity: history r8
@@ -886,6 +856,30 @@ Outermost -> innermost:
  sound per NLH1.3; U20 per NLH1.5.
 5. heap ranks 2-10b as frozen. Cross edges: api 3 -> 10a legal
  (§C.3); api locks NEVER wrap heap ranks 2-9b.
+9c. [r33] GCH::m_mutatorMarkStackLock (CMS, congc §5.2) -
+ TERMINAL leaf (nothing acquired holding it), INSIDE
+ m_markingMutex (drain/donation sites only); MAY be held with
+ heap 7-9b (addToRememberedSet append) - §LK.8
+ destructor-leaf-class shape. SUPERSESSION (heap §6 leaf row
+ "never 7-9b" vs this lock, both sides; congc
+ CGS2.1/§13.5(1) back-cite; FULL row + soundness: history r33
+ ANNEX CGS2A, BINDING).
+9d. [r33] Marking-internal group (m_markingMutex,
+ m_parallelSlotVisitorLock, m_raceMarkStackLock, visitor
+ m_rightToRun): INSIDE GCL/GBL, mutually ordered as landed
+ (markingMutex > CMS at drains); mutator-reachable
+ OUT-OF-WINDOW at exactly the three CGS2.1 sites (SINFAC-tail
+ donation, SINFAC I6 Heap.cpp:5216; DCT final flush; ACT/DCT
+ pending enqueue - m_parallelSlotVisitorLock only). U20
+ PROPER extends to rows 9c/9d - congc CG-T2 IS the extension
+ (no second lock-order authority). Composed chain NL > GCL >
+ m_markingMutex > CMS acyclic per CGS2.2 (CMS terminal,
+ CG-I10; NL never ACQUIRED by GCL/markingMutex holders,
+ NA-I10; GC-conduct NL>GCL edge REMOVED - nativeaffinity
+ BL1.8; LK.1c stays a nativeaffinity §9.1 pending row). Rows
+ flag-gated useConcurrentSharedGCMarking; flag-off frozen
+ table operative (congc CG-I0). FULL rows: history r33 ANNEX
+ CGS2A.
 6. VMLiteRegistry::lock - RE-RANKED outer-of-leaves (SUPERSESSION
  vs vmstate §6.5.1/§7 "no lock while held", both sides): inner
  set {VMLite::scratchBufferLock, atomic bit ops, fastMalloc}
@@ -903,23 +897,22 @@ Outermost -> innermost:
  holding it; held across parks + token/access reacq, §E.2
  exemption) - ordered OUTSIDE heap 2-10 + api 1-3; acyclic: no
  conductor or heap-2..9b holder ACQUIRES it; §A.3 conductors
- MAY hold it on entry (NLH1.4). SUPERSESSION (r16
- F6; api §5.9 rank-4 leaf + (f), api:263/:272, vs this, both
- sides; IA row): GIL-on UNCHANGED - 5.9(e)/(f) = the leaf-form
- encoding of this order; §LK canonical for U20 (r22 list).
+ MAY hold it on entry (NLH1.4). SUPERSESSION (r16 F6; api §5.9
+ rank-4 leaf + (f), api:263/:272, vs this, both sides; IA
+ row): GIL-on UNCHANGED; §LK canonical for U20 (r22 list).
 - Negative edges (normative): no heap 2-9b holder acquires ANY api
  lock; no 10a/10b holder acquires api rank<=3; GC/§A.3 conductors
  acquire NO api lock (interplay: §D.1's mutator-side TM
  snapshot/release + the WS(ii) finalize carve-out); api 1-3
  holders never transition heap access (§E.2).
-- WS rows (r22 W1; FULL text ANNEX WS1 + r25 ext, BINDING; r27
- compressed). (i) Weak CREATION (MSPL under ISS) FORBIDDEN
- under api 1-3 + §LK.7 leaves; SUPERSESSION (api 5.7.2 landed
- shape vs this, both sides; IU rows): hoist construction
- BEFORE the lock, publish under it. (ii) sole finalize-side
- carve-out: WeakHandleOwner::finalize MAY take the rank-2
- affinity lock / class-2 leaves in-window (WS1.3); TM rank 1
- NOT excepted. U-T8b lock-context column; U20 lints both.
+- WS rows (r22 W1; FULL text ANNEX WS1 + r25 ext, BINDING;
+ r27/r33 compressed). (i) Weak CREATION FORBIDDEN under api
+ 1-3 + §LK.7 leaves; SUPERSESSION (api 5.7.2 landed shape vs
+ this, both sides; IU rows): hoist construction BEFORE the
+ lock, publish under it. (ii) sole carve-out:
+ WeakHandleOwner::finalize MAY take the rank-2 affinity lock /
+ class-2 leaves in-window (WS1.3); TM rank 1 NOT excepted.
+ U-T8b lock-context column; U20 lints both.
 
 §C.1 lock-free arms + §N.2 ropes take NO lock.
 
@@ -954,20 +947,20 @@ per-thread RegExp legacy statics (§K.6) - all GIL-off only
 except SD6/SD7. U19 fallback corpus keeps OLD expectations via
 //@ runThreadsGILOff/GILOn variants for SD1-SD5/SD8-SD19;
 SD6/SD7 GIL-on expectations change. Per-rev SD attribution:
-history; r27-r32 add none (ext2 rides SD8).
+history; r27-r33 add none (ext2 rides SD8).
 §N.5's TypeError + §I's wasm-GC LinkError are NOT SDs.
 
 ## IM. Integration manifest
 
 NORMATIVE ANNEX (history): hot-file -> section table + owners +
 rev-7..24 add-lists; diffs land via IU. IU does NOT exist yet:
-U-T1 CREATES it (tables: ANNEX TERM1.6); until then "IU row" =
-an obligation written at landing; audits consume the EXECUTED
+U-T1 CREATES it (ANNEX TERM1.6); until then "IU row" = an
+obligation written at landing; audits consume the EXECUTED
 K4/N7 tables - IU adds call sites, never re-rules.
 
 ## T. Ordered task list
 
-Full scope + gates: history r9 annex + r10-r32 deltas; IDs
+Full scope + gates: history r9 annex + r10-r33 deltas; IDs
 frozen.
 Index: U-T1 §A.1.2-7/A.3.6; U-T2 §A.2; U-T3
 §A.1.1-3 + U0c; U-T4 §A.1.3/6 JIT emission; U-T5 §A.3 STW +

@@ -162,7 +162,28 @@ The folded form survives only as the GIL-on arm (landed semantics, where
 it is sound — single carrier). Recommend refreshing the banner so a future
 reviewer does not "re-fix" it.
 
-## S4. Cooperative stop delivered at a poll inside a TTL-elision window — **I21(b) unimplemented**
+## S4. Cooperative stop delivered at a poll inside a TTL-elision window — **CLOSED 2026-06-10: I21(b) landed**
+
+**Closure:** `ByteCodeParser::handleCheckTraps` (DFGByteCodeParser.cpp) now
+emits `ExitOK` + `InvalidationPoint` immediately after every flag-on
+CheckTraps (the AB-10 closure banner in-function), so a mutator parked at a
+poll across a Class-A fire resumes into the patched exit, never across
+jettisoned elided code. mc-aint-poll-resume-stale-elided.js: 20/20 + 40/40
+GIL-off full-tier runs, zero oracle hits. GIL-on disposition (2026-06-10):
+the test PREMISE-SKIPs (runner-recognized `THREADS-PREMISE-SKIP:` marker)
+via a behavioral cooperative-GIL probe — its progress assertions
+(checks/foreignRounds > 0) assert cross-thread progress against a
+never-blocking main driver, which SPEC-api Deviation 9 (cooperative-only
+preemption; 5.2 blocking primitives are the only yield points) explicitly
+does not promise, and the I21(b) window itself is closed by construction
+GIL-on (sole mutator runs fires inline). Test-side fix, not an engine
+concession: inserting parks into the hot loops to "fix" GIL-on progress
+would gut the GIL-off poll-resume window the oracle exists to catch. (One observed failure in 80 runs
+was the SAFE-family gcwait-vs-classa stop deadlock — shared GC conducted in
+a mutator thread, parallel markers blocked on a CodeBlock ConcurrentJSLock,
+Class-A conductor 30s watchdog — owned by mc-safe-gcwait-vs-classa-stop,
+not this oracle.) The Task-13 poll-placement LINT chartered below is still
+unbuilt — regression-risk note, not a live hole. Original finding follows:
 
 This is MC-AINT with the stop itself as the interruption: GIL-off, a
 Class-A watchpoint fire runs as an STWR (SPEC-jit §5.6); every other
