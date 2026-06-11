@@ -87,6 +87,11 @@ if (WIN32)
         win/MemoryPressureHandlerWin.cpp
     )
 elseif (APPLE)
+    # When cross-compiling from a non-Darwin host, WebKitXcodeSDK.cmake (which
+    # sets Mig_EXECUTABLE via xcrun) is not included; fall back to PATH lookup.
+    if (NOT Mig_EXECUTABLE)
+        find_program(Mig_EXECUTABLE mig REQUIRED)
+    endif ()
     file(COPY mac/MachExceptions.defs DESTINATION ${WTF_DERIVED_SOURCES_DIR})
     add_custom_command(
         OUTPUT

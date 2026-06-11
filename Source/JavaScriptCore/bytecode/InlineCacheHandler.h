@@ -170,7 +170,9 @@ protected:
     std::unique_ptr<PropertyInlineCacheClearingWatchpoint> m_watchpoint;
 };
 
-#if !ASSERT_ENABLED && !ASAN_ENABLED && CPU(ARM64) && CPU(ADDRESS64)
+// On the MSVC ABI, NO_UNIQUE_ADDRESS is a no-op, so RefCountedBase's empty
+// RefCountDebugger member occupies storage and m_uid lands at 48 instead.
+#if !ASSERT_ENABLED && !ASAN_ENABLED && CPU(ARM64) && CPU(ADDRESS64) && !OS(WINDOWS)
 static_assert(InlineCacheHandler::offsetOfUid() == 40, "InlineCacheHandler hot field layout drifted.");
 #endif
 
