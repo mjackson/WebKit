@@ -78,7 +78,6 @@
 #include "RenderObjectInlines.h"
 #include "RenderScrollbar.h"
 #include "RenderScrollbarPart.h"
-#include "RenderStyle+GettersInlines.h"
 #include "RenderTheme.h"
 #include "RenderView.h"
 #include "ScrollAnchoringController.h"
@@ -88,6 +87,7 @@
 #include "ScrollbarsController.h"
 #include "ScrollingCoordinator.h"
 #include "ShadowRoot.h"
+#include "StyleComputedStyle+GettersInlines.h"
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -439,7 +439,9 @@ void RenderLayerScrollableArea::scrollTo(const ScrollPosition& position)
     if (scrollsOverflow())
         view.frameView().didChangeScrollOffset();
 
-    view.frameView().viewportContentsChanged();
+    if (!view.frameView().layoutContext().isInRenderTreeLayout())
+        view.frameView().viewportContentsChanged();
+
     protect(frame->editor())->renderLayerDidScroll(m_layer);
 }
 
@@ -1258,7 +1260,7 @@ void RenderLayerScrollableArea::updateScrollbarPresenceAndState(std::optional<bo
         Ref { *m_vBar }->setEnabled(verticalBarState == ScrollbarState::Enabled);
 }
 
-void RenderLayerScrollableArea::updateScrollbarsAfterStyleChange(const RenderStyle* oldStyle)
+void RenderLayerScrollableArea::updateScrollbarsAfterStyleChange(const Style::ComputedStyle* oldStyle)
 {
     // Overflow is a box concept.
     RenderBox* box = m_layer.renderBox();

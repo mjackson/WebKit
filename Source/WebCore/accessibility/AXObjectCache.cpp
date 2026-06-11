@@ -479,9 +479,18 @@ AXObjectCache::~AXObjectCache()
     m_selectedTextRangeTimer.stop();
     m_updateTreeSnapshotTimer.stop();
 
-    if (auto tree = AXIsolatedTree::treeForFrameID(m_frameID))
-        tree->setPageActivityState({ });
-    AXIsolatedTree::removeTreeForFrameID(m_frameID);
+    RefPtr existingTree = AXIsolatedTree::treeForFrameID(m_frameID);
+    if (existingTree) {
+        existingTree->setPageActivityState({ });
+        if (existingTree->treeID() == treeID()) {
+            // Only remove the tree if it belongs to this cache. During cross-document navigation, a new
+            // AXObjectCache may have already been created for the same frameID and stored a fresh tree in
+            // treeFrameCache. We must not wipe the new cache's tree when the previous cache is finally
+            // destructed. Without this guard, the new cache's AXLocalFrame parent loses its tree mapping
+            // and AXIsolatedObject::crossFrameChildObject returns null, breaking iframe access in ITM.
+            AXIsolatedTree::removeTreeForFrameID(m_frameID);
+        }
+    }
 #endif
 
     AXTreeStore::remove(m_id);
@@ -2623,12 +2632,12 @@ void AXObjectCache::handleRemoteFrameGainedFocus(RemoteFrame& remoteFrame, Eleme
     recomputeIsIgnored(oldFocusedElement);
 }
 
-static bool NODELETE isContentVisibilityHidden(const RenderStyle& style)
+static bool NODELETE isContentVisibilityHidden(const Style::ComputedStyle& style)
 {
     return style.usedContentVisibility() == ContentVisibility::Hidden;
 }
 
-void AXObjectCache::onStyleChange(Element& element, OptionSet<Style::Change> change, const RenderStyle* oldStyle, const RenderStyle* newStyle)
+void AXObjectCache::onStyleChange(Element& element, OptionSet<Style::Change> change, const Style::ComputedStyle* oldStyle, const Style::ComputedStyle* newStyle)
 {
     if (!change || !oldStyle || !newStyle)
         return;
@@ -2707,7 +2716,7 @@ void AXObjectCache::onAccessibilityPaintFinished()
     startUpdateTreeSnapshotTimer();
 }
 
-bool AXObjectCache::onFontChange(Element& element, const RenderStyle* oldStyle, const RenderStyle* newStyle)
+bool AXObjectCache::onFontChange(Element& element, const Style::ComputedStyle* oldStyle, const Style::ComputedStyle* newStyle)
 {
     if (!oldStyle || !newStyle)
         return false;
@@ -2728,7 +2737,7 @@ bool AXObjectCache::onFontChange(Element& element, const RenderStyle* oldStyle, 
     return false;
 }
 
-bool AXObjectCache::onTextColorChange(Element& element, const RenderStyle* oldStyle, const RenderStyle* newStyle)
+bool AXObjectCache::onTextColorChange(Element& element, const Style::ComputedStyle* oldStyle, const Style::ComputedStyle* newStyle)
 {
     if (!oldStyle || !newStyle)
         return false;
@@ -2750,7 +2759,7 @@ bool AXObjectCache::onTextColorChange(Element& element, const RenderStyle* oldSt
 }
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
-void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference difference, const RenderStyle* oldStyle, const RenderStyle& newStyle)
+void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference difference, const Style::ComputedStyle* oldStyle, const Style::ComputedStyle& newStyle)
 {
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (!oldStyle)
@@ -3621,6 +3630,8 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
         postNotification(element, AXNotification::AbbreviationChanged);
     else if (attrName == hiddenAttr)
         postNotification(element, AXNotification::HiddenStateChanged);
+    else if (attrName == typeAttr)
+        handleInputTypeChanged(*element);
 
     if (!attrName.localName().string().startsWith("aria-"_s))
         return;
@@ -3792,8 +3803,6 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
     else if (attrName == aria_brailleroledescriptionAttr)
         postNotification(element, AXNotification::BrailleRoleDescriptionChanged);
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    else if (attrName == typeAttr)
-        handleInputTypeChanged(*element);
 }
 
 void AXObjectCache::updateCachedTextOfAssociatedObjects(AccessibilityObject& object)
@@ -6066,19 +6075,19 @@ bool isNodeFocused(Node& node)
     return is<Element>(node) && uncheckedDowncast<Element>(node).focused();
 }
 
-bool isVisibilityHidden(const RenderStyle& style)
+bool isVisibilityHidden(const Style::ComputedStyle& style)
 {
     return style.usedVisibility() != Visibility::Visible || isContentVisibilityHidden(style);
 }
 
 // DOM component of hidden definition.
 // https://www.w3.org/TR/wai-aria/#dfn-hidden
-bool isRenderHidden(const RenderStyle& style)
+bool isRenderHidden(const Style::ComputedStyle& style)
 {
     return style.display() == Style::DisplayType::None || isVisibilityHidden(style);
 }
 
-bool isRenderHidden(const RenderStyle* style)
+bool isRenderHidden(const Style::ComputedStyle* style)
 {
     return style ? isRenderHidden(*style) : true;
 }
@@ -6298,7 +6307,7 @@ bool AXObjectCache::addRelation(Element& origin, Element& target, AXRelation rel
     AXLOG(makeString("origin: "_s, origin.debugDescription(), " target: "_s, target.debugDescription(), " relation "_s, static_cast<uint8_t>(relation)));
 
     if (!validRelation(origin, target, relation)) {
-        AX_ASSERT_NOT_REACHED();
+        // Skip invalid relations (which can be created with legitimate markup, e.g. self-referential aria-owns.
         return false;
     }
 

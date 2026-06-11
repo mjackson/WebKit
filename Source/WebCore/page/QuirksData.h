@@ -103,6 +103,9 @@ struct QuirksData {
         NeedsGoogleMapsScrollingQuirk,
         NeedsGoogleTranslateScrollingQuirk,
 #endif
+#if PLATFORM(IOS) || PLATFORM(VISION)
+        NeedsNetflixVolumeSliderQuirk,
+#endif
         NeedsGeforcenowWarningDisplayNoneQuirk,
         NeedsExpediaGroupAnimationQuirk,
         NeedsMediaRewriteRangeRequestQuirk,
@@ -179,6 +182,9 @@ struct QuirksData {
         ShouldDisablePointerEventsQuirk,
 #endif
         ShouldDisablePushStateFilePathRestrictions,
+#if PLATFORM(IOS_FAMILY)
+        ShouldDisableScrollAnchoringQuirk,
+#endif
 #if ENABLE(THREADED_ANIMATIONS)
         ShouldDisableThreadedAnimationsQuirk,
 #endif

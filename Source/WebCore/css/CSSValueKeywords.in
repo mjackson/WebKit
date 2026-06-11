@@ -962,7 +962,6 @@ padding-box
 scoop
 // bevel
 notch
-straight
 squircle
 superellipse
 // infinity
@@ -1518,6 +1517,7 @@ path
 xywh
 
 calc
+calc-mix
 -webkit-calc
 min
 max

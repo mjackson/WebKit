@@ -36,21 +36,25 @@
 #import "ModelProcessModelPlayerMessages.h"
 #import "WKModelProcessModelLayer.h"
 #import "WKRKEntity.h"
+#if HAVE(CORE_RE)
 #import "WKStageMode.h"
 #import "WKUSDStageConverter.h"
 #import <RealitySystemSupport/RealitySystemSupport.h>
 #import <SurfBoardServices/SurfBoardServices.h>
+#endif
 #import <WebCore/Color.h>
 #import <WebCore/LayerHostingContextIdentifier.h>
 #import <WebCore/Model.h>
 #import <WebCore/ModelPlayerGraphicsLayerConfiguration.h>
 #import <WebCore/ResourceError.h>
 #import <WebCore/WebActionDisablingCALayerDelegate.h>
+#if HAVE(CORE_RE)
 #import <WebKitAdditions/REModel.h>
 #import <WebKitAdditions/REModelLoader.h>
 #import <WebKitAdditions/REPtr.h>
 #import <WebKitAdditions/SeparatedLayerAdditions.h>
 #import <WebKitAdditions/WKREEngine.h>
+#endif
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/Deque.h>
@@ -65,7 +69,11 @@
 
 #import "WebKitSwiftSoftLink.h"
 
+#if HAVE(CORE_RE)
 @interface WKModelProcessModelPlayerProxyObjCAdapter : NSObject<WKRKEntityDelegate, WKStageModeInteractionAware>
+#else
+@interface WKModelProcessModelPlayerProxyObjCAdapter : NSObject<WKRKEntityDelegate>
+#endif
 - (instancetype)initWithModelProcessModelPlayerProxy:(std::reference_wrapper<WebKit::ModelProcessModelPlayerProxy>)modelProcessModelPlayerProxy;
 @end
 
@@ -87,10 +95,12 @@
     _modelProcessModelPlayerProxy->animationPlaybackStateDidUpdate();
 }
 
+#if HAVE(CORE_RE)
 - (void)stageModeInteractionDidUpdateModel
 {
     _modelProcessModelPlayerProxy->stageModeInteractionDidUpdateModel();
 }
+#endif
 
 @end
 
@@ -99,6 +109,7 @@ namespace WebKit {
 static const Seconds unloadModelDelay { 4_s };
 static constexpr auto usdzMIMEType = "model/vnd.usdz+zip"_s;
 
+#if HAVE(CORE_RE)
 class RKModelUSD final : public WebCore::REModel {
 public:
     static Ref<RKModelUSD> create(Ref<Model> model, RetainPtr<WKRKEntity> entity)
@@ -276,6 +287,7 @@ void RKUSDModelLoadScheduler::loadNextModel()
         loadNextModel();
     });
 }
+#endif // HAVE(CORE_RE)
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ModelProcessModelPlayerProxy);
 
@@ -304,6 +316,7 @@ ModelProcessModelPlayerProxy::~ModelProcessModelPlayerProxy()
     if (m_loader)
         m_loader->cancel();
 
+#if HAVE(CORE_RE)
     if (m_containerEntity.get())
         REEntityRemoveFromSceneOrParent(m_containerEntity.get());
 
@@ -316,6 +329,7 @@ ModelProcessModelPlayerProxy::~ModelProcessModelPlayerProxy()
     if (auto* syncManager = REServiceLocatorGetNetworkSyncManager(REEngineGetServiceLocator(REEngineGetShared())))
         RENetworkSyncManagerRelieveMemoryPressure(syncManager, 0);
 #endif
+#endif // HAVE(CORE_RE)
 
     RELEASE_LOG(ModelElement, "%p - ModelProcessModelPlayerProxy deallocated id=%" PRIu64, this, m_id.toUInt64());
 
@@ -373,6 +387,7 @@ void ModelProcessModelPlayerProxy::createLayer()
 
 void ModelProcessModelPlayerProxy::loadModel(Ref<WebCore::Model>&& model, WebCore::LayoutSize layoutSize)
 {
+#if HAVE(CORE_RE)
     if (model->mimeType() != usdzMIMEType) {
         RetainPtr<NSData> modelData = model->data()->createNSData();
         RetainPtr<NSData> usdzData = [WKUSDStageConverter convert:modelData.get()];
@@ -390,6 +405,7 @@ void ModelProcessModelPlayerProxy::loadModel(Ref<WebCore::Model>&& model, WebCor
 
         RELEASE_LOG_ERROR(ModelElement, "%p - ModelProcessModelPlayerProxy::loadModel(): Model conversion failed, continuing with original data", this);
     }
+#endif
 
     // FIXME: Change the IPC message to land on load() directly
     load(model, layoutSize);
@@ -586,8 +602,13 @@ void ModelProcessModelPlayerProxy::updateTransform()
 void ModelProcessModelPlayerProxy::updateTransformAfterLayout()
 {
     if (m_transformNeedsUpdateAfterNextLayout) {
-        updateForCurrentStageMode();
         m_transformNeedsUpdateAfterNextLayout = false;
+        if (m_stageModeOperation == WebCore::StageModeOperation::None) {
+            if (!m_entityTransformSetByScript)
+                computeTransform(false);
+            updateTransform();
+        } else
+            updateForCurrentStageMode();
         return;
     }
 
@@ -621,25 +642,33 @@ void ModelProcessModelPlayerProxy::animationPlaybackStateDidUpdate()
     RELEASE_LOG_DEBUG(ModelElement, "%p - ModelProcessModelPlayerProxy: did update animation playback state: paused: %d, playbackRate: %f, duration: %f, currentTime: %f", this, isPaused, playbackRate, duration, currentTime);
     send(Messages::ModelProcessModelPlayer::DidUpdateAnimationPlaybackState(isPaused, playbackRate, Seconds(duration), Seconds(currentTime), MonotonicTime::now()));
 }
+
+#if HAVE(CORE_RE)
 // MARK: - WebCore::RELoaderClient
 
 static RECALayerService *webDefaultLayerService(void)
 {
     return REServiceLocatorGetCALayerService(REEngineGetServiceLocator(REEngineGetShared()));
 }
+#endif
 
 void ModelProcessModelPlayerProxy::didFinishLoading(WebCore::REModelLoader& loader, Ref<WebCore::REModel> model)
 {
     dispatch_assert_queue(mainDispatchQueueSingleton());
     ASSERT(&loader == m_loader.get());
 
-    bool canLoadWithRealityKit = [getWKRKEntityClassSingleton() isLoadFromDataAvailable];
-
     m_loader = nullptr;
+
+#if HAVE(CORE_RE)
+    bool canLoadWithRealityKit = [getWKRKEntityClassSingleton() isLoadFromDataAvailable];
     if (canLoadWithRealityKit)
         m_modelRKEntity = model->rootRKEntity();
     else if (model->rootEntity())
         m_modelRKEntity = adoptNS([allocWKRKEntityInstance() initWithCoreEntity:model->rootEntity()]);
+#else
+    m_modelRKEntity = model->rootRKEntity();
+#endif
+
     [m_modelRKEntity setDelegate:m_objCAdapter.get()];
 
     // Capture the root entity's original scale before any transform is applied.
@@ -650,6 +679,7 @@ void ModelProcessModelPlayerProxy::didFinishLoading(WebCore::REModelLoader& load
     m_originalBoundingBoxExtents = [m_modelRKEntity boundingBoxExtents] * m_originalEntityScale;
     m_originalBoundingBoxCenter = [m_modelRKEntity boundingBoxCenter] * m_originalEntityScale;
 
+#if HAVE(CORE_RE)
     m_hostingEntity = adoptRE(REEntityCreate());
     REEntitySetName(m_hostingEntity.get(), "WebKit:EntityWithRootComponent");
 
@@ -684,6 +714,7 @@ void ModelProcessModelPlayerProxy::didFinishLoading(WebCore::REModelLoader& load
 
     if (!canLoadWithRealityKit)
         RENetworkMarkEntityMetadataDirty(model->rootEntity());
+#endif // HAVE(CORE_RE)
 
     if (m_entityTransformToRestore) {
         setEntityTransform(*m_entityTransformToRestore);
@@ -693,7 +724,10 @@ void ModelProcessModelPlayerProxy::didFinishLoading(WebCore::REModelLoader& load
         computeTransform(true);
         updateTransform();
     }
+
+#if HAVE(CORE_RE)
     [m_stageModeInteractionDriver setContainerTransformInPortal];
+#endif // HAVE(CORE_RE)
 
     updateOpacity();
     startAnimating();
@@ -733,6 +767,27 @@ void ModelProcessModelPlayerProxy::didFailLoading(WebCore::REModelLoader& loader
 
 static int defaultEntityMemoryLimit = 100; // MB
 
+class SimpleModelLoader final : public WebCore::REModelLoader {
+public:
+    static Ref<SimpleModelLoader> create() { return adoptRef(*new SimpleModelLoader); }
+    bool isCanceled() const { return m_canceled; }
+private:
+    void cancel() final { m_canceled = true; }
+    bool m_canceled { false };
+};
+
+#if !HAVE(CORE_RE)
+class SimpleREModel final : public WebCore::REModel {
+public:
+    static Ref<SimpleREModel> create(RetainPtr<WKRKEntity>&& entity) { return adoptRef(*new SimpleREModel(WTF::move(entity))); }
+    RetainPtr<WKRKEntity> rootRKEntity() const final { return m_entity; }
+private:
+    explicit SimpleREModel(RetainPtr<WKRKEntity>&& entity)
+        : m_entity(WTF::move(entity)) { }
+    RetainPtr<WKRKEntity> m_entity;
+};
+#endif
+
 void ModelProcessModelPlayerProxy::load(WebCore::Model& model, WebCore::LayoutSize layoutSize)
 {
     dispatch_assert_queue(mainDispatchQueueSingleton());
@@ -740,6 +795,7 @@ void ModelProcessModelPlayerProxy::load(WebCore::Model& model, WebCore::LayoutSi
     RELEASE_LOG(ModelElement, "%p - ModelProcessModelPlayerProxy::load size=%zu id=%" PRIu64, this, model.data()->size(), m_id.toUInt64());
     sizeDidChange(layoutSize);
 
+#if HAVE(CORE_RE)
     WKREEngine::singleton().runWithSharedScene([this, protectedThis = protect(*this), model = protect(model)] (RESceneRef scene) {
         m_scene = scene;
         if ([getWKRKEntityClassSingleton() isLoadFromDataAvailable])
@@ -747,6 +803,27 @@ void ModelProcessModelPlayerProxy::load(WebCore::Model& model, WebCore::LayoutSi
         else
             m_loader = WebCore::loadREModel(model.get(), *this);
     });
+#else
+    auto loader = SimpleModelLoader::create();
+    m_loader = loader.ptr();
+
+    RetainPtr<NSData> modelData = model.data()->createNSData();
+    [getWKRKEntityClassSingleton() loadFromData:modelData.get() withAttributionTaskID:nil entityMemoryLimit:0 completionHandler:makeBlockPtr([weakThis = WeakPtr { *this }, loader = WTF::move(loader)] (WKRKEntity *entity) mutable {
+        if (loader->isCanceled())
+            return;
+
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+
+        if (!entity) {
+            protectedThis->didFailLoading(loader.get(), WebCore::ResourceError { WebCore::errorDomainWebKitInternal, 0, { }, "Failed to load model data"_s });
+            return;
+        }
+
+        protectedThis->didFinishLoading(loader.get(), SimpleREModel::create(entity));
+    }).get()];
+#endif
 }
 
 void ModelProcessModelPlayerProxy::sizeDidChange(WebCore::LayoutSize layoutSize)
@@ -762,7 +839,7 @@ void ModelProcessModelPlayerProxy::sizeDidChange(WebCore::LayoutSize layoutSize)
 
     auto width = layoutSize.width().toDouble();
     auto height = layoutSize.height().toDouble();
-    if (!m_transformNeedsUpdateAfterNextLayout && m_stageModeOperation != WebCore::StageModeOperation::None && m_modelRKEntity && m_layer)
+    if (!m_transformNeedsUpdateAfterNextLayout && m_modelRKEntity && m_layer)
         m_transformNeedsUpdateAfterNextLayout = width != CGRectGetWidth([m_layer frame]) || height != CGRectGetHeight([m_layer frame]);
     [m_layer setFrame:CGRectMake(0, 0, width, height)];
 }
@@ -780,6 +857,7 @@ void ModelProcessModelPlayerProxy::setEntityTransform(WebCore::TransformationMat
 {
     RESRT newSRT = REMakeSRTFromMatrix(transform);
     m_transformSRT = modelLocalizedTransformSRT(newSRT);
+    m_entityTransformSetByScript = true;
     updateTransform();
 }
 
@@ -917,19 +995,25 @@ void ModelProcessModelPlayerProxy::setEnvironmentMap(Ref<WebCore::SharedBuffer>&
 
 void ModelProcessModelPlayerProxy::beginStageModeTransform(const WebCore::TransformationMatrix& transform)
 {
+#if HAVE(CORE_RE)
     simd_float4x4 transformMatrix = simd_float4x4(transform);
     [m_stageModeInteractionDriver interactionDidBegin:transformMatrix];
+#endif
 }
 
 void ModelProcessModelPlayerProxy::updateStageModeTransform(const WebCore::TransformationMatrix& transform)
 {
+#if HAVE(CORE_RE)
     simd_float4x4 transformMatrix = simd_float4x4(transform);
     [m_stageModeInteractionDriver interactionDidUpdate:transformMatrix];
+#endif
 }
 
 void ModelProcessModelPlayerProxy::endStageModeInteraction()
 {
+#if HAVE(CORE_RE)
     [m_stageModeInteractionDriver interactionDidEnd];
+#endif
 }
 
 void ModelProcessModelPlayerProxy::resetModelTransformAfterDrag()
@@ -939,13 +1023,19 @@ void ModelProcessModelPlayerProxy::resetModelTransformAfterDrag()
 
 void ModelProcessModelPlayerProxy::stageModeInteractionDidUpdateModel()
 {
+#if HAVE(CORE_RE)
     if (stageModeInteractionInProgress() && m_modelRKEntity)
         updateTransformSRT();
+#endif
 }
 
 bool ModelProcessModelPlayerProxy::stageModeInteractionInProgress() const
 {
+#if HAVE(CORE_RE)
     return [m_stageModeInteractionDriver stageModeInteractionInProgress];
+#else
+    return false;
+#endif
 }
 
 void ModelProcessModelPlayerProxy::animateModelToFitPortal(CompletionHandler<void(bool)>&& completionHandler)
@@ -1028,7 +1118,9 @@ void ModelProcessModelPlayerProxy::updateForCurrentStageMode()
         updateTransformSRT();
     }
 
+#if HAVE(CORE_RE)
     applyStageModeOperationToDriver();
+#endif
 }
 
 void ModelProcessModelPlayerProxy::setStageMode(WebCore::StageModeOperation stagemodeOp)
@@ -1037,6 +1129,9 @@ void ModelProcessModelPlayerProxy::setStageMode(WebCore::StageModeOperation stag
         return;
 
     m_stageModeOperation = stagemodeOp;
+
+    if (m_stageModeOperation != WebCore::StageModeOperation::None)
+        m_entityTransformSetByScript = false;
 
     updateForCurrentStageMode();
 }
@@ -1053,6 +1148,7 @@ void ModelProcessModelPlayerProxy::updateTransformSRT()
     notifyModelPlayerOfEntityTransformChange();
 }
 
+#if HAVE(CORE_RE)
 void ModelProcessModelPlayerProxy::applyStageModeOperationToDriver()
 {
     switch (m_stageModeOperation) {
@@ -1067,6 +1163,7 @@ void ModelProcessModelPlayerProxy::applyStageModeOperationToDriver()
     }
     }
 }
+#endif // HAVE(CORE_RE)
 
 void ModelProcessModelPlayerProxy::applyDefaultIBL()
 {

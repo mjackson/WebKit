@@ -100,7 +100,6 @@
 #include "RemoteFrame.h"
 #include "RenderLayerCompositor.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyle+GettersInlines.h"
 #include "RenderTableCell.h"
 #include "RenderText.h"
 #include "RenderTextControl.h"
@@ -117,8 +116,9 @@
 #include "SecurityOrigin.h"
 #include "ServiceWorkerGlobalScope.h"
 #include "Settings.h"
+#include "StyleComputedStyle+GettersInlines.h"
+#include "StyleDocumentScope.h"
 #include "StyleProperties.h"
-#include "StyleScope.h"
 #include "TextNodeTraversal.h"
 #include "TextResourceDecoder.h"
 #include "UserContentController.h"
@@ -1110,7 +1110,7 @@ void LocalFrame::setPageAndTextZoomFactors(float pageZoomFactor, float textZoomF
     m_pageZoomFactor = pageZoomFactor;
     m_textZoomFactor = textZoomFactor;
 
-    // The RenderStyle cached on Document for initial value fallback must be invalidated on
+    // The Style::ComputedStyle cached on Document for initial value fallback must be invalidated on
     // text zoom changes to ensure default font sizes are updated appropriately.
     document->invalidateCachedInitialStyle();
 
@@ -1523,7 +1523,7 @@ void LocalFrame::applyResourceMonitorErrorToIFrameElement(HTMLIFrameElement& ifr
 
 #if ENABLE(DARK_MODE_CSS)
     if (CheckedPtr style = iframeElement.existingComputedStyle())
-        colorScheme = iframeElement.document().resolvedColorScheme(&style->computedStyle());
+        colorScheme = iframeElement.document().resolvedColorScheme(style);
 #endif
 
     iframeElement.setSrcdoc(generateResourceMonitorErrorHTML(colorScheme), SubstituteData::SessionHistoryVisibility::Hidden);
@@ -1559,7 +1559,7 @@ void LocalFrame::showResourceMonitoringError()
     }
 
     // Owner element lives in another process under site isolation; route the unload via the loader client.
-    loader().client().applyResourceMonitorUnloadToOwnerFrame();
+    loader().client().applyMonitorUnloadToOwnerFrame(IFrameUnloadReason::ResourceMonitor);
 }
 
 void LocalFrame::reportResourceMonitoringWarning()
@@ -1610,11 +1610,21 @@ static String generateFrameMemoryMonitorErrorHTML(OptionSet<ColorScheme> colorSc
     );
 }
 
+void LocalFrame::applyMemoryMonitorErrorToIFrameElement(HTMLIFrameElement& iframeElement)
+{
+    OptionSet<ColorScheme> colorScheme { ColorScheme::Light };
+
+#if ENABLE(DARK_MODE_CSS)
+    if (CheckedPtr style = iframeElement.existingComputedStyle())
+        colorScheme = iframeElement.document().resolvedColorScheme(style);
+#endif
+
+    iframeElement.setSrcdoc(generateFrameMemoryMonitorErrorHTML(colorScheme), SubstituteData::SessionHistoryVisibility::Hidden);
+}
+
 void LocalFrame::showMemoryMonitorError()
 {
-    RefPtr iframeElement = dynamicDowncast<HTMLIFrameElement>(ownerElement());
-    RefPtr document = this->document();
-    if (!iframeElement || !document)
+    if (!this->document())
         return;
 
     for (RefPtr<Frame> frame = this; frame; frame = frame->tree().traverseNext()) {
@@ -1624,14 +1634,13 @@ void LocalFrame::showMemoryMonitorError()
         }
     }
 
-    OptionSet<ColorScheme> colorScheme { ColorScheme::Light };
+    if (RefPtr iframeElement = dynamicDowncast<HTMLIFrameElement>(ownerElement())) {
+        applyMemoryMonitorErrorToIFrameElement(*iframeElement);
+        return;
+    }
 
-#if ENABLE(DARK_MODE_CSS)
-    if (CheckedPtr style = iframeElement->existingComputedStyle())
-        colorScheme = document->resolvedColorScheme(&style->computedStyle());
-#endif
-
-    iframeElement->setSrcdoc(generateFrameMemoryMonitorErrorHTML(colorScheme), SubstituteData::SessionHistoryVisibility::Hidden);
+    // Owner element lives in another process under site isolation; route the unload via the loader client.
+    loader().client().applyMonitorUnloadToOwnerFrame(IFrameUnloadReason::MemoryMonitor);
 }
 
 bool LocalFrame::frameCanCreatePaymentSession() const

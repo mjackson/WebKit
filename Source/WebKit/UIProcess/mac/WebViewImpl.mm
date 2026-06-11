@@ -1685,12 +1685,21 @@ void WebViewImpl::showWarningView(const BrowsingWarning& warning, CompletionHand
     if (!m_view)
         return completionHandler(ContinueUnsafeLoad::Yes);
 
+    if (m_warningView)
+        [std::exchange(m_warningView, nullptr) removeFromSuperview];
+
     WebCore::DiagnosticLoggingClient::ValueDictionary showedWarningDictionary;
     showedWarningDictionary.set("source"_s, "service"_s);
 
     m_page->logDiagnosticMessageWithValueDictionary("SafeBrowsing.ShowedWarning"_s, "Safari"_s, showedWarningDictionary, WebCore::ShouldSample::No);
 
-    m_warningView = adoptNS([[_WKWarningView alloc] initWithFrame:[m_view.get() bounds] browsingWarning:warning completionHandler:[weakThis = WeakPtr { *this }, completionHandler = WTF::move(completionHandler)] (auto&& result) mutable {
+    auto navigationID = m_page->safeBrowsingWarningShownForNavigation();
+    m_warningView = adoptNS([[_WKWarningView alloc] initWithFrame:[m_view.get() bounds] browsingWarning:warning completionHandler:[weakThis = WeakPtr { *this }, navigationID, completionHandler = WTF::move(completionHandler)]<typename Result> (Result&& result) mutable {
+        if (!weakThis || weakThis->m_page->safeBrowsingWarningShownForNavigation() != navigationID) {
+            completionHandler(std::forward<Result>(result));
+            return;
+        }
+        bool forMainFrameNavigation = [weakThis->m_warningView forMainFrameNavigation];
         completionHandler(WTF::move(result));
         if (!weakThis)
             return;
@@ -1698,7 +1707,6 @@ void WebViewImpl::showWarningView(const BrowsingWarning& warning, CompletionHand
             [] (ContinueUnsafeLoad continueUnsafeLoad) { return continueUnsafeLoad == ContinueUnsafeLoad::Yes; },
             [] (const URL&) { return true; }
         );
-        bool forMainFrameNavigation = [weakThis->m_warningView forMainFrameNavigation];
 
         WebCore::DiagnosticLoggingClient::ValueDictionary dictionary;
         dictionary.set("source"_s, "service"_s);
@@ -2315,7 +2323,7 @@ void WebViewImpl::windowWillClose()
 
 void WebViewImpl::screenDidChangeColorSpace()
 {
-    protect(m_page->configuration().processPool())->screenPropertiesChanged();
+    protect(m_page->configuration().processPool())->screenPropertiesChanged("screenDidChangeColorSpace"_s);
 }
 
 void WebViewImpl::applicationShouldSuppressHDR(bool suppress)
@@ -5648,7 +5656,7 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
 
     LOG(TextInput, "-> handleEventByInputMethod:%p %@", event, event);
     RetainPtr inputContext { WebViewImpl::inputContext() };
-    [inputContext.get() handleEventByInputMethod:event completionHandler:[weakThis = WeakPtr { *this }, capturedEvent = retainPtr(event), capturedBlock = makeBlockPtr(completionHandler)](BOOL handled) mutable {
+    [inputContext.get() handleEventByInputMethod:event completionHandler:[weakThis = WeakPtr { *this }, capturedEvent = retainPtr(event), capturedBlock = makeBlockPtr(completionHandler)](BOOL inputMethodDidHandleEvent) mutable {
         CheckedPtr checkedThis = weakThis.get();
         if (!checkedThis) {
             capturedBlock(NO, { });
@@ -5698,6 +5706,7 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
         // that commits an existing composition (e.g. Japanese Enter on a marked candidate), keep
         // handled=YES so the keydown reports keyCode 229 and google.com's keyCode==13 listener
         // doesn't treat it as a real Enter.
+        bool handled = inputMethodDidHandleEvent;
         if (handled && hasOnlyInsertText && !checkedThis->m_page->editorState().hasComposition)
             handled = NO;
 
@@ -5721,10 +5730,16 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
         }
 
         auto additionalCommands = checkedThis->collectKeyboardLayoutCommandsForEvent(capturedEvent);
-        // Append the layout pass except in the dead-key 'é' dedup case (IM did insertText: that
-        // covers the keystroke). The InScript partial-prefix case also needs the layout's suffix
-        // appended, even though the IM did insertText:.
-        if (!hasInsertText || inputMethodCommittedPartialInsertText)
+        // Append the layout pass unless the input method consumed the key with a complete "insertText:".
+        //   - Input method returned YES (composing key like Korean 'm' or Vietnamese 'i', forced to NO
+        //     for modeless routing): inputMethodDidHandleEvent=YES, hasOnlyInsertText=true. The input
+        //     method produced the key's output; don't duplicate it with the layout pass.
+        //   - Input method returned NO (commit/delimiter key like Korean or Vietnamese space):
+        //     inputMethodDidHandleEvent=NO. The input method committed the composition as a side effect
+        //     but did not consume the key itself. The layout pass must still handle the key character
+        //     (e.g. insert the space).
+        //   - Hindi InScript partial-prefix: inputMethodCommittedPartialInsertText=true always append.
+        if (!hasInsertText || inputMethodCommittedPartialInsertText || (!inputMethodDidHandleEvent && hasOnlyInsertText))
             commands.appendVector(additionalCommands);
         capturedBlock(NO, commands);
         if ([capturedEvent type] == NSEventTypeKeyDown && !checkedThis->m_interpretKeyEventHoldingTank.isEmpty())

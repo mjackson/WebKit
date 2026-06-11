@@ -30,19 +30,19 @@
 
 #include "Gradient.h"
 #include "LegacyRenderSVGShapeInlines.h"
-#include "RenderStyle+GettersInlines.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGPathElement.h"
 #include "SVGResources.h"
 #include "SVGResourcesCache.h"
 #include "SVGSubpathData.h"
+#include "StyleComputedStyle+GettersInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGPath);
 
-LegacyRenderSVGPath::LegacyRenderSVGPath(SVGGraphicsElement& element, RenderStyle&& style)
+LegacyRenderSVGPath::LegacyRenderSVGPath(SVGGraphicsElement& element, Style::ComputedStyle&& style)
     : LegacyRenderSVGShape(Type::LegacySVGPath, element, WTF::move(style))
 {
     ASSERT(isLegacyRenderSVGPath());
@@ -83,15 +83,20 @@ void LegacyRenderSVGPath::updateShapeFromElement()
 
 FloatRect LegacyRenderSVGPath::adjustStrokeBoundingBoxForMarkersAndZeroLengthLinecaps(RepaintRectCalculation repaintRectCalculation, FloatRect strokeBoundingBox) const
 {
+    bool hasMarkers = !m_markerPositions.isEmpty();
+    bool hasZeroLengthCaps = !style().stroke().isNone() && !m_zeroLengthLinecapLocations.isEmpty();
+    if (!hasMarkers && !hasZeroLengthCaps)
+        return strokeBoundingBox;
+
     float strokeWidth = this->strokeWidth();
 
-    if (!m_markerPositions.isEmpty()) {
+    if (hasMarkers) {
         auto markerRect = this->markerRect(repaintRectCalculation, strokeWidth);
         if (!markerRect.isNaN())
             strokeBoundingBox.unite(markerRect);
     }
 
-    if (!style().stroke().isNone()) {
+    if (hasZeroLengthCaps) {
         // FIXME: zero-length subpaths do not respect vector-effect = non-scaling-stroke.
         for (auto& zeroLengthLinecapLocation : m_zeroLengthLinecapLocations) {
             auto subpathRect = zeroLengthSubpathRect(zeroLengthLinecapLocation, strokeWidth);
@@ -303,7 +308,7 @@ bool LegacyRenderSVGPath::isRenderingDisabled() const
     return !hasPath() || path().isEmpty();
 }
 
-void LegacyRenderSVGPath::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
+void LegacyRenderSVGPath::styleDidChange(Style::Difference diff, const Style::ComputedStyle* oldStyle)
 {
     if (oldStyle && oldStyle->hasMarkers() && !style().hasMarkers())
         m_markerPositions.clear();

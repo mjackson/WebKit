@@ -77,16 +77,8 @@ struct SameSizeAsRenderTableCell : public RenderBlockFlow {
 static_assert(sizeof(RenderTableCell) == sizeof(SameSizeAsRenderTableCell), "RenderTableCell should stay small");
 static_assert(sizeof(CollapsedBorderValue) <= 24, "CollapsedBorderValue should stay small");
 
-RenderTableCell::RenderTableCell(Element& element, RenderStyle&& style)
+RenderTableCell::RenderTableCell(Element& element, Style::ComputedStyle&& style)
     : RenderBlockFlow(Type::TableCell, element, WTF::move(style))
-    , m_column(unsetColumnIndex)
-    , m_cellWidthChanged(false)
-    , m_hasColSpan(false)
-    , m_hasRowSpan(false)
-    , m_hasEmptyCollapsedBeforeBorder(false)
-    , m_hasEmptyCollapsedAfterBorder(false)
-    , m_hasEmptyCollapsedStartBorder(false)
-    , m_hasEmptyCollapsedEndBorder(false)
 {
     // We only update the flags when notified of DOM changes in colSpanOrRowSpanChanged()
     // so we need to set their initial values here in case something asks for colSpan()/rowSpan() before then.
@@ -94,16 +86,8 @@ RenderTableCell::RenderTableCell(Element& element, RenderStyle&& style)
     ASSERT(isRenderTableCell());
 }
 
-RenderTableCell::RenderTableCell(Document& document, RenderStyle&& style)
+RenderTableCell::RenderTableCell(Document& document, Style::ComputedStyle&& style)
     : RenderBlockFlow(Type::TableCell, document, WTF::move(style))
-    , m_column(unsetColumnIndex)
-    , m_cellWidthChanged(false)
-    , m_hasColSpan(false)
-    , m_hasRowSpan(false)
-    , m_hasEmptyCollapsedBeforeBorder(false)
-    , m_hasEmptyCollapsedAfterBorder(false)
-    , m_hasEmptyCollapsedStartBorder(false)
-    , m_hasEmptyCollapsedEndBorder(false)
 {
     ASSERT(isRenderTableCell());
 }
@@ -646,7 +630,7 @@ static inline void markCellDirtyWhenCollapsedBorderChanges(RenderTableCell* cell
     cell->setNeedsLayoutAndInvalidateContentLogicalWidths();
 }
 
-void RenderTableCell::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
+void RenderTableCell::styleDidChange(Style::Difference diff, const Style::ComputedStyle* oldStyle)
 {
     ASSERT(style().display() == Style::DisplayType::TableCell);
     ASSERT(!row() || row()->rowIndexWasSet());
@@ -756,7 +740,7 @@ CollapsedBorderValue RenderTableCell::collapsedStartBorder(IncludeBorderColorOrN
     return result;
 }
 
-static Color resolvedBorderColor(const RenderStyle& style, CSSPropertyID borderColor)
+static Color resolvedBorderColor(const Style::ComputedStyle& style, CSSPropertyID borderColor)
 {
     switch (borderColor) {
     case CSSPropertyBorderTopColor:

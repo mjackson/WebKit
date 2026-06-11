@@ -36,6 +36,7 @@
 #include <wtf/BitSet.h>
 #include <wtf/DataLog.h>
 #include <wtf/StackCheck.h>
+#include <wtf/TriState.h>
 #include <wtf/Vector.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -2013,7 +2014,7 @@ public:
     //     matched string alternative, without jumping to backtracking doe to fixup offests.
     //     Instead we fixup the offsets, if needed, at the top of the next alternative's
     //     matching JIT code.
-    void NODELETE checkForTerminalParentheses()
+    void checkForTerminalParentheses()
     {
         // This check is much too crude; should be just checking whether the candidate
         // node contains nested capturing subpatterns, not the whole expression!
@@ -2041,8 +2042,13 @@ public:
                 PatternTerm& term = terms[1];
 
                 PatternDisjunction* nestedDisjunction = term.parentheses.disjunction;
+                constexpr unsigned emptyAlternativeNotFound = std::numeric_limits<unsigned>::max();
+                unsigned firstEmptyAlternative = emptyAlternativeNotFound;
                 for (unsigned alt = 0; isStringList && alt < nestedDisjunction->m_alternatives.size(); ++alt) {
                     Vector<PatternTerm>& innerTerms = nestedDisjunction->m_alternatives[alt]->m_terms;
+
+                    if (innerTerms.isEmpty() && firstEmptyAlternative == emptyAlternativeNotFound)
+                        firstEmptyAlternative = alt;
 
                     for (size_t termIndex = 0; termIndex < innerTerms.size(); ++termIndex) {
                         PatternTerm& innerTerm = innerTerms[termIndex];
@@ -2055,8 +2061,16 @@ public:
                     }
                 }
 
+                bool isEOLStringList = terms.size() == 3 && terms[2].type == PatternTerm::Type::AssertionEOL;
                 term.parentheses.isStringList = isStringList;
-                term.parentheses.isEOLStringList = (terms.size() == 3 && terms[2].type == PatternTerm::Type::AssertionEOL);
+                term.parentheses.isEOLStringList = isEOLStringList;
+
+                // In a non-EOL string list the first empty alternative always matches and ends the match, so later
+                // alternatives are unreachable. Drop them so the empty alternative is last and the JIT can fall through to success.
+                if (isStringList && !isEOLStringList && firstEmptyAlternative != emptyAlternativeNotFound && firstEmptyAlternative + 1 < nestedDisjunction->m_alternatives.size()) {
+                    nestedDisjunction->m_alternatives.shrink(firstEmptyAlternative + 1);
+                    nestedDisjunction->m_alternatives.last()->m_isLastAlternative = true;
+                }
             }
 
             if (isStringList)
@@ -2073,6 +2087,125 @@ public:
                     && term.quantityMaxCount == quantifyInfinite
                     && !term.capture())
                     term.parentheses.isTerminal = true;
+            }
+        }
+    }
+
+    // Auto-possessification optimization
+    //
+    // "Possessive Quantifier" is yet another quantifier type supported in non-JS RegExp engines (e.g. PCRE2).
+    // https://www.pcre.org/current/doc/html/pcre2syntax.html
+    // It is like /a++/, /a*+/. This is different from Greedy quantifier (/a+/, /a*/) in particular it never does backtracking.
+    // Once it greedily matches, even if the subsequent pattern fails, we do not do backtracking. For example,
+    //
+    // /.*+b/ and "textb". In /.*b/ case, .* will do backtrack to spare "b" for the subsequent pattern. But possessive quantifier
+    // drains all text input in this case and never doing backtracking, thus match fails.
+    //
+    // The benefit of possessive quantifier is it can eliminate the cost of backtracking, so failure becomes quick due to removal
+    // of backtracking.
+    //
+    // While JS RegExp does not support possessive quantifiers, we can internally support and convert patterns to possessive quantifier
+    // if we can find this term's backtracking never produces the potentially matching cases for the subsequent patterns.
+    //
+    // Let's show an example. A greedy single-character term `T` immediately followed by a mandatory term `U` whose first character
+    // can never be a character that `T` matches is effectively possessive. Once `T` has matched greedily, giving characters back
+    // can never let `U` match (a given-back position still holds a `T` character, which `U` rejects), so all of the backtracking the
+    // engine would do into `T` is futile. We mark such a `T` so the JIT can skip generating (and running) that dead backtracking.
+
+    void optimizePossessiveQuantifiers()
+    {
+        auto rawClassContains = [](const CharacterClass* characterClass, char32_t ch) -> TriState {
+            if (characterClass->m_anyCharacter)
+                return TriState::True;
+
+            if (!characterClass->hasSingleCharacters())
+                return characterClass->m_table ? TriState::Indeterminate : TriState::False;
+
+            bool isLatin1Char = isLatin1(ch);
+            const auto& matches = isLatin1Char ? characterClass->m_matches8 : characterClass->m_matches32;
+            for (auto match : matches) {
+                if (match == ch)
+                    return TriState::True;
+            }
+            const auto& ranges = isLatin1Char ? characterClass->m_ranges8 : characterClass->m_ranges32;
+            for (auto range : ranges) {
+                if (ch >= range.begin && ch <= range.end)
+                    return TriState::True;
+            }
+            return TriState::False;
+        };
+
+        auto termMatchesCharacter = [&](const PatternTerm& term, char32_t ch) -> TriState {
+            if (term.type == PatternTerm::Type::PatternCharacter) {
+                char32_t pc = term.patternCharacter;
+                if (pc == ch)
+                    return TriState::True;
+                if (term.ignoreCase()) {
+                    if (!isASCII(pc) || !isASCII(ch))
+                        return TriState::Indeterminate;
+                    if (toASCIIUpper(pc) == toASCIIUpper(ch))
+                        return TriState::True;
+                }
+                return TriState::False;
+            }
+
+            ASSERT(term.type == PatternTerm::Type::CharacterClass);
+            TriState raw = rawClassContains(term.characterClass, ch);
+            if (raw == TriState::Indeterminate)
+                return TriState::Indeterminate;
+            if (term.invert())
+                return raw == TriState::True ? TriState::False : TriState::True;
+            return raw;
+        };
+
+        // Returns true if and only if `next` (the term right after the greedy term) is mandatory and its
+        // first character is provably disjoint from `greedy`'s set.
+        auto followerForcesPossessive = [&](const PatternTerm& greedy, const PatternTerm& next) -> bool {
+            if (next.type != PatternTerm::Type::PatternCharacter)
+                return false;
+
+            if (next.quantityType != QuantifierType::FixedCount || next.quantityMinCount < 1)
+                return false;
+
+            // Every character `next` would accept must be rejected by `greedy`.
+            char32_t fc = next.patternCharacter;
+            if (termMatchesCharacter(greedy, fc) != TriState::False)
+                return false;
+
+            if (next.ignoreCase()) {
+                if (!isASCII(fc))
+                    return false; // Don't reason about non-ASCII case folds.
+
+                if (termMatchesCharacter(greedy, toASCIIUpper(fc)) != TriState::False)
+                    return false;
+
+                if (termMatchesCharacter(greedy, toASCIILower(fc)) != TriState::False)
+                    return false;
+            }
+            return true;
+        };
+
+        auto isPossessifiableGreedyTerm = [](const PatternTerm& term) -> bool {
+            return term.quantityType == QuantifierType::Greedy && (term.type == PatternTerm::Type::PatternCharacter || term.type == PatternTerm::Type::CharacterClass);
+        };
+
+        for (auto& disjunction : m_pattern.m_disjunctions) {
+            for (auto& alternative : disjunction->m_alternatives) {
+                if (alternative->matchDirection() != Forward)
+                    continue;
+
+                auto& terms = alternative->m_terms;
+                for (unsigned i = 1; i < terms.size(); ++i) {
+                    PatternTerm& current = terms[i - 1];
+                    PatternTerm& next = terms[i];
+                    if (!isPossessifiableGreedyTerm(current))
+                        continue;
+
+                    if (!followerForcesPossessive(current, next))
+                        continue;
+
+                    current.m_possessive = true;
+                }
             }
         }
     }
@@ -2693,6 +2826,7 @@ ErrorCode YarrPattern::compile(StringView patternString)
     constructor.checkForTerminalParentheses();
     constructor.optimizeDotStarWrappedExpressions();
     constructor.optimizeBOL();
+    constructor.optimizePossessiveQuantifiers();
 
     if (hasError(constructor.error()))
         return constructor.error();
@@ -2872,6 +3006,8 @@ void PatternTerm::dumpQuantifier(PrintStream& out)
         out.print(" greedy");
     else if (quantityType == QuantifierType::NonGreedy)
         out.print(" non-greedy");
+    if (m_possessive)
+        out.print(" possessive");
 }
 
 void PatternTerm::dump(PrintStream& out, YarrPattern* thisPattern, unsigned nestingDepth)

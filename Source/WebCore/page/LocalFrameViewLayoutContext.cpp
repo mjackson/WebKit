@@ -53,13 +53,12 @@
 #include "RenderLayoutState.h"
 #include "RenderSVGText.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyle+GettersInlines.h"
-#include "RenderStyle.h"
 #include "RenderView.h"
 #include "SVGTextFragment.h"
 #include "ScriptDisallowedScope.h"
 #include "Settings.h"
-#include "StyleScope.h"
+#include "StyleComputedStyle+GettersInlines.h"
+#include "StyleDocumentScope.h"
 #include <wtf/SetForScope.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -177,7 +176,7 @@ void LocalFrameViewLayoutContext::layout(bool canDeferUpdateLayerPositions)
     if (view().hasOneRef())
         return;
 
-    Style::Scope::LayoutDependencyUpdateContext layoutDependencyUpdateContext;
+    Style::DocumentScope::LayoutDependencyUpdateContext layoutDependencyUpdateContext;
     while (document() && document()->styleScope().invalidateForLayoutDependencies(layoutDependencyUpdateContext)) {
         protect(document())->updateStyleIfNeeded();
 
@@ -199,7 +198,7 @@ void LocalFrameViewLayoutContext::interleavedLayout()
 
     performLayout(false);
 
-    Style::Scope::LayoutDependencyUpdateContext layoutDependencyUpdateContext;
+    Style::DocumentScope::LayoutDependencyUpdateContext layoutDependencyUpdateContext;
     document()->styleScope().invalidateForLayoutDependencies(layoutDependencyUpdateContext);
 }
 
@@ -1048,7 +1047,7 @@ AnchorScrollAdjuster::Diff LocalFrameViewLayoutContext::registerAnchorScrollAdju
     return recaptureDiffers ? AnchorScrollAdjuster::SnapshotsDiffer : AnchorScrollAdjuster::SnapshotsMatch;
 }
 
-void LocalFrameViewLayoutContext::unregisterAnchorScrollAdjusterFor(const RenderBox& anchored)
+void LocalFrameViewLayoutContext::unregisterAnchorScrollAdjusterFor(const RenderBox& anchored, bool clearAnchorScrollAdjustment)
 {
     m_anchorScrollAdjusters.removeFirstMatching([&](auto& item) {
         return item.anchored() == &anchored;
@@ -1057,8 +1056,12 @@ void LocalFrameViewLayoutContext::unregisterAnchorScrollAdjusterFor(const Render
         return item.anchored() == &anchored;
     }));
 
-    if (anchored.layer())
-        anchored.layer()->clearAnchorScrollAdjustment();
+    if (anchored.layer()) {
+        if (clearAnchorScrollAdjustment)
+            anchored.layer()->clearAnchorScrollAdjustment();
+        else
+            anchored.layer()->setAnchorScrollAdjustment(LayoutSize { });
+    }
 }
 
 void LocalFrameViewLayoutContext::invalidateAnchorDependenciesForScroller(const RenderBox& scroller)

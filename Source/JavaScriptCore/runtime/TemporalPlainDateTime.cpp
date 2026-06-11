@@ -36,7 +36,7 @@
 #include "TemporalCalendar.h"
 #include "TemporalPlainDate.h"
 #include "TemporalPlainTime.h"
-// FIXME: #include "TemporalZonedDateTime.h"
+#include "TemporalZonedDateTime.h"
 #include "VMTrapsInlines.h"
 namespace JSC {
 
@@ -123,7 +123,7 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
         }
 
         if (itemValue.inherits<TemporalPlainDate>()) {
-            // Step 2.a.ii: GetOptionsObject + GetTemporalOverflowOption, return CreateTemporalDateTime.
+            // Step 2.c.i: GetOptionsObject + GetTemporalOverflowOption, return CreateTemporalDateTime.
             if (options) {
                 toTemporalOverflow(globalObject, options);
                 RETURN_IF_EXCEPTION(scope, { });
@@ -132,27 +132,34 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
             return TemporalPlainDateTime::create(vm, globalObject->plainDateTimeStructure(), pd->plainDate(), { }, pd->calendarID());
         }
 
-        // FIXME: TemporalZonedDateTime conversion path not yet available
-        // if (itemValue.inherits<TemporalZonedDateTime>()) { ... }
+        if (itemValue.inherits<TemporalZonedDateTime>()) {
+            // Step 2.b.i: GetISODateTimeFor FIRST (before options — spec step order).
+            auto* zdt = uncheckedDowncast<TemporalZonedDateTime>(itemValue);
+            ISO8601::PlainDate date;
+            ISO8601::PlainTime time;
+            zdt->getLocalDateAndTime(globalObject, date, time);
+            RETURN_IF_EXCEPTION(scope, { });
+            // Step 2.b.ii: GetOptionsObject + overflow.
+            if (options) {
+                toTemporalOverflow(globalObject, options);
+                RETURN_IF_EXCEPTION(scope, { });
+            }
+            // Step 2.b.iii: CreateTemporalDateTime.
+            return TemporalPlainDateTime::create(vm, globalObject->plainDateTimeStructure(), WTF::move(date), WTF::move(time), zdt->calendarID());
+        }
 
         JSObject* item = asObject(itemValue);
 
-        // Step 2.b: GetTemporalCalendarIdentifierWithISODefault(item).
-        // Step 2.c: PrepareCalendarFields(calendar, item, {year,month,monthCode,day},
+        // Step 2.d: GetTemporalCalendarIdentifierWithISODefault(item).
+        // Step 2.e: PrepareCalendarFields(calendar, item, {year,month,monthCode,day},
         //           {hour,minute,second,millisecond,microsecond,nanosecond}, {}) — alphabetical.
         // calendar
         CalendarID extractedCalendarId = iso8601CalendarID();
         JSValue calendarProperty = item->get(globalObject, vm.propertyNames->calendar);
         RETURN_IF_EXCEPTION(scope, { });
         if (!calendarProperty.isUndefined()) {
-            auto calStr = toTemporalCalendarIdentifier(globalObject, calendarProperty);
+            extractedCalendarId = toTemporalCalendarIdentifier(globalObject, calendarProperty);
             RETURN_IF_EXCEPTION(scope, { });
-            auto canonicalized = isBuiltinCalendar(calStr);
-            if (!canonicalized) [[unlikely]] {
-                throwRangeError(globalObject, scope, makeString("'"_s, calStr, "' is not a valid calendar identifier"_s));
-                return { };
-            }
-            extractedCalendarId = *canonicalized;
         }
 
         // day
@@ -162,7 +169,8 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
             throwTypeError(globalObject, scope, "day property must be present"_s);
             return { };
         }
-        double day = dayProperty.toIntegerOrInfinity(globalObject);
+        // Spec uses ToPositiveIntegerWithTruncation: rejects NaN/±Inf and any value ≤ 0.
+        double day = dayProperty.toIntegerWithTruncation(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
         if (!(day > 0 && std::isfinite(day))) [[unlikely]] {
             throwRangeError(globalObject, scope, "day property must be positive and finite"_s);
@@ -185,58 +193,56 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
             JSValue eraYearProperty = item->get(globalObject, Identifier::fromString(vm, "eraYear"_s));
             RETURN_IF_EXCEPTION(scope, { });
             if (!eraYearProperty.isUndefined()) {
-                double ey = eraYearProperty.toIntegerOrInfinity(globalObject);
+                double ey = eraYearProperty.toIntegerWithTruncation(globalObject);
                 RETURN_IF_EXCEPTION(scope, { });
                 if (!std::isfinite(ey)) [[unlikely]] {
                     throwRangeError(globalObject, scope, "eraYear property must be finite"_s);
                     return { };
                 }
-                extractedEraYear = static_cast<int32_t>(ey);
+                extractedEraYear = clampTo<int32_t>(ey);
             }
         }
 
         // hour, microsecond, millisecond, minute (time fields interleaved before month)
         ISO8601::Duration timeDuration { };
-        auto readTimeField = [&](JSValue val, TemporalUnit unit) -> bool {
+        auto readTimeField = [&](JSValue val, TemporalUnit unit) {
             if (val.isUndefined())
-                return true;
-            double d = val.toIntegerOrInfinity(globalObject);
-            if (scope.exception())
-                return false;
+                return;
+            double d = val.toIntegerWithTruncation(globalObject);
+            RETURN_IF_EXCEPTION(scope, void());
             if (!std::isfinite(d)) [[unlikely]] {
                 throwRangeError(globalObject, scope, "Temporal time properties must be finite"_s);
-                return false;
+                return;
             }
             timeDuration.setField(unit, d);
-            return true;
         };
 
         JSValue hourProperty = item->get(globalObject, vm.propertyNames->hour);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!readTimeField(hourProperty, TemporalUnit::Hour))
-            return { };
+        readTimeField(hourProperty, TemporalUnit::Hour);
+        RETURN_IF_EXCEPTION(scope, { });
 
         JSValue microsecondProperty = item->get(globalObject, vm.propertyNames->microsecond);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!readTimeField(microsecondProperty, TemporalUnit::Microsecond))
-            return { };
+        readTimeField(microsecondProperty, TemporalUnit::Microsecond);
+        RETURN_IF_EXCEPTION(scope, { });
 
         JSValue millisecondProperty = item->get(globalObject, vm.propertyNames->millisecond);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!readTimeField(millisecondProperty, TemporalUnit::Millisecond))
-            return { };
+        readTimeField(millisecondProperty, TemporalUnit::Millisecond);
+        RETURN_IF_EXCEPTION(scope, { });
 
         JSValue minuteProperty = item->get(globalObject, vm.propertyNames->minute);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!readTimeField(minuteProperty, TemporalUnit::Minute))
-            return { };
+        readTimeField(minuteProperty, TemporalUnit::Minute);
+        RETURN_IF_EXCEPTION(scope, { });
 
         // month
         JSValue monthProperty = item->get(globalObject, vm.propertyNames->month);
         RETURN_IF_EXCEPTION(scope, { });
         double month = 0;
         if (!monthProperty.isUndefined()) {
-            month = monthProperty.toIntegerOrInfinity(globalObject);
+            month = monthProperty.toIntegerWithTruncation(globalObject);
             RETURN_IF_EXCEPTION(scope, { });
         }
 
@@ -245,19 +251,8 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
         RETURN_IF_EXCEPTION(scope, { });
         std::optional<ParsedMonthCode> otherMonth;
         if (!monthCodeProperty.isUndefined()) {
-            auto monthCodePrimitive = monthCodeProperty.toPrimitive(globalObject, PreferString);
+            otherMonth = parseMonthCode(globalObject, monthCodeProperty);
             RETURN_IF_EXCEPTION(scope, { });
-            if (!monthCodePrimitive.isString()) [[unlikely]] {
-                throwTypeError(globalObject, scope, "monthCode must be a string"_s);
-                return { };
-            }
-            auto monthCodeString = asString(monthCodePrimitive)->value(globalObject);
-            RETURN_IF_EXCEPTION(scope, { });
-            otherMonth = ISO8601::parseMonthCode(monthCodeString);
-            if (!otherMonth) [[unlikely]] {
-                throwRangeError(globalObject, scope, "Invalid monthCode property"_s);
-                return { };
-            }
             // Note: suitability (monthNumber 1-12, no leap month) is checked after year.
         }
         if (monthProperty.isUndefined() && !otherMonth) [[unlikely]] {
@@ -268,14 +263,14 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
         // nanosecond
         JSValue nanosecondProperty = item->get(globalObject, vm.propertyNames->nanosecond);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!readTimeField(nanosecondProperty, TemporalUnit::Nanosecond))
-            return { };
+        readTimeField(nanosecondProperty, TemporalUnit::Nanosecond);
+        RETURN_IF_EXCEPTION(scope, { });
 
         // second
         JSValue secondProperty = item->get(globalObject, vm.propertyNames->second);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!readTimeField(secondProperty, TemporalUnit::Second))
-            return { };
+        readTimeField(secondProperty, TemporalUnit::Second);
+        RETURN_IF_EXCEPTION(scope, { });
 
         // year
         JSValue yearProperty = item->get(globalObject, vm.propertyNames->year);
@@ -284,21 +279,21 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
             throwTypeError(globalObject, scope, "year property must be present"_s);
             return { };
         }
-        double year = yearProperty.isUndefined() ? 0 : yearProperty.toIntegerOrInfinity(globalObject);
+        double year = yearProperty.isUndefined() ? 0 : yearProperty.toIntegerWithTruncation(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
         if (!std::isfinite(year)) [[unlikely]] {
             throwRangeError(globalObject, scope, "year property must be finite"_s);
             return { };
         }
 
-        // Steps 2.d-e: GetOptionsObject + GetTemporalOverflowOption (after all fields per spec).
+        // Steps 2.f-g: GetOptionsObject + GetTemporalOverflowOption (after all fields per spec).
         TemporalOverflow overflow = TemporalOverflow::Constrain;
         if (options) {
             overflow = toTemporalOverflow(globalObject, options);
             RETURN_IF_EXCEPTION(scope, { });
         }
 
-        // Step 2.f: InterpretTemporalDateTimeFields(calendar, fields, overflow).
+        // Step 2.h: InterpretTemporalDateTimeFields(calendar, fields, overflow).
         // Resolve month vs monthCode — done after all fields (including year) are read.
         bool isNonISO = extractedCalendarId != iso8601CalendarID();
         if (otherMonth) {
@@ -311,6 +306,7 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
             ASSERT(otherMonth);
             month = otherMonth->monthNumber;
         } else {
+            // Spec uses ToPositiveIntegerWithTruncation: rejects NaN/±Inf and any value ≤ 0.
             if (!(month > 0 && std::isfinite(month))) [[unlikely]] {
                 throwRangeError(globalObject, scope, "month property must be positive and finite"_s);
                 return { };
@@ -345,9 +341,12 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
             std::optional<StringView> era;
             if (extractedEra)
                 era = StringView(*extractedEra);
+            // Pass nullopt when user didn't provide year (yearProperty.isUndefined()), so the
+            // year-consistency check in calendarDateFromFields correctly skips for that case.
+            std::optional<int32_t> yearOpt = yearProperty.isUndefined() ? std::nullopt : std::optional<int32_t>(clampTo<int32_t>(year));
             auto result = TemporalCore::calendarDateFromFields(
-                extractedCalendarId, static_cast<int32_t>(year), static_cast<uint8_t>(month),
-                static_cast<uint8_t>(day), era, extractedEraYear,
+                extractedCalendarId, yearOpt, clampTo<uint8_t>(month),
+                clampTo<uint8_t>(day), era, extractedEraYear,
                 otherMonth, overflow);
             if (!result) [[unlikely]] {
                 throwRangeError(globalObject, scope, String(result.error().message));
@@ -355,14 +354,14 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
             }
             plainDate = *result;
         } else {
-            plainDate = isoDateFromFields(globalObject, TemporalDateFormat::Date, static_cast<int32_t>(year), static_cast<unsigned>(month), static_cast<unsigned>(day), otherMonth, overflow, extractedCalendarId);
+            plainDate = isoDateFromFields(globalObject, TemporalDateFormat::Date, clampTo<int32_t>(year), clampTo<uint32_t>(month), clampTo<uint32_t>(day), otherMonth, overflow, extractedCalendarId);
             RETURN_IF_EXCEPTION(scope, { });
         }
 
         auto plainTime = TemporalPlainTime::regulateTime(globalObject, WTF::move(timeDuration), overflow);
         RETURN_IF_EXCEPTION(scope, { });
 
-        // Step 2.g: CreateTemporalDateTime(result, calendar).
+        // Step 2.h cont.: CreateTemporalDateTime(result, calendar).
         auto* result = TemporalPlainDateTime::tryCreateIfValid(globalObject, globalObject->plainDateTimeStructure(), WTF::move(plainDate), WTF::move(plainTime));
         RETURN_IF_EXCEPTION(scope, { });
         if (result && isNonISO)
@@ -379,11 +378,6 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
     auto string = itemValue.toWTFString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
-    if (options) {
-        toTemporalOverflow(globalObject, options); // Validate overflow
-        RETURN_IF_EXCEPTION(scope, { });
-    }
-
     // Step 4: ParseISODateTime(item, {TemporalDateTimeString}).
     auto dateTime = ISO8601::parseCalendarDateTime(string, TemporalDateFormat::Date);
     if (dateTime) [[likely]] {
@@ -398,6 +392,11 @@ static TemporalPlainDateTime* fromImpl(JSGlobalObject* globalObject, JSValue ite
                 return { };
             }
             calendarId = *canonicalized;
+        }
+        // Step 8: GetOptionsObject + GetTemporalOverflowOption (after parse, per spec).
+        if (options) {
+            toTemporalOverflow(globalObject, options);
+            RETURN_IF_EXCEPTION(scope, { });
         }
         // Steps 9-13: CreateISODateRecord + CombineISODateAndTimeRecord + CreateTemporalDateTime.
         if (!(timeZoneOptional && timeZoneOptional->m_z)) {
@@ -420,10 +419,12 @@ TemporalPlainDateTime* TemporalPlainDateTime::from(JSGlobalObject* globalObject,
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    // Step 2: item is an Object.
+    // Step 1: If options is not present, set options to undefined. (Caller passes jsUndefined().)
+
+    // Step 2: If item is an Object:
     if (itemValue.isObject()) {
         if (itemValue.inherits<TemporalPlainDateTime>()) {
-            // Step 2.a.i-iii: validate options, return new CreateTemporalDateTime.
+            // Step 2.a.i-ii: validate options, Step 2.a.iii: return new CreateTemporalDateTime.
             toTemporalOverflow(globalObject, optionsValue);
             RETURN_IF_EXCEPTION(scope, { });
             auto* src = uncheckedDowncast<TemporalPlainDateTime>(itemValue);
@@ -433,16 +434,26 @@ TemporalPlainDateTime* TemporalPlainDateTime::from(JSGlobalObject* globalObject,
             return clone;
         }
         if (itemValue.inherits<TemporalPlainDate>()) {
-            // Step 2.a.ii: validate options, return CreateTemporalDateTime(date, midnight).
+            // Step 2.c.i-ii: validate options, Step 2.c.iii: return CreateTemporalDateTime(date, midnight).
             toTemporalOverflow(globalObject, optionsValue);
             RETURN_IF_EXCEPTION(scope, { });
             auto* pd = uncheckedDowncast<TemporalPlainDate>(itemValue);
             return TemporalPlainDateTime::create(vm, globalObject->plainDateTimeStructure(), pd->plainDate(), { }, pd->calendarID());
         }
-        // FIXME: TemporalZonedDateTime conversion path not yet available
-        // if (itemValue.inherits<TemporalZonedDateTime>()) { ... }
-
-        // Property bag: read all fields before options (ToTemporalDateTime step order).
+        if (itemValue.inherits<TemporalZonedDateTime>()) {
+            // Step 2.b.i: GetISODateTimeFor FIRST (before options — spec step order).
+            auto* zdt = uncheckedDowncast<TemporalZonedDateTime>(itemValue);
+            ISO8601::PlainDate date;
+            ISO8601::PlainTime time;
+            zdt->getLocalDateAndTime(globalObject, date, time);
+            RETURN_IF_EXCEPTION(scope, { });
+            // Step 2.b.ii: GetOptionsObject + overflow.
+            toTemporalOverflow(globalObject, optionsValue);
+            RETURN_IF_EXCEPTION(scope, { });
+            // Step 2.b.iii: CreateTemporalDateTime.
+            return TemporalPlainDateTime::create(vm, globalObject->plainDateTimeStructure(), WTF::move(date), WTF::move(time), zdt->calendarID());
+        }
+        // Steps 2.d-2.h: property bag — read all fields before options (ToTemporalDateTime step order).
         // Do NOT call intlGetOptionsObject here — it throws for null before fields are read.
         if (optionsValue.isUndefined())
             RELEASE_AND_RETURN(scope, fromImpl(globalObject, itemValue, nullptr));
@@ -469,15 +480,20 @@ TemporalPlainDateTime* TemporalPlainDateTime::from(JSGlobalObject* globalObject,
     return { };
 }
 
+// https://tc39.es/proposal-temporal/#sec-temporal.plaindatetime.prototype.tostring
 String TemporalPlainDateTime::toString(JSGlobalObject* globalObject, JSValue optionsValue) const
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // Steps 1-2: branding check done by the caller (temporalPlainDateTimePrototypeFuncToString).
+
+    // Step 3: Let resolvedOptions be ? GetOptionsObject(options).
     JSObject* options = intlGetOptionsObject(globalObject, optionsValue);
     RETURN_IF_EXCEPTION(scope, { });
 
     if (!options) {
+        // Fast path: no options provided — all defaults, no rounding needed.
         auto base = toString();
         auto calId = calendarIDAsString();
         if (calendarID() != iso8601CalendarID())
@@ -485,75 +501,39 @@ String TemporalPlainDateTime::toString(JSGlobalObject* globalObject, JSValue opt
         return base;
     }
 
-    // Read options in spec order: calendarName, fractionalSecondDigits, roundingMode, smallestUnit.
+    // Step 4: NOTE: The following steps read options in alphabetical order.
+    // Step 5: Let showCalendar be ? GetTemporalShowCalendarNameOption(resolvedOptions).
+    String calOpt = temporalShowCalendarName(globalObject, options);
+    RETURN_IF_EXCEPTION(scope, { });
 
-    // calendarName (read for observable side-effect ordering, result used for output)
-    String calOpt = "auto"_s;
-    if (options) {
-        calOpt = intlStringOption(globalObject, options, Identifier::fromString(vm, "calendarName"_s),
-            { "auto"_s, "always"_s, "never"_s, "critical"_s }, "calendarName must be \"auto\", \"always\", \"never\", or \"critical\""_s, "auto"_s);
-        RETURN_IF_EXCEPTION(scope, { });
-    }
-
-    // fractionalSecondDigits
+    // Step 6: Let digits be ? GetTemporalFractionalSecondDigitsOption(resolvedOptions).
     auto digits = temporalFractionalSecondDigits(globalObject, options);
     RETURN_IF_EXCEPTION(scope, { });
 
-    // roundingMode
+    // Step 7: Let roundingMode be ? GetRoundingModeOption(resolvedOptions, ~trunc~).
     auto roundingMode = temporalRoundingMode(globalObject, options, RoundingMode::Trunc);
     RETURN_IF_EXCEPTION(scope, { });
 
-    // smallestUnit
-    auto smallestUnitResult = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
+    // Step 8: Let smallestUnit be ? GetTemporalUnitValuedOption(resolvedOptions, "smallestUnit", ~unset~).
+    auto smallestUnitResult = temporalUnitValued(globalObject, options, vm.propertyNames->smallestUnit);
     RETURN_IF_EXCEPTION(scope, { });
 
-    // Validate + compute precision.
-    std::optional<TemporalUnit> smallestUnit;
-    if (std::holds_alternative<TemporalAuto>(smallestUnitResult)) [[unlikely]] {
-        throwRangeError(globalObject, scope, "smallestUnit \"auto\" is not valid for toString"_s);
+    // Step 9: Perform ? ValidateTemporalUnitValue(smallestUnit, ~time~).
+    validateTemporalUnitValue(globalObject, smallestUnitResult, UnitGroup::Time, AllowedUnit::None, "smallestUnit"_s);
+    RETURN_IF_EXCEPTION(scope, { });
+    std::optional<TemporalUnit> smallestUnit = std::get<std::optional<TemporalUnit>>(smallestUnitResult);
+    // Step 10: If smallestUnit is ~hour~, throw a RangeError exception.
+    if (smallestUnit == TemporalUnit::Hour) [[unlikely]] {
+        throwRangeError(globalObject, scope, "smallestUnit cannot be \"hour\" for PlainDateTime.toString"_s);
         return { };
     }
-    smallestUnit = std::get<std::optional<TemporalUnit>>(smallestUnitResult);
-    if (smallestUnit) {
-        auto disallowed = { TemporalUnit::Year, TemporalUnit::Month, TemporalUnit::Week, TemporalUnit::Day, TemporalUnit::Hour };
-        if (std::ranges::find(disallowed, *smallestUnit) != disallowed.end()) [[unlikely]] {
-            throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
-            return { };
-        }
-    }
 
-    PrecisionData data;
-    if (smallestUnit) {
-        switch (*smallestUnit) {
-        case TemporalUnit::Minute: data = { { Precision::Minute, 0 }, TemporalUnit::Minute, 1 }; break;
-        case TemporalUnit::Second: data = { { Precision::Fixed, 0 }, TemporalUnit::Second, 1 }; break;
-        case TemporalUnit::Millisecond: data = { { Precision::Fixed, 3 }, TemporalUnit::Millisecond, 1 }; break;
-        case TemporalUnit::Microsecond: data = { { Precision::Fixed, 6 }, TemporalUnit::Microsecond, 1 }; break;
-        case TemporalUnit::Nanosecond: data = { { Precision::Fixed, 9 }, TemporalUnit::Nanosecond, 1 }; break;
-        default: RELEASE_ASSERT_NOT_REACHED();
-        }
-    } else if (!digits)
-        data = { { Precision::Auto, 0 }, TemporalUnit::Nanosecond, 1 };
-    else {
-        auto pow10 = [](unsigned n) -> unsigned {
-            unsigned r = 1;
-            for (unsigned i = 0; i < n; i++)
-                r *= 10;
-            return r;
-        };
-        unsigned d = digits.value();
-        if (!d)
-            data = { { Precision::Fixed, 0 }, TemporalUnit::Second, 1 };
-        else if (d <= 3)
-            data = { { Precision::Fixed, d }, TemporalUnit::Millisecond, pow10(3 - d) };
-        else if (d <= 6)
-            data = { { Precision::Fixed, d }, TemporalUnit::Microsecond, pow10(6 - d) };
-        else
-            data = { { Precision::Fixed, d }, TemporalUnit::Nanosecond, pow10(9 - d) };
-    }
+    // Step 11: Let precision be ToSecondsStringPrecisionRecord(smallestUnit, digits).
+    auto data = toSecondsStringPrecisionRecord(smallestUnit, digits);
 
-    // No need to make a new object if we were given explicit defaults.
-    if (std::get<0>(data.precision) == Precision::Auto && roundingMode == RoundingMode::Trunc) {
+    // Steps 12-14: RoundISODateTime + ISODateTimeWithinLimits check + ISODateTimeToString.
+    // Optimisation: if precision is ~auto~, rounding increment is 1 ns — a no-op for any mode.
+    if (std::get<0>(data.precision) == Precision::Auto) {
         auto base = toString();
         auto calId = calendarIDAsString();
         if (calOpt == "never"_s)
@@ -567,23 +547,21 @@ String TemporalPlainDateTime::toString(JSGlobalObject* globalObject, JSValue opt
         return base;
     }
 
-    auto duration = TemporalPlainTime::roundTime(m_plainTime, data.increment, data.unit, roundingMode, std::nullopt);
-    auto plainTime = TemporalPlainTime::toPlainTime(globalObject, duration);
-    RETURN_IF_EXCEPTION(scope, { });
+    // Step 12: Let result be RoundISODateTime(plainDateTime.[[ISODateTime]], precision.[[Increment]], precision.[[Unit]], roundingMode).
+    Int128 incrementNs = static_cast<Int128>(lengthInNanoseconds(data.unit)) * static_cast<Int128>(data.increment);
+    auto [roundedDate, roundedTime] = TemporalCore::roundISODateTime(plainDate(), m_plainTime, incrementNs, data.unit, roundingMode);
 
-    double extraDays = duration.days();
-    ASSERT(!extraDays || extraDays == 1);
-    auto plainDate = TemporalCore::balanceISODate(year(), month(), day() + static_cast<int64_t>(extraDays));
-
-    bool roundOutOfRange = !ISO8601::isDateTimeWithinLimits(plainDate.year(), plainDate.month(), plainDate.day(),
-        plainTime.hour(), plainTime.minute(), plainTime.second(),
-        plainTime.millisecond(), plainTime.microsecond(), plainTime.nanosecond());
+    // Step 13: If ISODateTimeWithinLimits(result) is false, throw a RangeError exception.
+    bool roundOutOfRange = !ISO8601::isDateTimeWithinLimits(roundedDate.year(), roundedDate.month(), roundedDate.day(),
+        roundedTime.hour(), roundedTime.minute(), roundedTime.second(),
+        roundedTime.millisecond(), roundedTime.microsecond(), roundedTime.nanosecond());
     if (roundOutOfRange) [[unlikely]] {
         throwRangeError(globalObject, scope, "Rounding result is outside the representable range"_s);
         return { };
     }
 
-    auto base = ISO8601::temporalDateTimeToString(plainDate, plainTime, data.precision);
+    // Step 14: Return ISODateTimeToString(result, plainDateTime.[[Calendar]], precision.[[Precision]], showCalendar).
+    auto base = ISO8601::temporalDateTimeToString(roundedDate, roundedTime, data.precision);
     auto calId = calendarIDAsString();
     if (calOpt == "never"_s)
         return base;
@@ -594,31 +572,6 @@ String TemporalPlainDateTime::toString(JSGlobalObject* globalObject, JSValue opt
     if (calendarID() != iso8601CalendarID())
         return makeString(base, "[u-ca="_s, calId, ']');
     return base;
-}
-
-String TemporalPlainDateTime::monthCode() const
-{
-    return ISO8601::monthCode(m_plainDate.month());
-}
-
-uint8_t TemporalPlainDateTime::dayOfWeek() const
-{
-    return ISO8601::dayOfWeek(m_plainDate);
-}
-
-uint16_t TemporalPlainDateTime::dayOfYear() const
-{
-    return ISO8601::dayOfYear(m_plainDate);
-}
-
-uint8_t TemporalPlainDateTime::weekOfYear() const
-{
-    return ISO8601::weekOfYear(m_plainDate);
-}
-
-int32_t TemporalPlainDateTime::yearOfWeek() const
-{
-    return ISO8601::yearOfWeek(m_plainDate);
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-differencetemporalplaindatetime
@@ -696,49 +649,60 @@ TemporalPlainDateTime* TemporalPlainDateTime::round(JSGlobalObject* globalObject
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // Steps 1-2: branding check done by the caller.
+
+    // Step 3: If roundTo is undefined, throw a TypeError exception.
+    if (optionsValue.isUndefined()) [[unlikely]] {
+        throwTypeError(globalObject, scope, "Temporal.PlainDateTime.prototype.round requires a roundTo option"_s);
+        return { };
+    }
+
     JSObject* options = nullptr;
     std::optional<TemporalUnit> smallest;
+
     if (optionsValue.isString()) {
+        // Step 4: If roundTo is a String, parse smallestUnit directly (optimisation — skip wrapper object).
         auto string = optionsValue.toWTFString(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
-
         smallest = temporalUnitType(string);
         if (!smallest) [[unlikely]] {
             throwRangeError(globalObject, scope, "smallestUnit is an invalid Temporal unit"_s);
             return { };
         }
-
-        if (isCalendarUnit(smallest.value())) [[unlikely]] {
-            throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
-            return { };
-        }
     } else {
+        // Step 5: Set roundTo to ? GetOptionsObject(roundTo).
         options = intlGetOptionsObject(globalObject, optionsValue);
         RETURN_IF_EXCEPTION(scope, { });
     }
 
+    // Step 6: NOTE: The following steps read options in alphabetical order.
+    // Step 7: Let roundingIncrement be ? GetRoundingIncrementOption(roundTo).
     auto roundingIncrement = temporalRoundingIncrement(globalObject, options);
     RETURN_IF_EXCEPTION(scope, { });
-
+    // Step 8: Let roundingMode be ? GetRoundingModeOption(roundTo, ~half-expand~).
     auto roundingMode = temporalRoundingMode(globalObject, options, RoundingMode::HalfExpand);
     RETURN_IF_EXCEPTION(scope, { });
 
     if (!smallest) {
-        auto smallestUnitMaybeAuto = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
+        // Step 9: Let smallestUnit be ? GetTemporalUnitValuedOption(roundTo, "smallestUnit", ~required~).
+        auto smallestUnitMaybeAuto = temporalUnitValued(globalObject, options, vm.propertyNames->smallestUnit, TemporalUnitDefault::Required);
         RETURN_IF_EXCEPTION(scope, { });
-        ASSERT(std::holds_alternative<std::optional<TemporalUnit>>(smallestUnitMaybeAuto));
+        // Step 10: Perform ? ValidateTemporalUnitValue(smallestUnit, ~time~, « ~day~ »).
+        validateTemporalUnitValue(globalObject, smallestUnitMaybeAuto, UnitGroup::Time, AllowedUnit::Day, "smallestUnit"_s);
+        RETURN_IF_EXCEPTION(scope, { });
         smallest = std::get<std::optional<TemporalUnit>>(smallestUnitMaybeAuto);
-        if (!smallest) [[unlikely]] {
-            throwRangeError(globalObject, scope, "Cannot round without a smallestUnit option"_s);
+    } else {
+        // Step 10 (string path): Perform ? ValidateTemporalUnitValue(smallestUnit, ~time~, « ~day~ »).
+        // isCalendarUnit (unit <= Week) rejects year/month/week; day and time units pass.
+        if (isCalendarUnit(smallest.value())) [[unlikely]] {
+            throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
             return { };
         }
     }
 
     auto smallestUnit = smallest.value();
 
-    validateTemporalUnitValue(globalObject, smallestUnit, UnitGroup::Time, AllowedUnit::Day, "smallestUnit"_s);
-    RETURN_IF_EXCEPTION(scope, { });
-
+    // Steps 11-12: If ~day~, maximum = 1 inclusive; else maximum = MaximumTemporalDurationRoundingIncrement, exclusive.
     unsigned maximum = 1;
     Inclusivity isInclusive = Inclusivity::Inclusive;
     if (smallestUnit != TemporalUnit::Day) {
@@ -747,18 +711,19 @@ TemporalPlainDateTime* TemporalPlainDateTime::round(JSGlobalObject* globalObject
         maximum = maximumOptional.value();
         isInclusive = Inclusivity::Exclusive;
     }
+    // Step 13: Perform ? ValidateTemporalRoundingIncrement(roundingIncrement, maximum, inclusive).
     validateTemporalRoundingIncrement(globalObject, roundingIncrement, maximum, isInclusive);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto duration = TemporalPlainTime::roundTime(m_plainTime, roundingIncrement, smallestUnit, roundingMode, std::nullopt);
-    auto plainTime = TemporalPlainTime::toPlainTime(globalObject, duration);
-    RETURN_IF_EXCEPTION(scope, { });
+    // Step 14: If smallestUnit is ~nanosecond~ and roundingIncrement = 1, return ! CreateTemporalDateTime.
+    // NOTE: roundTime with increment=1 and nanosecond is a no-op so step 15 covers this case too.
 
-    double extraDays = duration.days();
-    ASSERT(!extraDays || extraDays == 1);
-    auto plainDate = TemporalCore::balanceISODate(year(), month(), day() + static_cast<int64_t>(extraDays));
+    // Step 15: Let result be RoundISODateTime(plainDateTime.[[ISODateTime]], roundingIncrement, smallestUnit, roundingMode).
+    Int128 incrementNs = static_cast<Int128>(lengthInNanoseconds(smallestUnit)) * static_cast<Int128>(static_cast<int64_t>(roundingIncrement));
+    auto [roundedDate, roundedTime] = TemporalCore::roundISODateTime(plainDate(), m_plainTime, incrementNs, smallestUnit, roundingMode);
 
-    RELEASE_AND_RETURN(scope, TemporalPlainDateTime::tryCreateIfValid(globalObject, globalObject->plainDateTimeStructure(), WTF::move(plainDate), WTF::move(plainTime)));
+    // Step 16: Return ? CreateTemporalDateTime(result, plainDateTime.[[Calendar]]).
+    RELEASE_AND_RETURN(scope, TemporalPlainDateTime::tryCreateIfValid(globalObject, globalObject->plainDateTimeStructure(), WTF::move(roundedDate), WTF::move(roundedTime)));
 }
 
 } // namespace JSC

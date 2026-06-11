@@ -31,11 +31,11 @@
 #include "HTMLOptionElement.h"
 #include "HTMLSelectElement.h"
 #include "PlatformRenderTheme.h"
-#include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"
 #include "ResolvedStyle.h"
 #include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
+#include "StyleComputedStyle+SettersInlines.h"
 #include "StyleKeyword+Mappings.h"
 #include "StyleResolver.h"
 #include "StyleTextAlign.h"
@@ -122,18 +122,13 @@ void SelectFallbackButtonElement::setText(const String& text)
         textNode->setData(textToUse);
 }
 
-std::optional<Style::UnadjustedStyle> SelectFallbackButtonElement::resolveCustomStyle(const Style::ResolutionContext& resolutionContext, const RenderStyle* hostStyle)
+std::optional<Style::UnadjustedStyle> SelectFallbackButtonElement::resolveCustomStyle(const Style::ResolutionContext& resolutionContext, const Style::ComputedStyle* hostStyle)
 {
     if (!hostStyle)
         return std::nullopt;
 
     auto elementStyle = resolveStyle(resolutionContext);
     CheckedRef style = *elementStyle.style;
-
-    style->setFlexGrow(1);
-    style->setFlexShrink(1);
-    // min-width: 0; is needed for correct shrinking.
-    style->setLogicalMinWidth(0_css_px);
 
     auto hostTextAlign = hostStyle->textAlign();
     if (hostTextAlign == Style::TextAlign::Start)
@@ -157,19 +152,18 @@ std::optional<Style::UnadjustedStyle> SelectFallbackButtonElement::resolveCustom
         break;
     }
 
-    switch (hostStyle->usedAppearance()) {
-    case StyleAppearance::Menulist:
-    case StyleAppearance::MenulistButton: {
+    if (hostStyle->usedAppearance() != StyleAppearance::Base) {
+        style->setFlexGrow(1);
+        style->setFlexShrink(1);
+        // min-width: 0; is needed for correct shrinking.
+        style->setLogicalMinWidth(0_css_px);
+
         style->setMarginBefore(CSS::Keyword::Auto { });
         style->setMarginAfter(CSS::Keyword::Auto { });
         style->setAlignSelf(CSS::Keyword::FlexStart { });
 
         auto paddingBox = RenderTheme::singleton().popupInternalPaddingBox(*hostStyle);
         style->setPaddingBox(WTF::move(paddingBox));
-        break;
-    }
-    default:
-        break;
     }
 
     return elementStyle;

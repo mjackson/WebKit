@@ -594,14 +594,8 @@ class Port(object):
         if self.test_isfile(test_name) or self.test_isdir(test_name):
             return True
         if '?' in test_name or '#' in test_name:
-            fs = self._filesystem
-            ext_parts = fs.splitext(test_name)
-            test_name = ext_parts[0]
-            if len(ext_parts) > 1 and '?' in ext_parts[1]:
-                test_name += ext_parts[1].split('?')[0]
-            if len(ext_parts) > 1 and '#' in ext_parts[1]:
-                test_name += ext_parts[1].split('#')[0]
-            return self.test_isfile(test_name)
+            (base_name, variant) = Port.test_name_and_variant(test_name)
+            return self.test_isfile(base_name)
         return False
 
     def split_test(self, test_name):
@@ -1546,7 +1540,10 @@ class Port(object):
             try:
                 repos['webkit'] = local.Scm.from_path(self.host.filesystem.getcwd())
             except OSError:
-                repos['webkit'] = local.Scm.from_path(self.host.filesystem.dirname(__file__))
+                try:
+                    repos['webkit'] = local.Scm.from_path(self.host.filesystem.dirname(self.host.filesystem.path_to_module(__name__)))
+                except OSError:
+                    pass
 
         commits = []
         for repo_id, repo in repos.items():

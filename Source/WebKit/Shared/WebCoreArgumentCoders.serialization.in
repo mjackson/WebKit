@@ -2208,6 +2208,7 @@ class WebCore::LayoutRect {
 
 [RefCounted] class WebCore::RemoteFrameLayoutInfo {
     std::optional<WebCore::LayoutRect> visibleRectInParent();
+    WebCore::TransformationMatrix childFrameOwnerToRootContentTransform();
     float usedZoom();
     WebCore::LayoutPoint contentBoxLocation();
     OptionSet<WebCore::FrameOwnerElementAppearance> ownerElementAppearance();
@@ -5692,6 +5693,8 @@ enum class WebCore::ViolationReportType : uint8_t {
 
 enum class WebCore::COEPDisposition : bool;
 
+enum class WebCore::IFrameUnloadReason : bool;
+
 [RefCounted] class WebCore::COEPInheritenceViolationReportBody {
     WebCore::COEPDisposition m_disposition;
     URL m_blockedURL;
@@ -6053,6 +6056,8 @@ header: <WebCore/ISOVTTCue.h>
 
 [Nested] struct WebCore::MockWebAuthenticationConfiguration::CcidConfiguration {
     Vector<String> payloadBase64;
+    String appletSelectionResponseBase64;
+    String u2fVersionResponseBase64;
 };
 
 struct WebCore::MockWebAuthenticationConfiguration {
@@ -6936,6 +6941,8 @@ header: <WebCore/TextExtractionTypes.h>
     String accessibilityRole;
     String title;
     HashMap<String, String> clientAttributes;
+    Vector<String> classNames;
+    String idAttribute;
     unsigned enclosingBlockNumber;
     unsigned visualBlockContainerNumber;
     bool hasLineThrough;

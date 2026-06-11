@@ -292,6 +292,7 @@ public:
 
 #if ENABLE(WEB_CODECS)
     bool hasPendingActivity(const WebCodecsVideoDecoder&) const;
+    bool is10bitsVideoFrame(const WebCodecsVideoFrame&) const;
 #endif
 
     void NODELETE setGridMaxTracksLimit(unsigned);
@@ -938,6 +939,7 @@ public:
     bool NODELETE isPlayerVisibleInViewport(const HTMLMediaElement&) const;
     bool isPlayerMuted(const HTMLMediaElement&) const;
     bool isPlayerPaused(const HTMLMediaElement&) const;
+    double effectiveRate(const HTMLMediaElement&) const;
     void NODELETE forceStereoDecoding(HTMLMediaElement&);
     void beginAudioSessionInterruption();
     void endAudioSessionInterruption();
@@ -1665,11 +1667,6 @@ public:
 
     void NODELETE setResourceCachingDisabledByWebInspector(bool);
     ExceptionOr<void> lowerAllFrameMemoryMonitorLimits();
-
-#if ENABLE(CONTENT_EXTENSIONS)
-    bool NODELETE shouldSkipResourceMonitorThrottling() const;
-    void NODELETE setShouldSkipResourceMonitorThrottling(bool);
-#endif
 
 #if ENABLE(DAMAGE_TRACKING)
     struct FrameDamage {

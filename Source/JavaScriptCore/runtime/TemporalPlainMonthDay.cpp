@@ -89,7 +89,7 @@ String TemporalPlainMonthDay::toString(JSGlobalObject* globalObject, JSValue opt
     if (!options)
         return toString();
 
-    String calendarName = toTemporalCalendarName(globalObject, options);
+    String calendarName = temporalShowCalendarName(globalObject, options);
     RETURN_IF_EXCEPTION(scope, { });
 
     return ISO8601::temporalMonthDayToString(m_plainMonthDay, calendarName, m_calendarID);
@@ -147,7 +147,7 @@ TemporalPlainMonthDay* TemporalPlainMonthDay::from(JSGlobalObject* globalObject,
         // Step 2.c: PrepareCalendarFields(calendar, item, {year,month,monthCode,day}, {}, {}).
         // (Steps 2.b-c fused into readCalendarFieldsFromObject.)
         CalendarID calendarId = iso8601CalendarID();
-        auto fields = readCalendarFieldsFromObject(globalObject, asObject(itemValue), calendarId, FieldSetType::MonthDay);
+        auto fields = readCalendarFieldsFromObject<FieldSetType::MonthDay>(globalObject, asObject(itemValue), calendarId);
         RETURN_IF_EXCEPTION(scope, { });
 
         // Steps 2.d-e: GetOptionsObject + GetTemporalOverflowOption (after fields per spec).
@@ -196,7 +196,8 @@ static TemporalPlainMonthDay* fromMonthDayString(JSGlobalObject* globalObject, W
     // Step 4: ParseISODateTime(item, {TemporalMonthDayString}).
     auto dateTime = ISO8601::parseCalendarDateTime(string, TemporalDateFormat::MonthDay);
     if (!dateTime || (std::get<2>(dateTime.value()) && std::get<2>(dateTime.value())->m_z)) [[unlikely]] {
-        throwRangeError(globalObject, scope, makeString("Temporal.PlainMonthDay.from: invalid date string "_s, string));
+        String message = tryMakeString("Temporal.PlainMonthDay.from: invalid date string "_s, string);
+        throwRangeError(globalObject, scope, message.isNull() ? "Temporal.PlainMonthDay.from: invalid date string"_s : message);
         return { };
     }
     auto [plainDate, plainTimeOptional, timeZoneOptional, calendarOptional] = WTF::move(*dateTime);
@@ -266,7 +267,8 @@ static TemporalPlainMonthDay* fromMonthDayString(JSGlobalObject* globalObject, W
         }
     }
 
-    throwRangeError(globalObject, scope, makeString("Temporal.PlainMonthDay.from: invalid date string "_s, string));
+    String message = tryMakeString("Temporal.PlainMonthDay.from: invalid date string "_s, string);
+    throwRangeError(globalObject, scope, message.isNull() ? "Temporal.PlainMonthDay.from: invalid date string"_s : message);
     return { };
 }
 
@@ -288,7 +290,7 @@ ISO8601::PlainDate TemporalPlainMonthDay::with(JSGlobalObject* globalObject, JSO
     // Step 6: PrepareCalendarFields(calendar, temporalMonthDayLike, {year,month,monthCode,day}, {}, ~partial~).
     // Fields read BEFORE options per spec. skipCalendarRead=true since step 3 ensures no calendar property.
     CalendarID outCalendarId = calID;
-    auto partialFields = readCalendarFieldsFromObject(globalObject, temporalMonthDayLike, outCalendarId, FieldSetType::MonthDay, /* skipCalendarRead */ true);
+    auto partialFields = readCalendarFieldsFromObject<FieldSetType::MonthDay, CalendarRead::Skip>(globalObject, temporalMonthDayLike, outCalendarId);
     RETURN_IF_EXCEPTION(scope, { });
     if (!partialFields.day && !partialFields.month && !partialFields.monthCode
         && !partialFields.year && !partialFields.era && !partialFields.eraYear) [[unlikely]] {
@@ -357,11 +359,6 @@ ISO8601::PlainDate TemporalPlainMonthDay::with(JSGlobalObject* globalObject, JSO
         return { };
     }
     return resolved->isoDate;
-}
-
-String TemporalPlainMonthDay::monthCode() const
-{
-    return ISO8601::monthCode(m_plainMonthDay.month());
 }
 
 } // namespace JSC

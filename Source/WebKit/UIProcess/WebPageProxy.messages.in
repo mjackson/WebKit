@@ -510,8 +510,9 @@ messages -> WebPageProxy {
 #if ENABLE(CONTENT_EXTENSIONS)
     ContentRuleListNotification(URL url, struct WebCore::ContentRuleListResults results)
     ContentRuleListMatchedRule(struct WebCore::ContentRuleListMatchedRule matchedRule)
-    ApplyResourceMonitorUnloadToFrameOwner(WebCore::FrameIdentifier frameID)
 #endif
+
+    ApplyMonitorUnloadToFrameOwner(WebCore::FrameIdentifier frameID, enum:bool WebCore::IFrameUnloadReason reason)
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
     AddPlaybackTargetPickerClient(WebCore::PlaybackTargetClientContextIdentifier contextId)
@@ -679,11 +680,6 @@ messages -> WebPageProxy {
 
 #if ENABLE(GAMEPAD)
     [EnabledBy=GamepadsEnabled] GamepadsRecentlyAccessed()
-#endif
-
-#if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
-    AddRemoteMediaSessionManager(WebCore::PageIdentifier pageIdentifier)
-    RemoveRemoteMediaSessionManager(WebCore::PageIdentifier pageIdentifier)
 #endif
 
     HasActiveNowPlayingSessionChanged(bool hasActiveNowPlayingSessionChanged)

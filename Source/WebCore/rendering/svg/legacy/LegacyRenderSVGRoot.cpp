@@ -60,7 +60,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGRoot);
 const int legacySVGRootDefaultWidth = 300;
 const int legacySVGRootDefaultHeight = 150;
 
-LegacyRenderSVGRoot::LegacyRenderSVGRoot(SVGSVGElement& element, RenderStyle&& style)
+LegacyRenderSVGRoot::LegacyRenderSVGRoot(SVGSVGElement& element, Style::ComputedStyle&& style)
     : RenderReplaced(Type::LegacySVGRoot, element, WTF::move(style), ReplacedFlag::UsesBoundaryCaching)
 {
     ASSERT(isLegacyRenderSVGRoot());
@@ -183,14 +183,14 @@ LayoutUnit LegacyRenderSVGRoot::computeReplacedLogicalHeight(std::optional<Layou
         return containingBlock()->availableLogicalHeight(AvailableLogicalHeightType::IncludeMarginBorderPadding);
 
     // For intrinsic sizing keywords (e.g. max-content), when the SVG has no intrinsic height
-    // but has an intrinsic ratio (from viewBox), compute the height using the width and the
+    // but has an intrinsic ratio (from viewBox), compute the height from the used width and the
     // aspect ratio.
     if (style().logicalHeight().isIntrinsic()) {
         Ref element = svgSVGElement();
         if (!element->hasIntrinsicHeight()) {
             FloatSize viewBoxSize = element->currentViewBoxRect().size();
             if (!viewBoxSize.isEmpty()) {
-                float width = element->hasIntrinsicWidth() ? element->intrinsicWidth() : legacySVGRootDefaultWidth;
+                float width = element->hasIntrinsicWidth() ? element->intrinsicWidth() : (estimatedUsedWidth ? estimatedUsedWidth.value() : contentBoxLogicalWidth()).toFloat();
                 double ratio = viewBoxSize.height() / viewBoxSize.width();
                 return computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit(width * ratio));
             }
@@ -386,7 +386,7 @@ void LegacyRenderSVGRoot::willBeRemovedFromTree()
     RenderReplaced::willBeRemovedFromTree();
 }
 
-void LegacyRenderSVGRoot::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
+void LegacyRenderSVGRoot::styleDidChange(Style::Difference diff, const Style::ComputedStyle* oldStyle)
 {
     if (diff == Style::DifferenceResult::Layout)
         invalidateCachedBoundaries();

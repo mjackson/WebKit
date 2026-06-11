@@ -208,7 +208,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalPlainMonthDayPrototypeFuncToPlainDate, (JSGloba
         JSValue eraYearValue = asObject(itemValue)->get(globalObject, Identifier::fromString(vm, "eraYear"_s));
         RETURN_IF_EXCEPTION(scope, { });
         if (!eraYearValue.isUndefined()) {
-            double ey = eraYearValue.toIntegerOrInfinity(globalObject);
+            double ey = eraYearValue.toIntegerWithTruncation(globalObject);
             RETURN_IF_EXCEPTION(scope, { });
             if (!std::isfinite(ey)) [[unlikely]]
                 return throwVMRangeError(globalObject, scope, "eraYear property must be finite"_s);
@@ -275,6 +275,12 @@ JSC_DEFINE_CUSTOM_GETTER(temporalPlainMonthDayPrototypeGetterDay, (JSGlobalObjec
     if (!monthDay) [[unlikely]]
         return throwVMTypeError(globalObject, scope, "Temporal.PlainMonthDay.prototype.day called on value that's not a PlainMonthDay"_s);
 
+    if (!TemporalCore::calendarIsISO(monthDay->calendarID())) {
+        auto result = TemporalCore::calendarDay(monthDay->calendarID(), monthDay->plainMonthDay().isoPlainDate());
+        if (!result) [[unlikely]]
+            return throwVMRangeError(globalObject, scope, result.error().message);
+        return JSValue::encode(jsNumber(*result));
+    }
     return JSValue::encode(jsNumber(monthDay->day()));
 }
 
@@ -288,6 +294,12 @@ JSC_DEFINE_CUSTOM_GETTER(temporalPlainMonthDayPrototypeGetterMonthCode, (JSGloba
     if (!monthDay) [[unlikely]]
         return throwVMTypeError(globalObject, scope, "Temporal.PlainMonthDay.prototype.monthCode called on value that's not a PlainMonthDay"_s);
 
+    if (!TemporalCore::calendarIsISO(monthDay->calendarID())) {
+        auto result = TemporalCore::calendarMonthCode(monthDay->calendarID(), monthDay->plainMonthDay().isoPlainDate());
+        if (!result) [[unlikely]]
+            return throwVMRangeError(globalObject, scope, result.error().message);
+        return JSValue::encode(jsNontrivialString(vm, *result));
+    }
     return JSValue::encode(jsNontrivialString(vm, monthDay->monthCode()));
 }
 

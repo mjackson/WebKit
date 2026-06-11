@@ -497,6 +497,8 @@ extension WKBridgeUSDConfiguration {
         }
     }
 
+    var standardDynamicRange: Bool = false
+
     func makeStandaloneResources() async {
         do {
             appRenderer.pendingStandaloneResources = try await LowLevelRenderContextStandalone.Resources(device: self.device)
@@ -518,16 +520,19 @@ extension WKBridgeUSDConfiguration {
 
     func makeRendererResources() async {
         do {
+            let colorPixelFormat: MTLPixelFormat = standardDynamicRange ? .bgra8Unorm : .rgba16Float
+            let sampleCount: Int = 4
             appRenderer.pendingRendererResources = try await LowLevelRenderer.Resources(
                 configuration: .init(
-                    output: .init(colorPixelFormat: .rgba16Float),
-                    rasterSampleCount: 4,
-                    enableTonemap: false,
+                    output: .init(colorPixelFormat: colorPixelFormat),
+                    rasterSampleCount: sampleCount,
+                    enableTonemap: standardDynamicRange,
                     enableColorMatch: false,
                     alphaPremultiply: false
                 ),
                 renderContext: self.renderContext
             )
+            appRenderer.rasterSampleCount = sampleCount
         } catch {
             fatalError("Exception creating renderer resources \(error)")
         }
@@ -539,6 +544,7 @@ extension WKBridgeUSDConfiguration {
             // swift-format-ignore: NeverForceUnwrap
             try appRenderer.createRenderer(resources: appRenderer.pendingRendererResources!)
             appRenderer.pendingRendererResources = nil
+            appRenderer.tonemapEnabled = standardDynamicRange
         } catch {
             fatalError("Exception creating renderer \(error)")
         }
@@ -934,7 +940,7 @@ extension WKBridgeReceiver {
                         var deferredMeshUpdate = DeferredMeshUpdate(identifier: identifier, type: .newMesh, updatedInstances: [])
 
                         let skinMatrices = meshData.deformationData?.skinningData.map { rootSkinMatrices($0) } ?? []
-                        for (partIndex, part) in meshData.parts.enumerated() {
+                        for part in meshData.parts {
                             if part.materialIndex >= meshData.assignedMaterials.count {
                                 fatalError(
                                     "index out of range: material index \(part.materialIndex) while only \(meshData.assignedMaterials.count) were found"
@@ -2119,6 +2125,10 @@ final class USDModelLoader {
         endTime - startTime
     }
 
+    func treatZAsUpAxis() -> Bool {
+        stage?.upAxis == TfToken("Z")
+    }
+
     func currentTime() -> Double {
         time - startTime
     }
@@ -2305,6 +2315,10 @@ extension WKBridgeModelLoader {
         return loader.duration()
     }
 
+    func treatZAsUpAxis() -> Bool {
+        loader?.treatZAsUpAxis() ?? false
+    }
+
     func currentTime() -> Double {
         guard let loader else {
             return 0.0
@@ -2412,6 +2426,8 @@ private func makeFallBackTextureResource(
 extension WKBridgeUSDConfiguration {
     init(device: any MTLDevice, memoryOwner: task_id_token_t) {
     }
+
+    var standardDynamicRange: Bool = false
 
     func makeStandaloneResources() async {
     }
@@ -2526,6 +2542,10 @@ extension WKBridgeModelLoader {
 
     func duration() -> Double {
         0.0
+    }
+
+    func treatZAsUpAxis() -> Bool {
+        false
     }
 
     func currentTime() -> Double {

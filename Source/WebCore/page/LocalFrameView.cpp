@@ -110,7 +110,6 @@
 #include "RenderSVGRoot.h"
 #include "RenderScrollbar.h"
 #include "RenderScrollbarPart.h"
-#include "RenderStyle+SettersInlines.h"
 #include "RenderText.h"
 #include "RenderTheme.h"
 #include "RenderTreeAsText.h"
@@ -132,12 +131,14 @@
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SimpleRange.h"
+#include "StyleComputedStyle+SettersInlines.h"
+#include "StyleDocumentScope.h"
 #include "StyleResolver.h"
-#include "StyleScope.h"
 #include "TextIndicator.h"
 #include "TextIterator.h"
 #include "TextResourceDecoder.h"
 #include "TiledBacking.h"
+#include "TransformState.h"
 #include "VelocityData.h"
 #include "VisualViewport.h"
 #include "WheelEventTestMonitor.h"
@@ -177,7 +178,7 @@ static constexpr float defaultSignificantRenderedTextMeanLength = 50;
 static constexpr unsigned mainArticleSignificantRenderedTextCharacterThreshold = 1500;
 static constexpr float mainArticleSignificantRenderedTextMeanLength = 25;
 
-Pagination::Mode paginationModeForRenderStyle(const RenderStyle& style)
+Pagination::Mode paginationModeForRenderStyle(const Style::ComputedStyle& style)
 {
     auto overflow = style.overflowY();
     if (overflow != Overflow::PagedX && overflow != Overflow::PagedY)
@@ -909,7 +910,7 @@ void LocalFrameView::updateSnapOffsets()
     RefPtr documentElement = m_frame->document()->documentElement();
     CheckedPtr rootRenderer = documentElement ? documentElement->renderBox() : nullptr;
 
-    const RenderStyle* styleToUse = nullptr;
+    const Style::ComputedStyle* styleToUse = nullptr;
     if (rootRenderer && !rootRenderer->style().scrollSnapType().isNone())
         styleToUse = &rootRenderer->style();
 
@@ -2181,6 +2182,23 @@ LayoutPoint LocalFrameView::childFrameOwnerContentBoxLocation(const Frame& child
     return childOwnerRenderer->contentBoxLocation();
 }
 
+TransformationMatrix LocalFrameView::childFrameOwnerToRootContentTransform(const Frame& child) const
+{
+    CheckedPtr<RenderObject> childOwnerRenderer = child.ownerRenderer();
+    if (!childOwnerRenderer)
+        return { };
+
+    // Ensure |child| is a child of this frame.
+    ASSERT(child.tree().parent()->frameID() == m_frame->frameID());
+    ASSERT(childOwnerRenderer->frame().frameID() == m_frame->frameID());
+
+    // Identical to localToContainerQuad
+    TransformState transformState(TransformState::ApplyTransformDirection, FloatPoint { });
+    childOwnerRenderer->mapLocalToContainer(&childOwnerRenderer->view(), transformState, { MapCoordinatesMode::UseTransforms, MapCoordinatesMode::ApplyContainerFlip }, nullptr);
+
+    return *transformState.releaseTrackedTransform();
+}
+
 LayoutRect LocalFrameView::rectForFixedPositionLayout() const
 {
     if (m_frame->settings().visualViewportEnabled())
@@ -2558,7 +2576,7 @@ std::pair<FixedContainerEdges, WeakElementEdges> LocalFrameView::fixedContainerE
         };
     };
 
-    auto computeSamplingRect = [&](const RenderStyle* style, BoxSide side) -> LayoutRect {
+    auto computeSamplingRect = [&](const Style::ComputedStyle* style, BoxSide side) -> LayoutRect {
         auto samplingRect = computeSampleRectIgnoringBorderWidth(fixedRect, side);
         if (!style)
             return samplingRect;
@@ -3483,7 +3501,7 @@ void LocalFrameView::cancelScheduledTextFragmentIndicatorTimer()
     m_delayedTextFragmentIndicatorTimer.stop();
 }
 
-static void NODELETE adjustScrollRectToVisibleOptionsForHiddenOverflow(ScrollRectToVisibleOptions& options, const RenderStyle& style)
+static void NODELETE adjustScrollRectToVisibleOptionsForHiddenOverflow(ScrollRectToVisibleOptions& options, const Style::ComputedStyle& style)
 {
     if (options.allowScrollingOverflowHidden == AllowScrollingOverflowHidden::Yes)
         return;
@@ -5437,7 +5455,7 @@ void LocalFrameView::notifyScrollableAreasThatContentAreaWillPaint() const
 void LocalFrameView::updateScrollCorner()
 {
     CheckedPtr<RenderElement> renderer;
-    std::unique_ptr<RenderStyle> cornerStyle;
+    std::unique_ptr<Style::ComputedStyle> cornerStyle;
     IntRect cornerRect = scrollCornerRect();
     RefPtr doc = m_frame->document();
 

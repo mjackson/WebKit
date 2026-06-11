@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2002 Lars Knoll (knoll@kde.org)
  *           (C) 2002 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2003-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2026 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -123,7 +123,7 @@ float FixedTableLayout::calcWidthArray()
                 spanInCurrentEffectiveColumn = m_table->spanOfEffCol(currentEffectiveColumn);
             }
             if (auto fixedColStyleLogicalWidth = colStyleLogicalWidth.tryFixed(); fixedColStyleLogicalWidth && fixedColStyleLogicalWidth->isPositive()) {
-                m_width[currentEffectiveColumn] = Style::PreferredSize::Fixed { fixedColStyleLogicalWidth->resolveZoom(colUsedZoom) * spanInCurrentEffectiveColumn };
+                m_width[currentEffectiveColumn] = Style::PreferredSize::Fixed { effectiveColWidth * spanInCurrentEffectiveColumn };
                 usedWidth += effectiveColWidth * spanInCurrentEffectiveColumn;
             } else if (auto percentageColStyleLogicalWidth = colStyleLogicalWidth.tryPercentage(); percentageColStyleLogicalWidth && percentageColStyleLogicalWidth->value > 0) {
                 m_width[currentEffectiveColumn] = Style::PreferredSize::Percentage { percentageColStyleLogicalWidth->value * spanInCurrentEffectiveColumn };
@@ -320,7 +320,7 @@ void FixedTableLayout::layout()
         m_table->setColumnPosition(i, LayoutUnit(pos));
         pos += calcWidth[i] + hspacing;
     }
-    float colPositionsSize = m_table->columnPositions().size();
+    auto colPositionsSize = m_table->columnPositions().size();
     if (colPositionsSize > 0)
         m_table->setColumnPosition(colPositionsSize - 1, LayoutUnit(pos));
 }

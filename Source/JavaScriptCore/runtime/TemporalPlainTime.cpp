@@ -33,7 +33,7 @@
 #include "Rounding.h"
 #include "TemporalDuration.h"
 #include "TemporalPlainDateTime.h"
-// FIXME: TemporalZonedDateTime.h will be added
+#include "TemporalZonedDateTime.h"
 #include "VMTrapsInlines.h"
 
 namespace JSC {
@@ -262,14 +262,11 @@ ISO8601::PlainTime TemporalPlainTime::round(JSGlobalObject* globalObject, JSValu
     auto roundingMode = temporalRoundingMode(globalObject, options, RoundingMode::HalfExpand);
     RETURN_IF_EXCEPTION(scope, { });
     if (!smallest) {
-        auto smallestMaybeAuto = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
+        auto smallestMaybeAuto = temporalUnitValued(globalObject, options, vm.propertyNames->smallestUnit, TemporalUnitDefault::Required);
         RETURN_IF_EXCEPTION(scope, { });
-        ASSERT(std::holds_alternative<std::optional<TemporalUnit>>(smallestMaybeAuto));
+        validateTemporalUnitValue(globalObject, smallestMaybeAuto, UnitGroup::Time, AllowedUnit::None, "smallestUnit"_s);
+        RETURN_IF_EXCEPTION(scope, { });
         smallest = std::get<std::optional<TemporalUnit>>(smallestMaybeAuto);
-    }
-    if (!smallest) [[unlikely]] {
-        throwRangeError(globalObject, scope, "smallestUnit is required for rounding"_s);
-        return { };
     }
     auto smallestUnit = smallest.value();
     validateTemporalUnitValue(globalObject, smallestUnit, UnitGroup::Time, AllowedUnit::None, "smallestUnit"_s);
@@ -288,6 +285,8 @@ String TemporalPlainTime::toString(JSGlobalObject* globalObject, JSValue options
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // Steps 1-2: branding check done by the caller.
+
     // Step 3: Let resolvedOptions be ?GetOptionsObject(options).
     JSObject* options = intlGetOptionsObject(globalObject, optionsValue);
     RETURN_IF_EXCEPTION(scope, { });
@@ -295,7 +294,7 @@ String TemporalPlainTime::toString(JSGlobalObject* globalObject, JSValue options
     if (!options)
         return toString();
 
-    // Steps 4-6: Read options alphabetically — fractionalSecondDigits, roundingMode, smallestUnit.
+    // Step 4: NOTE: The following steps read options in alphabetical order.
     // Step 5: Let digits be ?GetTemporalFractionalSecondDigitsOption(resolvedOptions).
     auto digits = temporalFractionalSecondDigits(globalObject, options);
     RETURN_IF_EXCEPTION(scope, { });
@@ -305,77 +304,33 @@ String TemporalPlainTime::toString(JSGlobalObject* globalObject, JSValue options
     RETURN_IF_EXCEPTION(scope, { });
 
     // Step 7: Let smallestUnit be ?GetTemporalUnitValuedOption(resolvedOptions, "smallestUnit", ~unset~).
-    auto smallestUnitResult = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
+    auto smallestUnitResult = temporalUnitValued(globalObject, options, vm.propertyNames->smallestUnit);
     RETURN_IF_EXCEPTION(scope, { });
 
-    // Steps 8-9: ValidateTemporalUnitValue(smallestUnit, ~time~) — reject non-time or ~hour~.
-    // Validate + compute precision.
-    std::optional<TemporalUnit> smallestUnit;
-    if (std::holds_alternative<TemporalAuto>(smallestUnitResult)) [[unlikely]] {
-        throwRangeError(globalObject, scope, "smallestUnit \"auto\" is not valid for toString"_s);
+    // Step 8: Perform ? ValidateTemporalUnitValue(smallestUnit, ~time~).
+    validateTemporalUnitValue(globalObject, smallestUnitResult, UnitGroup::Time, AllowedUnit::None, "smallestUnit"_s);
+    RETURN_IF_EXCEPTION(scope, { });
+    std::optional<TemporalUnit> smallestUnit = std::get<std::optional<TemporalUnit>>(smallestUnitResult);
+    // Step 9: If smallestUnit is ~hour~, throw a RangeError exception.
+    if (smallestUnit == TemporalUnit::Hour) [[unlikely]] {
+        throwRangeError(globalObject, scope, "smallestUnit cannot be \"hour\" for PlainTime.toString"_s);
         return { };
-    }
-    smallestUnit = std::get<std::optional<TemporalUnit>>(smallestUnitResult);
-    if (smallestUnit) {
-        auto disallowed = { TemporalUnit::Year, TemporalUnit::Month, TemporalUnit::Week, TemporalUnit::Day, TemporalUnit::Hour };
-        if (std::ranges::find(disallowed, *smallestUnit) != disallowed.end()) [[unlikely]] {
-            throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
-            return { };
-        }
     }
 
     // Step 10: Let precision be ToSecondsStringPrecisionRecord(smallestUnit, digits).
-    PrecisionData data;
-    if (smallestUnit) {
-        switch (*smallestUnit) {
-        case TemporalUnit::Minute:
-            data = { { Precision::Minute, 0 }, TemporalUnit::Minute, 1 };
-            break;
-        case TemporalUnit::Second:
-            data = { { Precision::Fixed, 0 }, TemporalUnit::Second, 1 };
-            break;
-        case TemporalUnit::Millisecond:
-            data = { { Precision::Fixed, 3 }, TemporalUnit::Millisecond, 1 };
-            break;
-        case TemporalUnit::Microsecond:
-            data = { { Precision::Fixed, 6 }, TemporalUnit::Microsecond, 1 };
-            break;
-        case TemporalUnit::Nanosecond:
-            data = { { Precision::Fixed, 9 }, TemporalUnit::Nanosecond, 1 };
-            break;
-        default:
-            RELEASE_ASSERT_NOT_REACHED();
-        }
-    } else if (!digits)
-        data = { { Precision::Auto, 0 }, TemporalUnit::Nanosecond, 1 };
-    else {
-        auto pow10 = [](unsigned n) -> unsigned {
-            unsigned r = 1;
-            for (unsigned i = 0; i < n; i++)
-                r *= 10;
-            return r;
-        };
-        unsigned d = digits.value();
-        if (!d)
-            data = { { Precision::Fixed, 0 }, TemporalUnit::Second, 1 };
-        else if (d <= 3)
-            data = { { Precision::Fixed, d }, TemporalUnit::Millisecond, pow10(3 - d) };
-        else if (d <= 6)
-            data = { { Precision::Fixed, d }, TemporalUnit::Microsecond, pow10(6 - d) };
-        else
-            data = { { Precision::Fixed, d }, TemporalUnit::Nanosecond, pow10(9 - d) };
-    }
+    auto data = toSecondsStringPrecisionRecord(smallestUnit, digits);
 
-    // No need to make a new object if we were given explicit defaults.
+    // No need to round if given explicit defaults (steps 11-12 are no-ops when precision=auto, roundingMode=trunc).
     if (std::get<0>(data.precision) == Precision::Auto && roundingMode == RoundingMode::Trunc)
         return toString();
 
     // Step 11: Let roundResult be RoundTime(plainTime.[[Time]], precision.[[Increment]], precision.[[Unit]], roundingMode).
+    // Step 12: Return TimeRecordToString(roundResult, precision.[[Precision]]).
+    // roundTime() is RoundTime — returns ISO8601::Duration (our Time Record, which has [[Days]] per spec).
+    // toPlainTime() extracts the clock fields, equivalent to TimeRecordToString ignoring [[Days]].
     auto duration = roundTime(m_plainTime, data.increment, data.unit, roundingMode, std::nullopt);
     auto plainTime = toPlainTime(globalObject, duration);
     RETURN_IF_EXCEPTION(scope, { });
-
-    // Step 12: Return TimeRecordToString(roundResult, precision.[[Precision]]).
     return ISO8601::temporalTimeToString(plainTime, data.precision);
 }
 
@@ -397,7 +352,7 @@ ISO8601::Duration TemporalPlainTime::toTemporalTimeRecord(JSGlobalObject* global
             continue;
 
         hasRelevantProperty = true;
-        double integer = value.toIntegerOrInfinity(globalObject);
+        double integer = value.toIntegerWithTruncation(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
         if (!std::isfinite(integer)) [[unlikely]] {
             throwRangeError(globalObject, scope, "Temporal time properties must be finite"_s);
@@ -430,7 +385,7 @@ std::array<std::optional<double>, numberOfTemporalPlainTimeUnits> TemporalPlainT
 
         if (!value.isUndefined()) {
             hasAnyFields = true;
-            double doubleValue = value.toIntegerOrInfinity(globalObject);
+            double doubleValue = value.toIntegerWithTruncation(globalObject);
             RETURN_IF_EXCEPTION(scope, { });
             if (!std::isfinite(doubleValue)) [[unlikely]] {
                 throwRangeError(globalObject, scope, "Temporal time properties must be finite"_s);
@@ -448,18 +403,13 @@ std::array<std::optional<double>, numberOfTemporalPlainTimeUnits> TemporalPlainT
 
 static ISO8601::PlainTime constrainTime(ISO8601::Duration&& duration)
 {
-    auto constrainToRange = [](double value, unsigned minimum, unsigned maximum) -> unsigned {
-        if (std::isnan(value))
-            return 0;
-        return static_cast<unsigned>(std::min<double>(std::max<double>(value, minimum), maximum));
-    };
     return ISO8601::PlainTime(
-        constrainToRange(duration.hours(), 0, 23),
-        constrainToRange(duration.minutes(), 0, 59),
-        constrainToRange(duration.seconds(), 0, 59),
-        constrainToRange(duration.milliseconds(), 0, 999),
-        constrainToRange(static_cast<double>(duration.microseconds()), 0, 999),
-        constrainToRange(static_cast<double>(duration.nanoseconds()), 0, 999));
+        clampTo<unsigned>(duration.hours(), 0, 23),
+        clampTo<unsigned>(duration.minutes(), 0, 59),
+        clampTo<unsigned>(duration.seconds(), 0, 59),
+        clampTo<unsigned>(duration.milliseconds(), 0, 999),
+        clampTo<unsigned>(static_cast<double>(duration.microseconds()), 0u, 999u),
+        clampTo<unsigned>(static_cast<double>(duration.nanoseconds()), 0u, 999u));
 }
 
 ISO8601::PlainTime TemporalPlainTime::regulateTime(JSGlobalObject* globalObject, ISO8601::Duration&& duration, TemporalOverflow overflow)
@@ -479,63 +429,120 @@ TemporalPlainTime* TemporalPlainTime::from(JSGlobalObject* globalObject, JSValue
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    // Step 2: item is an Object.
+    // Step 1: If options is not present, set options to undefined. (Caller passes jsUndefined().)
+
+    // Step 2: If item is an Object:
     if (itemValue.isObject()) {
+        // Step 2.a: item has [[InitializedTemporalTime]].
+        // Spec sub-steps: GetOptionsObject, GetTemporalOverflowOption (result unused).
+        // Return ! CreateTemporalTime(item.[[Time]]).
         if (itemValue.inherits<TemporalPlainTime>()) {
-            // Step 2.a.i-ii: GetOptionsObject + GetTemporalOverflowOption.
-            // Step 2.a.iii: Return CreateTemporalTime(item.[[Time]]).
             toTemporalOverflow(globalObject, optionsValue);
             RETURN_IF_EXCEPTION(scope, { });
             return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(),
                 uncheckedDowncast<TemporalPlainTime>(itemValue)->plainTime());
         }
+
+        // Step 2.b: item has [[InitializedTemporalDateTime]].
+        // Spec sub-steps: GetOptionsObject, GetTemporalOverflowOption (result unused).
+        // Return ! CreateTemporalTime(item.[[ISODateTime]].[[Time]]).
         if (itemValue.inherits<TemporalPlainDateTime>()) {
-            // Step 2.b.i-ii: GetOptionsObject + GetTemporalOverflowOption.
-            // Step 2.b.iii: Return CreateTemporalTime(item.[[ISODateTime]].[[Time]]).
             toTemporalOverflow(globalObject, optionsValue);
             RETURN_IF_EXCEPTION(scope, { });
             return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(),
                 uncheckedDowncast<TemporalPlainDateTime>(itemValue)->plainTime());
         }
-        // Step 2.d: ToTemporalTimeRecord — read fields BEFORE options (spec order).
+
+        // Step 2.c: item has [[InitializedTemporalZonedDateTime]].
+        // GetISODateTimeFor must precede GetOptionsObject (spec step order).
+        // Spec sub-steps: GetOptionsObject, GetTemporalOverflowOption (result unused).
+        // Return ! CreateTemporalTime(isoDateTime.[[Time]]).
+        if (itemValue.inherits<TemporalZonedDateTime>()) {
+            auto* zdt = uncheckedDowncast<TemporalZonedDateTime>(itemValue);
+            ISO8601::PlainDate date;
+            ISO8601::PlainTime time;
+            zdt->getLocalDateAndTime(globalObject, date, time);
+            RETURN_IF_EXCEPTION(scope, { });
+            toTemporalOverflow(globalObject, optionsValue);
+            RETURN_IF_EXCEPTION(scope, { });
+            return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(time));
+        }
+
+        // Step 2.d: Let _result_ be ? ToTemporalTimeRecord(_item_).
+        //           Must run before GetOptionsObject — field reads are observable first.
         auto duration = toTemporalTimeRecord(globalObject, uncheckedDowncast<JSObject>(itemValue));
         RETURN_IF_EXCEPTION(scope, { });
-        // Step 2.d.i-ii: GetOptionsObject + GetTemporalOverflowOption.
-        TemporalOverflow overflow = toTemporalOverflow(globalObject, optionsValue);
-        RETURN_IF_EXCEPTION(scope, { });
-        // Step 2.d.iii + Step 4: RegulateTime + CreateTemporalTime.
+
+        // Steps 2.e-2.f: resolvedOptions = ? GetOptionsObject(options);
+        //                overflow = ? GetTemporalOverflowOption(resolvedOptions).
+        // Three branches: fast-path undefined, preserve exact TypeError message for non-objects,
+        // and call toTemporalOverflow(JSObject*) directly for objects to avoid a redundant isObject check.
+        TemporalOverflow overflow;
+        if (optionsValue.isUndefined())
+            overflow = TemporalOverflow::Constrain; // GetOptionsObject(undefined) → { }; default = ~constrain~.
+        else if (!optionsValue.isObject()) [[unlikely]] {
+            throwTypeError(globalObject, scope, "options must be an object"_s);
+            return { };
+        } else {
+            overflow = toTemporalOverflow(globalObject, asObject(optionsValue));
+            RETURN_IF_EXCEPTION(scope, { });
+        }
+
+        // Step 2.g: Set _result_ to ? RegulateTime(_result_, _overflow_).
         auto plainTime = regulateTime(globalObject, WTF::move(duration), overflow);
         RETURN_IF_EXCEPTION(scope, { });
+
+        // Step 4: Return ! CreateTemporalTime(_result_).
         return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(plainTime));
     }
 
-    // Step 3.a: not a String — TypeError.
+    // Step 3: Else (item is not an Object).
+
+    // Step 3.a: If item is not a String, throw TypeError.
     if (!itemValue.isString()) [[unlikely]] {
         throwTypeError(globalObject, scope, "can only convert to PlainTime from object or string values"_s);
         return { };
     }
 
-    // Step 3.b: ParseISODateTime(item, {TemporalTimeString}).
+    // Step 3.b: parseResult = ? ParseISODateTime(item, «TemporalTimeString»).
+    // TemporalTimeString accepts both time-only ("14:30:00") and datetime ("2021-01-01T14:30:00")
+    // formats. Implemented as two parsers that mirror the grammar productions:
+    //   parseCalendarTime: time-only production.
+    //   parseCalendarDateTime: fallback for the datetime production.
+    // Strings with a Z designator are rejected (they throw RangeError per test262).
     auto string = itemValue.toWTFString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
-    // Step 3.e: GetOptionsObject + GetTemporalOverflowOption (validate; overflow unused for strings).
-    toTemporalOverflow(globalObject, optionsValue);
-    RETURN_IF_EXCEPTION(scope, { });
-
-    // Steps 3.b-3.d + Step 4: parse, return CreateTemporalTime.
-    auto time = ISO8601::parseCalendarTime(string);
-    if (time) {
-        auto [plainTime, timeZoneOptional, calendarOptional] = WTF::move(time.value());
-        if (!(timeZoneOptional && timeZoneOptional->m_z))
+    auto timeResult = ISO8601::parseCalendarTime(string);
+    if (timeResult) {
+        auto [plainTime, timeZoneOptional, calendarOptional] = WTF::move(timeResult.value());
+        if (!(timeZoneOptional && timeZoneOptional->m_z)) {
+            // Step 3.c: Assert _parseResult_.[[Time]] is not ~start-of-day~. (guaranteed by grammar)
+            // Step 3.d: Set _result_ to _parseResult_.[[Time]].
+            // Step 3.e: NOTE.
+            // Step 3.f: resolvedOptions = ? GetOptionsObject(options).
+            // Step 3.g: Perform ? GetTemporalOverflowOption(resolvedOptions). (result unused for strings)
+            // Step 4: Return ! CreateTemporalTime(_result_).
+            toTemporalOverflow(globalObject, optionsValue);
+            RETURN_IF_EXCEPTION(scope, { });
             return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(plainTime));
+        }
     }
-    auto dateTime = ISO8601::parseCalendarDateTime(string, TemporalDateFormat::Date);
-    if (dateTime) [[likely]] {
-        auto [plainDate, plainTimeOptional, timeZoneOptional, calendarOptional] = WTF::move(dateTime.value());
-        if (plainTimeOptional && !(timeZoneOptional && timeZoneOptional->m_z))
+
+    // Time-only parse failed or was a Z string — try the datetime production.
+    auto dateTimeResult = ISO8601::parseCalendarDateTime(string, TemporalDateFormat::Date);
+    if (dateTimeResult) [[likely]] {
+        auto [plainDate, plainTimeOptional, timeZoneOptional, calendarOptional] = WTF::move(dateTimeResult.value());
+        // Require an explicit time (no ~start-of-day~, satisfying step 3.c Assert) and no Z.
+        if (plainTimeOptional && !(timeZoneOptional && timeZoneOptional->m_z)) {
+            // Steps 3.f-3.g + Step 4: same as time-only path above.
+            toTemporalOverflow(globalObject, optionsValue);
+            RETURN_IF_EXCEPTION(scope, { });
             return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(plainTimeOptional.value()));
+        }
     }
+
+    // Step 3.b: ParseISODateTime failed → throw RangeError.
     throwRangeError(globalObject, scope, "invalid time string"_s);
     return { };
 }
@@ -651,7 +658,12 @@ ISO8601::Duration TemporalPlainTime::differenceTemporalPlainTime(DifferenceOpera
     auto d = ISO8601::roundTimeDuration(globalObject, timeDuration, increment, smallestUnit, roundingMode);
     RETURN_IF_EXCEPTION(scope, { });
     auto duration = ISO8601::InternalDuration::combineDateAndTimeDuration(ISO8601::Duration(), d);
-    return TemporalDuration::temporalDurationFromInternal(duration, largestUnit);
+    auto durResult = TemporalCore::temporalDurationFromInternal(duration, largestUnit);
+    if (!durResult) [[unlikely]] {
+        throwTemporalError(globalObject, scope, durResult.error());
+        return { };
+    }
+    return *durResult;
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.until

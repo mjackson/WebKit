@@ -257,7 +257,7 @@ static bool NODELETE shouldGetOcclusion(const RenderElement& renderer)
     return false;
 }
 
-static bool hasTransparentContainerStyle(const RenderStyle& style)
+static bool hasTransparentContainerStyle(const Style::ComputedStyle& style)
 {
     return !style.hasBackground()
         && !style.hasOutline()
@@ -269,7 +269,7 @@ static bool hasTransparentContainerStyle(const RenderStyle& style)
             || !(style.usedBorderTopWidth() && style.usedBorderRightWidth() && style.usedBorderBottomWidth() && style.usedBorderLeftWidth()));
 }
 
-static bool canTweakShapeForStyle(const RenderStyle& style)
+static bool canTweakShapeForStyle(const Style::ComputedStyle& style)
 {
     if (!hasTransparentContainerStyle(style))
         return false;
@@ -291,7 +291,7 @@ static bool colorIsChallengingToHighlight(const Color& color)
         && ((color.luminance() < luminanceThreshold || std::abs(color.luminance() - 1) < luminanceThreshold));
 }
 
-static bool styleIsChallengingToHighlight(const RenderStyle& style)
+static bool styleIsChallengingToHighlight(const Style::ComputedStyle& style)
 {
     auto color = (style.fill().isNone() ? style.stroke() : style.fill()).tryColor();
     if (!color)
@@ -439,10 +439,8 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
     bool hasPointer = hasInteractiveCursorType(*matchedElement) || shouldAllowNonInteractiveCursorForElement(*matchedElement);
 
     RefPtr localMainFrame = dynamicDowncast<LocalFrame>(regionRenderer.document().frame()->mainFrame());
-    if (!localMainFrame) {
-        ASSERT_NOT_REACHED();
+    if (!localMainFrame)
         return std::nullopt;
-    }
     RefPtr pageView = localMainFrame->view();
     if (!pageView) {
         ASSERT_NOT_REACHED();

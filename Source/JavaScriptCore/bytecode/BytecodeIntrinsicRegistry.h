@@ -178,12 +178,9 @@ enum class LinkTimeConstant : int32_t;
     macro(AsyncGeneratorResumeModeEmpty) \
     macro(AsyncGeneratorStateCompleted) \
     macro(AsyncGeneratorStateExecuting) \
-    macro(AsyncGeneratorStateAwaitingReturn) \
+    macro(AsyncGeneratorStateDrainingQueue) \
     macro(AsyncGeneratorStateInit) \
-    macro(AsyncGeneratorSuspendReasonYield) \
-    macro(AsyncGeneratorSuspendReasonAwait) \
     macro(AsyncGeneratorSuspendReasonShift) \
-    macro(AsyncGeneratorSuspendReasonMask) \
     macro(asyncFromSyncIteratorFieldSyncIterator) \
     macro(asyncFromSyncIteratorFieldNextMethod) \
     macro(abstractModuleRecordFieldState) \
@@ -205,10 +202,6 @@ enum class LinkTimeConstant : int32_t;
     macro(AsyncDisposableStackStateDisposed) \
     macro(InternalMicrotaskAsyncFromSyncIteratorContinue) \
     macro(InternalMicrotaskAsyncFromSyncIteratorDone) \
-    macro(InternalMicrotaskAsyncGeneratorYieldAwaited) \
-    macro(InternalMicrotaskAsyncGeneratorBodyCallNormal) \
-    macro(InternalMicrotaskAsyncGeneratorBodyCallReturn) \
-    macro(InternalMicrotaskAsyncGeneratorResumeNext) \
 
 
 #define JSC_COMMON_BYTECODE_INTRINSIC_CONSTANTS_CUSTOM_EACH_NAME(macro) \

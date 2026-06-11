@@ -190,8 +190,8 @@
 #include "StorageProvider.h"
 #include "StringCallback.h"
 #include "StyleAdjuster.h"
+#include "StyleDocumentScope.h"
 #include "StyleResolver.h"
-#include "StyleScope.h"
 #include "SubframeLoader.h"
 #include "SubresourceLoader.h"
 #include "TextExtraction.h"
@@ -2193,6 +2193,7 @@ void Page::syncLocalFrameInfoToRemote()
         for (RefPtr child = frame.tree().firstChild(); child; child = child->tree().nextSibling()) {
             childrenFrameLayoutInfo.add(child->frameID(), RemoteFrameLayoutInfo::create(
                 frameView->visibleRectOfChild(*child.get()),
+                frameView->childFrameOwnerToRootContentTransform(*child),
                 frame.usedZoomForChild(*child),
                 frameView->childFrameOwnerContentBoxLocation(*child),
                 frameView->appearanceOfOwnerElementOfChildFrame(*child)
@@ -4480,6 +4481,15 @@ bool Page::hasLocalMainFrame()
     return dynamicDowncast<LocalFrame>(mainFrame());
 }
 
+bool Page::hasAnyLocalFrame() const
+{
+    for (RefPtr frame = mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (is<LocalFrame>(*frame))
+            return true;
+    }
+    return false;
+}
+
 void Page::didChangeMainDocument(Document* newDocument)
 {
     m_topDocumentSyncData = newDocument ? newDocument->syncData() : DocumentSyncData::create();
@@ -4871,7 +4881,7 @@ void Page::recomputeTextAutoSizingInAllFrames()
                 if (RefPtr element = renderer->element()) {
                     CheckedRef style = renderer->style();
                     if (auto adjustment = Style::Adjuster::adjustmentForTextAutosizing(style, *element)) {
-                        auto newStyle = RenderStyle::clone(style);
+                        auto newStyle = Style::ComputedStyle::clone(style);
                         Style::Adjuster::adjustForTextAutosizing(newStyle, adjustment);
                         renderer->setStyle(WTF::move(newStyle));
                     }

@@ -1,17 +1,3 @@
-set(_wka_found FALSE)
-set(_wka_cmake_paths
-    "${CMAKE_SOURCE_DIR}/../Internal/WebKit"
-)
-foreach (_wka_path IN LISTS _wka_cmake_paths)
-    if (EXISTS "${_wka_path}/WebKitAdditions" AND NOT _wka_found)
-        set(WEBKIT_ADDITIONS_INCLUDE_PATH "${_wka_path}" CACHE PATH "WebKitAdditions include path" FORCE)
-        message(STATUS "WebKitAdditions (cmake): ${_wka_path}")
-        set(_wka_found TRUE)
-    endif ()
-endforeach ()
-unset(_wka_cmake_paths)
-unset(_wka_found)
-
 set(SWIFT_REQUIRED ON)
 
 # FIXME: AV1 decoding requires dav1d which uses meson. https://bugs.webkit.org/show_bug.cgi?id=314011
@@ -51,22 +37,26 @@ set(CMAKE_LINK_DEPENDS_NO_SHARED ON)
 
 set(USE_ANGLE_EGL ON)
 
-find_package(SQLite3 REQUIRED)
+function(WEBKIT_ADD_SDK_IMPORTED_LIBRARY _target _library)
+    if (NOT TARGET ${_target})
+        add_library(${_target} UNKNOWN IMPORTED)
+        set_target_properties(${_target} PROPERTIES IMPORTED_LOCATION "${CMAKE_OSX_SYSROOT}/usr/lib/${_library}")
+    endif ()
+endfunction()
+
+WEBKIT_ADD_SDK_IMPORTED_LIBRARY(SQLite::SQLite3 libsqlite3.tbd)
+WEBKIT_ADD_SDK_IMPORTED_LIBRARY(LibXml2::LibXml2 libxml2.tbd)
+WEBKIT_ADD_SDK_IMPORTED_LIBRARY(LibXslt::LibXslt libxslt.tbd)
+WEBKIT_ADD_SDK_IMPORTED_LIBRARY(LibXslt::LibExslt libexslt.tbd)
+WEBKIT_ADD_SDK_IMPORTED_LIBRARY(ZLIB::ZLIB libz.tbd)
 if (NOT TARGET SQLite3::SQLite3)
     add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
 endif ()
 
 find_package(ICU 70.1 REQUIRED COMPONENTS data i18n uc)
-find_package(LibXml2 2.8.0 REQUIRED)
-find_package(LibXslt 1.1.13 REQUIRED)
+set(CMAKE_HAVE_PTHREAD_H 1 CACHE INTERNAL "")
+set(CMAKE_HAVE_LIBC_PTHREAD 1 CACHE INTERNAL "")
 find_package(Threads REQUIRED)
-
-# Strip ${SDK}/usr/include from these imported targets; reachable via -isysroot.
-foreach (_t SQLite::SQLite3 LibXml2::LibXml2 LibXslt::LibXslt LibXslt::LibExslt)
-    if (TARGET ${_t})
-        set_target_properties(${_t} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-    endif ()
-endforeach ()
 
 string(REGEX MATCH "^[0-9]+" _sdk_major "${_sdk_version}")
 set(_additions_candidates
@@ -121,10 +111,12 @@ endif ()
 
 # FIXME: Audit and reduce these suppressions. https://bugs.webkit.org/show_bug.cgi?id=312034
 add_compile_options(
-    "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-shadow-ivar>"
-    "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-objc-property-synthesis>"
-    "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-objc-missing-super-calls>"
-    "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-objc-duplicate-category-definition>"
+    "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wno-shadow-ivar>"
+    "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wno-objc-property-synthesis>"
+    "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wno-objc-missing-super-calls>"
+    "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wno-objc-duplicate-category-definition>"
+    "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wno-objc-signed-char-bool-implicit-float-conversion>"
+    "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wno-unused-parameter>"
 )
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-cast-align>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-undefined-inline>")
@@ -154,9 +146,9 @@ option(RELATIVE_DEBUG_INFO "Write relative paths into DWARF debug info for porta
 
 if (RELATIVE_DEBUG_INFO)
     add_compile_options(
-        "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.>"
-        "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-fdebug-prefix-map=${CMAKE_BINARY_DIR}=build>"
-        "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.>"
+        "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.>"
+        "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-fdebug-prefix-map=${CMAKE_BINARY_DIR}=build>"
+        "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.>"
     )
 endif ()
 

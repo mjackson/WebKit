@@ -810,11 +810,20 @@ void AccessibilityNodeObject::clearChildren()
 
 void AccessibilityNodeObject::updateOwnedChildrenIfNecessary()
 {
-    bool didRemoveChild = false;
     auto ownedObjects = this->ownedObjects();
     if (ownedObjects.isEmpty())
         return;
 
+    // Tracks the objects whose owned children are currently being resolved, so a re-entrant
+    // call for an object already on the stack can bail instead of recursing forever.
+    static NeverDestroyed<HashSet<const AccessibilityNodeObject*>> objectsCurrentlyResolvingOwnedChildren;
+    if (!objectsCurrentlyResolvingOwnedChildren->add(this).isNewEntry)
+        return;
+    auto removeOnExit = makeScopeExit([&] {
+        objectsCurrentlyResolvingOwnedChildren->remove(this);
+    });
+
+    bool didRemoveChild = false;
     for (const auto& child : ownedObjects) {
         if (m_children.removeFirst(child)) {
             // If the child already exists as a DOM child, but is also in the owned objects, then
@@ -2554,13 +2563,21 @@ unsigned AccessibilityNodeObject::computeCellSlots()
 
         // Step 2: For each tr element that is a child of the element being processed,
         // in tree order, run the algorithm for processing rows.
-        if (RefPtr tableSection = dynamicDowncast<HTMLTableSectionElement>(sectionElement)) {
+        RefPtr tableSection = dynamicDowncast<HTMLTableSectionElement>(sectionElement);
+        if (tableSection && !protectedThis->isAriaTable()) {
+            // For native (non-ARIA) tables, the rows are the direct tr children of this section, so
+            // iterate them directly. We deliberately exclude ARIA tables (grid, treegrid, table) here:
+            // their real role="row" rows may be wrapped in presentational scaffolding rather than being
+            // direct tr children, e.g. a presentational tr holding a nested presentational table that
+            // contains the rows (as the FullCalendar JS library produces). Excluding them lets such
+            // tables fall through to the accessibility-tree descent below, which finds rows through
+            // that scaffolding.
             for (Ref row : childrenOfType<HTMLTableRowElement>(*tableSection)) {
                 if (RefPtr tableRow = cache->getOrCreate(row.get()); tableRow && tableRow->isTableRow())
                     processRow(dynamicDowncast<AccessibilityRenderObject>(tableRow).get());
             }
         } else if (RefPtr sectionAxObject = cache->getOrCreate(sectionElement)) {
-            ASSERT_WITH_MESSAGE(hasRole(sectionElement, "rowgroup"_s), "processRowGroup should only be called with native table section elements, or role=rowgroup elements");
+            ASSERT_WITH_MESSAGE(is<HTMLTableSectionElement>(sectionElement) || hasRole(sectionElement, "rowgroup"_s), "processRowGroup should only be called with native table section elements, or role=rowgroup elements");
             for (const auto& child : sectionAxObject->unignoredChildren())
                 processRowDescendingIfNeeded(child.get());
         }
@@ -4079,7 +4096,7 @@ String AccessibilityNodeObject::revealableText() const
     if (!isStaticText())
         return nullString();
 
-    CheckedPtr<const RenderStyle> style = this->style();
+    CheckedPtr<const Style::ComputedStyle> style = this->style();
     if (!style || !style->autoRevealsWhenFound())
         return nullString();
 

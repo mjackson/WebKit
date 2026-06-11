@@ -1189,13 +1189,13 @@ ANGLE_INLINE bool ValidateDrawElementsCommon(const Context *context,
             // If we use an index greater than our maximum supported index range, return an error.
             // The ES3 spec does not specify behaviour here, it is undefined, but ANGLE should
             // always return an error if possible here.
-            if (static_cast<GLint64>(indexRange.end()) >= context->getCaps().maxElementIndex)
+            if (indexRange.end() >= context->getCaps().maxElementIndex)
             {
                 ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, err::kExceedsMaxElement);
                 return false;
             }
 
-            if (!ValidateDrawAttribs(context, entryPoint, static_cast<GLint64>(indexRange.end())))
+            if (!ValidateDrawAttribs(context, entryPoint, indexRange.end()))
             {
                 return false;
             }
@@ -1238,6 +1238,13 @@ bool ValidateLogicOpCommon(const PrivateState &state,
                            ErrorSet *errors,
                            angle::EntryPoint entryPoint,
                            LogicalOperation opcodePacked);
+
+bool ValidateNoActivePLSConflict(const Context *context,
+                                 angle::EntryPoint entryPoint,
+                                 TextureID textureId);
+bool ValidateNoActivePLSConflict(const Context *context,
+                                 angle::EntryPoint entryPoint,
+                                 RenderbufferID renderbufferId);
 }  // namespace gl
 
 #endif  // LIBANGLE_VALIDATION_ES_H_

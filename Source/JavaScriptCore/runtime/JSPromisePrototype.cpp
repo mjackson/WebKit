@@ -31,7 +31,7 @@
 #include "JSCInlines.h"
 #include "JSFunctionWithFields.h"
 #include "JSPromise.h"
-#include "JSPromiseCombinatorsGlobalContext.h"
+#include "JSPromiseReaction.h"
 #if USE(BUN_JSC_ADDITIONS)
 #include "InternalFieldTuple.h"
 #endif
@@ -187,8 +187,8 @@ JSC_DEFINE_HOST_FUNCTION(promiseFinallyThenFinallyFunc, (JSGlobalObject* globalO
     auto* resolvedPromise = JSPromise::promiseResolve(globalObject, constructor, result);
     RETURN_IF_EXCEPTION(scope, { });
 
-    NativeExecutable* thunkExecutable = vm.getHostFunction(promiseFinallyValueThunkFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, nullString());
-    auto* valueThunk = JSFunctionWithFields::create(vm, globalObject, thunkExecutable, 0, nullString());
+    NativeExecutable* thunkExecutable = vm.getHostFunction(promiseFinallyValueThunkFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, 0, nullString());
+    auto* valueThunk = JSFunctionWithFields::create(vm, globalObject, thunkExecutable);
     valueThunk->setField(vm, JSFunctionWithFields::Field::ResolvingPromise, value);
 
     JSValue then = resolvedPromise->get(globalObject, vm.propertyNames->then);
@@ -219,8 +219,8 @@ JSC_DEFINE_HOST_FUNCTION(promiseFinallyCatchFinallyFunc, (JSGlobalObject* global
     auto* resolvedPromise = JSPromise::promiseResolve(globalObject, constructor, result);
     RETURN_IF_EXCEPTION(scope, { });
 
-    NativeExecutable* throwerExecutable = vm.getHostFunction(promiseFinallyThrowerFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, nullString());
-    auto* thrower = JSFunctionWithFields::create(vm, globalObject, throwerExecutable, 0, nullString());
+    NativeExecutable* throwerExecutable = vm.getHostFunction(promiseFinallyThrowerFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, 0, nullString());
+    auto* thrower = JSFunctionWithFields::create(vm, globalObject, throwerExecutable);
     thrower->setField(vm, JSFunctionWithFields::Field::ResolvingPromise, reason);
 
     JSValue then = resolvedPromise->get(globalObject, vm.propertyNames->then);
@@ -258,13 +258,13 @@ static EncodedJSValue promiseProtoFuncFinallySlow(JSGlobalObject* globalObject, 
         RELEASE_AND_RETURN(scope, JSValue::encode(call(globalObject, then, thenCallData, thisValue, thenArguments)));
     }
 
-    NativeExecutable* thenFinallyExecutable = vm.getHostFunction(promiseFinallyThenFinallyFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, nullString());
-    auto* thenFinally = JSFunctionWithFields::create(vm, globalObject, thenFinallyExecutable, 1, nullString());
+    NativeExecutable* thenFinallyExecutable = vm.getHostFunction(promiseFinallyThenFinallyFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, nullString());
+    auto* thenFinally = JSFunctionWithFields::create(vm, globalObject, thenFinallyExecutable);
     thenFinally->setField(vm, JSFunctionWithFields::Field::ResolvingPromise, onFinally);
     thenFinally->setField(vm, JSFunctionWithFields::Field::ResolvingOther, constructor);
 
-    NativeExecutable* catchFinallyExecutable = vm.getHostFunction(promiseFinallyCatchFinallyFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, nullString());
-    auto* catchFinally = JSFunctionWithFields::create(vm, globalObject, catchFinallyExecutable, 1, nullString());
+    NativeExecutable* catchFinallyExecutable = vm.getHostFunction(promiseFinallyCatchFinallyFunc, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, nullString());
+    auto* catchFinally = JSFunctionWithFields::create(vm, globalObject, catchFinallyExecutable);
     catchFinally->setField(vm, JSFunctionWithFields::Field::ResolvingPromise, onFinally);
     catchFinally->setField(vm, JSFunctionWithFields::Field::ResolvingOther, constructor);
 
@@ -291,7 +291,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseProtoFuncFinally, (JSGlobalObject* globalObject,
 
         if (promiseSpeciesWatchpointIsValid(vm, promise)) [[likely]] {
             JSPromise* resultPromise = JSPromise::create(vm, globalObject->promiseStructure());
-            auto* context = JSPromiseCombinatorsGlobalContext::create(vm, resultPromise, onFinally, jsUndefined());
+            auto* context = JSSlimPromiseReaction::create(vm, resultPromise, onFinally, /* isFulfill */ false, /* next */ nullptr);
 #if USE(BUN_JSC_ADDITIONS)
             // Wrap context with async context in InternalFieldTuple: [context, asyncContext]
             JSValue contextValue = context;

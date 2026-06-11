@@ -62,6 +62,7 @@ class MediaSample;
 class MediaSampleAVFObjC;
 class PixelBufferConformerCV;
 class ResourceError;
+class SecurityOrigin;
 class SharedBuffer;
 class TextTrackRepresentation;
 class TrackBuffer;
@@ -103,6 +104,8 @@ private:
     
     // WebMResourceClientParent
     friend class WebMResourceClient;
+    void responseReceived(PlatformMediaResource&, const ResourceResponse&) final;
+    void redirectReceived(PlatformMediaResource&, const ResourceResponse&) final;
     void dataLengthReceived(size_t) final;
     void dataReceived(const SharedBuffer&) final;
     void loadFailed(const ResourceError&) final;
@@ -199,7 +202,10 @@ private:
         
     String engineDescription() const final;
     MediaPlayer::MovieLoadType movieLoadType() const final { return MediaPlayer::MovieLoadType::Download; }
-        
+
+    bool didPassCORSAccessCheck() const final { return m_didPassCORSAccessCheck; }
+    std::optional<bool> isCrossOrigin(const SecurityOrigin&) const final;
+
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     bool isCurrentPlaybackTargetWireless() const final;
     void setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&&) final;
@@ -349,7 +355,6 @@ private:
     bool NODELETE isEnabledVideoTrackID(TrackID) const;
     bool NODELETE hasSelectedVideo() const;
     std::optional<TrackID> m_enabledVideoTrackID WTF_GUARDED_BY_CAPABILITY(runningQueue());
-    std::atomic<uint32_t> m_abortCalled { 0 };
     size_t m_contentLength WTF_GUARDED_BY_CAPABILITY(mainThread) { 0 };
     size_t m_contentReceived WTF_GUARDED_BY_CAPABILITY(mainThread) { 0 };
     uint32_t m_pendingAppends WTF_GUARDED_BY_CAPABILITY(runningQueue()) { 0 };
@@ -366,6 +371,10 @@ private:
     bool m_loadFinished WTF_GUARDED_BY_CAPABILITY(runningQueue()) { false };
     std::atomic<bool> m_errored { false };
     std::atomic<bool> m_processingInitializationSegment { false };
+
+    void addSecurityOrigin(const ResourceResponse&);
+    HashSet<Ref<WebCore::SecurityOrigin>> m_origins;
+    bool m_didPassCORSAccessCheck { true };
 
     // Seek logic support
     void seekToTarget(const SeekTarget&) final;

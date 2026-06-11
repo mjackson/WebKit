@@ -40,9 +40,11 @@
 #import <Foundation/NSURLError.h>
 #import <WebKit/WKNavigationDelegate.h>
 #import <WebKit/WKPreferencesPrivate.h>
+#import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/_WKFeature.h>
+#import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKResourceLoadDelegate.h>
 #import <WebKit/_WKResourceLoadInfo.h>
 #import <wtf/RetainPtr.h>
@@ -336,6 +338,10 @@ TEST(SafeBrowsing, URLObservation)
             TestWebKitAPI::Util::runFor(0.01_s);
             decisionHandler(WKNavigationActionPolicyAllow);
         };
+        __block bool didCommit = false;
+        navigationDelegate.get().didCommitNavigation = ^(WKWebView *, WKNavigation *) {
+            didCommit = true;
+        };
         [webView setNavigationDelegate:navigationDelegate.get()];
         [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
         [webView addObserver:observer.get() forKeyPath:@"URL" options:NSKeyValueObservingOptionNew context:nil];
@@ -347,12 +353,12 @@ TEST(SafeBrowsing, URLObservation)
         [[webView _safeBrowsingWarning] didMoveToWindow];
 #endif
         [webView visitUnsafeSite];
-        EXPECT_TRUE(!![webView _safeBrowsingWarning]);
-        while ([webView _safeBrowsingWarning])
-            TestWebKitAPI::Util::spinRunLoop();
         EXPECT_FALSE(!![webView _safeBrowsingWarning]);
 
-        [webView evaluateJavaScript:[NSString stringWithFormat:@"window.location='%@'", simple2URL.get()] completionHandler:nil];
+        // Wait for the page to commit before evaluating JS.
+        TestWebKitAPI::Util::run(&didCommit);
+
+        [webView evaluateJavaScript:[NSString stringWithFormat:@"window.location='%@'", simple2URL.get()] completionHandler:^(id result, NSError *error) { }];
         while (![webView _safeBrowsingWarning])
             TestWebKitAPI::Util::spinRunLoop();
 #if !PLATFORM(MAC)
@@ -373,10 +379,14 @@ TEST(SafeBrowsing, URLObservation)
         auto webView = webViewWithWarning();
         checkURLs({ simpleURL, simple2URL });
         goBack([webView _safeBrowsingWarning]);
+        // stopLoading() in the Go Back handler cancels the provisional load via IPC.
+        // Wait for the URL to revert asynchronously.
+        while (urls.size() < 3)
+            TestWebKitAPI::Util::spinRunLoop();
         checkURLs({ simpleURL, simple2URL, simpleURL });
         [webView removeObserver:observer.get() forKeyPath:@"URL"];
     }
-    
+
     urls.clear();
 
     {
@@ -716,6 +726,222 @@ TEST(SafeBrowsing, PostResponseInjectedBundleSkipsDecidePolicyForResponse)
         TestWebKitAPI::Util::spinRunLoop();
 }
 
+TEST(SafeBrowsing, WarningShownAfterCOOPProcessSwapWithSkippedResponse)
+{
+    DelayedLookupContext.delayDuration = 5_ms;
+
+    TestWebKitAPI::HTTPServer server({
+        { "/safe"_s, { "source"_s } },
+        { "/destination.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "destination"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Https);
+
+    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"SkipDecidePolicyForResponsePlugIn"];
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    [processPoolConfiguration setProcessSwapsOnNavigation:YES];
+    [processPoolConfiguration setPrewarmsProcessesAutomatically:YES];
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    [configuration setProcessPool:processPool.get()];
+    configuration.preferences.fraudulentWebsiteWarningEnabled = YES;
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [configuration.preferences _setEnabled:YES forFeature:feature];
+    }
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:delegate.get()];
+
+    [webView loadRequest:server.request("/safe"_s)];
+    [delegate waitForDidFinishNavigation];
+
+    // Navigate to the COOP destination — triggers process swap
+    [webView loadRequest:server.request("/destination.html"_s)];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+}
+
+TEST(SafeBrowsing, WarningShownAfterCOOPProcessSwapWithSkippedResponseSlowLookup)
+{
+    DelayedLookupContext.delayDuration = 100_ms;
+
+    TestWebKitAPI::HTTPServer server({
+        { "/safe"_s, { "source"_s } },
+        { "/destination.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "destination"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Https);
+
+    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"SkipDecidePolicyForResponsePlugIn"];
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    [processPoolConfiguration setProcessSwapsOnNavigation:YES];
+    [processPoolConfiguration setPrewarmsProcessesAutomatically:YES];
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    [configuration setProcessPool:processPool.get()];
+    configuration.preferences.fraudulentWebsiteWarningEnabled = YES;
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [configuration.preferences _setEnabled:YES forFeature:feature];
+    }
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:delegate.get()];
+
+    [webView loadRequest:server.request("/safe"_s)];
+    [delegate waitForDidFinishNavigation];
+
+    [webView loadRequest:server.request("/destination.html"_s)];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+}
+
+TEST(SafeBrowsing, WarningShownAfterCOOPProcessSwap)
+{
+    DelayedLookupContext.delayDuration = 5_ms;
+
+    TestWebKitAPI::HTTPServer server({
+        { "/safe"_s, { "source"_s } },
+        { "/destination.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "destination"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Https);
+
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    [processPoolConfiguration setProcessSwapsOnNavigation:YES];
+    [processPoolConfiguration setPrewarmsProcessesAutomatically:YES];
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].fraudulentWebsiteWarningEnabled = YES;
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [[webViewConfiguration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:delegate.get()];
+
+    [webView loadRequest:server.request("/safe"_s)];
+    [delegate waitForDidFinishNavigation];
+
+    [webView loadRequest:server.request("/destination.html"_s)];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+}
+
+TEST(SafeBrowsing, WarningShownAfterCOOPProcessSwapSlowLookup)
+{
+    DelayedLookupContext.delayDuration = 100_ms;
+
+    TestWebKitAPI::HTTPServer server({
+        { "/safe"_s, { "source"_s } },
+        { "/destination.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "destination"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Https);
+
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    [processPoolConfiguration setProcessSwapsOnNavigation:YES];
+    [processPoolConfiguration setPrewarmsProcessesAutomatically:YES];
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].fraudulentWebsiteWarningEnabled = YES;
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [[webViewConfiguration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:delegate.get()];
+
+    [webView loadRequest:server.request("/safe"_s)];
+    [delegate waitForDidFinishNavigation];
+
+    [webView loadRequest:server.request("/destination.html"_s)];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+}
+
+TEST(SafeBrowsing, WarningShownWhenLookupCompletesBeforeResponse)
+{
+    DelayedLookupContext.delayDuration = 5_ms;
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setURLSchemeHandler:handler.get() forURLScheme:@"sb"];
+    configuration.get().preferences.fraudulentWebsiteWarningEnabled = YES;
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [webView setNavigationDelegate:delegate.get()];
+
+    [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        RunLoop::mainSingleton().dispatchAfter(200_ms, [task = retainPtr(task)] {
+            RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.get().request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+            [task didReceiveResponse:response.get()];
+            [task didReceiveData:[@"test" dataUsingEncoding:NSUTF8StringEncoding]];
+            [task didFinish];
+        });
+    }];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"sb://host1/main.html"]]];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+}
+
+TEST(SafeBrowsing, WarningShownAfterRedirectWithLateResult)
+{
+    DelayedLookupContext.delayDuration = 5_ms;
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setURLSchemeHandler:handler.get() forURLScheme:@"sb"];
+    configuration.get().preferences.fraudulentWebsiteWarningEnabled = YES;
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [webView setNavigationDelegate:delegate.get()];
+
+    [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        NSString *path = task.request.URL.path;
+        if ([path isEqualToString:@"/start"]) {
+            RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:task.request.URL statusCode:301 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"Location": @"sb://host1/target.html" }]);
+            [task didReceiveResponse:response.get()];
+            [task didFinish];
+        } else {
+            RunLoop::mainSingleton().dispatchAfter(200_ms, [task = retainPtr(task)] {
+                RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.get().request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+                [task didReceiveResponse:response.get()];
+                [task didReceiveData:[@"phishing page" dataUsingEncoding:NSUTF8StringEncoding]];
+                [task didFinish];
+            });
+        }
+    }];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"sb://host1/start"]]];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+}
+
 TEST(SafeBrowsing, PostTimeout)
 {
     DelayedLookupContext.delayDuration = 100_ms;
@@ -801,7 +1027,7 @@ TEST(SafeBrowsing, ModalShownImmediatelyWhenNoCheck)
 
 TEST(SafeBrowsing, ModalDeferredDuringCheck)
 {
-    DelayedLookupContext.delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 1000_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body><script>alert('deferred')</script><h1>Test</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -841,7 +1067,7 @@ TEST(SafeBrowsing, ModalDeferredDuringCheck)
 
 TEST(SafeBrowsing, DeferredModalShownWhenProceedingThroughWarning)
 {
-    DelayedLookupContext.delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 1000_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='alert(\"proceed test\")'><h1>Test</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -885,7 +1111,7 @@ TEST(SafeBrowsing, DeferredModalShownWhenProceedingThroughWarning)
 
 TEST(SafeBrowsing, DeferredModalSuppressedWhenGoingBack)
 {
-    DelayedLookupContext.delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 1000_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='alert(\"should not show\")'><h1>Phishing</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -930,7 +1156,7 @@ TEST(SafeBrowsing, DeferredModalSuppressedWhenGoingBack)
 
 TEST(SafeBrowsing, MultipleDeferredModalsShownInOrder)
 {
-    DelayedLookupContext.delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 1000_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='test()'><script>function test() { alert('first'); alert('second'); alert('third'); }</script></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -977,7 +1203,7 @@ TEST(SafeBrowsing, MultipleDeferredModalsShownInOrder)
 
 TEST(SafeBrowsing, DeferredModalsClearedOnNavigation)
 {
-    DelayedLookupContext.delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 1000_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='alert(\"deferred\")'><h1>Test</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -1047,7 +1273,7 @@ TEST(SafeBrowsing, ModalShownWhenCheckCompletesClean)
 
 TEST(SafeBrowsing, AllModalTypesProperlyDeferred)
 {
-    DelayedLookupContext.delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 1000_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='test()'><script>function test() { alert('test alert'); confirm('test confirm'); prompt('test prompt', 'default'); }</script></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -1192,6 +1418,186 @@ TEST(SafeBrowsing, SetTimeoutNavigationFromWarningPage)
 
     EXPECT_TRUE(!![webView _safeBrowsingWarning]);
     EXPECT_FALSE(didCloseCalled);
+}
+
+TEST(SafeBrowsing, DownloadDeferredAndBlockedBySafeBrowsing)
+{
+    DelayedLookupContext.delayDuration = 50_ms;
+    TestWebKitAPI::HTTPServer server({
+        { "/malicious"_s, { "download-content"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+
+    __block bool downloadStarted = false;
+    delegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *, void (^decisionHandler)(WKNavigationResponsePolicy)) {
+        decisionHandler(WKNavigationResponsePolicyDownload);
+    };
+    delegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *, WKDownload *) {
+        downloadStarted = true;
+    };
+
+    [webView setNavigationDelegate:delegate.get()];
+    [webView evaluateJavaScript:@"window.location = 'https://example2.com/malicious'" completionHandler:nil];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+
+    EXPECT_FALSE(downloadStarted);
+}
+
+TEST(SafeBrowsing, DownloadDeferredAndBlockedBySafeBrowsingPostTimeout)
+{
+    // Use a delay longer than the ~250ms listener timeout to verify the deferral
+    // waits for the actual Safe Browsing result, not just the timeout.
+    DelayedLookupContext.delayDuration = 500_ms;
+    TestWebKitAPI::HTTPServer server({
+        { "/malicious"_s, { "download-content"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+
+    __block bool downloadStarted = false;
+    delegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *, void (^decisionHandler)(WKNavigationResponsePolicy)) {
+        decisionHandler(WKNavigationResponsePolicyDownload);
+    };
+    delegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *, WKDownload *) {
+        downloadStarted = true;
+    };
+
+    [webView setNavigationDelegate:delegate.get()];
+    [webView evaluateJavaScript:@"window.location = 'https://example2.com/malicious'" completionHandler:nil];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+
+    EXPECT_FALSE(downloadStarted);
+}
+
+TEST(SafeBrowsing, CleanDownloadProceedsAfterSafeBrowsingCheck)
+{
+    DelayedLookupContext.delayDuration = 50_ms;
+    TestWebKitAPI::HTTPServer server({
+        { "/safe"_s, { "download-content"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+
+    __block bool downloadStarted = false;
+    delegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *, void (^decisionHandler)(WKNavigationResponsePolicy)) {
+        decisionHandler(WKNavigationResponsePolicyDownload);
+    };
+    delegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *, WKDownload *) {
+        downloadStarted = true;
+    };
+
+    [webView setNavigationDelegate:delegate.get()];
+    [webView evaluateJavaScript:@"window.location = 'https://example2.com/safe'" completionHandler:nil];
+
+    TestWebKitAPI::Util::run(&downloadStarted);
+    EXPECT_NULL([webView _safeBrowsingWarning]);
+}
+
+TEST(SafeBrowsing, SubframeDownloadBlockedBySafeBrowsing)
+{
+    DelayedLookupContext.delayDuration = 50_ms;
+    TestWebKitAPI::HTTPServer server({
+        { "/safe"_s, { "<html><body><iframe src='https://evil.com/malicious'></iframe></body></html>"_s } },
+        { "/malicious"_s, { "download-content"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+
+    __block bool downloadStarted = false;
+    __block bool subframeNavigationFailed = false;
+    __block bool mainNavigationFinished = false;
+
+    delegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *response, void (^decisionHandler)(WKNavigationResponsePolicy)) {
+        if ([response.response.URL.path isEqualToString:@"/malicious"])
+            decisionHandler(WKNavigationResponsePolicyDownload);
+        else
+            decisionHandler(WKNavigationResponsePolicyAllow);
+    };
+    delegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *, WKDownload *) {
+        downloadStarted = true;
+    };
+    delegate.get().didFailProvisionalLoadInSubframeWithError = ^(WKWebView *, WKFrameInfo *, NSError *error) {
+        EXPECT_NOT_NULL(error);
+        subframeNavigationFailed = true;
+    };
+    delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
+        mainNavigationFinished = true;
+    };
+
+    [webView setNavigationDelegate:delegate.get()];
+    [webView evaluateJavaScript:@"window.location = 'https://example2.com/safe'" completionHandler:nil];
+
+    TestWebKitAPI::Util::run(&mainNavigationFinished);
+
+    while (!subframeNavigationFailed && !downloadStarted)
+        TestWebKitAPI::Util::spinRunLoop();
+
+    EXPECT_TRUE(subframeNavigationFailed);
+    EXPECT_FALSE(downloadStarted);
+}
+
+TEST(SafeBrowsing, NavigationActionDownloadDeferredBySafeBrowsing)
+{
+    DelayedLookupContext.delayDuration = 50_ms;
+    TestWebKitAPI::HTTPServer server({
+        { "/malicious"_s, { "content"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+
+    ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+
+    __block bool downloadStarted = false;
+    delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
+        if ([action.request.URL.path isEqualToString:@"/malicious"])
+            decisionHandler(WKNavigationActionPolicyDownload);
+        else
+            decisionHandler(WKNavigationActionPolicyAllow);
+    };
+    delegate.get().navigationActionDidBecomeDownload = ^(WKNavigationAction *, WKDownload *) {
+        downloadStarted = true;
+    };
+
+    [webView setNavigationDelegate:delegate.get()];
+    [webView evaluateJavaScript:@"window.location = 'https://example2.com/malicious'" completionHandler:nil];
+
+    while (![webView _safeBrowsingWarning])
+        TestWebKitAPI::Util::spinRunLoop();
+
+    EXPECT_FALSE(downloadStarted);
 }
 
 #endif // HAVE(SAFE_BROWSING)

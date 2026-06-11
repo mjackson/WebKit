@@ -87,6 +87,8 @@ static PlatformMediaSession::RemoteControlCommandType platformCommandForMediaSes
         { MediaSessionAction::Skipad, PlatformMediaSession::RemoteControlCommandType::NextTrackCommand },
         { MediaSessionAction::Stop, PlatformMediaSession::RemoteControlCommandType::StopCommand },
         { MediaSessionAction::Seekto, PlatformMediaSession::RemoteControlCommandType::SeekToPlaybackPositionCommand },
+        { MediaSessionAction::Previousslide, PlatformMediaSession::RemoteControlCommandType::PreviousTrackCommand },
+        { MediaSessionAction::Nextslide, PlatformMediaSession::RemoteControlCommandType::NextTrackCommand },
     }) };
     return map.get(action, PlatformMediaSession::RemoteControlCommandType::NoCommand);
 }
@@ -128,7 +130,15 @@ static std::optional<std::pair<PlatformMediaSession::RemoteControlCommandType, P
         argument.time = actionDetails.seekTime;
         argument.fastSeek = actionDetails.fastSeek;
         break;
+    case MediaSessionAction::Previousslide:
+        command = PlatformMediaSession::RemoteControlCommandType::PreviousTrackCommand;
+        break;
+    case MediaSessionAction::Nextslide:
+        command = PlatformMediaSession::RemoteControlCommandType::NextTrackCommand;
+        break;
     case MediaSessionAction::Settrack:
+    case MediaSessionAction::Hangup:
+    case MediaSessionAction::Enterpictureinpicture:
         // Not supported at present.
         break;
     case MediaSessionAction::Togglecamera:
@@ -296,6 +306,9 @@ ExceptionOr<void> MediaSession::setActionHandler(MediaSessionAction action, RefP
         document->setShouldListenToVoiceActivity(!!handler);
 #endif
 
+    if (RefPtr document = this->document(); document && !document->settings().mediaSessionExtendedActionsEnabled() && (action == MediaSessionAction::Hangup || action == MediaSessionAction::Previousslide || action == MediaSessionAction::Nextslide || action == MediaSessionAction::Enterpictureinpicture))
+        return Exception { ExceptionCode::TypeError, makeString("Argument 1 ('action') to MediaSession.setActionHandler must be a value other than '"_s, convertEnumerationToString(action), "'"_s) };
+
     RefPtr sessionManager = this->sessionManager();
     if (!sessionManager)
         ERROR_LOG(LOGIDENTIFIER, "NULL session manager");
@@ -314,16 +327,27 @@ ExceptionOr<void> MediaSession::setActionHandler(MediaSessionAction action, RefP
             }
         }
     } else {
-        bool containedAction;
+        bool containedAction = false;
+        bool anotherActionNeedsCommand = false;
+        auto platformCommand = platformCommandForMediaSessionAction(action);
         {
             Locker lock { m_actionHandlersLock };
             containedAction = m_actionHandlers.remove(action);
+            if (containedAction) {
+                for (auto registeredAction : m_actionHandlers.keys()) {
+                    if (platformCommandForMediaSessionAction(registeredAction) == platformCommand) {
+                        anotherActionNeedsCommand = true;
+                        break;
+                    }
+                }
+            }
         }
 
         if (sessionManager) {
             if (containedAction)
                 ALWAYS_LOG(LOGIDENTIFIER, "removing ", action);
-            sessionManager->removeSupportedCommand(platformCommandForMediaSessionAction(action));
+            if (!anotherActionNeedsCommand)
+                sessionManager->removeSupportedCommand(platformCommand);
         }
     }
 
@@ -334,6 +358,11 @@ ExceptionOr<void> MediaSession::setActionHandler(MediaSessionAction action, RefP
 void MediaSession::callActionHandler(const MediaSessionActionDetails& actionDetails, DOMPromiseDeferred<void>&& promise)
 {
     ALWAYS_LOG(LOGIDENTIFIER);
+
+    if (RefPtr document = this->document(); document && !document->settings().mediaSessionExtendedActionsEnabled() && (actionDetails.action == MediaSessionAction::Hangup || actionDetails.action == MediaSessionAction::Previousslide || actionDetails.action == MediaSessionAction::Nextslide || actionDetails.action == MediaSessionAction::Enterpictureinpicture)) {
+        promise.reject(ExceptionCode::TypeError);
+        return;
+    }
 
     if (!callActionHandler(actionDetails, TriggerGestureIndicator::No)) {
         promise.reject(ExceptionCode::InvalidStateError);
@@ -352,16 +381,28 @@ bool MediaSession::hasActionHandler(const MediaSessionAction action) const
 bool MediaSession::callActionHandler(const MediaSessionActionDetails& actionDetails, TriggerGestureIndicator triggerGestureIndicator)
 {
     RefPtr<MediaSessionActionHandler> handler;
+    MediaSessionActionDetails effectiveActionDetails = actionDetails;
     {
         Locker lock { m_actionHandlersLock };
         handler = m_actionHandlers.get(actionDetails.action);
+        if (!handler) {
+            if (actionDetails.action == MediaSessionAction::Nexttrack) {
+                handler = m_actionHandlers.get(MediaSessionAction::Nextslide);
+                if (handler)
+                    effectiveActionDetails.action = MediaSessionAction::Nextslide;
+            } else if (actionDetails.action == MediaSessionAction::Previoustrack) {
+                handler = m_actionHandlers.get(MediaSessionAction::Previousslide);
+                if (handler)
+                    effectiveActionDetails.action = MediaSessionAction::Previousslide;
+            }
+        }
     }
 
     if (handler) {
         std::optional<UserGestureIndicator> maybeGestureIndicator;
         if (triggerGestureIndicator == TriggerGestureIndicator::Yes)
             maybeGestureIndicator.emplace(IsProcessingUserGesture::Yes, document());
-        handler->invoke(actionDetails);
+        handler->invoke(effectiveActionDetails);
         return true;
     }
     auto element = activeMediaElement();

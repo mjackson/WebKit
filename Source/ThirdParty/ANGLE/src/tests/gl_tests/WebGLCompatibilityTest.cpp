@@ -3500,6 +3500,49 @@ TEST_P(WebGLCompatibilityTest, CompressedTexImageBPTC)
     }
 }
 
+// Sampling an uninitialized COMPRESSED_RGBA_ASTC_4x4_KHR texture allocated via glTexStorage2D
+// should yield NaN per the ASTC spec for empty/undefined block data; the NaN-to-magenta shader
+// should therefore produce magenta. Isolates the first failing sub-test of the WebGL conformance
+// test webgl/2.0.y/conformance/extensions/webgl-compressed-texture-astc.html on Metal.
+TEST_P(WebGL2CompatibilityTest, CompressedTextureASTCEmptyStorageError)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_KHR_texture_compression_astc_ldr"));
+
+    constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+uniform sampler2D u_tex2D;
+in vec2 v_texCoord;
+out vec4 out_color;
+void main()
+{
+    vec4 c = texture(u_tex2D, v_texCoord);
+    if (all(isnan(c)))
+        out_color = vec4(1, 0, 1, 1);
+    else
+        out_color = c;
+})";
+
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Texture2DLod(), kFS);
+    glUseProgram(program);
+    glUniform1i(glGetUniformLocation(program, essl3_shaders::Texture2DUniform()), 0);
+
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_COMPRESSED_RGBA_ASTC_4x4_KHR, 16, 16);
+    ASSERT_GL_NO_ERROR();
+
+    glViewport(0, 0, getWindowWidth(), getWindowHeight());
+    drawQuad(program, essl3_shaders::PositionAttrib(), 0.0f, 1.0f, /*useVertexBuffer=*/true);
+    ASSERT_GL_NO_ERROR();
+
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::magenta);
+}
+
 TEST_P(WebGLCompatibilityTest, L32FTextures)
 {
     constexpr float textureData[]   = {15.1f, 0.0f, 0.0f, 0.0f};
@@ -7776,6 +7819,82 @@ void main()
 
     drawQuad(program, "a_position", 0.5f, 1.0f, true);
     EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+}
+
+// Test that drawing a large GLuint index works.
+TEST_P(WebGL2CompatibilityTest, DrawLargeIndex)
+{
+    constexpr std::array<GLfloat, 4> kGreen = {0.0f, 1.0f, 0.0f, 1.0f};
+    constexpr GLuint offset = 0x80000000;
+    GLuint indexData[] = {0, 1, 2, 1, 3, 2};
+    for (auto& index : indexData)
+    {
+        index += offset;
+    }
+    float vertexData[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
+
+    GLBuffer indexBuffer;
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::UniformColor());
+    GLint vPos = glGetAttribLocation(program, essl1_shaders::PositionAttrib());
+    ASSERT_NE(vPos, -1);
+    glUseProgram(program);
+    GLint colorUniformLocation =
+        glGetUniformLocation(program, angle::essl1_shaders::ColorUniform());
+    ASSERT_NE(colorUniformLocation, -1);
+
+    GLBuffer vertexBuffer;
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER, offset * sizeof(float) * 2 + sizeof(vertexData), nullptr, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, offset * sizeof(float) * 2, sizeof(vertexData), vertexData);
+    glVertexAttribPointer(vPos, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(vPos);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData), indexData, GL_DYNAMIC_DRAW);
+
+    glUniform4fv(colorUniformLocation, 1, kGreen.data());
+    ASSERT_GL_NO_ERROR();
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    ASSERT_GL_NO_ERROR();
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, 0, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(0, getWindowHeight() - 1, GLColor::green);
+}
+
+// Test that drawing a large GLuint index is detected as out-of-bounds access.
+TEST_P(WebGL2CompatibilityTest, DrawLargeIndexOOB)
+{
+    constexpr GLuint offset = 0x80000000;
+    GLuint indexData[] = {0, 1, 2};
+    for (auto& index : indexData)
+    {
+        index += offset;
+    }
+    GLBuffer indexBuffer;
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::UniformColor());
+    GLint vPos = glGetAttribLocation(program, essl1_shaders::PositionAttrib());
+    ASSERT_NE(vPos, -1);
+    glUseProgram(program);
+
+    GLBuffer vertexBuffer;
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER, 10, nullptr, GL_STATIC_DRAW);
+    glVertexAttribPointer(vPos, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(vPos);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData), indexData, GL_DYNAMIC_DRAW);
+
+    EXPECT_GL_NO_ERROR();
+    glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, nullptr);
+    if (!IsGLExtensionEnabled("GL_KHR_robust_buffer_access_behavior"))
+    {
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+    }
+    else
+    {
+        EXPECT_GL_NO_ERROR();
+    }
 }
 
 ANGLE_INSTANTIATE_TEST_ES2_AND_ES3(WebGLCompatibilityTest);

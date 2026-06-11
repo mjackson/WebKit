@@ -41,9 +41,11 @@
 #include "WebsiteDataStore.h"
 #include <WebCore/ProcessIdentifier.h>
 #include <pal/SessionID.h>
+#include <wtf/ApproximateTime.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
 #include <wtf/Function.h>
+#include <wtf/HashCountedSet.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/MemoryPressureHandler.h>
@@ -82,6 +84,10 @@ OBJC_CLASS WKProcessPoolWeakObserver;
 #include <wtf/cf/NotificationCenterCF.h>
 #endif
 
+#if HAVE(MEDIA_ACCESSIBILITY_FRAMEWORK) && PLATFORM(COCOA)
+#include <WebCore/CaptionUserPreferences.h>
+#endif
+
 namespace API {
 class Array;
 class AutomationClient;
@@ -101,6 +107,7 @@ enum class GamepadHapticEffectType : uint8_t;
 enum class ProcessSwapDisposition : uint8_t;
 struct GamepadEffectParameters;
 struct MockMediaDevice;
+struct ScreenProperties;
 #if PLATFORM(COCOA)
 class PowerSourceNotifier;
 #endif
@@ -251,7 +258,8 @@ public:
     void handleMemoryPressureWarning(Critical);
 
 #if PLATFORM(COCOA)
-    void screenPropertiesChanged();
+    void sendScreenPropertiesChangedToAllProcesses(const WebCore::ScreenProperties&, ASCIILiteral reason);
+    void screenPropertiesChanged(ASCIILiteral reason);
 #endif
 
 #if PLATFORM(MAC)
@@ -414,8 +422,6 @@ public:
 
     static void NODELETE setInvalidMessageCallback(void (*)(WKStringRef));
     static void didReceiveInvalidMessage(IPC::MessageName);
-
-    bool isURLKnownHSTSHost(const String& urlString) const;
 
     static void registerGlobalURLSchemeAsHavingCustomProtocolHandlers(const String&);
     static void unregisterGlobalURLSchemeAsHavingCustomProtocolHandlers(const String&);
@@ -740,6 +746,12 @@ private:
 #endif
     void clearAudibleActivity();
 
+#if PLATFORM(COCOA)
+    void dispatchScreenPropertiesChangedToAllProcesses(const WebCore::ScreenProperties&);
+    void screenPropertiesUpdateTimerFired();
+    void logScreenPropertiesUpdateReasonsTimerFired();
+#endif
+
 #if PLATFORM(IOS_FAMILY)
     static void hardwareKeyboardAvailabilityChangedCallback(CFNotificationCenterRef, void* observer, CFStringRef, const void*, CFDictionaryRef);
     void initializeHardwareKeyboardAvailability();
@@ -890,10 +902,6 @@ private:
     RetainPtr<NSMutableDictionary> m_bundleParameters;
 #endif
 
-#if ENABLE(CONTENT_EXTENSIONS)
-    HashMap<String, String> m_encodedContentExtensions;
-#endif
-
 #if ENABLE(GAMEPAD)
     WeakHashSet<WebProcessProxy> m_processesUsingGamepads;
 #endif
@@ -998,6 +1006,7 @@ private:
     RefPtr<ListDataObserver> m_storageAccessUserAgentStringQuirksDataUpdateObserver;
     RefPtr<ListDataObserver> m_storageAccessPromptQuirksDataUpdateObserver;
     RefPtr<ListDataObserver> m_scriptTrackingPrivacyDataUpdateObserver;
+    RefPtr<ListDataObserver> m_consistentPrivacyQuirkDataUpdateObserver;
 #endif
 
     bool m_webProcessStateUpdatesForPageClientEnabled { false };
@@ -1020,6 +1029,15 @@ private:
     std::optional<HashMap<String, Vector<String>>> m_userInstalledFontFamilyMap;
     std::optional<Vector<URL>> m_sandboxExtensionURLs;
     HashMap<String, bool> m_mediaSourceTypesSupported;
+
+    ApproximateTime m_lastScreenPropertiesSendTime;
+    RunLoop::Timer m_screenPropertiesUpdateTimer;
+    std::unique_ptr<WebCore::ScreenProperties> m_pendingScreenProperties;
+
+    ApproximateTime m_screenPropertiesUpdateReasonsTime;
+    HashCountedSet<ASCIILiteral> m_screenPropertiesUpdateReasons;
+    unsigned m_screenPropertiesUpdateCount { 0 };
+    RunLoop::Timer m_logScreenPropertiesUpdateReasonsTimer;
 #endif
 
 #if ENABLE(IPC_TESTING_API)
@@ -1031,6 +1049,11 @@ private:
     bool m_suppressEDR { false };
 
     Seconds m_pltResourceDelayInterval { 100_ms };
+
+#if HAVE(MEDIA_ACCESSIBILITY_FRAMEWORK) && PLATFORM(COCOA)
+    std::optional<WebCore::CaptionUserPreferences::CaptionDisplayMode> m_captionDisplayMode;
+    std::optional<Vector<String>> m_preferredLanguages;
+#endif
 };
 
 template<typename T>

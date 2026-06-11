@@ -316,3 +316,11 @@ webkit.org/b/315685 [ Debug ] TestWebKitAPI.PrivateClickMeasurement.Basic [ Pass
 webkit.org/b/315685 [ Debug ] TestWebKitAPI.PrivateClickMeasurement.DestinationClickFraudPrevention [ Pass Timeout ]
 webkit.org/b/315685 [ Debug ] TestWebKitAPI.PrivateClickMeasurement.EphemeralWithAttributedBundleIdentifier [ Pass Timeout ]
 webkit.org/b/315685 [ Debug ] TestWebKitAPI.PrivateClickMeasurement.ManualAttributionAndConversion [ Pass Timeout ]
+
+webkit.org/b/316420 [ ios ] TestWebKitAPI.HSTS.Preconnect [ Pass Timeout ]
+
+webkit.org/b/316706 [ ios ] TestWebKitAPI.WritingTools.CompositionWithMultipleChunks [ Pass Timeout ]
+
+webkit.org/b/316807 [ mac debug ] TestWebKitAPI.EnhancedSecurityPolicies.OpenerThenSelfNavigationWithSiteIsolation [ Pass Crash ]
+
+webkit.org/b/316819 [ mac debug ] TestWebKitAPI.SiteIsolation.MultiProcessBFCacheSameSiteWithCrossSiteIframe [ Pass Crash ]

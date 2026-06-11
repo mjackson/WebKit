@@ -51,7 +51,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGModelObject);
 
-LegacyRenderSVGModelObject::LegacyRenderSVGModelObject(Type type, SVGElement& element, RenderStyle&& style, OptionSet<SVGModelObjectFlag> typeFlags)
+LegacyRenderSVGModelObject::LegacyRenderSVGModelObject(Type type, SVGElement& element, Style::ComputedStyle&& style, OptionSet<SVGModelObjectFlag> typeFlags)
     : RenderElement(type, element, WTF::move(style), { }, typeFlags | SVGModelObjectFlag::IsLegacy | SVGModelObjectFlag::UsesBoundaryCaching)
 {
     ASSERT(isLegacyRenderSVGModelObject());
@@ -148,7 +148,7 @@ void LegacyRenderSVGModelObject::insertedIntoTree()
     SVGRenderSupport::elementInsertedIntoTree(*this);
 }
 
-void LegacyRenderSVGModelObject::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
+void LegacyRenderSVGModelObject::styleDidChange(Style::Difference diff, const Style::ComputedStyle* oldStyle)
 {
     if (diff == Style::DifferenceResult::Layout) {
         invalidateCachedBoundaries();
@@ -176,8 +176,11 @@ static void getElementCTM(SVGElement* element, AffineTransform& transform)
     RefPtr<Node> current = element;
 
     while (RefPtr currentElement = dynamicDowncast<SVGElement>(current.get())) {
-        localTransform = currentElement->renderer()->localToParentTransform();
-        transform = localTransform.multiply(transform);
+        // Elements with display:contents have no renderer (children are hoisted); skip them in the CTM walk.
+        if (CheckedPtr renderer = currentElement->renderer()) {
+            localTransform = renderer->localToParentTransform();
+            transform = localTransform.multiply(transform);
+        }
         // For getCTM() computation, stop at the nearest viewport element
         if (currentElement == stopAtElement.get())
             break;

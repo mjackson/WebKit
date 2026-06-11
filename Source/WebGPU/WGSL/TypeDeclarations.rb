@@ -197,12 +197,14 @@ operator :~, {
 end
 
 {
-    "<<" => 'constantBitwiseShiftLeft',
-    ">>" => 'constantBitwiseShiftRight',
-}.each do |op, const_function|
+    "<<" => ['constantBitwiseShiftLeft', 'validateBitwiseShiftLeft'],
+    ">>" => ['constantBitwiseShiftRight', 'validateBitwiseShiftRight'],
+}.each do |op, functions|
+    const_function, validate_function = functions
     operator :"#{op}", {
         must_use: true,
         const: const_function,
+        validate: validate_function,
 
         [S < Integer].(S, u32) => S,
         [S < Integer, N].(vec[N][S], vec[N][u32]) => vec[N][S],
@@ -689,11 +691,14 @@ function :inverseSqrt, {
 function :ldexp, {
     must_use: true,
     const: true,
+    validate: true,
 
     [T < ConcreteFloat].(T, i32) => T,
     [].(abstract_float, abstract_int) => abstract_float,
+    [].(abstract_float, i32) => abstract_float,
     [T < ConcreteFloat, N].(vec[N][T], vec[N][i32]) => vec[N][T],
     [N].(vec[N][abstract_float], vec[N][abstract_int]) => vec[N][abstract_float],
+    [N].(vec[N][abstract_float], vec[N][i32]) => vec[N][abstract_float],
 }
 
 # 17.5.36

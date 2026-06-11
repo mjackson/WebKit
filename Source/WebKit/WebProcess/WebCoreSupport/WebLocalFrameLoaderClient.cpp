@@ -1248,12 +1248,15 @@ void WebLocalFrameLoaderClient::dispatchDecidePolicyForBackForwardNavigationActi
                 return;
             }
 
-            // The async wait is over — UIProcess has resolved the HistoryItem
-            // and the actual loading begins via normal DocumentLoader mechanisms.
-            // Clear the async state so that frame completion tracking behaves
-            // identically to the non-flag path.
-            if (localFrame->loader().shouldProceedWithAsyncBackForwardNavigation())
-                localFrame->loader().loadRequestedHistoryItem(loadType, PolicyAlreadyDecided::Yes);
+            if (localFrame->loader().asyncBackForwardNavigationWasCancelled()) {
+                localFrame->loader().clearAsyncBackForwardNavigationState();
+                return;
+            }
+
+            // Keep the async-wait state set across the load: the freshly created child still
+            // reports isComplete() until its document begins, so clearing it here would let the
+            // parent fire its load event early. didBeginDocument() clears it once loading starts.
+            localFrame->loader().loadRequestedHistoryItem(loadType, PolicyAlreadyDecided::Yes);
         }
     );
 }
@@ -2175,10 +2178,6 @@ void WebLocalFrameLoaderClient::didExceedNetworkUsageThreshold()
     if (url.isEmpty())
         return;
 
-    RefPtr frameDocument = coreFrame->document();
-    if (!frameDocument)
-        return;
-
     WebLocalFrameLoaderClient_RELEASE_LOG(ResourceMonitoring, "didExceedNetworkUsageThreshold host=%" SENSITIVE_LOG_STRING, url.host().utf8().data());
 
     auto action = [weakFrame = WeakPtr { m_frame->coreLocalFrame() }](bool wasGranted) {
@@ -2191,21 +2190,18 @@ void WebLocalFrameLoaderClient::didExceedNetworkUsageThreshold()
             frame->reportResourceMonitoringWarning();
     };
 
-    if (frameDocument->shouldSkipResourceMonitorThrottling())
-        action(true);
-    else
-        WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::ShouldOffloadIFrameForHost(url.host().toStringWithoutCopying()), WTF::move(action), 0);
+    WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::ShouldOffloadIFrameForHost(url.host().toStringWithoutCopying()), WTF::move(action), 0);
 }
 
-void WebLocalFrameLoaderClient::applyResourceMonitorUnloadToOwnerFrame()
+#endif
+
+void WebLocalFrameLoaderClient::applyMonitorUnloadToOwnerFrame(WebCore::IFrameUnloadReason reason)
 {
     RefPtr webPage = m_frame->page();
     if (!webPage)
         return;
-    webPage->send(Messages::WebPageProxy::ApplyResourceMonitorUnloadToFrameOwner(m_frame->frameID()));
+    webPage->send(Messages::WebPageProxy::ApplyMonitorUnloadToFrameOwner(m_frame->frameID(), reason));
 }
-
-#endif
 
 void WebLocalFrameLoaderClient::removeStorageAccess()
 {

@@ -1114,16 +1114,17 @@ static std::optional<PlainDate> NODELETE parseDate(StringParsingBuffer<Character
         if (*buffer == '-') {
             splitByHyphen = true;
             buffer.advance();
-            if (buffer.lengthRemaining() < 5 && format == TemporalDateFormat::Date)
-                return std::nullopt;
-        } else {
-            if (buffer.lengthRemaining() < 4 && format == TemporalDateFormat::Date)
-                return std::nullopt;
         }
+    } else {
+        // Per the Temporal grammar, Date and DateSpecYearMonth both require DateYear.
+        // Only DateSpecMonthDay permits the no-year form.
+        if (format != TemporalDateFormat::MonthDay)
+            return std::nullopt;
     }
-    // We ensured that buffer has enough length for month and day. We do not need to check length.
 
     unsigned month = 0;
+    if (buffer.lengthRemaining() < 2)
+        return std::nullopt;
     auto firstMonthCharacter = *buffer;
     if (firstMonthCharacter == '0' || firstMonthCharacter == '1') {
         buffer.advance();
@@ -1147,17 +1148,22 @@ static std::optional<PlainDate> NODELETE parseDate(StringParsingBuffer<Character
         return PlainDate(year, month, 1);
     }
 
+    if (buffer.atEnd())
+        return std::nullopt;
+
+    bool consumedDaySeparator = false;
     if (*buffer == '-') {
-        if (splitByHyphen || format != TemporalDateFormat::Date)
+        if (splitByHyphen || format != TemporalDateFormat::Date) {
             buffer.advance();
-        else
+            consumedDaySeparator = true;
+        } else
             return std::nullopt;
     } else if (splitByHyphen)
         return std::nullopt;
 
     unsigned day = 0;
-    auto firstDayCharacter = *buffer;
-    if (firstDayCharacter >= '0' && firstDayCharacter <= '3') {
+    if (buffer.lengthRemaining() >= 2 && *buffer >= '0' && *buffer <= '3') {
+        auto firstDayCharacter = *buffer;
         buffer.advance();
         auto secondDayCharacter = *buffer;
         if (!isASCIIDigit(secondDayCharacter))
@@ -1166,7 +1172,7 @@ static std::optional<PlainDate> NODELETE parseDate(StringParsingBuffer<Character
         if (!day || day > daysInMonth(year, month))
             return std::nullopt;
         buffer.advance();
-    } else if (format != TemporalDateFormat::YearMonth)
+    } else if (consumedDaySeparator || format != TemporalDateFormat::YearMonth)
         return std::nullopt;
 
     // PlainDate represents out-of-range years using outOfRangeYear
@@ -1686,19 +1692,25 @@ String monthCode(uint32_t month)
     return makeString('M', pad('0', 2, month));
 }
 
-// https://tc39.es/proposal-temporal/#sec-temporal-parsemonthcode
+// Parses the MonthCode grammar from https://tc39.es/proposal-temporal/#sec-temporal-parsemonthcode:
+//   MonthCode :::
+//       M00L
+//       M0 NonZeroDigit L?
+//       M NonZeroDigit DecimalDigit L?
 std::optional<ParsedMonthCode> parseMonthCode(StringView monthCode)
 {
-    // Allow leap month marker (e.g. "M05L"), even though it doesn't apply to ISO8601 calendar
-    if (monthCode.length() < 3 || monthCode.length() > 4 || !monthCode.startsWith('M') || !isASCIIDigit(monthCode[2]))
+    if (monthCode.length() < 3 || monthCode.length() > 4
+        || !monthCode.startsWith('M')
+        || !isASCIIDigit(monthCode[1]) || !isASCIIDigit(monthCode[2]))
+        return { };
+    if (monthCode.length() == 4 && monthCode[3] != 'L')
+        return { };
+    // M00 is only valid as M00L — bare `M00` matches none of the three grammar alternatives.
+    if (monthCode[1] == '0' && monthCode[2] == '0' && monthCode.length() == 3)
         return { };
 
-    // 4th code unit must be 'L' because the month code is valid
     auto isLeapMonth = monthCode.length() == 4;
-
-    uint8_t monthNumber = monthCode[2] - '0';
-    monthNumber += (monthCode[1] - '0') * 10;
-
+    uint8_t monthNumber = (monthCode[1] - '0') * 10 + (monthCode[2] - '0');
     return ParsedMonthCode { monthNumber, isLeapMonth };
 }
 
@@ -2124,7 +2136,7 @@ std::optional<TimeZone> parseTemporalTimeZoneIdentifier(StringView string)
         }
         // 6. If timeZoneResult.[[Z]] is true, return ! ParseTimeZoneIdentifier("UTC").
         if (tzRecord->m_z)
-            return TimeZone::fromUTCOffset(0);
+            return TimeZone::fromID(utcTimeZoneID());
         // 7. If timeZoneResult.[[OffsetString]] is not ~empty~, return ? ParseTimeZoneIdentifier(timeZoneResult.[[OffsetString]]).
         if (tzRecord->m_offset)
             return TimeZone::fromUTCOffset(*tzRecord->m_offset);

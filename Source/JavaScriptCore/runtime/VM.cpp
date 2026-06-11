@@ -152,7 +152,6 @@
 #include "WeakGCMapInlines.h"
 #include "WideningNumberPredictionFuzzerAgent.h"
 #include <wtf/CryptographicallyRandomNumber.h>
-#include <wtf/MemoryPressureHandler.h>
 #include <wtf/ProcessID.h>
 #include <wtf/ReadWriteLock.h>
 #include <wtf/SimpleStats.h>
@@ -850,9 +849,9 @@ MacroAssemblerCodeRef<JITThunkPtrTag> VM::getCTIStub(CommonJITThunkID thunkID)
 
 #endif // ENABLE(JIT)
 
-NativeExecutable* VM::getHostFunction(NativeFunction function, ImplementationVisibility implementationVisibility, NativeFunction constructor, const String& name)
+NativeExecutable* VM::getHostFunction(NativeFunction function, ImplementationVisibility implementationVisibility, NativeFunction constructor, unsigned length, const String& name)
 {
-    return getHostFunction(function, implementationVisibility, NoIntrinsic, constructor, nullptr, name);
+    return getHostFunction(function, implementationVisibility, NoIntrinsic, constructor, nullptr, length, name);
 }
 
 static Ref<NativeJITCode> jitCodeForCallTrampoline(Intrinsic intrinsic)
@@ -889,19 +888,19 @@ static Ref<NativeJITCode> jitCodeForConstructTrampoline()
     return result.get();
 }
 
-NativeExecutable* VM::getHostFunction(NativeFunction function, ImplementationVisibility implementationVisibility, Intrinsic intrinsic, NativeFunction constructor, const DOMJIT::Signature* signature, const String& name)
+NativeExecutable* VM::getHostFunction(NativeFunction function, ImplementationVisibility implementationVisibility, Intrinsic intrinsic, NativeFunction constructor, const DOMJIT::Signature* signature, unsigned length, const String& name)
 {
 #if ENABLE(JIT)
     if (Options::useJIT()) {
         return jitStubs->hostFunctionStub(
             *this, toTagged(function), toTagged(constructor),
             intrinsic != NoIntrinsic ? thunkGeneratorForIntrinsic(intrinsic) : nullptr,
-            implementationVisibility, intrinsic, signature, name);
+            implementationVisibility, intrinsic, signature, length, name);
     }
 #endif // ENABLE(JIT)
     UNUSED_PARAM(intrinsic);
     UNUSED_PARAM(signature);
-    return NativeExecutable::create(*this, jitCodeForCallTrampoline(intrinsic), toTagged(function), jitCodeForConstructTrampoline(), toTagged(constructor), implementationVisibility, name);
+    return NativeExecutable::create(*this, jitCodeForCallTrampoline(intrinsic), toTagged(function), jitCodeForConstructTrampoline(), toTagged(constructor), implementationVisibility, length, name);
 }
 
 NativeExecutable* VM::getBoundFunction(bool isJSFunction, SourceTaintedOrigin taintedness)
@@ -917,7 +916,7 @@ NativeExecutable* VM::getBoundFunction(bool isJSFunction, SourceTaintedOrigin ta
             slowCase ? boundFunctionCall : boundThisNoArgsFunctionCall,
             ImplementationVisibility::Private, // Bound function's visibility is private on the stack.
             slowCase ? NoIntrinsic : BoundFunctionCallIntrinsic,
-            boundFunctionConstruct, nullptr, String());
+            boundFunctionConstruct, nullptr, 0, String());
         slot.setWithoutWriteBarrier(result);
         return result;
     };
@@ -941,7 +940,7 @@ NativeExecutable* VM::getRemoteFunction(bool isJSFunction)
         NativeExecutable* result = getHostFunction(
             slowCase ? remoteFunctionCallGeneric : remoteFunctionCallForJSFunction,
             ImplementationVisibility::Public, intrinsic,
-            callHostFunctionAsConstructor, nullptr, String());
+            callHostFunctionAsConstructor, nullptr, 0, String());
         slot = Weak<NativeExecutable>(result);
         return result;
     };
@@ -1026,21 +1025,6 @@ void VM::deleteAllCode(DeleteAllCodeEffort effort)
         heap.deleteAllCodeBlocks(effort);
         heap.deleteAllUnlinkedCodeBlocks(effort);
         heap.reportAbandonedObjectGraph();
-
-        if (MemoryPressureHandler::singleton().memoryPressureStatus() == SystemMemoryPressureStatus::Normal)
-            return;
-        // If we're deleting all code as a response to memory pressure, allow
-        // worklist threads to temporarily stop, which frees any thread-local
-        // data (specifically, any bulky heap-allocated data for the assembler
-        // buffer).
-#if ENABLE(JIT)
-        if (auto worklist = JITWorklist::existingGlobalWorklistOrNull())
-            worklist->requestTemporaryStop();
-#if ENABLE(WEBASSEMBLY)
-        if (auto worklist = Wasm::existingWorklistOrNull())
-            worklist->requestTemporaryStop();
-#endif // ENABLE(WEBASSEMBLY)
-#endif // ENABLE(JIT)
     });
 }
 
@@ -1648,7 +1632,7 @@ JSPropertyNameEnumerator* VM::emptyPropertyNameEnumeratorSlow()
 NativeExecutable* VM::promiseResolvingFunctionResolveExecutableSlow()
 {
     ASSERT(!m_promiseResolvingFunctionResolveExecutable);
-    auto* executable = getHostFunction(promiseResolvingFunctionResolve, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseResolvingFunctionResolve, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseResolvingFunctionResolveExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1656,7 +1640,7 @@ NativeExecutable* VM::promiseResolvingFunctionResolveExecutableSlow()
 NativeExecutable* VM::promiseResolvingFunctionRejectExecutableSlow()
 {
     ASSERT(!m_promiseResolvingFunctionRejectExecutable);
-    auto* executable = getHostFunction(promiseResolvingFunctionReject, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseResolvingFunctionReject, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseResolvingFunctionRejectExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1664,7 +1648,7 @@ NativeExecutable* VM::promiseResolvingFunctionRejectExecutableSlow()
 NativeExecutable* VM::promiseFirstResolvingFunctionResolveExecutableSlow()
 {
     ASSERT(!m_promiseFirstResolvingFunctionResolveExecutable);
-    auto* executable = getHostFunction(promiseFirstResolvingFunctionResolve, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseFirstResolvingFunctionResolve, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseFirstResolvingFunctionResolveExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1672,7 +1656,7 @@ NativeExecutable* VM::promiseFirstResolvingFunctionResolveExecutableSlow()
 NativeExecutable* VM::promiseFirstResolvingFunctionRejectExecutableSlow()
 {
     ASSERT(!m_promiseFirstResolvingFunctionRejectExecutable);
-    auto* executable = getHostFunction(promiseFirstResolvingFunctionReject, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseFirstResolvingFunctionReject, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseFirstResolvingFunctionRejectExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1680,7 +1664,7 @@ NativeExecutable* VM::promiseFirstResolvingFunctionRejectExecutableSlow()
 NativeExecutable* VM::promiseResolvingFunctionResolveWithInternalMicrotaskExecutableSlow()
 {
     ASSERT(!m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable);
-    auto* executable = getHostFunction(promiseResolvingFunctionResolveWithInternalMicrotask, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseResolvingFunctionResolveWithInternalMicrotask, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1688,7 +1672,7 @@ NativeExecutable* VM::promiseResolvingFunctionResolveWithInternalMicrotaskExecut
 NativeExecutable* VM::promiseResolvingFunctionRejectWithInternalMicrotaskExecutableSlow()
 {
     ASSERT(!m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable);
-    auto* executable = getHostFunction(promiseResolvingFunctionRejectWithInternalMicrotask, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseResolvingFunctionRejectWithInternalMicrotask, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1696,7 +1680,7 @@ NativeExecutable* VM::promiseResolvingFunctionRejectWithInternalMicrotaskExecuta
 NativeExecutable* VM::promiseCapabilityExecutorExecutableSlow()
 {
     ASSERT(!m_promiseCapabilityExecutorExecutable);
-    auto* executable = getHostFunction(promiseCapabilityExecutor, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseCapabilityExecutor, ImplementationVisibility::Public, callHostFunctionAsConstructor, 2, emptyString());
     m_promiseCapabilityExecutorExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1704,7 +1688,7 @@ NativeExecutable* VM::promiseCapabilityExecutorExecutableSlow()
 NativeExecutable* VM::promiseAllFulfillFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAllFulfillFunctionExecutable);
-    auto* executable = getHostFunction(promiseAllFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAllFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAllFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1712,7 +1696,7 @@ NativeExecutable* VM::promiseAllFulfillFunctionExecutableSlow()
 NativeExecutable* VM::promiseAllSlowFulfillFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAllSlowFulfillFunctionExecutable);
-    auto* executable = getHostFunction(promiseAllSlowFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAllSlowFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAllSlowFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1720,7 +1704,7 @@ NativeExecutable* VM::promiseAllSlowFulfillFunctionExecutableSlow()
 NativeExecutable* VM::promiseAllSettledFulfillFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAllSettledFulfillFunctionExecutable);
-    auto* executable = getHostFunction(promiseAllSettledFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAllSettledFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAllSettledFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1728,7 +1712,7 @@ NativeExecutable* VM::promiseAllSettledFulfillFunctionExecutableSlow()
 NativeExecutable* VM::promiseAllSettledRejectFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAllSettledRejectFunctionExecutable);
-    auto* executable = getHostFunction(promiseAllSettledRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAllSettledRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAllSettledRejectFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1736,7 +1720,7 @@ NativeExecutable* VM::promiseAllSettledRejectFunctionExecutableSlow()
 NativeExecutable* VM::promiseAllSettledSlowFulfillFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAllSettledSlowFulfillFunctionExecutable);
-    auto* executable = getHostFunction(promiseAllSettledSlowFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAllSettledSlowFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAllSettledSlowFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1744,7 +1728,7 @@ NativeExecutable* VM::promiseAllSettledSlowFulfillFunctionExecutableSlow()
 NativeExecutable* VM::promiseAllSettledSlowRejectFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAllSettledSlowRejectFunctionExecutable);
-    auto* executable = getHostFunction(promiseAllSettledSlowRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAllSettledSlowRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAllSettledSlowRejectFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1752,7 +1736,7 @@ NativeExecutable* VM::promiseAllSettledSlowRejectFunctionExecutableSlow()
 NativeExecutable* VM::promiseAnyRejectFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAnyRejectFunctionExecutable);
-    auto* executable = getHostFunction(promiseAnyRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAnyRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAnyRejectFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
@@ -1760,7 +1744,7 @@ NativeExecutable* VM::promiseAnyRejectFunctionExecutableSlow()
 NativeExecutable* VM::promiseAnySlowRejectFunctionExecutableSlow()
 {
     ASSERT(!m_promiseAnySlowRejectFunctionExecutable);
-    auto* executable = getHostFunction(promiseAnySlowRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    auto* executable = getHostFunction(promiseAnySlowRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, 1, emptyString());
     m_promiseAnySlowRejectFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }

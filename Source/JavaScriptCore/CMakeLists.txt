@@ -130,8 +130,8 @@ set(JavaScriptCore_OBJECT_LUT_SOURCES
     runtime/TemporalPlainTimePrototype.cpp
     runtime/TemporalPlainYearMonthConstructor.cpp
     runtime/TemporalPlainYearMonthPrototype.cpp
-    runtime/TemporalTimeZoneConstructor.cpp
-    runtime/TemporalTimeZonePrototype.cpp
+    runtime/TemporalZonedDateTimeConstructor.cpp
+    runtime/TemporalZonedDateTimePrototype.cpp
 
     wasm/js/JSWebAssembly.cpp
     wasm/js/WebAssemblyArrayConstructor.cpp
@@ -170,6 +170,9 @@ set(JavaScriptCore_FRAMEWORKS
     WTF
     bmalloc
 )
+if (USE_APPLE_INTERNAL_SDK)
+    list(APPEND JavaScriptCore_FRAMEWORKS WebKitAdditions)
+endif ()
 
 if(USE_CAPSTONE)
     list(APPEND JavaScriptCore_LIBRARIES capstone)
@@ -219,11 +222,9 @@ endif ()
 if (MSVC AND NOT ENABLE_C_LOOP)
     list(APPEND OFFLINE_ASM_FORMAT_ARGS --platform=Windows)
 endif ()
-if (WEBKIT_ADDITIONS_INCLUDE_PATH AND EXISTS "${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions/Additions")
-    list(APPEND OFFLINE_ASM_ARGS "--webkit-additions-path=${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions")
-    if (EXISTS "${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions/Additions/llint")
-        list(APPEND OFFLINE_ASM_INCLUDE_DIRS "-I${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions/Additions/llint/")
-    endif ()
+if (USE_APPLE_INTERNAL_SDK)
+    list(APPEND OFFLINE_ASM_ARGS "--webkit-additions-path=${WebKitAdditions_FRAMEWORK_HEADERS_DIR}/WebKitAdditions")
+    list(APPEND OFFLINE_ASM_INCLUDE_DIRS "-I${WebKitAdditions_FRAMEWORK_HEADERS_DIR}/WebKitAdditions")
 endif ()
 
 set(LLINT_ASM
@@ -1769,9 +1770,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/TemporalPlainYearMonth.h
     runtime/TemporalPlainYearMonthConstructor.h
     runtime/TemporalPlainYearMonthPrototype.h
-    runtime/TemporalTimeZone.h
-    runtime/TemporalTimeZoneConstructor.h
-    runtime/TemporalTimeZonePrototype.h
+    runtime/TemporalZonedDateTime.h
+    runtime/TemporalZonedDateTimeConstructor.h
+    runtime/TemporalZonedDateTimePrototype.h
     runtime/TestRunnerUtils.h
     runtime/ThrowScope.h
     runtime/ToNativeFromValue.h

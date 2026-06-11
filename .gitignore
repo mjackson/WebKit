@@ -11,6 +11,7 @@
 autoinstall.cache.d
 project.xcworkspace
 xcuserdata
+*.xcresult
 DerivedData
 .mailmap
 results
@@ -96,4 +97,6 @@ CLAUDE.md
 
 # Ignore tracing files
 *.atrc
+*.profraw
+*.pas_stats.jsonl
 

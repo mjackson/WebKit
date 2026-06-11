@@ -25,7 +25,10 @@
 
 #pragma once
 
+#include <WebCore/FontCreationContext.h>
+#include <WebCore/FontDescription.h>
 #include <WebCore/FontPlatformData.h>
+#include <WebCore/FontSelectionAlgorithm.h>
 #include <WebCore/RenderingResourceIdentifier.h>
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
@@ -87,7 +90,8 @@ public:
 #endif
     WEBCORE_EXPORT ~FontCustomPlatformData();
 
-    FontPlatformData fontPlatformData(const FontDescription&, bool bold, bool italic, const FontCreationContext&);
+    FontPlatformData fontPlatformData(const FontDescription&, bool italic, const FontCreationContext&);
+
 
     WEBCORE_EXPORT FontCustomPlatformSerializedData NODELETE serializedData() const;
     WEBCORE_EXPORT static std::optional<Ref<FontCustomPlatformData>> tryMakeFromSerializationData(FontCustomPlatformSerializedData&&, bool);
@@ -108,5 +112,19 @@ public:
 
     RenderingResourceIdentifier m_renderingResourceIdentifier;
 };
+
+inline bool computeSyntheticBold(bool hasWeightVariationAxis, const FontDescription& fontDescription, const FontCreationContext& fontCreationContext)
+{
+    auto explicitlyDeclaredWeight = fontCreationContext.fontFaceCapabilities().weight;
+    // No explicit font-weight descriptor (auto): the variable font's wght axis handles weight, so don't synthesize.
+    if (hasWeightVariationAxis && !explicitlyDeclaredWeight)
+        return false;
+    auto declaredWeightMax = explicitlyDeclaredWeight
+        .transform([](auto range) { return range.maximum; })
+        .value_or(normalWeightValue());
+    return fontDescription.hasAutoFontSynthesisWeight()
+        && isFontWeightBold(fontDescription.weight())
+        && !isFontWeightBold(declaredWeightMax);
+}
 
 } // namespace WebCore

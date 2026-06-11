@@ -107,12 +107,12 @@
 #include "PseudoElement.h"
 #include "RenderGrid.h"
 #include "RenderObject.h"
-#include "RenderStyle.h"
 #include "RenderStyleConstants.h"
 #include "ScriptController.h"
 #include "SelectorChecker.h"
 #include "ShadowRoot.h"
 #include "StaticNodeList.h"
+#include "StyleComputedStyle.h"
 #include "StyleProperties.h"
 #include "StyleResolver.h"
 #include "StyleSheetList.h"
@@ -1206,7 +1206,7 @@ Inspector::Protocol::ErrorStringOr<std::tuple<String /* searchId */, int /* resu
 {
     Inspector::Protocol::ErrorString errorString;
 
-    // FIXME: Search works with node granularity - number of matches within node is not calculated.
+    // FIXME: <https://webkit.org/b/316549> Search works with node granularity - number of matches within node is not calculated.
     InspectorNodeFinder finder(query, caseSensitive && *caseSensitive);
 
     if (nodeIds) {

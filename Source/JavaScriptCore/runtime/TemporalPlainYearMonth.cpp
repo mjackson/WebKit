@@ -92,7 +92,7 @@ String TemporalPlainYearMonth::toString(JSGlobalObject* globalObject, JSValue op
     if (!options) [[likely]]
         return toString();
 
-    String calendarName = toTemporalCalendarName(globalObject, options);
+    String calendarName = temporalShowCalendarName(globalObject, options);
     RETURN_IF_EXCEPTION(scope, { });
 
     return ISO8601::temporalYearMonthToString(m_plainYearMonth, calendarName, m_calendarID);
@@ -147,7 +147,7 @@ TemporalPlainYearMonth* TemporalPlainYearMonth::from(JSGlobalObject* globalObjec
         // Step 2.c: PrepareCalendarFields(calendar, item, {year, month, monthCode}, {}, {}).
         // (Steps 2.b-c are fused into readCalendarFieldsFromObject.)
         CalendarID calendarId = iso8601CalendarID();
-        auto fields = readCalendarFieldsFromObject(globalObject, asObject(item), calendarId, FieldSetType::YearMonth);
+        auto fields = readCalendarFieldsFromObject<FieldSetType::YearMonth>(globalObject, asObject(item), calendarId);
         RETURN_IF_EXCEPTION(scope, { });
 
         // Step 2.d: GetOptionsObject(options). Step 2.e: GetTemporalOverflowOption.
@@ -243,7 +243,7 @@ static TemporalPlainYearMonth* fromYearMonthString(JSGlobalObject* globalObject,
     // For iso8601 / year-month-only strings: plainDate (day=1) IS the record.
     // For non-ISO full-date strings: the YearMonth parser produces day=1, but the
     // spec needs the actual day to identify the correct calendar month — recovered
-    // via a re-parse with TemporalDateFormat::Date (done earlier in the function).
+    // into fullISODate below via a re-parse with TemporalDateFormat::Date.
     // Step 11: ISOYearMonthWithinLimits — enforced inside tryCreateIfValid.
     // Step 12: ISODateToFields(calendar, isoDate, ~year-month~).
     // Steps 14-15: CalendarYearMonthFromFields(~constrain~) + CreateTemporalYearMonth — inside tryCreateIfValid.
@@ -252,9 +252,19 @@ static TemporalPlainYearMonth* fromYearMonthString(JSGlobalObject* globalObject,
 
     // Non-ISO steps 12+14+15: ISODateToFields → CalendarYearMonthFromFields → CreateTemporalYearMonth
     // (fused into plainYearMonthFromISODate + tryCreateIfValid).
-    // The YearMonth parser always stores day=1; plainDate may already have the correct
-    // day from the re-parse above for non-ISO full-date strings.
-    auto resolved = TemporalCore::plainYearMonthFromISODate(calendarId, plainDate);
+    // The YearMonth parser always stores day=1. For non-ISO full date strings (e.g.
+    // "2024-06-08[u-ca=islamicc]"), re-parse with Date format to recover the actual
+    // day so plainYearMonthFromISODate can determine the correct calendar month.
+    ISO8601::PlainDate fullISODate = plainDate;
+    if (!looksLikeYearMonthOnly) {
+        auto fullDateTime = ISO8601::parseCalendarDateTime(string, TemporalDateFormat::Date);
+        if (fullDateTime) {
+            auto& fullDate = std::get<0>(*fullDateTime);
+            if (ISO8601::isYearWithinLimits(fullDate.year()))
+                fullISODate = fullDate;
+        }
+    }
+    auto resolved = TemporalCore::plainYearMonthFromISODate(calendarId, fullISODate);
     if (!resolved) [[unlikely]] {
         throwRangeError(globalObject, scope, String(resolved.error().message));
         return { };
@@ -282,7 +292,7 @@ ISO8601::PlainDate TemporalPlainYearMonth::with(JSGlobalObject* globalObject, JS
     // Step 6: PrepareCalendarFields(calendar, temporalYearMonthLike, {year, month, monthCode}, {}, ~partial~).
     // skipCalendarRead=true: calendar known from m_calendarID; step 3 ensures no calendar property.
     CalendarID unusedCalId = m_calendarID;
-    auto partialFields = readCalendarFieldsFromObject(globalObject, temporalYearMonthLike, unusedCalId, FieldSetType::YearMonth, /* skipCalendarRead */ true);
+    auto partialFields = readCalendarFieldsFromObject<FieldSetType::YearMonth, CalendarRead::Skip>(globalObject, temporalYearMonthLike, unusedCalId);
     RETURN_IF_EXCEPTION(scope, { });
     if (!partialFields.year && !partialFields.month && !partialFields.monthCode
         && !partialFields.era && !partialFields.eraYear) [[unlikely]] {
@@ -315,16 +325,13 @@ ISO8601::Duration TemporalPlainYearMonth::sinceOrUntil(JSGlobalObject* globalObj
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto [smallestUnit, largestUnit, roundingMode, increment] = extractDifferenceOptions(globalObject, optionsValue, UnitGroup::Date, TemporalUnit::Month, TemporalUnit::Year);
+    auto [smallestUnit, largestUnit, roundingMode, increment] = extractDifferenceOptions(globalObject, optionsValue, UnitGroup::Date, TemporalUnit::Month, TemporalUnit::Year, op);
     RETURN_IF_EXCEPTION(scope, { });
 
     if (m_calendarID != other->m_calendarID) [[unlikely]] {
         throwRangeError(globalObject, scope, "cannot compute difference between year-months with different calendars"_s);
         return { };
     }
-
-    if (op == DifferenceOperation::Since)
-        roundingMode = TemporalCore::negateTemporalRoundingMode(roundingMode);
 
     RELEASE_AND_RETURN(scope, JSC::differenceTemporalPlainYearMonth<op>(globalObject, plainYearMonth(), other->plainYearMonth(), increment, smallestUnit, largestUnit, roundingMode, m_calendarID));
 }
@@ -337,11 +344,6 @@ ISO8601::Duration TemporalPlainYearMonth::until(JSGlobalObject* globalObject, Te
 ISO8601::Duration TemporalPlainYearMonth::since(JSGlobalObject* globalObject, TemporalPlainYearMonth* other, JSValue optionsValue)
 {
     return sinceOrUntil<DifferenceOperation::Since>(globalObject, other, optionsValue);
-}
-
-String TemporalPlainYearMonth::monthCode() const
-{
-    return ISO8601::monthCode(m_plainYearMonth.month());
 }
 
 } // namespace JSC

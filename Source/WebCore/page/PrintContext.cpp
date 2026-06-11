@@ -34,11 +34,11 @@
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "NodeDocument.h"
-#include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
 #include "Settings.h"
+#include "StyleComputedStyle+GettersInlines.h"
+#include "StyleDocumentScope.h"
 #include "StyleResolver.h"
-#include "StyleScope.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
 

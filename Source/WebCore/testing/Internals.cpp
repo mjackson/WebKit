@@ -247,10 +247,10 @@
 #include "StorageNamespaceProvider.h"
 #include "StreamTransferUtilities.h"
 #include "StringCallback.h"
+#include "StyleDocumentScope.h"
 #include "StyleGridPosition.h"
 #include "StyleResolver.h"
 #include "StyleRule.h"
-#include "StyleScope.h"
 #include "StyleSheetContents.h"
 #include "SystemSoundManager.h"
 #include "TextIterator.h"
@@ -1357,6 +1357,12 @@ void Internals::setHasHDRContentForTesting(HTMLImageElement& element)
 bool Internals::hasPendingActivity(const WebCodecsVideoDecoder& decoder) const
 {
     return decoder.hasPendingActivity();
+}
+
+bool Internals::is10bitsVideoFrame(const WebCodecsVideoFrame& frame) const
+{
+    RefPtr videoFrame = frame.internalFrame();
+    return videoFrame && videoFrame->is10bits();
 }
 #endif
 
@@ -5552,6 +5558,12 @@ bool Internals::isPlayerPaused(const HTMLMediaElement& element) const
     return player && player->paused();
 }
 
+double Internals::effectiveRate(const HTMLMediaElement& element) const
+{
+    RefPtr player = element.player();
+    return player ? player->effectiveRate() : 0.0;
+}
+
 void Internals::forceStereoDecoding(HTMLMediaElement& element)
 {
     element.forceStereoDecoding();
@@ -8524,22 +8536,6 @@ void Internals::setTopDocumentURLForQuirks(const String& urlString)
     protect(document->page())->settings().setNeedsSiteSpecificQuirks(true);
     document->quirks().setTopDocumentURLForTesting(URL { urlString });
 }
-
-#if ENABLE(CONTENT_EXTENSIONS)
-bool Internals::shouldSkipResourceMonitorThrottling() const
-{
-    if (auto* document = contextDocument())
-        return document->shouldSkipResourceMonitorThrottling();
-
-    return false;
-}
-
-void Internals::setShouldSkipResourceMonitorThrottling(bool flag)
-{
-    if (auto* document = contextDocument())
-        document->setShouldSkipResourceMonitorThrottling(flag);
-}
-#endif
 
 #if ENABLE(DAMAGE_TRACKING)
 ExceptionOr<Vector<Internals::FrameDamage>> Internals::getFrameDamageHistory() const

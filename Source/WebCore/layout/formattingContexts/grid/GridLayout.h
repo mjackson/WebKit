@@ -30,12 +30,12 @@
 #include "StyleGridTrackBreadth.h"
 
 namespace WebCore {
-class RenderStyle;
 
 namespace Style {
+class ComputedStyle;
 struct GridTrackSize;
 struct ZoomFactor;
-};
+}
 
 namespace Layout {
 
@@ -73,6 +73,7 @@ private:
 
     UsedTrackSizes performGridSizingAlgorithm(const GridLayoutState&, const PlacedGridItems&, const TrackSizingFunctionsList&, const TrackSizingFunctionsList&) const;
     TrackSizes sizeColumnTracks(const PlacedGridItems&, const TrackSizingFunctionsList& columnTrackSizingFunctions, const TrackSizingFunctionsList& rowTrackSizingFunctions, const GridLayoutState&) const;
+    TrackSizes sizeRowTracks(const PlacedGridItems&, const TrackSizes& columnSizes, const TrackSizingFunctionsList& rowTrackSizingFunctions, const GridLayoutState&) const;
 
     std::pair<UsedInlineSizes, UsedBlockSizes> layoutGridItems(const PlacedGridItems&, const GridAreaSizes&,
         const TrackSizingFunctionsList& columnTrackSizingFunctions, const TrackSizingFunctionsList& rowTrackSizingFunctions) const;

@@ -51,9 +51,9 @@
 #include "TemporalPlainYearMonth.h"
 #include "TemporalPlainYearMonthConstructor.h"
 #include "TemporalPlainYearMonthPrototype.h"
-// FIXME: Add TemporalZonedDateTime.h
-// FIXME: Add TemporalZonedDateTimeConstructor.h
-// FIXME: Add TemporalZonedDateTimePrototype.h
+#include "TemporalZonedDateTime.h"
+#include "TemporalZonedDateTimeConstructor.h"
+#include "TemporalZonedDateTimePrototype.h"
 #include <wtf/Int128.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/unicode/CharacterNames.h>
@@ -120,7 +120,12 @@ static JSValue createPlainYearMonthConstructor(VM& vm, JSObject* object)
     return TemporalPlainYearMonthConstructor::create(vm, TemporalPlainYearMonthConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<TemporalPlainYearMonthPrototype>(globalObject->plainYearMonthStructure()->storedPrototypeObject()));
 }
 
-// FIXME: Add createZonedDateTimeConstructor when TemporalZonedDateTime is implemented
+static JSValue createZonedDateTimeConstructor(VM& vm, JSObject* object)
+{
+    TemporalObject* temporalObject = uncheckedDowncast<TemporalObject>(object);
+    auto* globalObject = temporalObject->realm();
+    return TemporalZonedDateTimeConstructor::create(vm, TemporalZonedDateTimeConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<TemporalZonedDateTimePrototype>(globalObject->zonedDateTimeStructure()->storedPrototypeObject()));
+}
 
 } // namespace JSC
 
@@ -138,6 +143,7 @@ namespace JSC {
   PlainTime      createPlainTimeConstructor      DontEnum|PropertyCallback
   PlainMonthDay  createPlainMonthDayConstructor  DontEnum|PropertyCallback
   PlainYearMonth createPlainYearMonthConstructor DontEnum|PropertyCallback
+  ZonedDateTime  createZonedDateTimeConstructor  DontEnum|PropertyCallback
 @end
 */
 
@@ -250,27 +256,36 @@ std::optional<TemporalUnit> temporalUnitType(StringView unit)
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-gettemporalunitvaluedoption
-Variant<TemporalAuto, std::optional<TemporalUnit>> getTemporalUnitValuedOption(JSGlobalObject* globalObject, JSObject* options, PropertyName key)
+Variant<TemporalAuto, std::optional<TemporalUnit>> temporalUnitValued(JSGlobalObject* globalObject, JSObject* options, PropertyName key, TemporalUnitDefault defaultValue)
 {
-
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // Steps 1-3: Build allowedStrings (all singular + plural unit names + "auto") and call GetOption.
+    // NOTE: intlStringOption with empty allowed list accepts any string; validation against
+    // the unit table is deferred to temporalUnitType() below, preserving the same observable behavior.
     String unit = intlStringOption(globalObject, options, key, { }, { }, { });
     RETURN_IF_EXCEPTION(scope, std::nullopt);
 
-    if (!unit)
+    // Step 4: If value is undefined:
+    if (!unit) {
+        if (defaultValue == TemporalUnitDefault::Required) [[unlikely]] {
+            throwRangeError(globalObject, scope, makeString('\'', key.publicName(), "' option is required"_s));
+            return std::nullopt;
+        }
         return std::nullopt;
+    }
 
+    // Step 5: If value is "auto", return ~auto~.
     if (unit == "auto"_s)
         return TemporalAuto::Auto;
 
+    // Step 6: Return the Temporal unit for the string (singular or plural).
     auto unitType = temporalUnitType(unit);
     if (!unitType) [[unlikely]] {
         throwRangeError(globalObject, scope, "invalid Temporal unit"_s);
         return std::nullopt;
     }
-
     return unitType;
 }
 
@@ -280,17 +295,29 @@ void validateTemporalUnitValue(JSGlobalObject* globalObject, Variant<TemporalAut
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // Step 1: If value is ~unset~, return ~unused~.
     if (isAbsentUnit(unit))
         return;
+    // Step 2: If extraValues contains value, return ~unused~.
     if (extraValue == AllowedUnit::Auto && std::holds_alternative<TemporalAuto>(unit))
         return;
-    TemporalUnit actualUnit = std::get<std::optional<TemporalUnit>>(unit).value();
-    if (extraValue == AllowedUnit::Day && actualUnit == TemporalUnit::Day)
+    if (extraValue == AllowedUnit::Day && std::holds_alternative<std::optional<TemporalUnit>>(unit)
+        && std::get<std::optional<TemporalUnit>>(unit) == TemporalUnit::Day)
         return;
+    // Step 3: Let category be the "Category" column for value in the units table.
+    //         If there is no such row (e.g. ~auto~), throw a RangeError exception.
+    if (std::holds_alternative<TemporalAuto>(unit)) [[unlikely]] {
+        throwRangeError(globalObject, scope, makeString(valueName, " cannot be \"auto\""_s));
+        return;
+    }
+    TemporalUnit actualUnit = std::get<std::optional<TemporalUnit>>(unit).value();
+    // Step 4: If category is ~date~ and unitGroup is ~date~ or ~datetime~, return ~unused~.
     if (actualUnit <= TemporalUnit::Day && ((unitGroup == UnitGroup::Date) || (unitGroup == UnitGroup::DateTime)))
         return;
+    // Step 5: If category is ~time~ and unitGroup is ~time~ or ~datetime~, return ~unused~.
     if (actualUnit > TemporalUnit::Day && ((unitGroup == UnitGroup::Time) || (unitGroup == UnitGroup::DateTime)))
         return;
+    // Step 6: Throw a RangeError exception.
     throwRangeError(globalObject, scope, makeString(valueName, " is a disallowed unit"_s));
 }
 
@@ -305,8 +332,10 @@ void validateTemporalRoundingIncrement(JSGlobalObject* globalObject, double incr
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-getdifferencesettings
-std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOptions(JSGlobalObject* globalObject, JSValue optionsValue, UnitGroup unitGroup, TemporalUnit fallbackSmallestUnit, TemporalUnit smallestLargestDefaultUnit)
+std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOptions(JSGlobalObject* globalObject, JSValue optionsValue, UnitGroup unitGroup, TemporalUnit fallbackSmallestUnit, TemporalUnit smallestLargestDefaultUnit, DifferenceOperation operation)
 {
+    // disallowedUnits corresponds to the spec's _disallowedUnits_ parameter,
+    // derived here from unitGroup rather than passed by the caller.
     static const std::initializer_list<TemporalUnit> disallowedUnits[] = {
         { },
         { TemporalUnit::Hour, TemporalUnit::Minute, TemporalUnit::Second, TemporalUnit::Millisecond, TemporalUnit::Microsecond, TemporalUnit::Nanosecond },
@@ -319,46 +348,52 @@ std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOp
     JSObject* options = intlGetOptionsObject(globalObject, optionsValue);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto largestUnitMaybeAuto = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->largestUnit);
+    // Step 1: NOTE: Read options in alphabetical order: largestUnit, roundingIncrement, roundingMode, smallestUnit.
+    // Step 2: Let largestUnit be ? GetTemporalUnitValuedOption(options, "largestUnit", ~unset~).
+    auto largestUnitMaybeAuto = temporalUnitValued(globalObject, options, vm.propertyNames->largestUnit);
     RETURN_IF_EXCEPTION(scope, { });
+    // Step 3: Let roundingIncrement be ? GetRoundingIncrementOption(options).
     auto roundingIncrement = temporalRoundingIncrement(globalObject, options);
     RETURN_IF_EXCEPTION(scope, { });
+    // Step 4: Let roundingMode be ? GetRoundingModeOption(options, ~trunc~).
     auto roundingMode = temporalRoundingMode(globalObject, options, RoundingMode::Trunc);
     RETURN_IF_EXCEPTION(scope, { });
-    Variant<TemporalAuto, std::optional<TemporalUnit>> smallestUnitMaybeAuto = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
+    // Step 5: Let smallestUnit be ? GetTemporalUnitValuedOption(options, "smallestUnit", ~unset~).
+    auto smallestUnitMaybeAuto = temporalUnitValued(globalObject, options, vm.propertyNames->smallestUnit);
     RETURN_IF_EXCEPTION(scope, { });
-    ASSERT(std::holds_alternative<std::optional<TemporalUnit>>(smallestUnitMaybeAuto));
-    auto smallestUnitOptional = std::get<std::optional<TemporalUnit>>(smallestUnitMaybeAuto);
 
+    // Step 6: Perform ? ValidateTemporalUnitValue(largestUnit, unitGroup, « ~auto~ »).
     validateTemporalUnitValue(globalObject, largestUnitMaybeAuto, unitGroup, AllowedUnit::Auto, "largestUnit"_s);
     RETURN_IF_EXCEPTION(scope, { });
-
+    // Step 7: If largestUnit is ~unset~, set largestUnit to ~auto~.
     if (isAbsentUnit(largestUnitMaybeAuto))
         largestUnitMaybeAuto = TemporalAuto::Auto;
-
+    // Step 8: If disallowedUnits contains largestUnit, throw a RangeError exception.
     auto disallowedUnitsList = disallowedUnits[static_cast<uint8_t>(unitGroup)];
-
     if (std::holds_alternative<std::optional<TemporalUnit>>(largestUnitMaybeAuto)) {
         auto largestUnitOptional = std::get<std::optional<TemporalUnit>>(largestUnitMaybeAuto);
-        if (largestUnitOptional) {
-            if (disallowedUnitsList.size() && std::ranges::find(disallowedUnitsList, largestUnitOptional.value()) != disallowedUnitsList.end()) [[unlikely]] {
-                throwRangeError(globalObject, scope, "largestUnit is a disallowed unit"_s);
-                return { };
-            }
+        if (largestUnitOptional && disallowedUnitsList.size()
+            && std::ranges::find(disallowedUnitsList, largestUnitOptional.value()) != disallowedUnitsList.end()) [[unlikely]] {
+            throwRangeError(globalObject, scope, "largestUnit is a disallowed unit"_s);
+            return { };
         }
     }
 
+    // Step 9: Perform ? ValidateTemporalUnitValue(smallestUnit, unitGroup).
     validateTemporalUnitValue(globalObject, smallestUnitMaybeAuto, unitGroup, AllowedUnit::None, "smallestUnit"_s);
     RETURN_IF_EXCEPTION(scope, { });
-
+    auto smallestUnitOptional = std::get<std::optional<TemporalUnit>>(smallestUnitMaybeAuto);
+    // Step 10: If smallestUnit is ~unset~, set smallestUnit to fallbackSmallestUnit.
     auto smallestUnit = smallestUnitOptional.value_or(fallbackSmallestUnit);
-
+    // Step 11: If disallowedUnits contains smallestUnit, throw a RangeError exception.
     if (disallowedUnitsList.size() && std::ranges::find(disallowedUnitsList, smallestUnit) != disallowedUnitsList.end()) [[unlikely]] {
         throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
         return { };
     }
 
+    // Step 12: Let defaultLargestUnit be LargerOfTwoTemporalUnits(smallestLargestDefaultUnit, smallestUnit).
     auto defaultLargestUnit = std::min(smallestLargestDefaultUnit, smallestUnit);
+    // Step 13: If largestUnit is ~auto~, set largestUnit to defaultLargestUnit.
     auto largestUnit = defaultLargestUnit;
     if (std::holds_alternative<std::optional<TemporalUnit>>(largestUnitMaybeAuto)) {
         auto largestUnitOptional = std::get<std::optional<TemporalUnit>>(largestUnitMaybeAuto);
@@ -366,20 +401,28 @@ std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOp
         largestUnit = largestUnitOptional.value();
     }
 
+    // Step 14: If LargerOfTwoTemporalUnits(largestUnit, smallestUnit) is not largestUnit, throw a RangeError exception.
     if (smallestUnit < largestUnit) [[unlikely]] {
         throwRangeError(globalObject, scope, "smallestUnit must be smaller than largestUnit"_s);
         return { };
     }
 
+    // Step 15: Let maximum be MaximumTemporalDurationRoundingIncrement(smallestUnit).
+    // Step 16: If maximum is not ~unset~, perform ? ValidateTemporalRoundingIncrement(roundingIncrement, maximum, false).
     auto maximum = TemporalCore::maximumRoundingIncrement(smallestUnit);
-    validateTemporalRoundingIncrement(globalObject, roundingIncrement, maximum, Inclusivity::Exclusive);
-    RETURN_IF_EXCEPTION(scope, { });
+    if (maximum) {
+        validateTemporalRoundingIncrement(globalObject, roundingIncrement, static_cast<double>(*maximum), Inclusivity::Exclusive);
+        RETURN_IF_EXCEPTION(scope, { });
+    }
 
+    // Step 17: If operation is ~since~, set roundingMode to NegateRoundingMode(roundingMode).
+    if (operation == DifferenceOperation::Since)
+        roundingMode = TemporalCore::negateTemporalRoundingMode(roundingMode);
+    // Step 18: Return the Record.
     return { smallestUnit, largestUnit, roundingMode, roundingIncrement };
 }
 
-// GetStringOrNumberOption(normalizedOptions, "fractionalSecondDigits", « "auto" », 0, 9, "auto")
-// https://tc39.es/proposal-temporal/#sec-getstringornumberoption
+// https://tc39.es/proposal-temporal/#sec-temporal-gettemporalfractionalseconddigitsoption
 std::optional<unsigned> temporalFractionalSecondDigits(JSGlobalObject* globalObject, JSObject* options)
 {
     VM& vm = globalObject->vm();
@@ -413,71 +456,47 @@ std::optional<unsigned> temporalFractionalSecondDigits(JSGlobalObject* globalObj
     return std::nullopt;
 }
 
-// ToSecondsStringPrecision ( normalizedOptions )
-// https://tc39.es/proposal-temporal/#sec-temporal-tosecondsstringprecision
-PrecisionData secondsStringPrecision(JSGlobalObject* globalObject, JSObject* options)
+// https://tc39.es/proposal-temporal/#sec-temporal-tosecondsstringprecisionrecord
+PrecisionData toSecondsStringPrecisionRecord(std::optional<TemporalUnit> smallestUnit, std::optional<unsigned> fractionalDigitCount)
 {
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
+    // Steps 1-5: If smallestUnit is a specific time unit, return the corresponding fixed precision.
+    if (smallestUnit == TemporalUnit::Minute)
+        return { { Precision::Minute, 0 }, TemporalUnit::Minute, 1 };
+    if (smallestUnit == TemporalUnit::Second)
+        return { { Precision::Fixed, 0 }, TemporalUnit::Second, 1 };
+    if (smallestUnit == TemporalUnit::Millisecond)
+        return { { Precision::Fixed, 3 }, TemporalUnit::Millisecond, 1 };
+    if (smallestUnit == TemporalUnit::Microsecond)
+        return { { Precision::Fixed, 6 }, TemporalUnit::Microsecond, 1 };
+    if (smallestUnit == TemporalUnit::Nanosecond)
+        return { { Precision::Fixed, 9 }, TemporalUnit::Nanosecond, 1 };
 
-    auto smallestUnitMaybeAuto = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
-    RETURN_IF_EXCEPTION(scope, { });
-    ASSERT(std::holds_alternative<std::optional<TemporalUnit>>(smallestUnitMaybeAuto));
-    auto smallestUnit = std::get<std::optional<TemporalUnit>>(smallestUnitMaybeAuto);
+    // Step 6: Assert: smallestUnit is ~unset~.
+    ASSERT(!smallestUnit);
 
-    auto disallowedUnits = { TemporalUnit::Year, TemporalUnit::Month, TemporalUnit::Week, TemporalUnit::Day, TemporalUnit::Hour };
-    if (disallowedUnits.size() && std::ranges::find(disallowedUnits, smallestUnit) != disallowedUnits.end()) [[unlikely]] {
-        throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
-        return { };
-    }
-
-    if (smallestUnit) {
-        switch (smallestUnit.value()) {
-        case TemporalUnit::Minute:
-            return { { Precision::Minute, 0 }, TemporalUnit::Minute, 1 };
-        case TemporalUnit::Second:
-            return { { Precision::Fixed, 0 }, TemporalUnit::Second, 1 };
-        case TemporalUnit::Millisecond:
-            return { { Precision::Fixed, 3 }, TemporalUnit::Millisecond, 1 };
-        case TemporalUnit::Microsecond:
-            return { { Precision::Fixed, 6 }, TemporalUnit::Microsecond, 1 };
-        case TemporalUnit::Nanosecond:
-            return { { Precision::Fixed, 9 }, TemporalUnit::Nanosecond, 1 };
-        default:
-            RELEASE_ASSERT_NOT_REACHED();
-            return { };
-        }
-    }
-
-    auto precision = temporalFractionalSecondDigits(globalObject, options);
-    RETURN_IF_EXCEPTION(scope, { });
-
-    if (!precision)
+    // Step 7: If fractionalDigitCount is ~auto~, return auto/nanosecond/1.
+    if (!fractionalDigitCount)
         return { { Precision::Auto, 0 }, TemporalUnit::Nanosecond, 1 };
 
-    auto pow10Unsigned = [](unsigned n) -> unsigned {
-        unsigned result = 1;
-        for (unsigned i = 0; i < n; ++i)
-            result *= 10;
-        return result;
+    auto pow10 = [](unsigned n) -> unsigned {
+        unsigned r = 1;
+        for (unsigned i = 0; i < n; i++)
+            r *= 10;
+        return r;
     };
 
-    unsigned digits = precision.value();
-    if (!digits)
+    // Steps 8-10: Map digit count to precision record.
+    unsigned d = *fractionalDigitCount;
+    if (!d)
         return { { Precision::Fixed, 0 }, TemporalUnit::Second, 1 };
-
-    if (digits <= 3)
-        return { { Precision::Fixed, digits }, TemporalUnit::Millisecond, pow10Unsigned(3 - digits) };
-
-    if (digits <= 6)
-        return { { Precision::Fixed, digits }, TemporalUnit::Microsecond, pow10Unsigned(6 - digits) };
-
-    ASSERT(digits <= 9);
-    return { { Precision::Fixed, digits }, TemporalUnit::Nanosecond, pow10Unsigned(9 - digits) };
+    if (d <= 3)
+        return { { Precision::Fixed, d }, TemporalUnit::Millisecond, pow10(3 - d) };
+    if (d <= 6)
+        return { { Precision::Fixed, d }, TemporalUnit::Microsecond, pow10(6 - d) };
+    return { { Precision::Fixed, d }, TemporalUnit::Nanosecond, pow10(9 - d) };
 }
 
-// ToTemporalRoundingMode ( normalizedOptions, fallback )
-// https://tc39.es/proposal-temporal/#sec-temporal-totemporalroundingmode
+// https://tc39.es/proposal-temporal/#sec-temporal-getroundingmodeoption
 RoundingMode temporalRoundingMode(JSGlobalObject* globalObject, JSObject* options, RoundingMode fallback)
 {
     return intlOption<RoundingMode>(globalObject, options, globalObject->vm().propertyNames->roundingMode, {
@@ -540,17 +559,33 @@ static double doubleNumberOption(JSGlobalObject* globalObject, JSObject* options
     return doubleValue;
 }
 
-// ToTemporalRoundingIncrement ( normalizedOptions, dividend, inclusive )
-// https://tc39.es/proposal-temporal/#sec-temporal-totemporalroundingincrement
+// https://tc39.es/proposal-temporal/#sec-temporal-getroundingincrementoption
 double temporalRoundingIncrement(JSGlobalObject* globalObject, JSObject* options)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // Step 1-2: Get "roundingIncrement"; if undefined return 1.
     double increment = doubleNumberOption(globalObject, options, vm.propertyNames->roundingIncrement, 1);
     RETURN_IF_EXCEPTION(scope, 0);
 
-    return std::trunc(increment);
+    // Step 3: ToIntegerWithTruncation — if not finite, throw a RangeError.
+    if (!std::isfinite(increment)) [[unlikely]] {
+        throwRangeError(globalObject, scope, "roundingIncrement must be a finite integer"_s);
+        return 0;
+    }
+
+    // Step 3 (cont): truncate.
+    double integerIncrement = std::trunc(increment);
+
+    // Step 4: If integerIncrement < 1 or integerIncrement > 10^9, throw a RangeError.
+    if (integerIncrement < 1 || integerIncrement > 1e9) [[unlikely]] {
+        throwRangeError(globalObject, scope, "roundingIncrement must be in the range 1 to 10^9 inclusive"_s);
+        return 0;
+    }
+
+    // Step 5: Return integerIncrement.
+    return integerIncrement;
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-totemporaloverflow
@@ -571,8 +606,8 @@ TemporalOverflow toTemporalOverflow(JSGlobalObject* globalObject, JSValue val)
     RELEASE_AND_RETURN(scope, toTemporalOverflow(globalObject, options));
 }
 
-// https://tc39.es/proposal-temporal/#sec-temporal-totemporalcalendarname
-String toTemporalCalendarName(JSGlobalObject* globalObject, JSObject* options)
+// https://tc39.es/proposal-temporal/#sec-temporal-gettemporalshowcalendarnameoption
+String temporalShowCalendarName(JSGlobalObject* globalObject, JSObject* options)
 {
     return intlOption<String>(globalObject, options, globalObject->vm().propertyNames->calendarName,
         { { "auto"_s, "auto"_s }, { "always"_s, "always"_s }, { "never"_s, "never"_s }, { "critical"_s, "critical"_s } },
@@ -580,18 +615,18 @@ String toTemporalCalendarName(JSGlobalObject* globalObject, JSObject* options)
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-totemporalcalendaridentifier
-String toTemporalCalendarIdentifier(JSGlobalObject* globalObject, JSValue calendarLike)
+CalendarID toTemporalCalendarIdentifier(JSGlobalObject* globalObject, JSValue calendarLike)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (calendarLike.isString()) {
         auto calendarString = calendarLike.toWTFString(globalObject);
-        RETURN_IF_EXCEPTION(scope, { });
+        RETURN_IF_EXCEPTION(scope, iso8601CalendarID());
 
-        // Fast path: direct calendar ID (case-insensitive).
+        // Fast path: direct calendar ID (case-insensitive). isBuiltinCalendar handles legacy aliases.
         if (auto calendarId = isBuiltinCalendar(calendarString))
-            return intlAvailableCalendars()[*calendarId];
+            return *calendarId;
 
         // Try parsing as a temporal date string to extract the [u-ca=...] annotation.
         // Try Date, then YearMonth, then MonthDay (YearMonth before MonthDay to avoid asserting on "2020-01").
@@ -606,23 +641,23 @@ String toTemporalCalendarIdentifier(JSGlobalObject* globalObject, JSValue calend
             auto parsedTime = ISO8601::parseCalendarTime(calendarString);
             if (!parsedTime) [[unlikely]] {
                 throwRangeError(globalObject, scope, makeString("invalid calendar identifier: "_s, calendarString));
-                return { };
+                return iso8601CalendarID();
             }
             auto& calAnnotation = std::get<2>(parsedTime.value());
             if (!calAnnotation)
-                return "iso8601"_s;
+                return iso8601CalendarID();
             if (auto calendarId = isBuiltinCalendar(StringView(*calAnnotation)))
-                return intlAvailableCalendars()[*calendarId];
+                return *calendarId;
             throwRangeError(globalObject, scope, makeString("invalid calendar identifier: "_s, StringView(*calAnnotation)));
-            return { };
+            return iso8601CalendarID();
         }
         auto& calendarAnnotation = std::get<3>(parsed.value());
         if (!calendarAnnotation)
-            return "iso8601"_s;
+            return iso8601CalendarID();
         if (auto calendarId = isBuiltinCalendar(StringView(*calendarAnnotation)))
-            return intlAvailableCalendars()[*calendarId];
+            return *calendarId;
         throwRangeError(globalObject, scope, makeString("invalid calendar identifier: "_s, StringView(*calendarAnnotation)));
-        return { };
+        return iso8601CalendarID();
     }
 
     // Fast path: read [[Calendar]] from Temporal date-like objects without invoking
@@ -630,18 +665,19 @@ String toTemporalCalendarIdentifier(JSGlobalObject* globalObject, JSValue calend
     if (calendarLike.isObject()) {
         JSObject* obj = asObject(calendarLike);
         if (obj->inherits<TemporalPlainDate>())
-            return uncheckedDowncast<TemporalPlainDate>(obj)->calendarIDAsString();
+            return uncheckedDowncast<TemporalPlainDate>(obj)->calendarID();
         if (obj->inherits<TemporalPlainDateTime>())
-            return uncheckedDowncast<TemporalPlainDateTime>(obj)->calendarIDAsString();
+            return uncheckedDowncast<TemporalPlainDateTime>(obj)->calendarID();
         if (obj->inherits<TemporalPlainYearMonth>())
-            return uncheckedDowncast<TemporalPlainYearMonth>(obj)->calendarIDAsString();
+            return uncheckedDowncast<TemporalPlainYearMonth>(obj)->calendarID();
         if (obj->inherits<TemporalPlainMonthDay>())
-            return uncheckedDowncast<TemporalPlainMonthDay>(obj)->calendarIDAsString();
-        // FIXME: Also handle TemporalZonedDateTime here
+            return uncheckedDowncast<TemporalPlainMonthDay>(obj)->calendarID();
+        if (obj->inherits<TemporalZonedDateTime>())
+            return uncheckedDowncast<TemporalZonedDateTime>(obj)->calendarID();
     }
 
     throwTypeError(globalObject, scope, "calendar argument must be a string or a Temporal date-like object"_s);
-    return { };
+    return iso8601CalendarID();
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-totemporaldisambiguation
@@ -675,8 +711,7 @@ void rejectObjectWithCalendarOrTimeZone(JSGlobalObject* globalObject, JSObject* 
         || object->inherits<TemporalPlainTime>()
         || object->inherits<TemporalPlainMonthDay>()
         || object->inherits<TemporalPlainYearMonth>()
-        // FIXME: Also check TemporalZonedDateTime here
-        ) {
+        || object->inherits<TemporalZonedDateTime>()) {
         throwTypeError(globalObject, scope, "argument object must not have calendar or timeZone property"_s);
         return;
     }
@@ -694,6 +729,35 @@ void rejectObjectWithCalendarOrTimeZone(JSGlobalObject* globalObject, JSObject* 
         throwTypeError(globalObject, scope, "argument object must not have timeZone property"_s);
         return;
     }
+}
+
+// https://tc39.es/proposal-temporal/#sec-temporal-totemporaltimezoneidentifier
+std::optional<TimeZone> toTemporalTimeZoneIdentifier(JSGlobalObject* globalObject, JSValue item)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // Step 1: If item has [[InitializedTemporalZonedDateTime]], return its [[TimeZone]].
+    if (auto* zdt = dynamicDowncast<TemporalZonedDateTime>(item))
+        return zdt->timeZone();
+
+    // Step 2: If item is not a String, throw TypeError.
+    if (!item.isString()) [[unlikely]] {
+        throwTypeError(globalObject, scope, "time zone must be a string or ZonedDateTime"_s);
+        return std::nullopt;
+    }
+    String tzString = asString(item)->value(globalObject);
+    RETURN_IF_EXCEPTION(scope, std::nullopt);
+
+    // Steps 3-5: ParseTimeZoneIdentifier; the resulting TimeZone already carries the
+    // case-normalized, alias-preserving identifier (named) or canonical offset.
+    auto parsed = ISO8601::parseTemporalTimeZoneIdentifier(tzString);
+    if (!parsed) [[unlikely]] {
+        throwRangeError(globalObject, scope, makeString("'"_s, ellipsizeAt(100, tzString), "' is not a valid time zone identifier"_s));
+        return std::nullopt;
+    }
+
+    return *parsed;
 }
 
 void throwTemporalError(JSGlobalObject* globalObject, ThrowScope& scope, const TemporalError& error)

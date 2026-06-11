@@ -42,7 +42,6 @@ fast/scrolling/ios/scroll-events-back-forward-after-pageshow.html [ Timeout ]
 fast/scrolling/ios/scroll-events-back-forward.html [ Timeout ]
 fast/scrolling/ios/touch-scroll-back-forward.html [ Timeout ]
 fast/viewport/viewport-128.html [ Timeout ]
-http/tests/iframe-memory-monitor/media-video-autoplay-in-frames.html [ Timeout ]
 http/tests/local/blob/navigate-blob.html [ Timeout ]
 http/tests/navigation-api/different-origin-entries-removed-after-bfcache.html [ Timeout ]
 http/tests/navigation/https-in-page-cache.html [ Timeout ]
@@ -187,8 +186,6 @@ http/tests/paymentrequest/page-cache-created-payment-response.https.html [ Failu
 http/tests/paymentrequest/page-cache-interactive-payment-request.https.html [ Failure ]
 http/tests/paymentrequest/page-cache-retried-payment-response.https.html [ Failure ]
 http/tests/privateClickMeasurement/store-private-click-measurement-nested.html [ Failure ]
-http/tests/resourceLoadStatistics/exemptDomains/managed-domains-cookieEnabled.html [ Failure ]
-http/tests/resourceLoadStatistics/exemptDomains/third-party-cookie-blocking.html [ Failure ]
 http/tests/resourceLoadStatistics/omit-document-referrer-nested-third-party-iframe-ephemeral.html [ Failure ]
 http/tests/resourceLoadStatistics/omit-document-referrer-third-party-iframe-ephemeral.html [ Failure ]
 http/tests/security/XFrameOptions/x-frame-options-multiple-headers-sameorigin-deny.html [ Failure ]
@@ -366,8 +363,9 @@ http/tests/security/block-top-level-navigations-by-third-party-sandboxed-iframe.
 http/tests/security/frameNavigation/not-opener.html [ Failure ]
 
 # Intersection Observer x Site Isolation is not fully implemented.
-http/tests/intersection-observer/zoomed-page-iframe-cross-origin.html [ Failure ]
 imported/w3c/web-platform-tests/intersection-observer/cross-origin-tall-iframe.sub.html [ Failure ]
+imported/w3c/web-platform-tests/intersection-observer/transformed-iframe-001-cross-origin.html [ Failure ]
+imported/w3c/web-platform-tests/intersection-observer/transformed-iframe-002-cross-origin.html [ Failure ]
 
 # rdar://178066625
 imported/w3c/web-platform-tests/html/user-activation/propagation-crossorigin.sub.html [ Failure ]
