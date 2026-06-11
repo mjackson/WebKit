@@ -603,7 +603,8 @@ public:
 
     // SPEC-vmstate §6.4(3): VM doubles as the main thread's physical
     // VMLitePrimitives. Guarded by the equivalence asserts below the class.
-    // Phase A: consumed by tests only.
+    // Consumed by tests and as the GIL-on / flag-off arm of
+    // group3Primitives() (the per-lite Group-3 storage selector).
     ALWAYS_INLINE VMLitePrimitives& mainVMLitePrimitives()
     {
         return *std::bit_cast<VMLitePrimitives*>(std::bit_cast<uint8_t*>(this) + OBJECT_OFFSETOF(VM, topCallFrame));

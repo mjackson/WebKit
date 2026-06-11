@@ -2426,8 +2426,13 @@ LLINT_SLOW_PATH_DECL(slow_path_size_frame_for_varargs)
     LLINT_CALL_CHECK_EXCEPTION(globalObject);
     
     CallFrame* calleeFrame = calleeFrameForVarargs(callFrame, numUsedStackSlots, length + 1);
-    vm.varargsLength = length;
-    vm.newCallFrameReturnValue = calleeFrame;
+    // UNGIL §A.1.3 (U-T1): this pair is per-call frame-setup scratch consumed by
+    // the paired varargsSetup slow call on the SAME thread; under GIL-off it must
+    // live in the current thread's lite, not the shared VM block (which aliases the
+    // main thread's physical VMLitePrimitives, VM.h §6.4(3)).
+    auto& primitives = vm.group3Primitives();
+    primitives.varargsLength = length;
+    primitives.newCallFrameReturnValue = calleeFrame;
 
     LLINT_RETURN_CALLEE_FRAME(calleeFrame);
 }
@@ -2450,13 +2455,14 @@ static inline UGPRPair varargsSetup(CallFrame* callFrame, const JSInstruction* p
     auto& metadata = bytecode.metadata(codeBlock);
     JSValue calleeAsValue = getOperand(callFrame, bytecode.m_callee);
 
-    CallFrame* calleeFrame = vm.newCallFrameReturnValue;
-    unsigned argumentCountIncludingThis = vm.varargsLength + 1;
+    auto& primitives = vm.group3Primitives(); // Same-thread reload of the size_frame slow call's per-lite store (U-T1).
+    CallFrame* calleeFrame = primitives.newCallFrameReturnValue;
+    unsigned argumentCountIncludingThis = primitives.varargsLength + 1;
     if constexpr (set == SetArgumentsWith::Object) {
-        setupVarargsFrameAndSetThis(globalObject, callFrame, calleeFrame, getOperand(callFrame, bytecode.m_thisValue), getOperand(callFrame, bytecode.m_arguments), bytecode.m_firstVarArg, vm.varargsLength);
+        setupVarargsFrameAndSetThis(globalObject, callFrame, calleeFrame, getOperand(callFrame, bytecode.m_thisValue), getOperand(callFrame, bytecode.m_arguments), bytecode.m_firstVarArg, primitives.varargsLength);
         LLINT_CALL_CHECK_EXCEPTION(globalObject);
     } else
-        setupForwardArgumentsFrameAndSetThis(globalObject, callFrame, calleeFrame, getOperand(callFrame, bytecode.m_thisValue), vm.varargsLength);
+        setupForwardArgumentsFrameAndSetThis(globalObject, callFrame, calleeFrame, getOperand(callFrame, bytecode.m_thisValue), primitives.varargsLength);
 
     calleeFrame->setCallerFrame(callFrame);
     calleeFrame->uncheckedR(VirtualRegister(CallFrameSlot::callee)) = calleeAsValue;

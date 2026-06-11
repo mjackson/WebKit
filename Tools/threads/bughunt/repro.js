@@ -1,72 +1,55 @@
-// repro.js — focused distillation of the STW-watchdog deadlock
-// (stw-watchdog evidence pack, 2026-06-10).
+// Minimal targeted repro for the W>=16 scalebench crash family (SCALEBENCH.md §11.3).
+// (Previous hunt's repro archived in prev-stw-watchdog-20260610/repro.js.)
 //
-// Mechanism under test (from core.585068 / core.593320 backtraces):
-//   - Thread X in Baseline put-IC slow path: tryCachePutBy takes
-//     GCSafeConcurrentJSLocker(codeBlock->m_lock), ExistingProperty branch
-//     calls Structure::didCachePropertyReplacement (Repatch.cpp:1360)
-//     -> Class-A WatchpointSet fire -> stopTheWorldAndRun WHILE HOLDING
-//     codeBlock->m_lock.
-//   - Sibling threads in the same hot function's get/put IC slow paths block
-//     on the SAME codeBlock->m_lock holding heap access (no stop poll inside
-//     WTF::Lock::lock) -> the SectionA.3.2 conductor predicate never
-//     converges -> 30s watchdog SIGABRT.
-//
-// So the repro needs: N>=2 threads executing ONE hot function whose body does
-// existing-property replace puts (forces the didCachePropertyReplacement
-// fire during IC warmup) plus property gets (sibling blockers), on
-// identically-shaped thread-local objects (same Structure, same CodeBlock).
-//
-// Run (deadlocks intermittently; ~30s SIGABRT when it does):
-//   jsc --useJSThreads=1 --useThreadGIL=0 --useVMLite=1 \
-//       --useSharedAtomStringTable=1 --useSharedGCHeap=1 \
-//       --useThreadGILOffUnsafe=1 repro.js
-//
-// N configurable: -e "globalThis.REPRO_THREADS=2;"
+// Harness: N threads concurrently execute the ONE construct every scalebench
+// core dies in — a spread varargs call `String.fromCharCode(...codes)` on a
+// fresh thread-local array — and every result is checked for value corruption,
+// with per-thread-decodable encodings:
+//   - thread t pushes ONLY char code (97+t) ('a'+t), so any foreign letter in
+//     a result names the thread whose ARGUMENT VALUES leaked in;
+//   - thread t uses ONLY length 2+(t%8), so a wrong-length result names the
+//     thread whose vm.varargsLength leaked in.
+// Run:
+//   WebKitBuild/Release/bin/jsc --useJSThreads=1 --useThreadGIL=0 --useVMLite=1 \
+//     --useSharedAtomStringTable=1 --useSharedGCHeap=1 --useThreadGILOffUnsafe=1 \
+//     --useJIT=0 -e "globalThis.REPRO_THREADS=16;" Tools/threads/bughunt/repro.js
+// (--useJIT=0 keeps op_call_varargs on the LLInt slow-path pair that round-trips
+//  vm.newCallFrameReturnValue/vm.varargsLength through the shared VM block.)
+"use strict";
+const W = globalThis.REPRO_THREADS || 16;
+const ITERS = globalThis.REPRO_ITERS || 2000000;
+let mismatches = 0;
 
-function work() {
-    function Obj() {
-        this.link = null;
-        this.id = 0;
-        this.kind = 0;
-        this.a1 = 0;
-        this.hops = 0;
-        this.scratch = 0;
+function body(id) {
+    const len = 2 + (id % 8);
+    const myCode = 97 + id; // 'a'+id, unique per thread (W<=26 stays decodable)
+    let want = "";
+    for (let k = 0; k < len; ++k)
+        want += String.fromCharCode(myCode); // non-spread call: not the racy path
+    for (let iter = 0; iter < ITERS; ++iter) {
+        const codes = []; // fresh thread-local array, like bench.js tokenize()
+        for (let k = 0; k < len; ++k)
+            codes.push(myCode);
+        const got = String.fromCharCode(...codes); // the racy spread/varargs site
+        if (got !== want) {
+            mismatches++;
+            const gotCodes = [];
+            for (let k = 0; k < got.length; ++k)
+                gotCodes.push(got.charCodeAt(k));
+            // Decode: foreign code c => leaked from thread (c-97); wrong length
+            // L => leaked varargsLength from a thread with 2+(t%8)==L.
+            print("MISMATCH thread=" + id + " iter=" + iter
+                + " wantLen=" + len + " gotLen=" + got.length
+                + " wantCode=" + myCode + " gotCodes=[" + gotCodes.join(",") + "]"
+                + " srcArrayNow=[" + codes.join(",") + "]");
+        }
     }
-    const objs = [];
-    for (let i = 0; i < 8; ++i) {
-        const o = new Obj();
-        o.id = i;
-        objs.push(o);
-    }
-    let acc = 0;
-    for (let s = 0; s < 2000000; ++s) {
-        const o = objs[s & 7];
-        // Existing-property replace puts: each distinct property offset has
-        // its own replacement WatchpointSet; the first cached replace per
-        // (structure, offset) fires Class-A under codeBlock->m_lock.
-        o.scratch = (o.scratch + s) & 0xffffff;
-        o.a1 = (o.a1 + 1) | 0;
-        o.hops = (o.hops + o.id) & 0xffff;
-        o.kind = s & 3;
-        // Gets keep sibling threads queued on the same codeBlock lock.
-        acc = (acc + o.a1 + o.hops + o.scratch + o.kind) | 0;
-    }
-    return "" + acc;
 }
 
-const n = (typeof globalThis.REPRO_THREADS === "number") ? globalThis.REPRO_THREADS : 4;
-
-if (typeof Thread !== "function")
-    throw new Error("requires --useJSThreads=1");
-
-const reference = work();
 const threads = [];
-for (let i = 0; i < n; ++i)
-    threads.push(new Thread(work, i));
-const results = threads.map(t => t.join());
-for (let i = 0; i < n; ++i) {
-    if (results[i] !== reference)
-        throw new Error("checksum divergence: thread " + i + " got " + results[i] + " want " + reference);
-}
-print("REPRO-OK n=" + n);
+for (let id = 1; id < W; ++id)
+    threads.push(new Thread(body, id));
+body(0);
+for (const t of threads)
+    t.join();
+print("done W=" + W + " iters=" + ITERS + " mismatches=" + mismatches);

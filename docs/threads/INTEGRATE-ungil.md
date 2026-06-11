@@ -1183,6 +1183,7 @@ Seed rows from U-T1 (dispositions to be ruled by U-T8d):
 | m_exception / m_lastException | Heap.cpp Msr/VMExceptions (GC visit thread) | RESOLVED at U-T1: registry walk, per-VM filter (r6 F5) — not via accessors |
 | exceptionForInspection() | inspector/debugger | U-T8d (currently routes to CURRENT lite when gilOff; off-thread use must go (i)/(ii)) |
 | VM-block fallback reads (group3Primitives with no lite) | compiler threads via C++ helpers | U-T8d enumerates; dark-safe today |
+| varargsLength / newCallFrameReturnValue | LLIntSlowPaths.cpp size_frame_for_varargs store + paired varargsSetup reload (only C++ consumers; no .asm consumer) | RESOLVED (H1-varargs-shared-vm-scratch-slots fix): both sites routed through group3Primitives() — same-thread per-call scratch, sequenced-before pair within one doCallVarargs dispatch — (iii). Raw vm.varargsLength / vm.newCallFrameReturnValue access retired; do not reintroduce in new slow paths. |
 | U-T14 CLOSE: the remaining per-field enumeration was executed IN CODE by U-T8d — the carrier-only capture ruling + SUSPEND-RULE record is the doc-of-record block at SamplingProfiler.h:323-360 (AUD1.K1/SD18, (i) carrier-only v1), with the inspector/debugger exceptionForInspection ruling at Debugger.cpp:54ff. | | |
 
 ## (v) §E.1b.4 host-hook disposition table — U-T8e

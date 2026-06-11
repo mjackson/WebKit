@@ -19,6 +19,7 @@
 # Local overrides configuration files
 # Remove mimalloc binaries
 # Workflow scratch/notes — never part of a milestone commit (closeout review)
+**/rr-*/
 *.atrc
 *.core
 *.dmp
@@ -88,6 +89,9 @@ bun-webkit-*
 compile_commands.json
 core
 core.*
+mmap_clone_*
+mmap_hardlink_*
+mmap_pack_*
 perf.data*
 project.xcworkspace
 results
