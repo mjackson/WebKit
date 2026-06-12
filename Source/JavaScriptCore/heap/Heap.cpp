@@ -1081,7 +1081,28 @@ void Heap::gatherStackRoots(ConservativeRoots& roots)
 #if ASSERT_ENABLED
     if (isSharedServer()) {
         clientSet().forEach([](GCClient::Heap& client) {
-            ASSERT(!client.hasHeapAccess());
+            if (!client.hasHeapAccess()) [[likely]]
+                return;
+            // F8 step-1 flicker (counter-lock contgc finding, root-caused
+            // live: the flagged client read NoAccess/owner-null again by
+            // the time the abort handler dumped it, with GSP and WSAC both
+            // still set): a mid-window FRESH acquirer is LICENSED to flip
+            // its access byte HasAccess transiently — F8 step 1's seq_cst
+            // CAS — before its MANDATORY step-3 revert (it sampled GSP set
+            // and never enters the heap; the §10.4 barrier's convergence
+            // is one-shot and unaffected by post-convergence flickers).
+            // A single racy sample here cannot distinguish that licensed
+            // transient from a real admission violation — but TIME can: a
+            // truly admitted client SUSTAINS access (it is off running JS).
+            // Wait out the flicker; sustained in-window access stays a
+            // hard fail-stop in the stop-watchdog budget class. The revert
+            // needs no lock this walk holds (it is a CAS + GBL notify; GBL
+            // is rank 4, this walk holds the rank-6 HCS lock only).
+            MonotonicTime flickerDeadline = MonotonicTime::now() + Seconds(30);
+            while (client.hasHeapAccess()) {
+                RELEASE_ASSERT(MonotonicTime::now() < flickerDeadline); // Real §10.4 admission violation: client kept in-window heap access.
+                Thread::yield();
+            }
         });
     }
 #endif
@@ -7451,6 +7472,36 @@ void gcClientDidResumeFromThreadGranularStop()
     RELEASE_ASSERT(client); // The releasing thread cannot lose its client while parked (teardown re-acquires first, EXIT1.3).
     client->acquireHeapAccess(); // F8 + the §A.3.2b stop-word gate: blocks across any pending stop.
     t_releasedByThreadGranularPark = false;
+}
+
+// Shared-GC-stop leg of the class-(2) park-site poll (consumed by
+// JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld; same U-T5 seam
+// discipline as the two hooks above). The §10A SINFAC shape, lifted to the
+// FIX-2 wait sites: iff GSP is pending (F8) and THIS thread's client holds
+// heap access, release -> F8-blocked re-acquire. releaseHeapAccess signals
+// the conductor's §10.4 barrier (RHA rule); acquireHeapAccess blocks until
+// the conductor clears GSP, and its §A.3.2b/Mode gates cover any
+// thread-granular stop that arrives while we are parked here. Returns true
+// iff it released (a fresh acquisition episode for the caller). Callers
+// without a current client (compiler/worklist threads) are exact no-ops:
+// the §10.4 barrier never waits on a thread that holds no client access.
+// Benign TOCTOU: if GSP clears between the poll and the release, this is a
+// harmless release/re-acquire pair on a quantum-bounded wait loop.
+bool gcClientReleaseAccessAndBlockForPendingSharedGCStop()
+{
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    if (!client)
+        return false;
+    JSC::Heap& server = client->server();
+    if (!server.isSharedServer())
+        return false;
+    if (!server.gcStopPendingForAllClients()) [[likely]] // GSP, F8 — the hot poll (mirrors Heap::stopIfNecessary).
+        return false;
+    if (!client->hasHeapAccess())
+        return false;
+    client->releaseHeapAccess(); // Signals the §10.4 barrier (GSP is set).
+    client->acquireHeapAccess(); // F8: blocks until the conductor clears GSP.
+    return true;
 }
 
 } // namespace JSC

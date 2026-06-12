@@ -79,6 +79,7 @@ void jsThreadsNotifyMutatorQuiesced();
 void jsThreadsParkForStopWindow(VM&);
 void gcClientWillParkForThreadGranularStop();
 void gcClientDidResumeFromThreadGranularStop();
+bool gcClientReleaseAccessAndBlockForPendingSharedGCStop();
 
 namespace JSThreadsSafepoint {
 
@@ -760,6 +761,16 @@ void watchdogAssertStopProgress(MonotonicTime requestStart, VM* vm) WTF_IGNORES_
 //       and the 30s watchdog fail-stops (the residual counter-lock 5/5
 //       signature is exactly an unfound class-(2) wait).
 //
+// This helper discharges TWO stop families for class-(2) waiters: the §A.3
+// thread-granular window (stop-word leg below) AND a pending SHARED-GC stop
+// (GSP/F8 leg below, via gcClientReleaseAccessAndBlockForPendingSharedGCStop).
+// The GC leg is load-bearing, not defense-in-depth: a §A.3 requester that
+// already owns gilOffCompilationLock queues on the GCL BEHIND a shared-GC
+// conductor with its stop word still unpublished, so a stop-word-only
+// predicate leaves the spinners' held access wedging the GC's §10.4 barrier
+// forever (the counter-lock contgc watchdog signature; see the leg's comment
+// in the function body).
+//
 // Called once per wait quantum with NO rank-3 (waiter-list/queue) lock held.
 // Returns true if it parked; the caller must treat that as a fresh
 // acquisition episode (re-validate its wait predicate / re-enqueue per the
@@ -770,8 +781,38 @@ bool parkSitePollAndParkForStopTheWorld(VM& vm)
 {
     if (!vm.gilOff()) [[likely]]
         return false;
-    if (!jsThreadsStopPendingFor(vm)) [[likely]]
-        return false;
+    if (!jsThreadsStopPendingFor(vm)) [[likely]] {
+        // counter-lock contgc wedge fix (root cause; H1xH2 composition): a
+        // class-(2) access-holding wait must quiesce for a pending
+        // SHARED-GC stop (GSP/F8) too, not only a published §A.3 window.
+        // The closed cycle this discharges: an §A.3 requester that already
+        // owns gilOffCompilationLock (ScriptExecutable::prepareForExecution
+        // -> CodeBlock::finishCreation -> fireTTLSetsForSharedTransition)
+        // queues on the GCL (Heap::JSThreadsStopScope watchdog ctor) BEHIND
+        // a shared-GC conductor; the §A.3 stop word is still UNPUBLISHED at
+        // that point (VMManager takes the GCL strictly before
+        // jsThreadsStopWordStore), so the §A.3-word predicate above stays
+        // false forever, while these spinners' held access keeps the GC's
+        // §10.4 barrier from converging:
+        //   GCL -> client-access -> gilOffCompilationLock -> GCL
+        // — permanent, 30s watchdog fail-stop (JSThreadsSafepoint.cpp:732
+        // signature, "OM transition stop" context). Releasing for the GC
+        // here breaks the client-access edge: the GC converges and
+        // completes, the GCL frees, the §A.3 requester publishes its word,
+        // and the next poll quantum parks on it through the leg below.
+        // Epoch bracket mirrors the §A.3 leg (P10/P10b): a thread-granular
+        // window can run and rewrite heap facts while this thread is still
+        // blocked inside the re-acquire's F8/§A.3.2b gates.
+        uint64_t heapFactRewriteEpochOnEntry = conductorHeapFactRewriteEpoch();
+        if (!gcClientReleaseAccessAndBlockForPendingSharedGCStop()) [[likely]]
+            return false;
+        if (conductorHeapFactRewriteEpoch() != heapFactRewriteEpochOnEntry) [[unlikely]] {
+            VMLite* selfLite = VMLite::currentIfExists();
+            if (selfLite && selfLite->vm == &vm)
+                vm.trapsForCurrentThread().jettisonOptimizedCodeOnStackAfterConductorHeapFactRewrite(vm.topCallFrame);
+        }
+        return true;
+    }
     // HBT3.2: the conductor never parks on its own window. A D9 wait reached
     // from inside the conductor's `work` closure is already world-stopped;
     // parking it here would self-deadlock the window.

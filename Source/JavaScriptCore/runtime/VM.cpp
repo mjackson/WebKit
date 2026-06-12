@@ -3339,6 +3339,25 @@ void VM::visitAggregateImpl(Visitor& visitor)
     visitor.append(m_fastSetEntriesSentinel);
     visitor.append(m_fastStringValuesSentinel);
     visitor.append(m_cachedSortScratch);
+    // AB-17 sort-scratch reroute: GIL-off, the cached JSCellButterfly lives
+    // per-lite (VMLitePrimitives Group-3 tail; DFG/FTL emission targets the
+    // CURRENT thread's slot), so each registered same-VM lite's copy is a
+    // root too — mirror of the gatherScratchBufferRoots registry walk (jit
+    // R2 precedent; per-VM filtered). GIL-on / flag-off: lites' copies are
+    // never written (emission keeps the VM-block absolute address), the walk
+    // is skipped, and behavior is bit-identical to today. The marker's plain
+    // read races the owner thread's JIT store exactly like today's
+    // single-mutator concurrent-marking read of the VM slot: it observes
+    // either the old cached cell (valid, conservative) or null.
+    if (gilOff()) [[unlikely]] {
+        auto& registry = VMLiteRegistry::singleton();
+        Locker registryLocker { registry.lock };
+        for (VMLite* lite : registry.lites) {
+            if (lite->vm != this)
+                continue;
+            visitor.append(lite->primitives.m_cachedSortScratch);
+        }
+    }
     visitor.append(m_sortScratchSentinel);
     visitor.append(m_fastCanConstructBoundExecutable);
     visitor.append(m_slowCanConstructBoundExecutable);

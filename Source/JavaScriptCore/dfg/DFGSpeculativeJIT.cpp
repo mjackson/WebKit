@@ -16243,9 +16243,25 @@ void SpeculativeJIT::compileArraySortCompact(Node* node)
     GPRReg valueGPR = value.gpr();
     GPRReg butterflyGPR = butterfly.gpr();
 
-    loadPtr(&vm().m_cachedSortScratch, scratchGPR);
-    move(TrustedImmPtr(nullptr), butterflyGPR);
-    storePtr(butterflyGPR, &vm().m_cachedSortScratch);
+    if (vm().gilOff()) [[unlikely]] {
+        // AB-17 sort-scratch reroute (annex in SPEC-ungil-history; the
+        // varargs/5c0e51c treatment): this code is cached on a shared
+        // CodeBlock and runs on whichever thread executes it. The GIL-on
+        // form bakes the ABSOLUTE address of the VM-resident cache slot, so
+        // N threads' sorts would hand out the SAME 16-slot scratch
+        // concurrently (tagged-garbage reads / silent wrong results —
+        // JSTests/threads/dw1-sort-comparator-osr.js). Resolve the CURRENT
+        // thread's lite per use (§A.1.2) and take/clear ITS Group-3 slot via
+        // chained offsets. butterflyGPR is free here (the GIL-on arm only
+        // uses it as a null temp; loadButterflyForRead redefines it below).
+        loadVMLite(butterflyGPR);
+        loadPtr(Address(butterflyGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_cachedSortScratch())), scratchGPR);
+        storePtr(TrustedImmPtr(nullptr), Address(butterflyGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_cachedSortScratch())));
+    } else {
+        loadPtr(&vm().m_cachedSortScratch, scratchGPR);
+        move(TrustedImmPtr(nullptr), butterflyGPR);
+        storePtr(butterflyGPR, &vm().m_cachedSortScratch);
+    }
 
     JumpList slowCases;
     slowCases.append(branchTestPtr(Zero, scratchGPR));
@@ -16318,7 +16334,17 @@ void SpeculativeJIT::compileArraySortCommit(Node* node)
 
     done.link(this);
     emitFillStorageWithJSEmpty(storageGPR, JSCellButterfly::offsetOfData(), sortScratchSlotCount, counterGPR);
-    storePtr(storageGPR, &vm().m_cachedSortScratch);
+    if (vm().gilOff()) [[unlikely]] {
+        // AB-17 sort-scratch reroute: return the cleared scratch to the
+        // CURRENT thread's per-lite Group-3 slot (see compileArraySortCompact
+        // above). counterGPR is dead after the fill loop. No write barrier
+        // needed for the same reason the GIL-on absolute store carries none:
+        // the slot is a GC root re-scanned every cycle (VM::visitAggregateImpl
+        // registry walk).
+        loadVMLite(counterGPR);
+        storePtr(storageGPR, Address(counterGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_cachedSortScratch())));
+    } else
+        storePtr(storageGPR, &vm().m_cachedSortScratch);
     noResult(node);
 }
 

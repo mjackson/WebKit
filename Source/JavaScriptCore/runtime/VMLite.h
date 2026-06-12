@@ -46,6 +46,7 @@
 #include "JSExportMacros.h"
 #include "VMExceptionScopeVerificationState.h" // Obligation 10: per-lite EXCEPTION_SCOPE_VERIFICATION state (debug-only L2 tail append below).
 #include "VMThreadContext.h" // §A.2.1 per-lite traps/stack limits (brings VMTraps.h; VMLite is only forward-declared there — no cycle).
+#include "WriteBarrier.h" // AB-17 sort-scratch reroute: Group-3 m_cachedSortScratch slot type (no VM.h dependency).
 #include <atomic>
 #include <memory>
 #include <type_traits>
@@ -126,7 +127,22 @@ using ButterflyTID = uint16_t;
     /* authority, no duplicate here. */ \
     v(void*, m_stackPointerAtVMEntry) \
     v(void*, m_stackLimit) \
-    v(void*, m_lastStackTop)
+    v(void*, m_lastStackTop) \
+    /* AB-17 annex (SPEC-ungil-history) sort-scratch reroute: the DFG/FTL */ \
+    /* ArraySortCompact/Commit JSCellButterfly scratch cache. The compiled */ \
+    /* code BAKES this slot's address (DFGSpeculativeJIT.cpp compileArray- */ \
+    /* SortCompact/Commit; FTL twins), so GIL-off it MUST be per-lite: N */ \
+    /* threads sharing one VM-resident slot hand the same 16-slot scratch */ \
+    /* to concurrent sorts (tagged-garbage reads / silent wrong results — */ \
+    /* JSTests/threads/dw1-sort-comparator-osr.js). L1 spec-revision */ \
+    /* append (the sanctioned varargsLength/5c0e51c precedent): tail of */ \
+    /* Group 3, nothing above moves; VM.h span assert updated in lockstep. */ \
+    /* GC: the VM-block copy keeps its visitAggregateImpl append; gilOff */ \
+    /* lites' copies are appended via the registry walk next to it. Owner- */ \
+    /* thread-only mutation (the thread's own compiled sort code), so no */ \
+    /* atomicity; marker reads race the owner's plain JIT stores exactly */ \
+    /* like today's single-mutator concurrent-marking reads of the VM slot. */ \
+    v(WriteBarrier<JSCell>, m_cachedSortScratch)
 
 struct VMLitePrimitives {
 #define VMLITE_DECLARE_FIELD(type, name) type name { };

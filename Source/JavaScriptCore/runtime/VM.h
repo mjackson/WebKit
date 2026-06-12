@@ -1087,7 +1087,11 @@ public:
     WriteBarrier<JSSentinel> m_fastSetEntriesSentinel;
     WriteBarrier<JSSentinel> m_fastStringValuesSentinel;
 
-    WriteBarrier<JSCell> m_cachedSortScratch;
+    // m_cachedSortScratch moved into the Group 1-3 X-macro block above
+    // (FOR_EACH_VMLITE_PRIMITIVE_FIELD tail, AB-17 sort-scratch reroute):
+    // DFG/FTL bake its address, so GIL-off it must be per-lite. The sentinel
+    // stays here — it is a per-VM immutable constant (frozen into DFG graphs
+    // / compared by value), safe to share across N mutators.
     WriteBarrier<JSCell> m_sortScratchSentinel;
 
     WriteBarrier<NativeExecutable> m_fastCanConstructBoundExecutable;
@@ -2162,7 +2166,7 @@ FOR_EACH_VMLITE_PRIMITIVE_FIELD(VM_ASSERT_VMLITE_PRIMITIVE_FIELD_OFFSET)
 #undef VM_ASSERT_VMLITE_PRIMITIVE_FIELD_OFFSET
 // Span assert: the block is exactly one VMLitePrimitives — nothing interleaves
 // (this is what forces m_currentSoftReservedZoneSize out, §6.3).
-static_assert(OBJECT_OFFSETOF(VM, m_lastStackTop) - OBJECT_OFFSETOF(VM, topCallFrame) + sizeof(void*)
+static_assert(OBJECT_OFFSETOF(VM, m_cachedSortScratch) - OBJECT_OFFSETOF(VM, topCallFrame) + sizeof(WriteBarrier<JSCell>)
     == sizeof(VMLitePrimitives), "VM Group 1-3 block must span exactly sizeof(VMLitePrimitives)");
 
 #if ENABLE(GC_VALIDATION)

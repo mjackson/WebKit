@@ -11659,8 +11659,22 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock storeSlot = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
 
-        LValue cached = m_out.loadPtr(m_out.absolute(&vm().m_cachedSortScratch));
-        m_out.storePtr(m_out.intPtrZero, m_out.absolute(&vm().m_cachedSortScratch));
+        LValue cached;
+        if (vm().gilOff()) [[unlikely]] {
+            // AB-17 sort-scratch reroute (mirrors the DFG
+            // compileArraySortCompact split): GIL-off this code runs on
+            // whichever thread executes it, and the baked absolute address
+            // of the VM-resident cache slot would share one 16-slot scratch
+            // across N concurrent sorts. Take/clear the CURRENT thread's
+            // per-lite Group-3 slot via the established currentVMLitePointer()
+            // opaque patchpoint + chained offsets.
+            LValue lite = currentVMLitePointer();
+            cached = m_out.loadPtr(m_out.address(m_heaps.root, lite, VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_cachedSortScratch()));
+            m_out.storePtr(m_out.intPtrZero, m_out.address(m_heaps.root, lite, VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_cachedSortScratch()));
+        } else {
+            cached = m_out.loadPtr(m_out.absolute(&vm().m_cachedSortScratch));
+            m_out.storePtr(m_out.intPtrZero, m_out.absolute(&vm().m_cachedSortScratch));
+        }
         ValueFromBlock fastResult = m_out.anchor(cached);
         m_out.branch(m_out.isNull(cached), rarely(slowCase), usually(acquired));
 
@@ -11755,7 +11769,16 @@ IGNORE_CLANG_WARNINGS_END
 
         m_out.appendTo(continuation, lastNext);
         splatWords(m_out.add(scratch, m_out.constIntPtr(JSCellButterfly::offsetOfData())), m_out.int32Zero, m_out.constInt32(sortScratchSlotCount), m_out.int64Zero, m_heaps.indexedContiguousProperties.atAnyIndex());
-        m_out.storePtr(scratch, m_out.absolute(&vm().m_cachedSortScratch));
+        if (vm().gilOff()) [[unlikely]] {
+            // AB-17 sort-scratch reroute: return the cleared scratch to the
+            // CURRENT thread's per-lite Group-3 slot (see
+            // compileArraySortCompact above). No write barrier for the same
+            // reason the GIL-on absolute store carries none: the slot is a
+            // GC root re-scanned every cycle (VM::visitAggregateImpl
+            // registry walk).
+            m_out.storePtr(scratch, m_out.address(m_heaps.root, currentVMLitePointer(), VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_cachedSortScratch()));
+        } else
+            m_out.storePtr(scratch, m_out.absolute(&vm().m_cachedSortScratch));
     }
 
     void compileNewArrayWithButterfly()

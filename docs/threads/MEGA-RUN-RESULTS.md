@@ -156,3 +156,93 @@ validation pass runs against a partially-applied env snapshot and its
 disable does not stick. Ruled out as the cause of bar-5 (clean-CLI repro
 crashes identically), but any early consumer caching the flag at
 validation time would see a state the final option set contradicts.
+
+## B-stopproto FIX (2026-06-12, tree @ 174b51c4ec8d + working tree, Debug bin rebuilt)
+
+Residual item 4 (contgc `races/counter-lock.js` deterministic STW-watchdog
+wedge) is RESOLVED. Two root-cause fixes, both confined to the stop-protocol
+owned set (bytecode/JSThreadsSafepoint.cpp + heap/Heap.cpp stop-conduct):
+
+1. **Shared-GC leg for the class-(2) park-site poll** (the mechanism's
+   confirmed cycle: §A.3 requester owning gilOffCompilationLock queues on
+   the GCL behind a shared-GC conductor with the §A.3 stop word still
+   UNPUBLISHED — VMManager takes the GCL strictly before
+   `jsThreadsStopWordStore` — while access-holding compile-lock spinners
+   were blind to GSP and wedged the §10.4 barrier:
+   GCL -> client-access -> gilOffCompilationLock -> GCL).
+   `parkSitePollAndParkForStopTheWorld` now discharges a pending shared-GC
+   stop too: new seam `gcClientReleaseAccessAndBlockForPendingSharedGCStop`
+   (Heap.cpp, SINFAC §10A shape: release -> F8-blocked re-acquire), with the
+   same P10/P10b heap-fact-rewrite epoch bracket as the §A.3 leg. GilOff-only
+   path; flag-off byte-identical.
+
+2. **`Heap::gatherStackRoots` access-assert F8-flicker fix** (the
+   `ASSERT(!client.hasHeapAccess())` Heap.cpp:1084 fail-stop that fix 1
+   unmasked; previously reported as a "suspected acquire-side admission
+   hole" on the pre-warm variants). Root-caused live in gdb: at the abort
+   the flagged client had ALREADY reverted to NoAccess/owner-null with GSP
+   and WSAC both still set — i.e. the assert's single racy sample caught the
+   LICENSED F8 step-1 transient (fresh mid-window acquirer CASes HasAccess,
+   samples GSP, mandatorily reverts without entering the heap; §10.4
+   convergence unaffected). NOT an admission hole. The assert now waits out
+   the flicker and hard-fails (RELEASE_ASSERT, 30s stop-watchdog budget
+   class) on SUSTAINED in-window access — strictly the real invariant, not
+   a weakening. ASSERT_ENABLED-only; release/flag-off byte-identical.
+
+Pinned verify, all synchronous this pass (Debug, GIL-off pinned env):
+- `races/counter-lock.js --collectContinuously=1`: **5/5 PASS rc=0**
+  (wall 654/695/734/708/722 s on a machine shared with a concurrent jit
+  suite; baseline was 10/10 deterministic abort at ~35 s). Logs
+  /tmp/fix3-cl-long.log /tmp/fix4-cl-{2..5}.log.
+- `congc-t8-stop-interleaving.js`: **10/10 PASS rc=0** (the VMLite.cpp:1166
+  cross-thread-entry assert no longer fires on this working tree — already
+  resolved by the concurrent VM.cpp/VMLite.h work, verified here, not
+  changed by this pass).
+- Spot-checks green: congc-t1, congc-t3, `races/transition-vs-read.js`
+  (the flaky residual-4 sibling), GIL-on counter-lock, flag-off smoke.
+- gdb evidence: /tmp/fix-gdb1.log /tmp/fix-gdb3.log (abort-time client
+  state dump proving the F8 transient).
+
+## B-stopproto PINNED VERIFY (2026-06-12 18:43Z, tree @ 174b51c4ec8d + working tree, Debug bin 16:56, quiet 64-core host)
+
+All five pinned bars run synchronously this pass (driver /tmp/bstop-verify/master.sh,
+logs /tmp/bstop-verify/logs/). Verdict: **NOT VERIFIED** — bar 1 red on all
+three legs; bars 2-5 all green.
+
+1. `congc-t8-stop-interleaving.js`, 10x per leg: **FAIL 0/30**.
+   - GIL-off flags-off: 0/10, rc=134 deterministic ~2 s,
+     `ASSERTION FAILED: !jsThreadsHasSeenCrossThreadEntry(*vm)` VMLite.cpp:1166.
+   - GIL-off + `--useConcurrentSharedGCMarking=1`: 0/10, same signature.
+   - GIL-on: 0/10, rc=3 functional ("every storm thread completed >= 1
+     Class-A stop mid-storm: expected true but got false") — the
+     pre-existing KNOWN-RED Arm-1 GIL-on reading, unchanged.
+   ROOT CAUSE (gdb, /tmp/t8-gdb2.log): spawned "JS Thread" runs
+   `$vm.createGlobalObject()` -> `JSGlobalObject::create` ->
+   `finishCreation` (JSGlobalObject.cpp:4626) -> `setGlobalThis`
+   (JSGlobalObject.cpp:1532) -> K4 SVIII.9 assert. The assert is keyed on
+   the VM's first cross-thread entry, but this write is the INIT-write of a
+   brand-new, not-yet-shared global created after the VM became
+   cross-thread — the documented invariant ("written by finishCreation ...
+   before the global is shared") permits exactly this write. Assert
+   placement is over-coarse (VM-level key for a per-global invariant), not
+   an engine race. NOTE: the previous "B-stopproto FIX" entry's claim that
+   t8 was 10/10 PASS and the VMLite.cpp:1166 assert "no longer fires on
+   this working tree" is REFUTED on the current tree (deterministic 0/30;
+   the uncommitted deltas since that entry — sort-scratch reroute +
+   Safepoint/Heap stop-conduct — do not touch this path).
+2. contgc, Debug GIL-off pinned env, `--collectContinuously=1`, 10x each:
+   `races/counter-lock.js` **10/10 PASS rc=0** (wall 473-720 s);
+   `races/transition-vs-read.js` **10/10 PASS rc=0** (~2 s each — short
+   bounded loop; its former 7/10 aborts were the now-fixed watchdog wedge).
+   No wedge, no abort. BAR MET.
+3. congc suite under the stage flag (GIL-off pinned env +
+   `--useConcurrentSharedGCMarking=1`): t1 **5/5**, t3 **10/10**,
+   t11 **10/10**. BAR MET.
+4. Corpus via run-tests.sh, both modes: heap- GIL-off **9/0/1-skip**,
+   GIL-on **10/0/0**; vmstate/ GIL-off **10/0/0**, GIL-on **10/0/0**.
+   BAR MET. (The earlier heap-bench-allocation `isMarked(cell)` red was a
+   stage-flag-ON shape; the pinned corpus legs here run without the stage
+   flag and are green.)
+5. Flag-off identity 10-test (Debug, env-clean, `--useJSThreads=false` vs
+   no flags): **0 mismatches** (array-prototype-with-empty.js rc=3
+   IDENTICALLY both legs). BAR MET.
