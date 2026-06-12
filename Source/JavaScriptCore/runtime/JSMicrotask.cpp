@@ -802,7 +802,34 @@ static void asyncModuleExecutionDone(JSGlobalObject* globalObject, ThrowScope& s
 
 static void asyncModuleExecutionResume(JSGlobalObject* globalObject, VM& vm, ThrowScope& scope, std::span<const JSValue, maxMicrotaskArguments> arguments, uint8_t payload)
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // resolveWithInternalMicrotaskForAsyncAwait wraps the module together with
+    // Bun's async context in an InternalFieldTuple when an async context is
+    // active at await time. Unwrap it and restore the context across the
+    // resumption, mirroring InternalMicrotask::AsyncFunctionResume.
+    JSValue contextArg = arguments[2];
+    JSModuleRecord* module;
+    JSValue asyncContext;
+    if (auto* tuple = dynamicDowncast<InternalFieldTuple>(contextArg)) {
+        module = uncheckedDowncast<JSModuleRecord>(tuple->getInternalField(0));
+        asyncContext = tuple->getInternalField(1);
+    } else {
+        module = uncheckedDowncast<JSModuleRecord>(contextArg);
+        asyncContext = jsUndefined();
+    }
+
+    InternalFieldTuple* asyncContextData = nullptr;
+    JSValue restoreAsyncContext;
+    if (!asyncContext.isUndefined()) {
+        asyncContextData = globalObject->m_asyncContextData.get();
+        if (asyncContextData) {
+            restoreAsyncContext = asyncContextData->getInternalField(0);
+            asyncContextData->putInternalField(vm, 0, asyncContext);
+        }
+    }
+#else
     auto* module = uncheckedDowncast<JSModuleRecord>(arguments[2]);
+#endif
     JSValue resolution = arguments[1];
     auto status = static_cast<JSPromise::Status>(payload);
     auto* capability = module->asyncCapability();
@@ -822,6 +849,11 @@ static void asyncModuleExecutionResume(JSGlobalObject* globalObject, VM& vm, Thr
         else
             JSPromise::resolveWithInternalMicrotaskForAsyncAwait(globalObject, vm, result, InternalMicrotask::AsyncModuleExecutionResume, module);
     }
+#if USE(BUN_JSC_ADDITIONS)
+    // Restore async context after capturing it for the next await iteration.
+    if (asyncContextData)
+        asyncContextData->putInternalField(vm, 0, restoreAsyncContext);
+#endif
 }
 
 static void moduleRegistryFetchSettled(JSGlobalObject* globalObject, VM& vm, ThrowScope& scope, std::span<const JSValue, maxMicrotaskArguments> arguments, uint8_t payload)
