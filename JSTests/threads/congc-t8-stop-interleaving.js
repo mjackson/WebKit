@@ -171,7 +171,20 @@ if (typeof Thread === "function" && typeof $vm !== "undefined" && typeof $vm.sha
 
     Atomics.store(gate, "stop", 1);
     const fireCounts = joinAll(stormThreads);
-    shouldBeTrue(fireCounts.every((n) => n >= 1), "every storm thread completed >= 1 Class-A stop mid-storm");
+    // GIL-OFF-ONLY EXPECTATION (gated 2026-06-12, A-t8assert; the KNOWN-RED
+    // Arm-1 "GIL-on reading" in MEGA-RUN-RESULTS.md): "every storm thread
+    // fired >= 1 Class-A stop MID-storm" is enforced by no machinery GIL-on —
+    // the Class-A §A.3 thread-granular conductor windows this arm interleaves
+    // are vm.gilOff()-gated (JSThreadsSafepoint.cpp; GIL-on takes the legacy
+    // serialized path), and the cooperative GIL gives no fairness guarantee
+    // that a storm thread is scheduled between the main thread's back-to-back
+    // forced cycles before stop=1 lands (deterministically 0 fires today).
+    // GIL-on the storm still runs (spawn/join/checksum oracles above and
+    // below stay live); only the per-thread fire-count claim is GIL-off.
+    // Mode probe is $vm.useThreadGIL() — the post-U0-validation EFFECTIVE
+    // mode, the documented premise probe for the threads corpus (JSDollarVM).
+    if (!$vm.useThreadGIL())
+        shouldBeTrue(fireCounts.every((n) => n >= 1), "every storm thread completed >= 1 Class-A stop mid-storm");
 
     // ---------------------------------------------------------------
     // Arm 3 — thread-exit churn vs forced Full cycles (F35 feeder; CG-T9

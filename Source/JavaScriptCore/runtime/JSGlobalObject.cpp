@@ -1335,6 +1335,7 @@ JSGlobalObject::JSGlobalObject(VM& vm, Structure* structure, const GlobalObjectM
 // =============================================================================
 
 void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM*); // Defined in VMLite.cpp (K4 §VIII machinery); identical self-declaration.
+void jsThreadsAssertNoPostInitWriteAfterFirstCrossThreadEntry(VM*, bool isPerGlobalInitWrite); // Defined in VMLite.cpp (K4 §VIII.9 re-scope); identical self-declaration.
 void purgePerLiteRealmStateForLite(VMLite&); // Defined below; ~VMLite (VMLite.cpp) self-declares and calls it.
 
 namespace {
@@ -1525,11 +1526,20 @@ void JSGlobalObject::destroy(JSCell* cell)
 
 void JSGlobalObject::setGlobalThis(VM& vm, JSObject* globalThis)
 {
-    // UNGIL annex K4 §VIII.9 (U-T8b): m_globalThis is immutable-after-init —
-    // written by finishCreation/resetPrototype before the global is shared
-    // across threads. Debug fail-stop on a write after the VM's first
-    // cross-thread entry (no-op flag-off/GIL-on and in release builds).
-    jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(&vm);
+    // UNGIL annex K4 §VIII.9 (U-T8b; RE-SCOPED A-t8assert 2026-06-12, K4 row
+    // amended in the same change): m_globalThis is immutable once THIS
+    // global is observable to other threads — a per-GLOBAL invariant, not a
+    // per-VM one. The slot itself is the per-global init bit: it is null
+    // EXACTLY during finishCreation's first write (the only null-slot
+    // writer; create() has not returned, so no other thread can have
+    // observed this global — legitimate even after the VM's first
+    // cross-thread entry, e.g. a spawned thread running
+    // $vm.createGlobalObject). Every later write (resetPrototype — the
+    // global may be published) rewrites a non-null slot and keeps the
+    // unchanged debug fail-stop after the VM's first cross-thread entry
+    // (no-op flag-off/GIL-on and in release builds). See the §VIII.9
+    // RE-SCOPE banner in VMLite.cpp.
+    jsThreadsAssertNoPostInitWriteAfterFirstCrossThreadEntry(&vm, !m_globalThis);
     m_globalThis.set(vm, this, globalThis);
 }
 

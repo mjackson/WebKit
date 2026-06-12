@@ -405,3 +405,47 @@ single-threaded). Rule reaffirmed for section 5.8: any data-IC fast path
 that materializes a pointer into a convention register must declare that
 register to BOTH the register allocator (early clobber) and any frame
 shuffler that runs inside the fast path (liveness recovery).
+
+## §22. B-relabelrace: deferred fireAllSlow claim CAS (§5.6 Deferral row amended)
+
+Mechanism (discriminated by constructive storm + matched negative control):
+the inline original-array `Structure::nonPropertyTransition` fast path
+(StructureInlines.h, no `nonPropertyTransitionSlow` frame) fires
+`didTransitionFromThisStructure(deferred)` with no m_lock, no allocation and
+no safepoint. Two mutators relabeling DISTINCT arrays that share the SAME
+original structure (e.g. ArrayWithInt32 with a DFG-fattened transition set)
+both pass the relaxed `fireAll` precheck (Watchpoint.h) and reach the
+deferred `fireAllSlow` unserialized: the loser lands inside the winner's
+takeWatchpointsToFire + storeRelaxed(IsInvalidated) window. Debug: asserts at
+the overload entry (`state() == IsWatched`) or inside
+`takeWatchpointsToFire` (same race, loser caught pre- vs mid-transfer).
+Release: a second take() against the already-claimed source — and a state
+copy-back that can leave the loser's deferred set IsWatched/empty
+(spurious second scope-exit fire). The slow transition path's incidental
+serializers (m_lock/allocation) suppress the window, which is why every
+slow-path storm was clean.
+
+Resolution (root cause, not assert relocation): flag-on, the deferred
+overload claims the source with a CAS `IsWatched` -> `IsInvalidated` BEFORE
+the membership transfer. Exactly one racer wins and performs the transfer
+(splice itself already serialized by take()'s membership lock); losers
+return with their deferred set untouched (`ClearWatchpoint`, so no
+scope-exit fire) — benign because the winner's deferred fire invalidates
+everything the loser would have. Because claim precedes splice, `take()`
+flag-on installs `IsWatched` (the source's pre-claim state) into the
+deferred set instead of copying the now-IsInvalidated source state, and
+`takeWatchpointsToFire`'s entry assert is re-scoped to the protocol's exact
+invariant per mode (flag-on: source IsInvalidated-by-claimant; flag-off:
+IsWatched). Assert protective power is preserved: each arm still asserts
+the single state its protocol permits. Flag-off sequence and codegen
+path unchanged (assert + take + flip, same order, same stores). This also
+makes `firePropertyReplacementWatchpointSet`'s documented reliance on an
+"internal IsWatched re-check" in the deferred path actually true.
+
+Audit amendment (same change, B-relabelrace round 2): the flag-on loser arm
+itself asserts the one state its protocol permits — the failed CAS captures
+the prior state and `ASSERT(prior == IsInvalidated)` before returning.
+States are monotonic, so the legitimate lost race can never trip it; a
+`ClearWatchpoint` entry (a future direct caller bypassing the `IsWatched`
+precheck) is trapped exactly as the pre-claim `ASSERT(state() == IsWatched)`
+trapped it pre-amendment. No behavior change in release; flag-off untouched.

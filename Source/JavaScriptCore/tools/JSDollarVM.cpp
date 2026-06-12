@@ -3192,6 +3192,30 @@ JSC_DEFINE_HOST_FUNCTION(functionCreateProxy, (JSGlobalObject* globalObject, Cal
     return JSValue::encode(JSGlobalProxy::create(vm, structure, target));
 }
 
+// Re-runs JSGlobalObject::resetPrototype on an ALREADY-INITIALIZED global —
+// the engine path JSGlobalContextSetPrototype takes (JSContextRef.cpp), and
+// the only post-init writer of m_globalThis (setGlobalThis). Test driver for
+// the UNGIL K4 §VIII.9 NEGATIVE test
+// (JSTests/threads/vmstate/globalthis-postpublication-negative.js): a
+// post-init m_globalThis rewrite after the VM's first cross-thread entry
+// must fail-stop in ASSERT builds under effective GIL-off
+// (jsThreadsAssertNoPostInitWriteAfterFirstCrossThreadEntry, VMLite.cpp).
+// Usage: $vm.resetPrototypeOfGlobalObject(global, prototype)
+JSC_DEFINE_HOST_FUNCTION(functionResetPrototypeOfGlobalObject, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    DollarVMAssertScope assertScope;
+    VM& vm = globalObject->vm();
+    JSLockHolder lock(vm);
+    JSGlobalObject* target = dynamicDowncast<JSGlobalObject>(callFrame->argument(0));
+    if (!target) [[unlikely]]
+        return JSValue::encode(jsUndefined());
+    JSValue prototype = callFrame->argument(1);
+    if (!prototype.isObject())
+        prototype = jsNull();
+    target->resetPrototype(vm, prototype);
+    return JSValue::encode(jsUndefined());
+}
+
 JSC_DEFINE_HOST_FUNCTION(functionCreateRuntimeArray, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     DollarVMAssertScope assertScope;
@@ -4528,6 +4552,7 @@ void JSDollarVM::finishCreation(VM& vm)
 
     addFunction(vm, allowIfNotFuzz, "createGlobalObject"_s, functionCreateGlobalObject, 0);
     addFunction(vm, allowIfNotFuzz, "createGlobalProxy"_s, functionCreateProxy, 1);
+    addFunction(vm, allowIfNotFuzz, "resetPrototypeOfGlobalObject"_s, functionResetPrototypeOfGlobalObject, 2);
     addFunction(vm, allowIfNotFuzz, "createRuntimeArray"_s, functionCreateRuntimeArray, 0);
 
     addFunction(vm, allowIfNotFuzz, "createImpureGetter"_s, functionCreateImpureGetter, 1);

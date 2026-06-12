@@ -438,6 +438,44 @@ void WatchpointSet::fireAllSlow(VM&, DeferredWatchpointFire* deferredWatchpoints
     // be classified (a)/(b)/(c) in the Task-11 audit's "fact published before
     // fire?" column or restructured onto the TTL-set pattern; see
     // JSThreadsSafepoint::gilRemovalPreconditionsMet().
+    // B-relabelrace (SPEC-jit §5.6 deferral row, amended in this change):
+    // the owner-side-serialization claim above does NOT hold for every entry.
+    // The inline original-array nonPropertyTransition path
+    // (StructureInlines.h, reached from relabelIndexingShapeConcurrent and
+    // plain array-shape relabels) fires this deferred overload with no
+    // m_lock, no allocation and no safepoint: two mutators relabeling
+    // DISTINCT arrays that share the SAME original structure both pass the
+    // relaxed fireAll precheck (Watchpoint.h) and race here. (The
+    // firePropertyReplacementWatchpointSet direct caller has the same
+    // lock-free IsWatched pre-check and already documents reliance on an
+    // internal re-check.) So flag-on, the claim itself is atomic: exactly
+    // one racer CASes IsWatched -> IsInvalidated and owns the membership
+    // transfer; losers return with their deferred set untouched
+    // (ClearWatchpoint => no scope-exit fire), which is benign because the
+    // winner's deferred fire invalidates everything the loser would have,
+    // and the loser's caller re-publishes against a set every observer
+    // already sees as IsInvalidated. The claim runs BEFORE the transfer
+    // (claim-then-splice; the splice itself is serialized by take()'s
+    // membership lock), so takeWatchpointsToFire sees the source already
+    // IsInvalidated flag-on and take() installs IsWatched into the deferred
+    // set explicitly — the state the source held when the claim succeeded.
+    // Flag-off: single mutator, today's exact sequence, unchanged.
+    if (Options::useJSThreads()) [[unlikely]] {
+        WTF::storeStoreFence();
+        if (WatchpointState prior = m_state.compareExchangeStrong(IsWatched, IsInvalidated); prior != IsWatched) {
+            // The only legitimate loser entry is the lost race documented
+            // above: another claimant already CASed IsWatched -> IsInvalidated.
+            // States are monotonic, so a ClearWatchpoint prior here can only
+            // mean a caller bypassed the IsWatched precheck — trap it, as the
+            // pre-claim ASSERT(state() == IsWatched) did.
+            ASSERT_UNUSED(prior, prior == IsInvalidated);
+            return;
+        }
+        deferredWatchpoints->takeWatchpointsToFire(this);
+        WTF::storeStoreFence();
+        return;
+    }
+
     ASSERT(state() == IsWatched);
 
     WTF::storeStoreFence();
@@ -508,7 +546,17 @@ void WatchpointSet::take(WatchpointSet* other)
     MembershipLocker locker;
     m_set.takeFrom(other->m_set);
     m_setIsNotEmpty.storeRelaxed(other->m_setIsNotEmpty.loadRelaxed());
-    m_state.storeRelaxed(other->m_state.loadRelaxed());
+    if (Options::useJSThreads()) [[unlikely]] {
+        // B-relabelrace: the claiming CAS in the deferred fireAllSlow flipped
+        // the source to IsInvalidated BEFORE this transfer (claim-then-splice;
+        // the deferred fireAllSlow is the sole caller, via
+        // DeferredWatchpointFire::takeWatchpointsToFire). The deferred set
+        // must still fire at scope exit, so it gets IsWatched — the state the
+        // source held when the claim succeeded.
+        ASSERT(other->m_state.loadRelaxed() == IsInvalidated);
+        m_state.storeRelaxed(IsWatched);
+    } else
+        m_state.storeRelaxed(other->m_state.loadRelaxed());
     m_invalidatesCode.storeRelaxed(other->m_invalidatesCode.loadRelaxed()); // SPEC-jit section 5.6: a deferred fire keeps the source set's classification.
     other->m_setIsNotEmpty.storeRelaxed(false);
 }
@@ -573,7 +621,13 @@ void InlineWatchpointSet::freeFat()
 void DeferredWatchpointFire::takeWatchpointsToFire(WatchpointSet* watchpointsToFire)
 {
     ASSERT(m_watchpointsToFire.state() == ClearWatchpoint);
-    ASSERT(watchpointsToFire->state() == IsWatched);
+    // B-relabelrace re-scope (SPEC-jit §5.6 deferral row amended in the same
+    // change): flag-on, the deferred fireAllSlow claims the source via CAS
+    // (IsWatched -> IsInvalidated) BEFORE transferring, so the protective
+    // invariant here is "source already claimed-invalid by this thread";
+    // flag-off, the flip happens after the transfer and the source is still
+    // IsWatched. Both arms assert the one exact state their protocol permits.
+    ASSERT(watchpointsToFire->state() == (Options::useJSThreads() ? IsInvalidated : IsWatched));
     m_watchpointsToFire.take(watchpointsToFire);
 }
 

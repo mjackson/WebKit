@@ -1113,6 +1113,29 @@ void assertVMLiteOwnsNoInFlightLazyInit(VMLite* lite)
 // their owners. Wired NOW in owned code: JSGlobalObject::setGlobalThis
 // (VIII.9, JSGlobalObject.cpp). VIII.8's VM.cpp setters (:1091-1094) are the
 // VM.cpp owner's wiring row.
+//
+// §VIII.9 RE-SCOPE (A-t8assert, 2026-06-12; K4 row amended in the same
+// change): the §VIII.9 invariant for JSGlobalObject configuration is
+// per-GLOBAL — "immutable once THIS global is observable to other threads" —
+// not per-VM. Keying solely on the VM's first cross-thread entry is
+// over-coarse for the one setter with a legitimate post-entry init write:
+// a spawned thread creating a brand-new JSGlobalObject
+// ($vm.createGlobalObject -> finishCreation -> setGlobalThis) init-writes
+// m_globalThis on a global nobody else can have observed yet (create()
+// has not returned; the only writers of the slot are finishCreation and
+// resetPrototype). The slot itself is the per-global init bit: m_globalThis
+// is null EXACTLY during finishCreation's first write and non-null for
+// every later write. jsThreadsAssertNoPostInitWriteAfterFirstCrossThreadEntry
+// below takes that per-global init state: init writes (null slot) are
+// permitted regardless of VM cross-thread history; POST-INIT rewrites
+// (resetPrototype — the global may be published) keep the full fail-stop.
+// Protective power is NOT weakened: every write the old key correctly
+// forbade (post-publication cross-thread rewrite of a non-null slot) still
+// fail-stops; only the false-positive (init write on an unpublished global
+// after the VM went cross-thread) is removed. Setters with NO per-global
+// init key (setName & the other VIII.9 embedder setters) keep the
+// VM-keyed assert unchanged (debug-only over-strictness, AB-23-residual
+// class).
 // ===========================================================================
 
 static Lock s_crossThreadEntryLock;
@@ -1130,6 +1153,7 @@ void jsThreadsNoteCrossThreadEntry(VM&);
 bool jsThreadsHasSeenCrossThreadEntry(VM&);
 void jsThreadsForgetCrossThreadEntry(VM&);
 void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM*);
+void jsThreadsAssertNoPostInitWriteAfterFirstCrossThreadEntry(VM*, bool isPerGlobalInitWrite);
 
 void jsThreadsNoteCrossThreadEntry(VM& vm)
 {
@@ -1167,6 +1191,19 @@ void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM* vm)
 #else
     UNUSED_PARAM(vm);
 #endif
+}
+
+// §VIII.9 re-scope entry point (see the RE-SCOPE paragraph in the banner
+// above): per-global init writes are permitted; post-init writes get the
+// unchanged VM-keyed fail-stop. isPerGlobalInitWrite MUST be derived from
+// per-global state that is true ONLY while the global is unpublishable
+// (e.g. setGlobalThis passes !m_globalThis — null exactly during
+// finishCreation's first write). Release builds and flag-off/GIL-on VMs
+// remain exact no-ops via the wrapped predicate.
+void jsThreadsAssertNoPostInitWriteAfterFirstCrossThreadEntry(VM* vm, bool isPerGlobalInitWrite)
+{
+    if (!isPerGlobalInitWrite)
+        jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(vm);
 }
 
 // ===========================================================================
