@@ -191,6 +191,7 @@ macro doVMEntry(makeCall)
     # doVMEntry discriminator points (the C_LOOP arm writes t5 only after
     # this one), so it carries the lite base.
     branchIfGilOffGroup3ToT5(.liteSavePrevTopCallFrame)
+.savePrevTopCallFrameVMStorage:
     if (ARM64 or ARM64E) and ADDRESS64
         loadp ProtoCallFrame::context[protoCallFrame], t3
         storepairq vm, t3, VMEntryRecord::m_vm[sp]
@@ -208,6 +209,23 @@ macro doVMEntry(makeCall)
     if GILOFF_TLS
         jmp .prevTopCallFrameSaved
     .liteSavePrevTopCallFrame:
+        # Same-VM guard (K4 table-I Group-3 row addendum; mirrors
+        # llint_get_host_call_return_value): reader/writer discriminator
+        # symmetry with VM::group3Primitives() (lite arm only when
+        # lite->vm == vm). Never-taken under JSLock::didAcquireLock --
+        # defense-in-depth only.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t5], vm, .sameVMLiteOk1
+            break
+        .sameVMLiteOk1:
+        else
+            bpneq VMLite::vm[t5], vm, .savePrevTopCallFrameVMStorage
+        end
         loadp ProtoCallFrame::context[protoCallFrame], t4
         storep vm, VMEntryRecord::m_vm[sp]
         storep t4, VMEntryRecord::m_context[sp]
@@ -309,6 +327,7 @@ macro doVMEntry(makeCall)
 
 .copyArgsDone:
     branchIfGilOffGroup3ToT5(.liteStoreTopCallFrame)
+.storeTopCallFrameVMStorage:
     if ARM64 or ARM64E
         move sp, t4
         if ADDRESS64
@@ -324,6 +343,19 @@ macro doVMEntry(makeCall)
     if GILOFF_TLS
         jmp .topCallFrameStored
     .liteStoreTopCallFrame:
+        # Same-VM guard; see .liteSavePrevTopCallFrame above.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t5], vm, .sameVMLiteOk2
+            break
+        .sameVMLiteOk2:
+        else
+            bpneq VMLite::vm[t5], vm, .storeTopCallFrameVMStorage
+        end
         move sp, t4
         storep t4, VMLitePrimitives::topCallFrame[t5]
         storep cfr, VMLitePrimitives::topEntryFrame[t5]
@@ -343,6 +375,7 @@ macro doVMEntry(makeCall)
 
     loadp VMEntryRecord::m_vm[t4], vm
     branchIfGilOffGroup3ToT5(.liteRestorePrevTopCallFrame)
+.restorePrevTopCallFrameVMStorage:
     if (ARM64 or ARM64E) and ADDRESS64
         loadpairq VMEntryRecord::m_prevTopCallFrame[t4], t4, t2
         storepairq t4, t2, VM::topCallFrame[vm]
@@ -355,6 +388,19 @@ macro doVMEntry(makeCall)
     if GILOFF_TLS
         jmp .prevTopCallFrameRestored
     .liteRestorePrevTopCallFrame:
+        # Same-VM guard; see .liteSavePrevTopCallFrame above.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t5], vm, .sameVMLiteOk3
+            break
+        .sameVMLiteOk3:
+        else
+            bpneq VMLite::vm[t5], vm, .restorePrevTopCallFrameVMStorage
+        end
         loadp VMEntryRecord::m_prevTopCallFrame[t4], t2
         storep t2, VMLitePrimitives::topCallFrame[t5]
         loadp VMEntryRecord::m_prevTopEntryFrame[t4], t2
@@ -384,6 +430,7 @@ _llint_throw_stack_overflow_error_from_vm_entry:
     # UNGIL sec.A.1.3 (AB-1): after cCall2 t6 is dead; t5 is the live data
     # scratch of the GIL arm, so t6 carries the lite base here.
     branchIfGilOffGroup3ToT6(.liteRestorePrevOnEntryOverflow)
+.restorePrevOnEntryOverflowVMStorage:
     loadp VMEntryRecord::m_prevTopCallFrame[t4], t5
     storep t5, VM::topCallFrame[vm]
     loadp VMEntryRecord::m_prevTopEntryFrame[t4], t5
@@ -391,6 +438,19 @@ _llint_throw_stack_overflow_error_from_vm_entry:
     if GILOFF_TLS
         jmp .entryOverflowPrevRestored
     .liteRestorePrevOnEntryOverflow:
+        # Same-VM guard; see .liteSavePrevTopCallFrame above.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t6], vm, .sameVMLiteOk4
+            break
+        .sameVMLiteOk4:
+        else
+            bpneq VMLite::vm[t6], vm, .restorePrevOnEntryOverflowVMStorage
+        end
         loadp VMEntryRecord::m_prevTopCallFrame[t4], t5
         storep t5, VMLitePrimitives::topCallFrame[t6]
         loadp VMEntryRecord::m_prevTopEntryFrame[t4], t5
@@ -448,6 +508,7 @@ op(llint_handle_uncaught_exception, macro ()
     # base across the whole sequence (nothing below clobbers it).
     restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferGroup3(t3, t0)
     branchIfGilOffGroup3ToT6(.liteUncaughtException)
+.uncaughtExceptionVMStorage:
     storep 0, VM::callFrameForCatch[t3]
 
     loadp VM::topEntryFrame[t3], cfr
@@ -461,6 +522,23 @@ op(llint_handle_uncaught_exception, macro ()
     if GILOFF_TLS
         jmp .uncaughtExceptionDone
     .liteUncaughtException:
+        # Same-VM guard (K4 table-I Group-3 row addendum; mirrors
+        # llint_get_host_call_return_value): genericUnwind stores the unwind
+        # words via VM::group3Primitives(), whose lite arm requires
+        # lite->vm == vm; the harvest here must use the same discriminator.
+        # Never-taken under JSLock::didAcquireLock -- defense-in-depth only.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t6], t3, .sameVMLiteOk5
+            break
+        .sameVMLiteOk5:
+        else
+            bpneq VMLite::vm[t6], t3, .uncaughtExceptionVMStorage
+        end
         storep 0, VMLitePrimitives::callFrameForCatch[t6]
 
         loadp VMLitePrimitives::topEntryFrame[t6], cfr
@@ -489,10 +567,29 @@ op(llint_get_host_call_return_value, macro ()
     # UNGIL sec.A.1.3 (AB-1): encodedHostCallReturnValue is Group-2 state;
     # thunk entry after a host call, t6 dead.
     branchIfGilOffGroup3ToT6(.liteHostCallReturnValue)
+.hostCallReturnValueVMStorage:
     loadq VM::encodedHostCallReturnValue[t0], t0
     if GILOFF_TLS
         jmp .haveHostCallReturnValue
     .liteHostCallReturnValue:
+        # Same-VM guard (mirrors the JIT thunk in LLIntThunks.cpp): the
+        # group3Primitives() writers take the lite arm only when
+        # lite->vm == calleeVM; a foreign gilOff lite must read the VM
+        # block the writer actually stored to. Never-taken in any state
+        # JSLock::didAcquireLock permits (it installs a same-VM lite on
+        # every cross-VM entry) -- defense-in-depth symmetry only.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t6], t0, .sameVMLiteOk6
+            break
+        .sameVMLiteOk6:
+        else
+            bpneq VMLite::vm[t6], t0, .hostCallReturnValueVMStorage
+        end
         loadq VMLitePrimitives::encodedHostCallReturnValue[t6], t0
     .haveHostCallReturnValue:
     end
@@ -3160,6 +3257,7 @@ commonOp(llint_op_catch, macro () end, macro (size)
     # only; PB/metadataTable/PC are csr/t4).
     restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferGroup3(t3, t0)
     branchIfGilOffGroup3ToT6(.liteCatch)
+.catchVMStorage:
     loadp VM::callFrameForCatch[t3], cfr
     storep 0, VM::callFrameForCatch[t3]
     restoreStackPointerAfterCall()
@@ -3172,6 +3270,21 @@ commonOp(llint_op_catch, macro () end, macro (size)
     if GILOFF_TLS
         jmp .catchPCComputed
     .liteCatch:
+        # Same-VM guard; see .liteUncaughtException. The PC harvest below
+        # (targetInterpreterPCForThrow) must read the storage genericUnwind
+        # wrote (group3Primitives() lite arm requires lite->vm == vm).
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t6], t3, .sameVMLiteOk7
+            break
+        .sameVMLiteOk7:
+        else
+            bpneq VMLite::vm[t6], t3, .catchVMStorage
+        end
         loadp VMLitePrimitives::callFrameForCatch[t6], cfr
         storep 0, VMLitePrimitives::callFrameForCatch[t6]
         restoreStackPointerAfterCall()
@@ -3217,6 +3330,7 @@ op(llint_throw_from_slow_path_trampoline, macro ()
     # This essentially emulates the JIT's throwing protocol.
     getVMFromCallFrame(t1, t2)
     branchIfGilOffGroup3ToT6(.liteThrowTarget)
+.throwTargetVMStorage:
     if ARM64E
         loadp VM::targetMachinePCForThrow[t1], a0
         leap _g_config, a1
@@ -3226,6 +3340,18 @@ op(llint_throw_from_slow_path_trampoline, macro ()
     end
     if GILOFF_TLS
     .liteThrowTarget:
+        # Same-VM guard; see .liteUncaughtException. This is the literal
+        # wild-pc jump site of the A4 face: the jump target must come from
+        # the storage genericUnwind wrote.
+        # A4-amend (control-flow-integrity tightening): fail-stop in ALL
+        # build flavors -- the harvested word is the jmp TARGET, so a
+        # Release writer-symmetry fallback to the cross-thread-shared
+        # VM-block word would narrow the A4 wild-pc window, not close it.
+        # Never-taken under JSLock::didAcquireLock; a deterministic break
+        # at a known PC beats a narrowed wild jump.
+        bpeq VMLite::vm[t6], t1, .sameVMLiteOk8
+        break
+        .sameVMLiteOk8:
         jmp VMLitePrimitives::targetMachinePCForThrow[t6], ExceptionHandlerPtrTag
     end
 end)
@@ -3252,10 +3378,27 @@ macro nativeCallTrampoline(executableOffsetToFunction)
     # are live; t3 is dead until checkStackPointerAlignment scribbles it,
     # so t3 carries the lite base.
     branchIfGilOffGroup3ToT3(.liteStoreTopCallFrame)
+.trampolineStoreTopCallFrameVMStorage:
     storep cfr, VM::topCallFrame[a1]
     if GILOFF_TLS
         jmp .topCallFrameStored
     .liteStoreTopCallFrame:
+        # Same-VM guard (K4 table-I Group-3 row addendum); discriminator
+        # symmetry with VM::group3Primitives() (lite arm only when
+        # lite->vm == a1, the callee's VM). Never-taken under
+        # JSLock::didAcquireLock -- defense-in-depth only.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t3], a1, .sameVMLiteOk9
+            break
+        .sameVMLiteOk9:
+        else
+            bpneq VMLite::vm[t3], a1, .trampolineStoreTopCallFrameVMStorage
+        end
         storep cfr, VMLitePrimitives::topCallFrame[t3]
     .topCallFrameStored:
     end
@@ -3276,6 +3419,7 @@ macro nativeCallTrampoline(executableOffsetToFunction)
 
     # POST-call: t6 (caller-saved arg reg) is dead after the host call.
     branchIfGilOffGroup3ToT6(.checkLiteException)
+.checkExceptionVMStorage:
     btpnz VM::m_exception[t3], .handleException
 
 .epilogueAndReturn:
@@ -3288,6 +3432,19 @@ macro nativeCallTrampoline(executableOffsetToFunction)
 
     if GILOFF_TLS
     .checkLiteException:
+        # Same-VM guard; see the pre-call store above.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t6], t3, .sameVMLiteOk10
+            break
+        .sameVMLiteOk10:
+        else
+            bpneq VMLite::vm[t6], t3, .checkExceptionVMStorage
+        end
         btpnz VMLitePrimitives::m_exception[t6], .handleLiteException
         jmp .epilogueAndReturn
     .handleLiteException:
@@ -3306,10 +3463,27 @@ macro internalFunctionCallTrampoline(offsetOfFunction)
     # nativeCallTrampoline (host-CONSTRUCTOR path of repro A/B); same
     # liveness -- a0/a1/a2 live pre-call (t6 == a0 on x86-64), t3 dead.
     branchIfGilOffGroup3ToT3(.liteStoreTopCallFrame)
+.trampolineStoreTopCallFrameVMStorage:
     storep cfr, VM::topCallFrame[a1]
     if GILOFF_TLS
         jmp .topCallFrameStored
     .liteStoreTopCallFrame:
+        # Same-VM guard (K4 table-I Group-3 row addendum); discriminator
+        # symmetry with VM::group3Primitives() (lite arm only when
+        # lite->vm == a1, the callee's VM). Never-taken under
+        # JSLock::didAcquireLock -- defense-in-depth only.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t3], a1, .sameVMLiteOk11
+            break
+        .sameVMLiteOk11:
+        else
+            bpneq VMLite::vm[t3], a1, .trampolineStoreTopCallFrameVMStorage
+        end
         storep cfr, VMLitePrimitives::topCallFrame[t3]
     .topCallFrameStored:
     end
@@ -3329,6 +3503,7 @@ macro internalFunctionCallTrampoline(offsetOfFunction)
     loadp JSGlobalObject::m_vm[t3], t3
 
     branchIfGilOffGroup3ToT6(.checkLiteException)
+.checkExceptionVMStorage:
     btpnz VM::m_exception[t3], .handleException
 
 .epilogueAndReturn:
@@ -3341,6 +3516,19 @@ macro internalFunctionCallTrampoline(offsetOfFunction)
 
     if GILOFF_TLS
     .checkLiteException:
+        # Same-VM guard; see the pre-call store above.
+        if ASSERT_ENABLED
+            # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+            # foreclosure was violated; fail-stop here instead of silently
+            # falling back to the shared VM-block word (the exact
+            # cross-thread access this guard family exists to eliminate).
+            # Release keeps the writer-symmetry fallback.
+            bpeq VMLite::vm[t6], t3, .sameVMLiteOk12
+            break
+        .sameVMLiteOk12:
+        else
+            bpneq VMLite::vm[t6], t3, .checkExceptionVMStorage
+        end
         btpnz VMLitePrimitives::m_exception[t6], .handleLiteException
         jmp .epilogueAndReturn
     .handleLiteException:

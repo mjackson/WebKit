@@ -3476,6 +3476,26 @@ void JSGlobalObject::haveABadTimeImpl(VM& vm)
 {
     ASSERT(!isHavingABadTime());
 
+    // checktraps-dejank-invalidation-point (UNGIL §K.5 firing-site audit,
+    // row HBT in docs/threads/AUDIT-checktraps.md): the conversion walk below
+    // rewrites OTHER threads' live butterflies (fast indexing ->
+    // (SlowPut)ArrayStorage) — the canonical conductor heap-fact rewrite.
+    // Bump the rewrite epoch so every mutator whose poll-park overlaps this
+    // body jettisons its own on-stack DFG/FTL code on resume (firing the
+    // CheckTraps invalidation points; GIL-off CheckTraps no longer clobbers
+    // the heap at compile time). Explicit bump for the GIL-ON flag-on leg,
+    // which runs this body inline under the GIL with siblings parked at
+    // polls and conducts no window: this bump runs inside the GIL tenure,
+    // i.e. before any parked sibling resumes — the right edge.
+    // Idempotent-safe (it is just a counter); the gilOff path bumps via the
+    // window's IN-WINDOW pre-resume bump (stopTheWorldAndRun's wrapped
+    // closure — the load-bearing one for window-parked victims; see the
+    // BUMP-EDGE LAW comment in bytecode/JSThreadsSafepoint.cpp), so this
+    // bump is redundant there — harmless.
+    // Flag-off: dead branch, behavior unchanged.
+    if (Options::useJSThreads()) [[unlikely]]
+        JSThreadsSafepoint::noteConductorHeapFactRewrite();
+
     DeferGC deferGC(vm);
 
     // Consider the following objects and prototype chains:

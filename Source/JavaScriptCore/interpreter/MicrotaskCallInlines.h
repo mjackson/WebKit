@@ -72,6 +72,18 @@ ALWAYS_INLINE JSValue MicrotaskCall::tryCallWithArguments(VM& vm, JSFunction* fu
             entry = WTF::atomicLoad(&m_addressForCall, std::memory_order_acquire);
         }
         auto* codeBlock = WTF::atomicLoad(&m_codeBlock, std::memory_order_relaxed);
+        if (vm.gilOff()) [[unlikely]] {
+            // ANNEX CBI item 3 (w16 amend, round 2 — see
+            // Interpreter::tryCallWithArguments): the acquire/release pairing
+            // above only rules out NEW-entry+OLD-codeBlock; a reader racing
+            // MicrotaskCall::unlinkOrUpgradeImpl can still pair the OLD
+            // (baseline) entry with the NEW (DFG) codeBlock, which faults in
+            // the baseline prologue's argument profiling. Derive the
+            // entrypoint THROUGH the one codeBlock snapshot — the entry
+            // thunks store exactly this codeBlock into the callee frame, so
+            // the pair is matched by construction.
+            entry = codeBlock->jitCode()->addressForCall();
+        }
         if constexpr (!sizeof...(args))
             RELEASE_AND_RETURN(scope, JSValue::decode(vmEntryToJavaScriptWith0Arguments(entry, &vm, codeBlock, function, thisValue, context)));
         else if constexpr (sizeof...(args) == 1)

@@ -51,6 +51,32 @@ void reifyInlinedCallFrames(CCallHelpers&, const OSRExitBase&);
 void adjustAndJumpToTarget(VM&, CCallHelpers&, const OSRExitBase&);
 CCallHelpers::Address calleeSaveSlot(InlineCallFrame*, CodeBlock* baselineCodeBlock, GPRReg calleeSave);
 
+// DW-1 instrumentation (deepwater LEDGER row 1): both-sides recording for the
+// sort-comparator OSR-exit pc-recovery contract. The stash side is
+// reifyInlinedCallFrames, which (for an inlined ArraySortComparatorCall)
+// writes CallSiteIndex(op_call bc) into the recovery frame's
+// argumentCountIncludingThis tag and the caller's baseline CodeBlock into its
+// codeBlock slot; the recovery side is
+// llint_slow_path_array_sort_comparator_return, which reads both back and
+// asserts the pc is the sort's op_call. GIL-off, the DFG exit path traverses
+// operationCompileOSRExit on EVERY exit (the rel32 repatch is suppressed —
+// U-T4b), so the exiting thread records the expected tuple here in C++ at
+// every traversal, and the trampoline slow path cross-checks it. This is
+// thread-local state: per-thread == per-lite for a spawned Thread, and the
+// stash/recovery pair always executes on one thread between exit and
+// comparator return. GIL-on/flag-off: never written, never read (all uses
+// are vm.gilOff()-gated); no codegen change in any mode.
+struct SortComparatorOSRExitStashRecord {
+    uint32_t threadUid { 0 };
+    CodeBlock* dfgCodeBlock { nullptr };
+    CodeBlock* expectedCallerBaselineCodeBlock { nullptr };
+    uint32_t expectedCallSiteBits { 0 };
+    uint32_t exitIndex { 0 };
+    bool armed { false };
+};
+SortComparatorOSRExitStashRecord& sortComparatorOSRExitStashRecord();
+void recordSortComparatorOSRExitStashIfApplicable(VM&, CodeBlock* dfgCodeBlock, const OSRExitBase&, uint32_t exitIndex);
+
 template <typename JITCodeType>
 void adjustFrameAndStackInOSRExitCompilerThunk(AssemblyHelpers& jit, VM& vm, JITType jitType)
 {

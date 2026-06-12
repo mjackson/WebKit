@@ -39,6 +39,7 @@
 #include "MarkedSpace.h"
 #include "Options.h"
 #include "ReleaseHeapAccessScope.h"
+#include "VM.h"
 #include <algorithm>
 #include <atomic>
 #include <wtf/HashSet.h>
@@ -1145,6 +1146,14 @@ bool SharedHeapTestHarness::runIssRevertChurnScenario(JSC::Heap& server, unsigne
     // again). Items retired while shared drain at the legacy runEndPhase
     // site after the reversion (§10D "residual m_retired drains via §11's
     // legacy site").
+    //
+    // UNGIL §0 U0c (ANNEX U0C, BINDING): under gilOffProcess the §10D
+    // reversion arm no-ops — the designated server stays ISS for process
+    // lifetime; pollIssRevertIfNeeded() only disarms the hint. So GIL-off
+    // this scenario checks the U0c shape instead: each round's poll disarms
+    // the hint, the server STAYS shared, and the retired items drain at §10
+    // step 7 of conducted full cycles (runSafepointHooksAndReclaim) rather
+    // than the legacy site. GIL-on behavior below is unchanged.
     unsigned rounds = std::min(std::max(iterations, 1u), 16u);
     unsigned destroyedBefore = s_issRevertItemsDestroyed.load(std::memory_order_relaxed);
     unsigned retired = 0;
@@ -1172,6 +1181,16 @@ bool SharedHeapTestHarness::runIssRevertChurnScenario(JSC::Heap& server, unsigne
         } // Scope dtor: forwarded AHA re-stamps the main client's owner + §10A.1 TLS.
         ++retired;
 
+        // U0c: GIL-off the reversion is forbidden, not pending — spinning on
+        // isSharedServer() would be an unbounded wait on a transition the
+        // spec rules out. One poll exercises the U0c hint-disarm arm; the
+        // server must remain shared.
+        if (VM::isGILOffProcess()) {
+            server.stopIfNecessaryForAllClients();
+            RELEASE_ASSERT(server.isSharedServer());
+            continue;
+        }
+
         // §10D: the reversion happens only at a MAIN-client CIND/SINFAC poll.
         // Bounded: quiescence is immediate here (no tickets in flight).
         unsigned spins = 0;
@@ -1180,6 +1199,18 @@ bool SharedHeapTestHarness::runIssRevertChurnScenario(JSC::Heap& server, unsigne
             Thread::yield();
             RELEASE_ASSERT(++spins < 1u << 24); // Liveness: reversion must land.
         }
+    }
+
+    if (VM::isGILOffProcess()) {
+        // U0c: no reversion ever — the shared protocol owns reclamation for
+        // process lifetime. Two conducted full collections stamp + bump past
+        // every retire epoch at §10 step 7, the same way the legacy pair
+        // does post-reversion: all items drain.
+        RELEASE_ASSERT(server.isSharedServer());
+        server.collectSyncAllClients(CollectionScope::Full);
+        server.collectSyncAllClients(CollectionScope::Full);
+        RELEASE_ASSERT(s_issRevertItemsDestroyed.load(std::memory_order_relaxed) == destroyedBefore + retired);
+        return true;
     }
 
     // Post-reversion: the legacy protocol owns reclamation again. Two legacy

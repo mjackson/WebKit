@@ -46,6 +46,7 @@
 #include "MarkedBlock.h"
 #include "MarkedSpace.h"
 #include "MutatorState.h"
+#include "Options.h"
 #include "PreciseSubspace.h"
 #include "StructureID.h"
 #include "Synchronousness.h"
@@ -77,6 +78,10 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 // vmstate N7 shim (SPEC-heap.md §9): signals that this tree's Heap provides
 // increment/decrementSTWForbiddenScope().
 #define JSC_HEAP_HAS_STW_FORBIDDEN_SCOPE 1
+
+namespace WTF {
+class AtomStringTable;
+}
 
 namespace JSC {
 
@@ -450,6 +455,21 @@ public:
     // relaxed reads here are coherence-bound to return true.
     bool isSharedServer() const { return m_isSharedServer.load(std::memory_order_relaxed); }
 
+    // SPEC-congc §5.2/§5.3(3) C1R (F33; ANNEX CGD4.4): the per-client
+    // barrier-state routing predicate := useConcurrentSharedGCMarking && ISS.
+    // Gates the CMS reroute in addToRememberedSet, the
+    // mutatorShouldBeFenced()/barrierThreshold() consumer re-point, the
+    // per-client didRun notes, and the WND-open fold loops. FALSE whenever
+    // the C1 stage flag is off — the CG-T1 flag-off identity arm: C1R false
+    // routes NOTHING (every consumer keeps the landed server path
+    // byte-for-byte; CGD4.4 ruling, option (b)). The option byte is checked
+    // FIRST so flags-off pays exactly one predicted-false Config-page test
+    // and never loads the Heap line (FIX-V5B-F1 class).
+    bool sharedGCBarrierStateIsPerClient() const
+    {
+        return Options::useConcurrentSharedGCMarking() && isSharedServer();
+    }
+
     // UNGIL §0 U0c (ANNEX U0C, BINDING; U-T1): the GIL-off shared-server
     // DESIGNATION primitive — the s_stickySharedServer CAS, returning
     // won/lost, NO assert (noteSharedServerSticky's inner CAS
@@ -585,6 +605,12 @@ public:
     private:
         JSC::Heap& m_heap;
         bool m_didLock { false };
+        // SPEC-congc §9.1(2) (CG-3b): set iff this scope's ctor found
+        // m_currentPhase != NotRunning after acquiring GCL and ran
+        // pauseConcurrentMarkingForForeignStop(); the dtor then resumes
+        // BEFORE releasing GCL (dtor order NORMATIVE — no WND-open with
+        // paused markers; paired resume in the same scope, CG-I16).
+        bool m_didPauseConcurrentMarking { false };
     };
 
     // --- End shared heap server interface ---
@@ -683,6 +709,44 @@ public:
 
     UncheckedKeyHashSet<MarkedVectorBase*>& markListSet() { return m_markListSet; }
 
+    // DW-2 (deepwater LEDGER row 2): under Options::useSharedGCHeap() every
+    // mutator thread's MarkedVector/MarkedArgumentBuffer spill path
+    // (MarkedVector.h fill/fillWith, MarkedVectorBase::addMarkSet) registers
+    // with this ONE server Heap concurrently, and unregisters from arbitrary
+    // threads in ~MarkedVectorBase — confirmed UAF/SEGV in
+    // HashTable::removeIterator/add via MarkedVector::fill <- sortImpl <-
+    // arrayProtoFuncSort on a spawned Thread. Shared mode therefore routes
+    // registration through this SHARDED, per-shard-locked variant instead of
+    // m_markListSet. Sharding (not one per-heap lock, and explicitly not the
+    // dive's recon-only global s_limpMarkListSetLock) because this is the hot
+    // spill path of every big sort/apply: shard choice hashes the vector's
+    // address, so concurrent threads' registrations land on different shards
+    // with high probability and each shard lock is held only for one hash-set
+    // add/remove. Flag-off (!useSharedGCHeap) never touches the shards: the
+    // m_markListSet registration/marking paths and the lock-free accessor
+    // above are source-identical, but flag-off is mode-split-identical, NOT
+    // literally byte-identical — MarkedVectorBase grew a Lock* member (+8
+    // bytes per stack-resident vector, one extra nullptr store per
+    // construction), removeFromMarkSetAndDeallocateBuffer gained a null
+    // check, and the split points load Options::useSharedGCHeap(). The
+    // flags-off bench gate (delta 0) is the binding proof for this change.
+    static constexpr unsigned numMarkListSetShards = 32;
+    static_assert(!(numMarkListSetShards & (numMarkListSetShards - 1)), "shard count must be a power of two");
+    struct MarkListSetShard {
+        Lock lock;
+        UncheckedKeyHashSet<MarkedVectorBase*> set WTF_GUARDED_BY_LOCK(lock);
+    };
+    MarkListSetShard& markListSetShard(MarkedVectorBase* vector)
+    {
+        uintptr_t word = std::bit_cast<uintptr_t>(vector);
+        // MarkedVectors are stack-resident (WTF_FORBID_HEAP_ALLOCATION) and
+        // at least 16-byte aligned; fold the page-granularity bits in so the
+        // per-thread stack base (which differs across threads) contributes
+        // even when frame-local offsets collide.
+        unsigned index = static_cast<unsigned>((word >> 4) ^ (word >> 12)) & (numMarkListSetShards - 1);
+        return m_markListSetShards[index];
+    }
+
     template<typename Functor> inline void forEachProtectedCell(const Functor&);
     template<typename Functor> inline void forEachCodeBlock(NOESCAPE const Functor&);
     template<typename Functor> inline void forEachCodeBlockIgnoringJITPlans(const AbstractLocker& codeBlockSetLocker, NOESCAPE const Functor&);
@@ -725,6 +789,38 @@ public:
 
     CodeBlockSet& codeBlockSet() { return *m_codeBlocks; }
 
+    // SPEC-jit §5.8/§4.4 (record-named CodeBlock identity; w16 follow-up
+    // jit-null-metadatatable-counter-bump): a replaced/unlinked call-link
+    // record is retired through RetiredJITArtifacts (epoch-deferred — leaked
+    // flag-on until epochCoversEveryJSThread), which keeps the RECORD memory
+    // and the target machine code dispatchable for a straggler that loaded
+    // `r = m_record` before the replacement. But the record's
+    // `codeBlockToTransfer` is a raw GC-cell pointer the straggler stores
+    // into the callee frame BEFORE any conservative root can see it (the
+    // only copies live inside the record itself during the few-instruction
+    // dispatch window, I16). Nothing kept that CELL alive: the GC could
+    // sweep the named CodeBlock and recycle its IsoSubspace slot, so the
+    // straggler transferred a WRONG live CodeBlock into the callee frame —
+    // observed as the unlinked-DFG/baseline prologue materializing
+    // m_jitData==null from a recycled FTL CodeBlock cell and crashing on the
+    // tier-up counter bump at jitDataRegister+offsetOfJITExecuteCounter
+    // (SIGSEGV write at 0x28, r13==0, scalebench W=16). These pins make every
+    // retired record's named CodeBlock a validated GC root for exactly the
+    // record's retirement lifetime: pinned at retire, unpinned when the
+    // record is actually destroyed (epoch expiry; never, under the current
+    // flag-on leak arm — the pin then matches the record leak's lifetime,
+    // which is what makes that chartered leak SOUND). Marking validates each
+    // entry against codeBlockSet() under its lock, so an entry whose cell
+    // the GC already declared dead (removed by
+    // clearCurrentlyExecutingAndRemoveDeadCodeBlocks before any pin-driven
+    // mark could retain it) is skipped, never resurrected; a recycled slot
+    // re-added as a NEW CodeBlock is over-marked (kept alive) — benign.
+    // Counted: multiple retired records may name one CodeBlock. Lock is a
+    // leaf; callable from any mutator (the §5.8 writers run under
+    // CallLinkInfo::s_callLinkSerializationLock, which never parks).
+    void pinRetiredCallLinkRecordCodeBlock(void* codeBlock);
+    void unpinRetiredCallLinkRecordCodeBlock(void* codeBlock);
+
 #if USE(FOUNDATION)
     template<typename T> inline void releaseSoon(RetainPtr<T>&&);
 #endif
@@ -744,10 +840,23 @@ public:
     void didAllocateBlock(size_t capacity);
     void didFreeBlock(size_t capacity);
     
-    bool mutatorShouldBeFenced() const { return m_mutatorShouldBeFenced; }
+    // SPEC-congc §5.3(3) (CG-2): the C++ runtime readers of the barrier
+    // fence/threshold pair are re-pointed at the CURRENT CLIENT's §5.3(2)
+    // copy when C1R; !C1R (incl. all flags off) they read the SERVER master
+    // pair exactly as landed (CG-I0). Defined below GCClient::Heap at the
+    // bottom of this header (they need the client's members).
+    //
+    // The addressOf* accessors are NOT re-pointed: emitted code bakes the
+    // SERVER addresses (the complete reader set is ANNEX CGD2.2 — baked
+    // AbsoluteAddress in AssemblyHelpers, VM-offset loads, FTL AbstractHeap
+    // offsets). Per §5.3(3)/F19 the per-client JIT address reroute is
+    // CHARTERED to the jit/ungil owners (§13.3(a)); until it lands, GIL-off
+    // C1+ pins the SERVER master always-fenced (setMutatorShouldBeFenced),
+    // which makes master AND copies tautological for every reader.
+    inline bool mutatorShouldBeFenced() const;
     const bool* addressOfMutatorShouldBeFenced() const LIFETIME_BOUND { return &m_mutatorShouldBeFenced; }
-    
-    unsigned barrierThreshold() const { return m_barrierThreshold; }
+
+    inline unsigned barrierThreshold() const;
     const unsigned* addressOfBarrierThreshold() const LIFETIME_BOUND { return &m_barrierThreshold; }
 
     // If true, the GC believes that the mutator is currently messing with the heap. We call this
@@ -1001,7 +1110,12 @@ private:
     
     template<typename Func>
     void waitForCollector(const Func&);
-    
+    // W16-C1 residual (a): out-of-line rate-limited stall dump for the
+    // shared-mode waitForCollector wait loop (keep-waiting + rate-limited
+    // dump, the STW-watchdog policy shape — deepwater LEDGER §2/§3 ruling).
+    // Caller holds *m_threadLock.
+    NEVER_INLINE void dumpSharedGCWaitForCollectorStall(Seconds elapsed);
+
     JS_EXPORT_PRIVATE void acquireAccessSlow();
     JS_EXPORT_PRIVATE void releaseAccessSlow();
     
@@ -1027,6 +1141,67 @@ private:
     void runSharedGCElection(Ticket); // §10.2 election loop; returns once the ticket is served.
     bool tryConductSharedCollectionForPoll(GCClient::Heap&); // Non-blocking election attempt (SINFAC/CIND poll service).
     void conductSharedCollection(GCClient::Heap&); // §10 steps 3-9; pre: GCL held, GCA set.
+
+    // SPEC-congc §3 window model (CG-1, C0 infra). A shared collection is ONE
+    // GCA tenure containing a SEQUENCE of stop windows. Flag-off (every §13.2
+    // stage flag false) the conduct is exactly ONE window (§3.6 degenerate):
+    // FirstWindow open + final close — byte-for-byte today's steps 3-4/8-9
+    // (CG-I0). The Reentry and TicketDrainSuccessor arms and the non-final
+    // close are compiled but flag-dead until CG-3 wires them.
+    enum class SharedGCWindowOpen : uint8_t {
+        // F15 FIRST-WINDOW carve-out: the first WND-open IS the landed entry —
+        // GCL was tryLock'd access-HELD by the election/poll caller; this arm
+        // runs GSP, THEN the step-3 access release, then steps (d)-(e).
+        FirstWindow,
+        // §3.1(a)-(e) re-entry order: access stays released all tenure (§3.7);
+        // F45 foreign-waiter deferral; BLOCKING GCL acquire (legal exactly
+        // because access-released — ungil §A.3 rule 2 / HBT4 extended,
+        // ANNEX CGS2.4(b)); then (c)-(e).
+        Reentry,
+        // F28 TICKET-DRAIN SUCCESSOR (ANNEX CGD4.1): GCL RETAINED from the
+        // predecessor cycle's F23 final close; first WND-open = steps (c)-(e)
+        // ONLY.
+        TicketDrainSuccessor,
+    };
+    void openSharedGCStopWindow(GCClient::Heap& conductorClient, SharedGCWindowOpen); // WND-open (§3.1).
+    void closeSharedGCStopWindow(bool isFinalClose); // WND-close (§3.2; F23: final close leaves GCL HELD; access re-acquire stays at the landed conduct tail, after the FINAL close only).
+    void waitBetweenSharedGCWindows(); // §3.7 closed-loop between-window wait (F13/ANNEX CGD1.3); flag-dead until CG-3.
+
+    // SPEC-congc §9.1(2) marker pause for a foreign GCL holder (CG-3b; ANNEX
+    // CGP1 BINDING GOVERNS), amended by SPEC-ungil-history [r34] F-A item (1):
+    // the wait is TIMED, sampling JSThreadsSafepoint::watchdogAssertStopProgress
+    // (requestStart, &vm()) per 1ms quantum — a wedged marker batch fail-stops
+    // ON THE CONDUCTOR ITSELF at the 30s bound instead of hanging unwatched
+    // (the conductor's next sample otherwise sits in the VMManager predicate
+    // loop, never reached). Called ONLY from the two JSThreadsStopScope ctors
+    // (the heap-OWNED ctors/dtor are the ONLY pause/resume sites, F18/F47;
+    // §13.3(b): no foreign row), after the GCL is HELD (watchdog ctor: after a
+    // SUCCESSFUL tryLock only, never per failed iteration), when
+    // m_currentPhase != NotRunning (the read is GCL-ordered, F22). Acquires
+    // only m_markingMutex — no api-rank or heap rank >= 7 lock, and helpers
+    // hold no lock a §A.3 window needs, so the pause terminates (CG-I16).
+    void pauseConcurrentMarkingForForeignStop(MonotonicTime requestStart);
+    // Resume half: clear flag + notifyAll under m_markingMutex; called by
+    // ~JSThreadsStopScope strictly BEFORE its GCL release (§9.1(2) dtor order
+    // NORMATIVE — no WND-open with paused markers).
+    void resumeConcurrentMarkingAfterForeignStop();
+
+    // SPEC-congc §13.2 (CG-2: the INTEGRATE-congc.md manifest row 1 options
+    // are landed): TRUE iff any §13.2 stage flag is on — the single
+    // activation point for the CG-1 staged window machinery (Reentry /
+    // TicketDrainSuccessor opens, the non-final close arm, the §3.7 wait,
+    // the F46 per-window atom-table pin). All four flags default false and
+    // option validation (Options.cpp, notifyOptionsChanged) enforces the §7
+    // prefix rule + useSharedGCHeap, so flags-off this returns false at
+    // runtime exactly as the previous `static constexpr ... return false`
+    // did — every windowed arm stays dead (CG-I0). NOTE: the C1-C4 stage
+    // BEHAVIOR is not landed yet (CG-3..CG-6); turning a stage flag on is a
+    // development-only shape until then.
+    static bool sharedGCWindowedStagesEnabled()
+    {
+        return Options::useConcurrentSharedGCMarking() || Options::useSharedGCCollectorThread()
+            || Options::useSharedGCIncrementalSweep() || Options::useSharedGCMutatorAssist();
+    }
     void runSafepointHooksAndReclaim(); // §9 hooks + §11 reclaim sequence; both protocols' sole call sites.
     void pollIssRevertIfNeeded(); // §10D ISS reversion, main client's poll.
     // Manifest 5a park hooks (heap-owned impls; installed via
@@ -1207,6 +1382,9 @@ private:
 
     ProtectCountSet m_protectedValues;
     UncheckedKeyHashSet<MarkedVectorBase*> m_markListSet;
+    // DW-2: shared-GC-heap-mode replacement for m_markListSet (see
+    // markListSetShard()). Empty and never locked when !useSharedGCHeap.
+    MarkListSetShard m_markListSetShards[numMarkListSetShards];
 
     std::unique_ptr<MachineThreads> m_machineThreads;
     
@@ -1226,6 +1404,9 @@ private:
     
     HandleSet m_handleSet;
     std::unique_ptr<CodeBlockSet> m_codeBlocks;
+    // §5.8 record-named CodeBlock pins — see pinRetiredCallLinkRecordCodeBlock.
+    Lock m_retiredCallLinkRecordCodeBlocksLock;
+    HashCountedSet<void*> m_retiredCallLinkRecordCodeBlocks WTF_GUARDED_BY_LOCK(m_retiredCallLinkRecordCodeBlocksLock);
     std::unique_ptr<JITStubRoutineSet> m_jitStubRoutines;
     CFinalizerOwner m_cFinalizerOwner;
     LambdaFinalizerOwner m_lambdaFinalizerOwner;
@@ -1239,6 +1420,18 @@ private:
     Lock m_wasmCalleesPendingDestructionLock;
 
     unsigned m_barrierThreshold { blackThreshold };
+
+    // SPEC-congc §5.3(1) (CG-2): the barrier-fence epoch (FEP). Bumped
+    // (release) by setMutatorShouldBeFenced per mutation of the server
+    // master pair above; once ISS those mutations are conductor-only and
+    // in-window (raise in beginMarking, lower in endMarking) apart from the
+    // noteSharedServerSticky ISS-flip raise, which the next window's
+    // republish covers. The WND-close republish loop
+    // (closeSharedGCStopWindow) copies master->every client and stamps each
+    // client's m_fenceEpochSeen with this value; the §5.3(4) WND-close
+    // debug assert checks the stamps. Flag-off: bumped but never consulted
+    // (the copies are unrouted, unread state — ANNEX CGD4.4).
+    Atomic<uint64_t> m_barrierFenceEpoch { 0 };
 
 #if PLATFORM(MAC)
     Seconds m_lastFullGCLength { 2_ms };
@@ -1292,6 +1485,32 @@ private:
     std::unique_ptr<MarkStackArray> m_sharedMutatorMarkStack;
     unsigned m_numberOfActiveParallelMarkers { 0 };
     unsigned m_numberOfWaitingParallelMarkers { 0 };
+    // SPEC-congc §9.1(2) marker-pause pair (CG-3a; ANNEX CGP1 BINDING).
+    // BOTH guarded by m_markingMutex; participant set is EXACTLY the helpers
+    // inside drainFromShared(HelperDrain) (F14 — the counters' only
+    // maintainers). Pause protocol (set by CG-3b's
+    // pauseConcurrentMarkingForForeignStop): set ShouldPause + notifyAll
+    // m_markingConditionVariable, then wait (same mutex/condvar) until
+    // m_numberOfActiveParallelMarkers == 0 &&
+    // m_numberOfWaitingParallelMarkers == 0. Checkpoints: the helper-wait
+    // isReady lambda and the per-batch drain safepoint
+    // (SlotVisitor::helperDrainPauseCheckpointIfRequested — granularity one
+    // drained batch, the CG-I12 bound). ShouldPause gates counter (re-)entry
+    // including a fresh helper's first waiting++ (transient under the mutex).
+    // didReachTermination additionally requires m_pausedParallelMarkers == 0
+    // (CG-I22), so waitForTermination stays parked across a foreign §A.3
+    // stop. Resume: clear flag + notifyAll. WRITER CONTRACT: the bool is
+    // hint-read lock-free at the per-batch checkpoint via
+    // WTF::atomicLoad(relaxed) — every write MUST be a WTF::atomicStore
+    // under m_markingMutex (the mutex carries the protocol; the atomic makes
+    // the hint read well-defined). Flag-off the pair is never set/nonzero
+    // and every checkpoint is dead — AND never even loaded:
+    // m_isDrainingFromSharedHelper is option-byte-gated at the
+    // drainFromShared drain entry (FIX-V5B-F1 pattern), so flag-off helpers
+    // never touch this Heap line (it sits adjacent to the
+    // m_markingMutex-protected marker counters) from the marking hot loop.
+    bool m_parallelMarkersShouldPause { false };
+    unsigned m_pausedParallelMarkers { 0 };
 
     ConcurrentPtrHashSet m_opaqueRoots;
     static constexpr size_t s_blockFragmentLength = 32;
@@ -1321,7 +1540,64 @@ private:
     Lock m_gcBarrierLock; // GBL, rank 4 (§10.4/F7).
     Condition m_gcBarrierCondition; // GBC; signaled by clients releasing access while GSP (F8).
     bool m_gcConductorActive { false }; // GCA; guarded by *m_threadLock (rank 5; §10.2).
+    // SPEC-congc §3.5 (CG-1): GCA's owner. Stamped (under *m_threadLock) where
+    // GCA is set; restamp only in NotRunning (debug-asserted); cleared
+    // ownership-checked at the deferred wind-down clears (F20, ANNEX CGD3.1 —
+    // a descheduled predecessor must not clear a successor's tenure).
+    // Consumers: §3.4 guards (FOREIGN discrimination), the §9.2(4) EXIT1
+    // release-assert (CG-3), CG-I21.
+    Thread* m_gcConductorThread { nullptr };
+    // SPEC-congc §9.1(2a) F45 (ANNEX CGD7.2): foreign GCL waiter count.
+    // Relaxed; both JSThreadsStopScope ctors inc BEFORE their first lock
+    // attempt and dec once the lock is HELD (dtor never touches it; a
+    // !isSharedServer() early return never increments). Consulted ONLY by the
+    // WND-open RE-ENTRY deferral — flag-off it is maintained but never read
+    // on the GC path (one-window conducts never re-enter; CG-I0).
+    Atomic<unsigned> m_foreignGCLWaiters { 0 };
+    // SPEC-congc §3.7 ATOM-TABLE PIN scaffolding (F46, ANNEX CGD7.3): the
+    // per-window install's saved previous table, valid only while a windowed
+    // (sharedGCWindowedStagesEnabled) window is open; conductor-only.
+    WTF::AtomStringTable* m_sharedGCWindowSavedAtomStringTable { nullptr };
+    // SPEC-congc §3.5 conductor-identity scaffolding (CG-3a): the conducting
+    // client, stamped/cleared by conductSharedCollection (conductor-private,
+    // valid only during a conduct tenure). Consumed by finishChangingPhase's
+    // §7.1 WND-reopen arm (openSharedGCStopWindow(Reentry) needs the
+    // conductor's GCClient for its §3.7 access-released debug assert).
+    // Distinct from m_gcConductorThread (the *m_threadLock-guarded GCA
+    // owner): this one is only ever read on the conductor's own thread
+    // inside the tenure's closed loop, so it needs no lock.
+    GCClient::Heap* m_sharedGCConductorClient { nullptr };
     Condition m_gcElectionCondition; // GEC; waited on under *m_threadLock (§10.2/§10B.4).
+    // W16-C1 residual (b): shared-mode PreventCollectionScope gate; guarded
+    // by *m_threadLock. Once ISS, preventCollection() raises this
+    // (idempotently, from inside its waitForCollector func — flip-safe
+    // because the func re-checks ISS every iteration); while nonzero the
+    // §10.2 election winner arm and tryConductSharedCollectionForPoll()
+    // refuse to claim a NEW conduct tenure, so no shared collection can
+    // START. Tickets still GRANT per §10B.1 (requestCollectionShared / the
+    // CIND timer's inline grant) and sit granted-unserved; a live cycle's
+    // window re-entry (SPEC-congc §3 WND-open, part of an already-started
+    // cycle) is deliberately NOT gated — preventCollection instead waits for
+    // the whole cycle (!GCA && phase == NotRunning) before returning,
+    // cooperating with its stop windows via the waitForCollector ISS
+    // branch's SINFAC poll. Cleared by allowCollection() (GEC notifyAll).
+    // The CIND timer thread is separately excluded by
+    // m_collectContinuouslyLock, held across the whole prevent scope. This
+    // closes the N-mutator gap where the legacy "now a collection can only
+    // start if this thread starts it" postcondition silently relied on the
+    // single-mutator protocol. Composition with SPEC-congc §9: the gate
+    // touches neither GCL nor the §A.3 stop protocol — it only narrows the
+    // two landed conduct-tenure decision points (§9.3's election/poll stay
+    // tryLock-only); a prevented requester behaves exactly like the landed
+    // GCL-busy follower (timed <=1ms GEC waits, §10.2 GCL-busy rule).
+    unsigned m_sharedGCPreventCount { 0 };
+    // Companion raise-tracking flag for allowCollection(); guarded by
+    // m_collectContinuouslyLock (prevent/allow holders are serialized on
+    // it). Lets allowCollection() clear the gate without consulting
+    // isSharedServer() — a §10D reversion between prevent and allow must
+    // not leak a raised gate into a later re-flip era — while keeping the
+    // legacy flag-off path free of any *m_threadLock acquisition.
+    bool m_sharedGCPreventGateRaised { false };
     Atomic<bool> m_gcStopPending { false }; // GSP; sole writer = conductor, seq_cst (F8).
     Atomic<bool> m_isSharedServer { false }; // Sticky ISS (§5.1/I13/§10D).
     Atomic<bool> m_worldIsStoppedForAllClients { false }; // WSAC; conductor-written under GBL (F7).
@@ -1761,12 +2037,82 @@ private:
     unsigned m_deferralDepth { 0 }; // §5.4/I17 (T3): per-client DeferGC depth once ISS; touched only by this client's access-holding thread.
     bool m_didDeferGCWork { false }; // Review round 4: per-client deferred-GC hint once ISS (companion to m_deferralDepth, same touch rules), via JSC::Heap::didDeferGCWorkSlot(). Migrated server<->client at the §10B.4 flip / §10D reversion alongside the depth.
     MutatorState m_mutatorState { MutatorState::Running }; // Review round 2: per-client mutator state once ISS; touched only by this client's access-holding thread (or the conductor's own thread while it conducts), via JSC::Heap::mutatorStateSlot().
+
+    // --- CG-2 per-client GC state (SPEC-congc §4.1-4.2, §5.2-5.3; ANNEXES
+    // CGD2.2, CGD4.4/4.5). ALL of it is C1R-routed (F33: C1R := ISS &&
+    // useConcurrentSharedGCMarking) — with the C1 stage flag off this block
+    // is unrouted, unread state and every landed code path is byte-for-byte
+    // (CGD4.4; the CG-T1 flag-off identity arm). ---
+    //
+    // §5.2 CMS (per-client mutator mark stack): the write-barrier slow path
+    // (JSC::Heap::addToRememberedSet) appends HERE under m_mutatorMarkStackLock
+    // when C1R and the calling thread's §10A.1 client is this one. Created
+    // lazily under the lock by the first routed append; null whenever !C1R.
+    // Drained: every WND-open transfers it into the server's
+    // m_sharedMutatorMarkStack under m_markingMutex (§5.2(i) — the
+    // correctness drain; the §5.2(ii) threshold donation from the SINFAC
+    // hot-poll tail is CG-3, gated on sharedGCMutatorMarkStackDonationThreshold).
+    // CMS is contention/scaling + window-drain accounting, NOT a soundness
+    // fix: the server stack KEEPS multi-producer mode under C1R (F44; the
+    // remaining producers are the F31/CGD4.5 conductor-context appends).
+    std::unique_ptr<MarkStackArray> m_mutatorMarkStack;
+    // LK.9c (SPEC-congc CG-I10/F21; lint-lockorder-u20.sh R3/R4): TERMINAL
+    // leaf — nothing may be acquired under it; legal under the rank 7-9b
+    // allocation-side locks barrier slow paths hold; ordered AFTER
+    // m_markingMutex (LK.9d) at the WND-open drain/donation sites only.
+    Lock m_mutatorMarkStackLock;
+    // §5.3(2) fence/threshold copies + FEP stamp: republished
+    // master->client by the conductor inside the mutating window (WSAC,
+    // pre-close, in closeSharedGCStopWindow). Clients NEVER write these; the
+    // C1R consumers (JSC::Heap::mutatorShouldBeFenced()/barrierThreshold(),
+    // defined below this class) read the current client's copy. CG-I3:
+    // a RAISE completes for all clients before its window closes; a LOWER
+    // only in the final window; over-fenced is always sound.
+    bool m_mutatorShouldBeFenced { false };
+    unsigned m_barrierThreshold { blackThreshold };
+    uint64_t m_fenceEpochSeen { 0 };
+    // §4.1 didRun: plain byte, owner-thread relaxed writes only (the AHA
+    // success tail + the SINFAC hot-poll exit; heap I17). Scheduling-only.
+    // The conductor ORs it into the legacy m_mutatorDidRun consumer and
+    // clears it at each WND-open (the window barrier orders it, CG-I9).
+    bool m_didRunSinceLastWindow { false };
     // --- End shared heap client state ---
 
     friend class JSC::VM;
 };
 
 } // namespace GCClient
+
+// SPEC-congc §5.3(3) (CG-2): C1R consumer re-point of the barrier
+// fence/threshold pair. When C1R (F33) and the calling thread carries a
+// §10A.1 client of THIS server, read the client's §5.3(2) copy; every other
+// shape — !C1R (incl. all flags off, CG-I0 byte-for-byte), a null client
+// (conductor context, GC helper threads — the F31/CGD4.5 server arm), or a
+// foreign-server client — reads the SERVER master pair exactly as landed.
+// Emitted code is NOT routed through these (it bakes the server addresses;
+// ANNEX CGD2.2 is the complete reader table), which is why GIL-off C1+ pins
+// the server master always-fenced in setMutatorShouldBeFenced (F19).
+// Defined here (below GCClient::Heap) because they need the client's
+// members; JSC::Heap is a friend of GCClient::Heap.
+ALWAYS_INLINE bool Heap::mutatorShouldBeFenced() const
+{
+    if (sharedGCBarrierStateIsPerClient()) [[unlikely]] {
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        if (client && &client->server() == this)
+            return client->m_mutatorShouldBeFenced;
+    }
+    return m_mutatorShouldBeFenced;
+}
+
+ALWAYS_INLINE unsigned Heap::barrierThreshold() const
+{
+    if (sharedGCBarrierStateIsPerClient()) [[unlikely]] {
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        if (client && &client->server() == this)
+            return client->m_barrierThreshold;
+    }
+    return m_barrierThreshold;
+}
 
 // SharedGC (§5.4/I17, T3): per-client DeferGC depth dispatch. Defined here
 // (below GCClient::Heap) because it needs the client's members; JSC::Heap is

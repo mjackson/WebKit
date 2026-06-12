@@ -1403,10 +1403,29 @@ end
 macro copyCalleeSavesToVMEntryFrameCalleeSavesBufferGroup3(vm, temp)
     if ARM64 or ARM64E or X86_64 or ARMv7 or RISCV64
         branchIfGilOffGroup3ToT6(.liteTopEntryFrame)
+    .topEntryFrameVMStorage:
         loadp VM::topEntryFrame[vm], temp
         if GILOFF_TLS
             jmp .haveTopEntryFrame
         .liteTopEntryFrame:
+            # Same-VM guard (K4 table-I Group-3 row addendum; mirrors
+            # llint_get_host_call_return_value): the C++ writer selector
+            # (VM::group3Primitives()) takes the lite arm only when
+            # lite->vm == vm; a foreign gilOff lite must read the storage
+            # the writer actually used. Never-taken in any state
+            # JSLock::didAcquireLock permits -- defense-in-depth symmetry.
+            if ASSERT_ENABLED
+                # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+                # foreclosure was violated; fail-stop here instead of silently
+                # falling back to the shared VM-block word (the exact
+                # cross-thread access this guard family exists to eliminate).
+                # Release keeps the writer-symmetry fallback.
+                bpeq VMLite::vm[t6], vm, .sameVMLiteOk1
+                break
+            .sameVMLiteOk1:
+            else
+                bpneq VMLite::vm[t6], vm, .topEntryFrameVMStorage
+            end
             loadp VMLitePrimitives::topEntryFrame[t6], temp
         .haveTopEntryFrame:
         end
@@ -1417,10 +1436,24 @@ end
 macro restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferGroup3(vm, temp)
     if ARM64 or ARM64E or X86_64 or ARMv7 or RISCV64
         branchIfGilOffGroup3ToT6(.liteTopEntryFrame)
+    .topEntryFrameVMStorage:
         loadp VM::topEntryFrame[vm], temp
         if GILOFF_TLS
             jmp .haveTopEntryFrame
         .liteTopEntryFrame:
+            # Same-VM guard; see copyCalleeSavesToVMEntryFrameCalleeSavesBufferGroup3.
+            if ASSERT_ENABLED
+                # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+                # foreclosure was violated; fail-stop here instead of silently
+                # falling back to the shared VM-block word (the exact
+                # cross-thread access this guard family exists to eliminate).
+                # Release keeps the writer-symmetry fallback.
+                bpeq VMLite::vm[t6], vm, .sameVMLiteOk2
+                break
+            .sameVMLiteOk2:
+            else
+                bpneq VMLite::vm[t6], vm, .topEntryFrameVMStorage
+            end
             loadp VMLitePrimitives::topEntryFrame[t6], temp
         .haveTopEntryFrame:
         end
@@ -2136,6 +2169,7 @@ if ((ARM64E or ARM64) or X86_64) and ADDRESS64 and not C_LOOP
         # (r10) on x86-64, t9 (x9) on ARM64 -- see the liveness table at the
         # discriminator definition.
         vmEntryBranchIfGilOffGroup3(.liteSetup)
+    .setupVMStorage:
         if ARM64 or ARM64E
             storepairq a1, a5, VMEntryRecord::m_vm[sp]
             loadpairq VM::topCallFrame[a1], t8, t9 # topCallFrame and topEntryFrame
@@ -2151,6 +2185,38 @@ if ((ARM64E or ARM64) or X86_64) and ADDRESS64 and not C_LOOP
         if GILOFF_TLS
             jmp .setupDone
         .liteSetup:
+            # Same-VM guard (K4 table-I Group-3 row addendum; mirrors
+            # llint_get_host_call_return_value): reader/writer discriminator
+            # symmetry with VM::group3Primitives() (lite arm only when
+            # lite->vm == a1, the VM being entered). Never-taken under
+            # JSLock::didAcquireLock -- defense-in-depth only.
+            if X86_64
+                if ASSERT_ENABLED
+                    # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+                    # foreclosure was violated; fail-stop here instead of silently
+                    # falling back to the shared VM-block word (the exact
+                    # cross-thread access this guard family exists to eliminate).
+                    # Release keeps the writer-symmetry fallback.
+                    bpeq VMLite::vm[t5], a1, .sameVMLiteOk3
+                    break
+                .sameVMLiteOk3:
+                else
+                    bpneq VMLite::vm[t5], a1, .setupVMStorage
+                end
+            elsif ARM64 or ARM64E
+                if ASSERT_ENABLED
+                    # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+                    # foreclosure was violated; fail-stop here instead of silently
+                    # falling back to the shared VM-block word (the exact
+                    # cross-thread access this guard family exists to eliminate).
+                    # Release keeps the writer-symmetry fallback.
+                    bpeq VMLite::vm[t9], a1, .sameVMLiteOk4
+                    break
+                .sameVMLiteOk4:
+                else
+                    bpneq VMLite::vm[t9], a1, .setupVMStorage
+                end
+            end
             if X86_64
                 storeq a1, VMEntryRecord::m_vm[sp]
                 storeq a5, VMEntryRecord::m_context[sp]
@@ -2186,6 +2252,7 @@ if ((ARM64E or ARM64) or X86_64) and ADDRESS64 and not C_LOOP
         # UNGIL sec.A.1.3 (AB-1): t5/t9 are dead again here (the header/arg
         # copies above are done); same lite base choice as Setup.
         vmEntryBranchIfGilOffGroup3(.liteSetTopCallFrame)
+    .setTopCallFrameVMStorage:
         if ARM64 or ARM64E
             move sp, t8
             storepairq t8, cfr, VM::topCallFrame[a1] # topCallFrame and topEntryFrame
@@ -2196,6 +2263,34 @@ if ((ARM64E or ARM64) or X86_64) and ADDRESS64 and not C_LOOP
         if GILOFF_TLS
             jmp .setTopCallFrameDone
         .liteSetTopCallFrame:
+            # Same-VM guard; see .liteSetup above.
+            if X86_64
+                if ASSERT_ENABLED
+                    # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+                    # foreclosure was violated; fail-stop here instead of silently
+                    # falling back to the shared VM-block word (the exact
+                    # cross-thread access this guard family exists to eliminate).
+                    # Release keeps the writer-symmetry fallback.
+                    bpeq VMLite::vm[t5], a1, .sameVMLiteOk5
+                    break
+                .sameVMLiteOk5:
+                else
+                    bpneq VMLite::vm[t5], a1, .setTopCallFrameVMStorage
+                end
+            elsif ARM64 or ARM64E
+                if ASSERT_ENABLED
+                    # A2-amend round 4: foreign gilOff lite means the didAcquireLock
+                    # foreclosure was violated; fail-stop here instead of silently
+                    # falling back to the shared VM-block word (the exact
+                    # cross-thread access this guard family exists to eliminate).
+                    # Release keeps the writer-symmetry fallback.
+                    bpeq VMLite::vm[t9], a1, .sameVMLiteOk6
+                    break
+                .sameVMLiteOk6:
+                else
+                    bpneq VMLite::vm[t9], a1, .setTopCallFrameVMStorage
+                end
+            end
             if X86_64
                 storeq sp, VMLitePrimitives::topCallFrame[t5]
                 storeq cfr, VMLitePrimitives::topEntryFrame[t5]

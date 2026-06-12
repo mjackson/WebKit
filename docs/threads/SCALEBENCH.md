@@ -17,6 +17,23 @@ Results JSON: `Tools/threads/scalebench/results.json` — now two sections,
 `RESULTS.md`, run-1 at `RESULTS-run1.md`; per-run artifacts `out/` for run 2,
 `out-run1/` for run 1).
 
+**Measured-configuration caveat (added 2026-06-11, bughunter A5 amend
+round):** any GIL-off run on trees at or after the A5-round interim
+closure of AUD1.K4 rows II.18/II.19 measures a configuration in which
+(a) megamorphic inline caches are disabled (megamorphic-class sites cap
+out as polymorphic stubs and fall to generic slow calls; the
+fill side was already disabled under `useJSThreads` by
+`MegamorphicCache::fillsDisabledUnderJSThreads()`), and (b) the
+`HasOwnPropertyCache` for `hasOwnProperty`/`Object.hasOwn` is disabled
+in every tier (including loss of the DFG `HasOwnProperty` intrinsic).
+The ruled per-lite cache copies (+ §0 U4 A16-ext JIT repointing) are
+the follow-up; until they land, published W-scaling numbers embed this
+interim disable, and megamorphic/hasOwnProperty-heavy phases serialize
+into generic paths whose cost scales with contention. Runs 1–2 below
+PRE-DATE the disable and are unaffected; any future re-run must either
+land the per-lite copies first or restate this caveat next to its
+numbers.
+
 ---
 
 # RUN 1 (historical record — pre-fix tree)

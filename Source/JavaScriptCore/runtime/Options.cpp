@@ -845,6 +845,32 @@ void Options::notifyOptionsChanged()
         Options::useWasm() = false;
     }
 
+#if !(CPU(X86_64) || CPU(ARM64)) || ENABLE(C_LOOP)
+    // UNGIL §A.1.3 / AB-1 (A6-amend review finding, 2026-06-11): the GIL-off
+    // Group-3 mode split is implemented only for the 64-bit JIT
+    // configurations. The C++ writers store encodedHostCallReturnValue
+    // through group3Primitives() (per-lite copy when a gilOff same-VM lite is
+    // current), and the matching mode-split READ sites exist only in
+    // LowLevelInterpreter64.asm (llint_get_host_call_return_value AB-1
+    // split) and LLIntThunks.cpp getHostCallReturnValueThunk's
+    // #if CPU(X86_64) || CPU(ARM64) arm. LowLevelInterpreter32_64.asm
+    // (and the CLoop build of it) still reads the raw VM-block words
+    // unconditionally, so a spawned thread's host call on such a
+    // configuration would consume a stale/garbage return value SILENTLY —
+    // writer hits the lite copy, reader the VM block. Per the house rule
+    // (fail-stop/refusal over silent corruption), REFUSE the GIL-off shape
+    // outright on these configurations instead of relying on the charter
+    // convention that GIL-off targets 64-bit JIT builds. Flag-off and
+    // GIL-on are unaffected (condition requires useThreadGIL=0); 64-bit
+    // JIT builds compile this block away entirely (byte-identical codegen).
+    // Delete the relevant arm once the 32_64/CLoop read sites get the same
+    // mode split.
+    if (Options::useJSThreads() && !Options::useThreadGIL()) {
+        dataLogLn("JSC: refusing GIL-off configuration on a non-64-bit-JIT/CLoop build (LowLevelInterpreter32_64 reads the raw VM-block encodedHostCallReturnValue words; the UNGIL AB-1 Group-3 mode split is 64-bit-only); forcing useThreadGIL=1.");
+        Options::useThreadGIL() = true;
+    }
+#endif
+
     // ANNEX U0C write-once latch backstop (U-T14 amend, reviewer round 2):
     // gilOffProcess is OPTION-derived and IMMUTABLE for the process. The
     // real latch — the JSCConfig gilOffProcess byte — is U-T3's open
@@ -879,6 +905,35 @@ void Options::notifyOptionsChanged()
             s_gilOffProcessLatchIsSet = true;
         } else
             RELEASE_ASSERT(gilOffProcessDerivation == s_gilOffProcessLatch);
+    }
+
+    // SPEC-congc §13.2 stage-flag validation (CG-2; INTEGRATE-congc.md
+    // manifest row 1): the §7 prefix rule — a stage flag requires every
+    // earlier stage's flag — and all four stages require useSharedGCHeap.
+    // Enforced by forcing the dependent flag OFF (house style: refuse the
+    // unsupported shape rather than silently run it). Evaluated C1-first so
+    // a violation cascades: clearing an earlier stage clears every later
+    // one. Flags-off (all default false): every condition is false —
+    // byte-identical behavior. NOTE: the flags are development-only until
+    // CG-3..CG-6 land the C1-C4 behavior behind them (the windowed arms CG-1
+    // staged activate via Heap::sharedGCWindowedStagesEnabled(), but the
+    // stage semantics — kill-switch retires, marker scheduling, collector
+    // thread, sweeping, assist — are not in-tree yet).
+    if (Options::useConcurrentSharedGCMarking() && !Options::useSharedGCHeap()) {
+        dataLogLn("JSC: disabling useConcurrentSharedGCMarking (SPEC-congc §13.2: requires useSharedGCHeap).");
+        Options::useConcurrentSharedGCMarking() = false;
+    }
+    if (Options::useSharedGCCollectorThread() && !Options::useConcurrentSharedGCMarking()) {
+        dataLogLn("JSC: disabling useSharedGCCollectorThread (SPEC-congc §13.2 prefix rule: requires useConcurrentSharedGCMarking).");
+        Options::useSharedGCCollectorThread() = false;
+    }
+    if (Options::useSharedGCIncrementalSweep() && !Options::useSharedGCCollectorThread()) {
+        dataLogLn("JSC: disabling useSharedGCIncrementalSweep (SPEC-congc §13.2 prefix rule: requires useSharedGCCollectorThread).");
+        Options::useSharedGCIncrementalSweep() = false;
+    }
+    if (Options::useSharedGCMutatorAssist() && !Options::useSharedGCIncrementalSweep()) {
+        dataLogLn("JSC: disabling useSharedGCMutatorAssist (SPEC-congc §13.2 prefix rule: requires useSharedGCIncrementalSweep).");
+        Options::useSharedGCMutatorAssist() = false;
     }
 
     unsigned thresholdForGlobalLexicalBindingEpoch = Options::thresholdForGlobalLexicalBindingEpoch();

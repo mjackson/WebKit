@@ -764,8 +764,30 @@ public:
             // (e.g. ARM64 data temp on the unencodable-TLS-offset fallback), same
             // as the landed loadTopEntryFrame pattern — no call site may hold
             // those live across this helper in either mode.
+            //
+            // Same-VM guard (K4 table-I Group-3 row addendum; mirrors the
+            // shared-asm lite arms / getHostCallReturnValue thunk):
+            // reader/writer discriminator symmetry with VM::group3Primitives()
+            // — lite arm only when lite->vm == &vm (a codegen-time immediate).
+            // Foreign gilOff lite => VM-block word, the storage the writer
+            // selector would use. Never-taken under JSLock::didAcquireLock;
+            // defense-in-depth only.
             loadVMLite(GPRInfo::regT1);
+            Jump foreignLite = branchPtr(NotEqual, Address(GPRInfo::regT1, static_cast<int32_t>(VMLite::offsetOfVM())), TrustedImmPtr(&vm));
             loadPtr(Address(GPRInfo::regT1, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_targetMachinePCForThrow())), GPRInfo::regT1);
+            Jump havePC = jump();
+            foreignLite.link(this);
+            // A4-amend (control-flow-integrity tightening): the harvested
+            // word is the farJump TARGET, so the foreign-lite arm fail-stops
+            // in ALL build flavors — a Release writer-symmetry fallback here
+            // would consume a word other threads' foreign accesses race on
+            // as an indirect jump target, i.e. it narrows the A4 wild-pc
+            // window instead of closing it. A deterministic trap at a known
+            // PC on this never-taken path (didAcquireLock foreclosure) beats
+            // a narrowed wild jump; the silent fallback survives only at
+            // pure data-word arms (topCallFrame/topEntryFrame stores).
+            breakpoint();
+            havePC.link(this);
         } else
             loadPtr(&vm.targetMachinePCForThrow, GPRInfo::regT1);
         farJump(GPRInfo::regT1, ExceptionHandlerPtrTag);

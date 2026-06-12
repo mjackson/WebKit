@@ -109,4 +109,36 @@ private:
 };
 
 } // namespace GCClient
+
+#if ASSERT_ENABLED
+// SPEC-congc §8.2 CG-I18 (CG-3c): per-thread JSCellLock (rank 10a) hold-depth
+// bookkeeping, debug builds only. CELL-LOCK NO-PARK (CG-I18, NORMATIVE): a
+// JSCellLock holder must not release heap access, pass a stop poll, or enter
+// a conducting path — that is what makes the ANNEX CGN1 N3 tryLock+revisit
+// termination argument hold (IN-WINDOW every 10a lock is free, so each
+// visitor retry succeeds). The counter is maintained by the JSCellLock
+// lock/tryLock/unlock inlines (runtime/JSCellInlines.h — chartered-out hunk,
+// see INTEGRATE-congc.md manifest) and consulted by the CG-I18 debug asserts
+// at SINFAC entry and the AHA park legs (Heap.cpp). Asserts are gated on
+// Options::useConcurrentSharedGCMarking() so flag-off debug behavior is
+// unchanged (the bookkeeping itself is inert). Release builds: this entire
+// facility compiles away — no codegen delta (CG-I0 trivially).
+//
+// Lives here (not Heap.h) because this header is congc-owned and transitively
+// visible to JSCellInlines.h via Heap.h.
+class GCCellLockDepth {
+public:
+    static void increment() { ++t_depth; }
+    static void decrement()
+    {
+        ASSERT(t_depth);
+        --t_depth;
+    }
+    static unsigned current() { return t_depth; }
+
+private:
+    static inline thread_local unsigned t_depth { 0 };
+};
+#endif // ASSERT_ENABLED
+
 } // namespace JSC

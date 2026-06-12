@@ -430,6 +430,11 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useGlobalGC, false, Normal, nullptr) \
     v(Bool, useSharedGCHeap, false, Normal, "Multiple GCClient::Heaps (threads) share one server JSC::Heap"_s) \
     v(Bool, verboseSharedGCHeap, false, Normal, nullptr) \
+    v(Bool, useConcurrentSharedGCMarking, false, Normal, "C1: concurrent marking between shared-GC stop windows (SPEC-congc sec 7.1)"_s) \
+    v(Bool, useSharedGCCollectorThread, false, Normal, "C2: collector-thread conductor for the shared GC (SPEC-congc sec 7.2)"_s) \
+    v(Bool, useSharedGCIncrementalSweep, false, Normal, "C3: incremental + mutator-concurrent sweeping under the shared GC (SPEC-congc sec 7.3)"_s) \
+    v(Bool, useSharedGCMutatorAssist, false, Normal, "C4: incremental mutator assist under the shared GC (SPEC-congc sec 7.4)"_s) \
+    v(Unsigned, sharedGCMutatorMarkStackDonationThreshold, 510, Normal, "CMS donation threshold in cells (SPEC-congc sec 5.2(ii)); default = one MarkStackArray segment, (4KB - segment header) / sizeof(const JSCell*) (GCSegmentedArray.h CapacityFromSize, release shape)"_s) \
     v(Bool, gcAtEnd, false, Normal, "If true, the jsc CLI will do a GC before exiting"_s) \
     v(Bool, forceGCSlowPaths, false, Normal, "If true, we will force all JIT fast allocations down their slow paths."_s) \
     v(Bool, forceDidDeferGCWork, false, Normal, "If true, we will force all DeferGC destructions to perform a GC."_s) \

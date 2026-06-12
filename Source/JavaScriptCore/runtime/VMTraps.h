@@ -360,6 +360,30 @@ public:
     inline void requestStop();
     inline void cancelStop();
 
+    // checktraps-dejank-invalidation-point (UNGIL §K.5 / SPEC-jit I21):
+    // jettison every optimizing-JIT CodeBlock on the CURRENT thread's stack
+    // after a conductor heap-fact rewrite window (haveABadTime / Class-A fire
+    // / OM transition stop / debugger) overlapped this thread's park.
+    // Jettison fires the CheckTraps invalidation points emitted by the
+    // GIL-off DFG/FTL poll lowering, so the resumed mutator OSR-exits at the
+    // poll before reusing any hoisted heap fact. Unlike
+    // invalidateCodeBlocksOnStack, this is NOT gated on
+    // m_needToInvalidateCodeBlocks (that flag is a one-shot consumed by the
+    // first servicing thread; under N mutators every overlapped thread must
+    // walk its own stack) and is compiled regardless of
+    // ENABLE(SIGNAL_BASED_VM_TRAPS) (it is driven by the polling-traps epoch
+    // check, not by signals). Lock shape (amend round, review major fix):
+    // the stack walk COLLECTS under the codeBlockSet lock and jettisons
+    // AFTER dropping it — CodeBlock::jettison re-enters
+    // JSThreadsSafepoint::stopTheWorldAndRun (section 5.3 choke point), and
+    // conducting a stop while holding that process-shared lock would
+    // deadlock against any sibling whose own path to its park needs the same
+    // lock (e.g. handleTraps' breakpoint-sweep walk). Callers:
+    // VMTraps::handleTraps' epoch scope exit, and
+    // JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld's post-resume
+    // epoch check (public for the latter).
+    void jettisonOptimizedCodeOnStackAfterConductorHeapFactRewrite(CallFrame* topCallFrame);
+
 private:
     ALWAYS_INLINE BitField clearTrapWithoutCancellingThreadStop(Event event)
     {
@@ -711,5 +735,76 @@ JS_EXPORT_PRIVATE void assertNoPerLiteTrapSignalingLockHeldOnCurrentThread();
 #else
 inline void assertNoPerLiteTrapSignalingLockHeldOnCurrentThread() { }
 #endif
+
+// ===== checktraps-dejank-invalidation-point: conductor heap-fact rewrite epoch =====
+//
+// GIL-off, DFG/FTL CheckTraps no longer clobbers the abstract heap
+// (DFGClobberize.h); it is modeled and compiled as an InvalidationPoint at the
+// poll's rejoin. The park-site semantics (UNGIL §K.5 / SPEC-jit I21: the
+// conductor may rewrite ANY heap fact during a §A.3 window — haveABadTime
+// butterfly conversion, Class-A structure retags, debugger JS) are enforced at
+// RUNTIME instead: every conductor-side heap-fact rewrite bumps this
+// process-global epoch IN-WINDOW, after the window's work and BEFORE the
+// stopped world resumes, and a mutator whose park (VMTraps::handleTraps, or a
+// class-(2) parkSitePollAndParkForStopTheWorld quantum) overlapped a bump
+// jettisons its own on-stack optimizing-JIT code on resume — which fires the
+// CheckTraps invalidation points, so the mutator OSR-exits at the poll before
+// reusing any hoisted fact. Visibility: the bump is sequenced before the
+// window's resume publication on the conductor thread; the parked mutator's
+// read is sequenced after its wake on that same resume edge (park
+// mutex/condvar + the F5 ISB), giving happens-before without extra fencing
+// beyond the atomics in the impl. EDGE LAW (review blocker, amend round): a
+// publication-time-only bump is UNSOUND — mutators parked BY a window sample
+// the epoch after the publication bump and would compare equal on resume; the
+// load-bearing bump must land while the world is still stopped (see the
+// BUMP-EDGE LAW comment in bytecode/JSThreadsSafepoint.cpp).
+//
+// PLACEMENT NOTE: these belong with the rest of namespace JSThreadsSafepoint
+// in bytecode/JSThreadsSafepoint.h; they are declared here (and DEFINED in
+// bytecode/JSThreadsSafepoint.cpp, which sees these declarations via VM.h ->
+// VMTraps.h) because this change's ownership boundary includes VMTraps.h but
+// not JSThreadsSafepoint.h. Fold them into JSThreadsSafepoint.h in a
+// follow-up that owns that header.
+//
+// Bump sites (coverage table: docs/threads/AUDIT-checktraps.md):
+//  - LOAD-BEARING (gilOff): the wrapped-work closure tail in
+//    JSThreadsSafepoint::stopTheWorldAndRun's thread-granular reroute —
+//    in-window, pre-resume, for EVERY conducted §A.3 window not under
+//    PureCodeLifecycleStopWindowScope; plus the R1.h already-stopped inline
+//    branch's post-work bump (pre-resume w.r.t. the OUTER stop);
+//  - ClassAStopWatchdogContext's constructor (entry edge: covers mutators
+//    already inside handleTraps at publication; GIL-on belt-and-braces) and
+//    destructor (exit edge: covers inline fires under an outer stop), both
+//    EXCEPT while a PureCodeLifecycleStopWindowScope is open;
+//  - JSGlobalObject::haveABadTimeImpl (explicit — covers the GIL-on flag-on
+//    leg, where no stop window/context is published);
+//  - VMTraps::handleTraps' NeedDebuggerBreak service (explicit — same GIL-on
+//    reason).
+// A pure CodeBlock-jettison window rewrites CODE, not heap facts, so
+// CodeBlock::jettison opens PureCodeLifecycleStopWindowScope around its
+// context to avoid cascading every reoptimization into a process-wide
+// on-stack jettison of all parked mutators. False-positive bumps are sound
+// (they only cost a jettison); a MISSED bump at a new heap-fact-rewriting
+// window is a correctness bug — new stop-window requesters must either
+// publish a context without the scope or bump explicitly.
+namespace JSThreadsSafepoint {
+
+JS_EXPORT_PRIVATE uint64_t conductorHeapFactRewriteEpoch();
+JS_EXPORT_PRIVATE void noteConductorHeapFactRewrite();
+
+// RAII, thread-local, nests: while open, ClassAStopWatchdogContext
+// publications on this thread do NOT bump the heap-fact rewrite epoch. Only
+// for stop windows that provably rewrite no heap fact (today: the
+// CodeBlock::jettison choke point — including the Class-A fire's nested
+// step-5 jettisons, whose OUTER fire context has already bumped by then).
+class PureCodeLifecycleStopWindowScope {
+public:
+    PureCodeLifecycleStopWindowScope(const PureCodeLifecycleStopWindowScope&) = delete;
+    PureCodeLifecycleStopWindowScope& operator=(const PureCodeLifecycleStopWindowScope&) = delete;
+    JS_EXPORT_PRIVATE PureCodeLifecycleStopWindowScope();
+    JS_EXPORT_PRIVATE ~PureCodeLifecycleStopWindowScope();
+};
+
+} // namespace JSThreadsSafepoint
 
 } // namespace JSC

@@ -2823,6 +2823,22 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
         // Watchdog context (review round): without this, a wedged jettison
         // stop crashed with a nil context and the timeout triage could not
         // distinguish jettison from the other context-less requesters.
+        // checktraps-dejank-invalidation-point: a jettison-only window
+        // rewrites CODE (unlink/install/invalidate), never heap facts, so it
+        // must NOT bump the conductor heap-fact rewrite epoch — otherwise
+        // every reoptimization jettison would cascade into a process-wide
+        // on-stack jettison of every concurrently parked mutator's optimized
+        // code. The scope suppresses every bump this window would otherwise
+        // perform: the watchdog context's ctor/dtor bumps AND the in-window
+        // pre-resume bump in stopTheWorldAndRun's gilOff reroute (the
+        // wrapped closure consults the same thread-local depth on this
+        // requester's stack). Heap-fact-rewriting windows (WatchpointSet
+        // Class-A fire, OM transition stop, Debugger STW, haveABadTime) bump
+        // in-window via their own conducted windows (plus explicit GIL-on
+        // bumps); their nested step-5 jettisons land here INSIDE that outer
+        // window, whose own pre-resume bump still fires after this scope
+        // closes, so suppressing the nested context loses nothing.
+        JSThreadsSafepoint::PureCodeLifecycleStopWindowScope pureCodeLifecycleScope;
         JSThreadsSafepoint::ClassAStopWatchdogContext watchdogContext(this, "CodeBlock jettison");
         JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>(doJettison));
         return;

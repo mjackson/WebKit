@@ -13,7 +13,11 @@ FLAGS=(--useJSThreads=1 --useThreadGIL=0 --useVMLite=1
        --useThreadGILOffUnsafe=1 "$@")
 OUT="${OUTDIR:-$SCRIPT_DIR}/$TAG"
 mkdir -p "$OUT"
-ulimit -c 0
+# Cores ENABLED (2026-06-12 A3 amend round, finding F5): a silent SIGTRAP
+# face (Release RELEASE_ASSERT vs pas trap) is unadjudicable from rc alone.
+# /proc/sys/kernel/core_pattern points at /tmp/cores (local-only; never
+# committed). Gate records must report rc + stderr grep + core disposition.
+ulimit -c unlimited
 ok=0; n133=0; n134=0; n139=0; nother=0
 for ((i=1;i<=N;i++)); do
   args=(-- "$W"); [[ "$SMOKE" == 1 ]] && args+=(smoke)

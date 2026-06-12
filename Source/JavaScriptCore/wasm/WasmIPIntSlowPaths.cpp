@@ -500,11 +500,15 @@ WASM_IPINT_EXTERN_CPP_DECL(throw_exception, CallFrame* callFrame, IPIntStackEntr
     throwException(globalObject, throwScope, exception);
 
     genericUnwind(vm, callFrame);
-    ASSERT(!!vm.callFrameForCatch);
-    ASSERT(!!vm.targetMachinePCForThrow);
+    // UNGIL §A.1.3 (K4 table I Group-2/3 rows): per-lite unwind-word read;
+    // see operationWasmUnwind (WasmOperations.cpp). Foreclosed today by the
+    // useWasm GIL-off force-disable; reroute keeps reader/writer symmetry.
+    auto& unwindPrimitives = vm.group3Primitives();
+    ASSERT(!!unwindPrimitives.callFrameForCatch);
+    ASSERT(!!unwindPrimitives.targetMachinePCForThrow);
 
     IPINT_HANDLE_STEP_INTO_THROW(vm);
-    WASM_RETURN_TWO(vm.targetMachinePCForThrow, nullptr);
+    WASM_RETURN_TWO(unwindPrimitives.targetMachinePCForThrow, nullptr);
 }
 
 WASM_IPINT_EXTERN_CPP_DECL(rethrow_exception, CallFrame* callFrame, unsigned tryDepth)
@@ -527,11 +531,15 @@ WASM_IPINT_EXTERN_CPP_DECL(rethrow_exception, CallFrame* callFrame, unsigned try
     throwException(globalObject, throwScope, exception);
 
     genericUnwind(vm, callFrame);
-    ASSERT(!!vm.callFrameForCatch);
-    ASSERT(!!vm.targetMachinePCForThrow);
+    // UNGIL §A.1.3 (K4 table I Group-2/3 rows): per-lite unwind-word read;
+    // see operationWasmUnwind (WasmOperations.cpp). Foreclosed today by the
+    // useWasm GIL-off force-disable; reroute keeps reader/writer symmetry.
+    auto& unwindPrimitives = vm.group3Primitives();
+    ASSERT(!!unwindPrimitives.callFrameForCatch);
+    ASSERT(!!unwindPrimitives.targetMachinePCForThrow);
 
     IPINT_HANDLE_STEP_INTO_THROW(vm);
-    WASM_RETURN_TWO(vm.targetMachinePCForThrow, nullptr);
+    WASM_RETURN_TWO(unwindPrimitives.targetMachinePCForThrow, nullptr);
 }
 
 WASM_IPINT_EXTERN_CPP_DECL(throw_ref, CallFrame* callFrame, EncodedJSValue exnref)
@@ -547,11 +555,15 @@ WASM_IPINT_EXTERN_CPP_DECL(throw_ref, CallFrame* callFrame, EncodedJSValue exnre
     throwException(globalObject, throwScope, exception);
 
     genericUnwind(vm, callFrame);
-    ASSERT(!!vm.callFrameForCatch);
-    ASSERT(!!vm.targetMachinePCForThrow);
+    // UNGIL §A.1.3 (K4 table I Group-2/3 rows): per-lite unwind-word read;
+    // see operationWasmUnwind (WasmOperations.cpp). Foreclosed today by the
+    // useWasm GIL-off force-disable; reroute keeps reader/writer symmetry.
+    auto& unwindPrimitives = vm.group3Primitives();
+    ASSERT(!!unwindPrimitives.callFrameForCatch);
+    ASSERT(!!unwindPrimitives.targetMachinePCForThrow);
 
     IPINT_HANDLE_STEP_INTO_THROW(vm);
-    WASM_RETURN_TWO(vm.targetMachinePCForThrow, nullptr);
+    WASM_RETURN_TWO(unwindPrimitives.targetMachinePCForThrow, nullptr);
 }
 
 WASM_IPINT_EXTERN_CPP_DECL(table_get, unsigned tableIndex, unsigned index)
@@ -1376,9 +1388,13 @@ extern "C" UCPURegister SYSV_ABI slow_path_wasm_unwind_exception(CallFrame* call
     WasmOperationPrologueCallFrameTracer tracer(instance->vm(), callFrame, std::bit_cast<void*>(std::bit_cast<uintptr_t>(instance->faultPC()) + 1));
     instance->setFaultPC(Wasm::ExceptionType::Termination, nullptr);
     genericUnwind(vm, callFrame);
-    ASSERT(!!vm.callFrameForCatch);
-    ASSERT(!!vm.targetMachinePCForThrow);
-    return reinterpret_cast<UCPURegister>(vm.targetMachinePCForThrow);
+    // UNGIL §A.1.3 (K4 table I Group-2/3 rows): per-lite unwind-word read;
+    // see operationWasmUnwind (WasmOperations.cpp). Foreclosed today by the
+    // useWasm GIL-off force-disable; reroute keeps reader/writer symmetry.
+    auto& unwindPrimitives = vm.group3Primitives();
+    ASSERT(!!unwindPrimitives.callFrameForCatch);
+    ASSERT(!!unwindPrimitives.targetMachinePCForThrow);
+    return reinterpret_cast<UCPURegister>(unwindPrimitives.targetMachinePCForThrow);
 }
 
 extern "C" UGPRPair SYSV_ABI slow_path_wasm_popcount(const void* pc, uint32_t x)

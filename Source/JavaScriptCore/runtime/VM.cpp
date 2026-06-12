@@ -1983,6 +1983,18 @@ void VM::gatherScratchBufferRoots(ConservativeRoots& conservativeRoots)
 void VM::scanSideState(ConservativeRoots& roots) const
 {
     ASSERT(heap.worldIsStopped());
+    // K4 §I: gilOff the vector is lock-guarded. The world is stopped (no
+    // mutator is inside push/pop — they are not park sites), so this is
+    // belt-and-braces against any future non-mutator writer; GIL-on the lock
+    // is never taken anywhere, keeping flag-off behavior identical.
+    if (gilOff()) [[unlikely]] {
+        Locker locker { m_checkpointSideStateLock };
+        for (const auto& sideState : m_checkpointSideState) {
+            static_assert(sizeof(sideState->tmps) / sizeof(JSValue) == maxNumCheckpointTmps);
+            roots.add(sideState->tmps, sideState->tmps + maxNumCheckpointTmps);
+        }
+        return;
+    }
     for (const auto& sideState : m_checkpointSideState) {
         static_assert(sizeof(sideState->tmps) / sizeof(JSValue) == maxNumCheckpointTmps);
         roots.add(sideState->tmps, sideState->tmps + maxNumCheckpointTmps);
@@ -1994,6 +2006,41 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 void VM::pushCheckpointOSRSideState(std::unique_ptr<CheckpointOSRExitSideState>&& payload)
 {
+    // K4 §I ruling (per-lite side state) — GIL-off arm. One VM-resident
+    // vector shared by N mutators: append under the lock; the entry carries
+    // its owning thread's uid (set in the ctor) and every GIL-off reader
+    // filters on it. The per-thread stack-ordering invariant (deeper frames
+    // pushed later) is asserted against this thread's entries only.
+    if (gilOff()) [[unlikely]] {
+        ASSERT(payload->associatedCallFrame);
+        ASSERT(payload->owningThreadUid == Thread::currentSingleton().uid());
+        Locker locker { m_checkpointSideStateLock };
+#if ASSERT_ENABLED
+        for (const auto& sideState : m_checkpointSideState)
+            ASSERT(sideState->associatedCallFrame != payload->associatedCallFrame || sideState->owningThreadUid != payload->owningThreadUid);
+#endif
+        m_checkpointSideState.append(WTF::move(payload));
+
+#if ASSERT_ENABLED
+        // Walk this thread's entries newest-first (same direction as the
+        // GIL-on arm below): deeper frames are pushed later and the stack
+        // grows down, so addresses must strictly increase as we walk back
+        // toward older entries, starting from bounds.end().
+        uint32_t uid = Thread::currentSingleton().uid();
+        auto bounds = StackBounds::currentThreadStackBounds();
+        void* previousCallFrame = bounds.end();
+        for (size_t i = m_checkpointSideState.size(); i--;) {
+            if (m_checkpointSideState[i]->owningThreadUid != uid)
+                continue;
+            auto* callFrame = m_checkpointSideState[i]->associatedCallFrame;
+            ASSERT(bounds.contains(callFrame));
+            ASSERT(previousCallFrame < callFrame);
+            previousCallFrame = callFrame;
+        }
+#endif
+        return;
+    }
+
     ASSERT(currentThreadIsHoldingAPILock());
     ASSERT(payload->associatedCallFrame);
 #if ASSERT_ENABLED
@@ -2017,6 +2064,26 @@ void VM::pushCheckpointOSRSideState(std::unique_ptr<CheckpointOSRExitSideState>&
 
 std::unique_ptr<CheckpointOSRExitSideState> VM::popCheckpointOSRSideState(CallFrame* expectedCallFrame)
 {
+    // K4 §I — GIL-off arm: pop the CURRENT THREAD's most recent entry, not
+    // the vector's tail (the tail may belong to another lite; the GIL-on
+    // takeLast here was the cross-thread interleave DW-1's audit row flags).
+    if (gilOff()) [[unlikely]] {
+        Locker locker { m_checkpointSideStateLock };
+        uint32_t uid = Thread::currentSingleton().uid();
+        for (size_t i = m_checkpointSideState.size(); i--;) {
+            if (m_checkpointSideState[i]->owningThreadUid != uid)
+                continue;
+            auto sideState = WTF::move(m_checkpointSideState[i]);
+            m_checkpointSideState.removeAt(i);
+            RELEASE_ASSERT(sideState->associatedCallFrame == expectedCallFrame);
+            return sideState;
+        }
+        // A checkpoint trampoline popped with no side state pushed by this
+        // thread: the stash/recovery pairing is broken — stop loudly.
+        RELEASE_ASSERT_NOT_REACHED(std::bit_cast<uintptr_t>(expectedCallFrame), uid, m_checkpointSideState.size());
+        return nullptr;
+    }
+
     ASSERT(currentThreadIsHoldingAPILock());
     auto sideState = m_checkpointSideState.takeLast();
     RELEASE_ASSERT(sideState->associatedCallFrame == expectedCallFrame);
@@ -2025,6 +2092,23 @@ std::unique_ptr<CheckpointOSRExitSideState> VM::popCheckpointOSRSideState(CallFr
 
 void VM::popAllCheckpointOSRSideStateUntil(CallFrame* target)
 {
+    // K4 §I — GIL-off arm: drop only the CURRENT THREAD's entries within the
+    // unwound range. The GIL-on tail-scan stops at the first foreign-stack
+    // entry, which GIL-off would strand this thread's buried entries (and
+    // stale side state is consumed by a LATER checkpoint exit as the wrong
+    // bytecodeIndex — the DW-1 wrong-pc family).
+    if (gilOff()) [[unlikely]] {
+        auto bounds = StackBounds::currentThreadStackBounds().withSoftOrigin(target);
+        ASSERT(bounds.contains(target));
+        Locker locker { m_checkpointSideStateLock };
+        uint32_t uid = Thread::currentSingleton().uid();
+        m_checkpointSideState.removeAllMatching([&](auto& sideState) {
+            return sideState->owningThreadUid == uid && bounds.contains(sideState->associatedCallFrame);
+        });
+        m_checkpointSideState.shrinkToFit();
+        return;
+    }
+
     ASSERT(currentThreadIsHoldingAPILock());
     auto bounds = StackBounds::currentThreadStackBounds().withSoftOrigin(target);
     ASSERT(bounds.contains(target));
@@ -2033,6 +2117,21 @@ void VM::popAllCheckpointOSRSideStateUntil(CallFrame* target)
     while (m_checkpointSideState.size() && bounds.contains(m_checkpointSideState.last()->associatedCallFrame))
         m_checkpointSideState.takeLast();
     m_checkpointSideState.shrinkToFit();
+}
+
+bool VM::hasCheckpointOSRSideStateForCurrentThread() const
+{
+    // K4 §I — GIL-off arm of hasCheckpointOSRSideState(): a raw size() check
+    // would see other lites' entries (and spuriously trip VMEntryScope's
+    // "pending side state at VM exit" assert on an innocent thread).
+    ASSERT(gilOff());
+    Locker locker { m_checkpointSideStateLock };
+    uint32_t uid = Thread::currentSingleton().uid();
+    for (const auto& sideState : m_checkpointSideState) {
+        if (sideState->owningThreadUid == uid)
+            return true;
+    }
+    return false;
 }
 
 static void logSanitizeStack(VM& vm)

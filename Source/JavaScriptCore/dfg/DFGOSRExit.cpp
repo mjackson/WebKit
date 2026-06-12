@@ -176,6 +176,16 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
     uint32_t exitIndex = vm.group3Primitives().osrExitIndex;
     OSRExit& exit = codeBlock->jitCode()->dfg()->m_osrExit[exitIndex];
 
+    // DW-1 instrumentation (deepwater LEDGER row 1): GIL-off, every DFG exit
+    // traverses this operation (the rel32 repatch is suppressed — U-T4b
+    // below), so this records, per exit, the sort-comparator pc-recovery
+    // tuple the ramp is about to stash into the recovery frame. The
+    // comparator-return trampoline slow path cross-checks it
+    // (llint_slow_path_array_sort_comparator_return). GIL-on: not recorded
+    // and not consumed; behavior and codegen unchanged.
+    if (vm.gilOff()) [[unlikely]]
+        recordSortComparatorOSRExitStashIfApplicable(vm, codeBlock, exit, exitIndex);
+
     ASSERT(!vm.group3Primitives().callFrameForCatch || exit.m_kind == GenericUnwind); // UNGIL §A.1.3 mode split.
     EXCEPTION_ASSERT_UNUSED(scope, !!scope.exception() || !exit.isOSRExitDueToException());
     

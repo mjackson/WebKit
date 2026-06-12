@@ -61,6 +61,15 @@ ThrowScope::~ThrowScope()
     }
 
     bool willBeHandleByLLIntOrJIT = false;
+    // B1 consume-side hardening: this is the single mid-lifetime dereference
+    // of m_previousScope after ctor-time verification (stackPosition() reads
+    // m_location.stackPosition under ASAN/C_LOOP) — a trample of the previous
+    // scope between push and here previously surfaced as an unattributed
+    // fault at this line (the 2026-06-11g AMEND known residual). Verify
+    // window coherence first so it fail-stops at the named consume-side
+    // check with the [B1-DIAG] tuple instead
+    // (ExceptionScope::verifyPreviousScopeWindowCoherenceBeforeConsume).
+    verifyPreviousScopeWindowCoherenceBeforeConsume("ThrowScope-dtor-stackPosition");
     const void* previousScopeStackPosition = m_previousScope ? m_previousScope->stackPosition() : nullptr;
     // UNGIL §A.1.3 mode split (U-T4): the ThrowScope destructor runs on the
     // throwing thread, so group3Primitives() reads the live per-lite word

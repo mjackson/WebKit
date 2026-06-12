@@ -93,6 +93,39 @@ public:
     template<typename Functor>
     void withSizeUnderRegistryLock(const Functor&);
 
+    // SPEC-congc §9.3(1) (CG-3c): the mid-cycle ATTACH fence-init handshake.
+    // MUST be called inside the GBL/!WSAC section of add()'s already-shared
+    // insert, strictly BEFORE the registry append publishes the client
+    // (asserted). Copies the server master fence/threshold pair into the
+    // client's §5.3(2) copies and stamps m_fenceEpochSeen = FEP.
+    // Happens-before: the master mutates only in-window (WSAC under GBL) and
+    // this runs under GBL with !WSAC, so the snapshot is untorn and never
+    // stale; a live-marking attachee starts RAISED; CG-I3's close assert
+    // holds; the §5.3(3) pin subsumes the values, the FEP stamp stays.
+    // !C1R: no-op — the copies are unrouted, unread state (F33/CGD4.4;
+    // CG-I0 byte-for-byte). Defined in Heap.cpp (needs both heaps' privates
+    // via this class's friendship). The add()-side call is a chartered-out
+    // HeapClientSet.cpp hunk — see the INTEGRATE-congc.md manifest row.
+    static void snapshotBarrierFenceStateForAttach(GCClient::Heap&);
+
+    // SPEC-congc §9.2(1) (CG-3c): the EXIT1/teardown CMS final flush. Called
+    // by GCClient::Heap::detachCurrentThread() (between the permanent access
+    // drop and the epoch=MAX park) and by ~GCClient::Heap()'s
+    // non-attached-thread branch — in BOTH cases strictly after the client's
+    // last possible barrier (access permanently dropped => the CMS is
+    // frozen) and strictly before HCS remove. Drains the client's CMS,
+    // under m_markingMutex then the CMS leaf lock, into the SERVER legacy
+    // m_mutatorMarkStack via its multi-producer append() (F44) — NOT into
+    // m_sharedMutatorMarkStack: a between-cycles flush there would pre-load
+    // the shared accounting before runBeginPhase's didReachTermination()
+    // precondition (the CG-T8 Arm-1 RED root cause), and §9.2's F34 rule
+    // forbids the phase read that could discriminate. See the CG-3c AMEND
+    // record in INTEGRATE-congc.md (normative content; extends the CG-3b
+    // §5.2(i) open-kind narrowing to the exit flush). !C1R: no-op — the CMS
+    // is null (F33/CGD4.4; CG-I0). Idempotent; safe on a re-attaching
+    // harness client (the flush is just an early total donation).
+    static void flushClientMutatorMarkStackForExit(GCClient::Heap&);
+
 private:
     mutable Lock m_lock; // rank 6 (SPEC-heap.md §6)
     unsigned m_size WTF_GUARDED_BY_LOCK(m_lock) { 0 };

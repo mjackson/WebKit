@@ -1224,12 +1224,47 @@ void JIT::emit_op_catch(const JSInstruction* currentInstruction)
         // loadFence is the acquire pairing; GIL-off leg only, so flag-off/GIL-on
         // codegen is byte-identical to pre-split.
         loadFence();
+        // Same-VM guard (K4 table-I Group-3 row addendum; mirrors the
+        // shared-asm lite arms and the getHostCallReturnValue thunk):
+        // reader/writer discriminator symmetry with VM::group3Primitives(),
+        // whose lite arm is taken only when lite->vm == the compiled-for VM
+        // (an emission-time immediate here, so the compare is one
+        // instruction). A foreign gilOff lite must read the storage the
+        // writer actually used — the VM-block words. Never-taken in any
+        // state JSLock::didAcquireLock permits; defense-in-depth only.
         loadVMLite(regT3);
+        Jump foreignLiteEntryFrame = branchPtr(NotEqual, Address(regT3, static_cast<int32_t>(VMLite::offsetOfVM())), TrustedImmPtr(m_vm));
         loadPtr(Address(regT3, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topEntryFrame())), regT3);
+        Jump haveEntryFrame = jump();
+        foreignLiteEntryFrame.link(this);
+#if ASSERT_ENABLED
+        // A2-amend round 4: the foreign-lite arm fail-stops in assert-enabled
+        // builds instead of silently reading the shared VM-block word — a
+        // taken fallback would BE the cross-thread shared-word access this
+        // family eliminates, with zero diagnostic. Release keeps the
+        // writer-symmetry fallback (the storage group3Primitives() would
+        // select for a foreign lite).
+        breakpoint();
+#else
+        move(TrustedImmPtr(m_vm), regT3);
+        loadPtr(Address(regT3, static_cast<int32_t>(VM::topEntryFrameOffset())), regT3);
+#endif
+        haveEntryFrame.link(this);
         restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferImpl(regT3, RegisterSet::stackRegisters());
         loadVMLite(regT3);
+        Jump foreignLiteCatchFrame = branchPtr(NotEqual, Address(regT3, static_cast<int32_t>(VMLite::offsetOfVM())), TrustedImmPtr(m_vm));
         loadPtr(Address(regT3, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_callFrameForCatch())), callFrameRegister);
         storePtr(TrustedImmPtr(nullptr), Address(regT3, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_callFrameForCatch())));
+        Jump catchFrameDone = jump();
+        foreignLiteCatchFrame.link(this);
+#if ASSERT_ENABLED
+        breakpoint(); // Foreign gilOff lite: didAcquireLock foreclosure violated (see the entry-frame arm above).
+#else
+        move(TrustedImmPtr(m_vm), regT3);
+        loadPtr(Address(regT3, VM::callFrameForCatchOffset()), callFrameRegister);
+        storePtr(TrustedImmPtr(nullptr), Address(regT3, VM::callFrameForCatchOffset()));
+#endif
+        catchFrameDone.link(this);
     } else {
         restoreCalleeSavesFromEntryFrameCalleeSavesBuffer(vm().topEntryFrame);
 

@@ -59,30 +59,30 @@ namespace {
 // entrypoint stays alive independently via the stub routine refs / CodeBlock
 // ownership it was created from (machine code is freed only via section 4.4 /
 // R2, never by this path).
-class RetiredCallLinkRecord final : public RetiredCallback {
-public:
-    explicit RetiredCallLinkRecord(CallLinkRecord* record)
-        : m_record(record)
-    {
-    }
-
-    ~RetiredCallLinkRecord() final
-    {
-        delete m_record;
-    }
-
-private:
-    CallLinkRecord* m_record;
-};
-
+//
+// w16 follow-up (jit-null-metadatatable-counter-bump), AMENDED: the record's
+// codeBlockToTransfer is the one record field the stale-record argument above
+// did NOT cover — during a dispatcher's window the named CodeBlock CELL is
+// reachable only through the record (conservative roots see the record
+// pointer, never trace through it), so the GC could sweep the cell and
+// recycle its IsoSubspace slot, and the dispatcher then transferred a WRONG
+// live CodeBlock into the callee frame (observed at scalebench W=16 as the
+// prologue faulting on baseline-only CodeBlock fields: the tier-up counter
+// bump at jitDataRegister+0x28, and post-fix m_argumentValueProfiles storage
+// at CodeBlock+0xa0). The original fix pinned only at RETIRE time, which left
+// live records unprotected and pinned GC-internally-retired records too late
+// (cell already unmarked -> validation skipped the pin forever) — the family
+// reproduced. The amend pins at PUBLISH time instead
+// (RetiredJITArtifacts::pinPublishedCallLinkRecordCodeBlock in the
+// publishRecord bodies); retireCallLinkRecord merely hands the existing pin
+// to the retired holder for the retirement tail.
+//
 // R4-2 (review round 4): takes VM&, not Heap& — RetiredJITArtifacts resolves
 // the epoch heap (the client's SERVER under useSharedGCHeap) internally so a
 // client VM's retirement never rides its own idle heap's epoch.
 void retireCallLinkRecord(VM& vm, CallLinkRecord* record)
 {
-    if (!record)
-        return;
-    RetiredJITArtifacts::retire(vm, std::unique_ptr<RetiredCallback>(new RetiredCallLinkRecord(record)));
+    RetiredJITArtifacts::retireCallLinkRecord(vm, record);
 }
 
 } // anonymous namespace
@@ -121,6 +121,12 @@ void CallLinkInfo::publishRecord(VM& vm, uintptr_t comparand, CodePtr<JSEntryPtr
 {
     if (!Options::useJSThreads()) [[likely]]
         return;
+    // w16 amend (jit-null-metadatatable-counter-bump): pin the named
+    // CodeBlock BEFORE the record becomes reachable, while this linking
+    // mutator still provably holds the cell live. The pin spans the record's
+    // whole reachable lifetime (live + retired) — see
+    // RetiredJITArtifacts::pinPublishedCallLinkRecordCodeBlock.
+    RetiredJITArtifacts::pinPublishedCallLinkRecordCodeBlock(vm, codeBlockToTransfer);
     auto* record = new CallLinkRecord { comparand, target, codeBlockToTransfer };
     WTF::storeStoreFence();
     auto* oldRecord = m_record.exchange(record);
@@ -845,6 +851,10 @@ void DirectCallLinkInfo::publishRecord(VM& vm, CodePtr<JSEntryPtrTag> target, Co
     if (!Options::useJSThreads()) [[likely]]
         return;
     ASSERT(isDataIC()); // I3: flag-on, all DirectCallLinkInfos are data ICs.
+    // w16 amend: pin before publication — same contract as
+    // CallLinkInfo::publishRecord above (direct records carry no comparand at
+    // all, so the named cell's only liveness anchor IS this pin).
+    RetiredJITArtifacts::pinPublishedCallLinkRecordCodeBlock(vm, codeBlockToTransfer);
     auto* record = new CallLinkRecord { 0, target, codeBlockToTransfer };
     WTF::storeStoreFence();
     // AB18-D: atomic swap — same no-double-retire rule as

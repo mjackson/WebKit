@@ -364,13 +364,37 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 void setupVarargsFrame(JSGlobalObject* globalObject, CallFrame* callFrame, CallFrame* newCallFrame, JSValue arguments, uint32_t offset, uint32_t length)
 {
-    VirtualRegister calleeFrameOffset(newCallFrame - callFrame);
-    
-    loadVarargs(
-        globalObject,
-        std::bit_cast<JSValue*>(&callFrame->r(calleeFrameOffset + CallFrame::argumentOffset(0))),
-        arguments, offset, length);
-    
+    // The destination is pure frame arithmetic: the callee frame's argument
+    // area. Do NOT route it through VirtualRegister + CallFrame::r(): that
+    // truncates (newCallFrame - callFrame) to int32, and CallFrame::r()
+    // decodes offsets >= FirstConstantRegisterIndex as CONSTANT operands —
+    // resolving the destination into the caller CodeBlock's constant pool
+    // (in-bounds index: loadVarargs silently overwrites shared constants;
+    // out-of-bounds: Vector CrashOnOverflow abort). Unreachable for any
+    // legitimate same-stack frame pair (calleeFrameForVarargs subtracts at
+    // most numUsedStackSlots + maxArguments + header registers << 2^30), but
+    // a frame pairing poisoned by cross-thread Group-2/3 scratch corruption
+    // (UNGIL §A.1.3 U-T1 pairing invariant; SPEC-vmstate §6.3 L1) took
+    // exactly this path (W>=16 signature A3). Direct arithmetic is
+    // bit-identical for all valid inputs and removes the truncation +
+    // constant-pool write hazard entirely.
+    //
+    // RELEASE_ASSERT, not ASSERT: the old constant-pool decode was an
+    // accidental but real Release-build tripwire for corrupted frame
+    // pairings (Vector CrashOnOverflow); removing the decode must not
+    // silently downgrade that fail-stop. Every legitimate caller (LLInt
+    // varargsSetup via calleeFrameForVarargs, JIT operationSetupVarargsFrame)
+    // builds the callee frame strictly below the caller frame, so this
+    // pointer compare never fires for valid pairs, has no int32-truncation
+    // blind spot (unlike a VirtualRegister isConstant() check), and is on a
+    // slow path. A corrupted pairing fail-stops here instead of issuing
+    // silent wild writes.
+    RELEASE_ASSERT(newCallFrame < callFrame);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+    JSValue* firstElementDest = std::bit_cast<JSValue*>(newCallFrame->registers() + CallFrame::argumentOffset(0));
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+    loadVarargs(globalObject, firstElementDest, arguments, offset, length);
+
     newCallFrame->setArgumentCountIncludingThis(length + 1);
 }
 

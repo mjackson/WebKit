@@ -2582,6 +2582,25 @@ void SpeculativeJIT::compileCheckTraps(Node* node)
         TrustedImm32(VMTraps::AsyncEvents));
 
     addSlowPathGenerator(slowPathCall(needTrapHandling, this, operationHandleTraps, unusedGPR, LinkableConstant::globalObject(*this, node)));
+
+    // checktraps-dejank-invalidation-point (UNGIL §K.5 / SPEC-jit I21):
+    // GIL-off, DFGClobberize.h models CheckTraps as defining an invalidation
+    // point instead of clobbering the heap, so heap facts hoisted across the
+    // poll stay live at compile time. The enforcement is HERE: emit a real
+    // InvalidationPoint at the poll's rejoin (both the fast path and the
+    // operationHandleTraps slow-path return pass through this label). A
+    // conductor heap-fact rewrite that overlaps this thread's park jettisons
+    // this CodeBlock from VMTraps::handleTraps' epoch check (or from the
+    // rewriter directly), which patches this label to the OSR exit — so a
+    // resumed mutator exits at the poll BEFORE reusing any hoisted fact.
+    // compileInvalidationPoint also handles the unlinked-DFG form (explicit
+    // JITData::isInvalidated test) and calls noResult(node).
+    // Gate MUST match DFGClobberize.h / AI / FTL compileCheckTraps. Flag-off
+    // (and GIL-on flag-on) codegen is byte-identical to the previous code.
+    if (Options::useJSThreads() && !Options::useThreadGIL() && node->origin.exitOK) [[unlikely]] {
+        compileInvalidationPoint(node);
+        return;
+    }
     noResult(node);
 }
 
@@ -11996,6 +12015,7 @@ void SpeculativeJIT::compileToStringOrCallStringConstructorOrStringValueOf(Node*
     }
 
     case Int32Use:
+    case KnownInt32Use: // FixupPhase check-hoisting strengthens Int32Use at ExitInvalid positions.
     case Int52RepUse:
     case DoubleRepUse:
         compileNumberToStringWithValidRadixConstant(node, 10);
@@ -12038,10 +12058,11 @@ void SpeculativeJIT::compileToStringOrCallStringConstructorOrStringValueOf(Node*
         break;
     }
         
-    case CellUse: {
+    case CellUse:
+    case KnownCellUse: { // FixupPhase check-hoisting strengthens CellUse at ExitInvalid positions.
         GPRFlushedCallResult result(this);
         GPRReg resultGPR = result.gpr();
-        
+
         // We flush registers instead of silent spill/fill because in this mode we
         // believe that most likely the input is not a string, and we need to take
         // slow path.
@@ -12128,7 +12149,8 @@ void SpeculativeJIT::compileNumberToStringWithValidRadixConstant(Node* node, int
     };
 
     switch (node->child1().useKind()) {
-    case Int32Use: {
+    case Int32Use:
+    case KnownInt32Use: { // FixupPhase check-hoisting strengthens Int32Use at ExitInvalid positions.
         if (radix == 10) {
             SpeculateStrictInt32Operand value(this, node->child1());
             GPRTemporary result(this);

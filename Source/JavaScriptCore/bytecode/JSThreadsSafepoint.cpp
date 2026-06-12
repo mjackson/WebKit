@@ -247,6 +247,55 @@ static bool worldIsStoppedEvidenceIsThreadStable()
     return VMManager::info().worldMode == VMManager::Mode::Stopped;
 }
 
+// ===== checktraps-dejank-invalidation-point: conductor heap-fact rewrite epoch =====
+// See the header comment (runtime/VMTraps.h). Process-global: stop windows are
+// process-rare and a false-positive bump only costs an on-stack jettison, so
+// per-VM precision is not worth the plumbing. acq_rel/acquire keeps the
+// counter itself coherent; the cross-thread ordering guarantee rides the
+// park/resume edge.
+//
+// BUMP-EDGE LAW (review blockers, amend round): the load-bearing bump for a
+// thread-granular (§A.3) window happens IN-WINDOW, AFTER the window's work and
+// BEFORE the world resumes (the wrapped closure in stopTheWorldAndRun's gilOff
+// reroute below). A publication-time (ClassAStopWatchdogContext ctor) bump is
+// NOT sufficient on its own: a mutator parked BY the window samples the epoch
+// in VMTraps::handleTraps strictly AFTER the publication bump (the trap bits
+// that send it there are set after the ctor runs), so its exit compare would
+// see an unchanged epoch — exactly the victim class the mechanism exists for.
+// The ctor bump is kept as the entry-edge half (it covers mutators that were
+// ALREADY inside handleTraps when the window published, plus the GIL-on legs),
+// and the dtor bump covers windows that ran INLINE under an outer
+// already-stopped world (there the requester's dtor runs before the OUTER
+// stop's resume edge, so it IS pre-resume for every mutator that outer stop
+// parked). Defined here, above stopTheWorldAndRun, because the reroute branch
+// references them.
+static std::atomic<uint64_t> s_conductorHeapFactRewriteEpoch { 0 };
+
+// Thread-local nesting depth for PureCodeLifecycleStopWindowScope. Plain
+// (non-atomic): written and read only by the owning thread.
+static thread_local unsigned t_pureCodeLifecycleStopWindowDepth { 0 };
+
+uint64_t conductorHeapFactRewriteEpoch()
+{
+    return s_conductorHeapFactRewriteEpoch.load(std::memory_order_acquire);
+}
+
+void noteConductorHeapFactRewrite()
+{
+    s_conductorHeapFactRewriteEpoch.fetch_add(1, std::memory_order_acq_rel);
+}
+
+PureCodeLifecycleStopWindowScope::PureCodeLifecycleStopWindowScope()
+{
+    ++t_pureCodeLifecycleStopWindowDepth;
+}
+
+PureCodeLifecycleStopWindowScope::~PureCodeLifecycleStopWindowScope()
+{
+    ASSERT(t_pureCodeLifecycleStopWindowDepth);
+    --t_pureCodeLifecycleStopWindowDepth;
+}
+
 void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
 {
     // R1.h FIRST (load-bearing for SPEC-jit section 5.3, Task 5): a caller that
@@ -324,8 +373,29 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
             case MutatorState::Allocating:
                 break;
             }
-            if (!currentThreadConductsTheGCStop)
-                return jsThreadsThreadGranularStopTheWorldAndRun(vm, work);
+            if (!currentThreadConductsTheGCStop) {
+                // checktraps-dejank-invalidation-point (amend round 2, review
+                // blocker): this reroute CONDUCTS a fresh §A.3 window for a
+                // Class-A nuking/patching caller exactly like the gilOff
+                // reroute below, so it falls under the same BUMP-EDGE LAW
+                // (comment above): the load-bearing bump must run IN-WINDOW,
+                // after `work` and before the conductor publishes resume.
+                // Handing the RAW `work` closure to the conductor here left
+                // this branch's victims covered only by the requester's
+                // ClassAStopWatchdogContext dtor bump — post-resume for a
+                // conducted window — so a victim parked BY this window that
+                // sampled the epoch post-publication could compare equal on
+                // resume, skip the on-stack jettison, and reuse stale hoisted
+                // butterfly/structure facts. Wrap identically to the gilOff
+                // reroute (suppression depth is this requester's own
+                // thread-local; the wrapped closure runs on this stack).
+                auto workThenBumpHeapFactRewriteEpoch = scopedLambda<void()>([&] {
+                    work();
+                    if (!t_pureCodeLifecycleStopWindowDepth)
+                        noteConductorHeapFactRewrite();
+                });
+                return jsThreadsThreadGranularStopTheWorldAndRun(vm, workThenBumpHeapFactRewriteEpoch);
+            }
         }
         // Review rounds 2/3 (R2-4, R3-1, R3-11): the entered-VM tripwire, the
         // shared-server scoping, and the witness raise/lower + F5 barrier all
@@ -334,6 +404,17 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
         // on the same kind of evidence). See the scope's comments above.
         AlreadyStoppedWorldWitnessScope witnessScope(vm);
         work();
+        // checktraps-dejank-invalidation-point (amend round): this inline
+        // `work` ran under an OUTER stopped world (GC stop, shared-server
+        // stop, or an open §A.3 window). Bump the heap-fact rewrite epoch on
+        // the way out: the outer stop's resume edge is still ahead of us (we
+        // run on the conductor/collector of that stop, which resumes only
+        // after this caller returns), so the bump is pre-resume for every
+        // mutator that outer stop parked. Pure code-lifecycle callers
+        // (GC-end finalizer jettisons via CodeBlock::jettison) are
+        // suppressed via the requester-thread depth as everywhere else.
+        if (vm.gilOff() && !t_pureCodeLifecycleStopWindowDepth) [[unlikely]]
+            noteConductorHeapFactRewrite();
         return;
     }
 
@@ -348,8 +429,30 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
     // thread-granular window do not reach here: jsThreadsThreadGranular-
     // WorldIsStopped() feeds the worldIsStopped() disjunct above, so they
     // run inline under the witness scope (R1.h).
-    if (vm.gilOff()) [[unlikely]]
-        return jsThreadsThreadGranularStopTheWorldAndRun(vm, work);
+    if (vm.gilOff()) [[unlikely]] {
+        // checktraps-dejank-invalidation-point (review blocker fix, amend
+        // round — see the BUMP-EDGE LAW comment above): bump the conductor
+        // heap-fact rewrite epoch IN-WINDOW, after `work` and strictly before
+        // the conductor publishes resume (clears the stop word / wakes
+        // tickets). Every mutator parked BY this window therefore observes
+        // the bump on its resume edge: its handleTraps entry sample (taken
+        // after the trap bits were set, i.e. after publication but before the
+        // window's work) is ordered before this bump, and its exit compare is
+        // ordered after the resume publication, which is ordered after this
+        // bump — so the compare fires and the on-stack jettison runs. The
+        // suppression depth is the REQUESTER's thread-local and `work` runs
+        // on this same stack, so pure code-lifecycle windows
+        // (CodeBlock::jettison) stay epoch-silent exactly as before. Nested
+        // requests inside an open window run this wrapped closure inline on
+        // the conductor (R1.h branch of the reroute) — a nested in-window
+        // bump is pre-resume too, hence sound and merely redundant.
+        auto workThenBumpHeapFactRewriteEpoch = scopedLambda<void()>([&] {
+            work();
+            if (!t_pureCodeLifecycleStopWindowDepth)
+                noteConductorHeapFactRewrite();
+        });
+        return jsThreadsThreadGranularStopTheWorldAndRun(vm, workThenBumpHeapFactRewriteEpoch);
+    }
 
     // INTERIM STUB until integration manifest M4 (SPEC-jit R1, Task 1).
     // Real sequence (R1.a-i), restored at integration:
@@ -444,8 +547,19 @@ void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
     std::optional<ClientHeapAccessReleaseScope> releaseHeapAccess;
     std::optional<JSC::Heap::JSThreadsStopScope> jsThreadsStopScope;
     if (server.isSharedServer()) [[unlikely]] {
+        // [r34] F-A item (2) (SPEC-ungil-history rev 34; carried by congc
+        // CG-1): this bracket previously used the BLOCKING stop-scope ctor —
+        // a raw GCL lock() with NO watchdog sampling, so a jettison requester
+        // queued behind a wedged shared GC hung unwatched forever (or
+        // surfaced as a queued bystander's nil-context 30s fire). Re-pointed
+        // at the WATCHDOG ctor: requestStart is sampled strictly BEFORE the
+        // ClientHeapAccessReleaseScope (reaching the bracket is part of
+        // reaching a stopped world), so the whole release+GCL leg sits under
+        // the standard 30s stop watchdog, and the ctor threads the target VM
+        // into the timeout diagnostics (F-A item (3), heap-side).
+        MonotonicTime requestStart = MonotonicTime::now();
         releaseHeapAccess.emplace(vm.clientHeap);
-        jsThreadsStopScope.emplace(server);
+        jsThreadsStopScope.emplace(server, requestStart);
     }
 #endif
 
@@ -501,10 +615,51 @@ ClassAStopWatchdogContext::ClassAStopWatchdogContext(const void* context, const 
 {
     t_pendingClassAStopContext = context;
     t_pendingClassAStopContextDescription = description;
+
+    // checktraps-dejank-invalidation-point (amend round): every published
+    // stop-window request is conservatively treated as a potential conductor
+    // heap-fact rewrite (WatchpointSet Class-A fire / OM transition stop /
+    // Debugger STW walk), EXCEPT pure code-lifecycle windows
+    // (CodeBlock::jettison opens the suppression scope).
+    //
+    // THIS CTOR BUMP IS THE ENTRY-EDGE HALF ONLY — it is deliberately NOT the
+    // load-bearing bump. A publication-time bump lands strictly BEFORE the
+    // trap bits that park the window's own victims, so every mutator parked
+    // BY this window samples the epoch post-bump in handleTraps and its exit
+    // compare would see no change (the original "sequenced before the window
+    // opens, hence before any parked mutator resumes" reasoning was inverted
+    // — being before the window also puts it before those mutators' ENTRY
+    // samples). What this bump DOES cover: (a) mutators already inside
+    // handleTraps when the window published (entry sample pre-bump), and
+    // (b) the GIL-on flag-on legs, belt-and-braces. The load-bearing GIL-off
+    // bump is IN-WINDOW, pre-resume: stopTheWorldAndRun's gilOff reroute
+    // wraps `work` to bump after the window's body and before the conductor
+    // clears the stop word (see the BUMP-EDGE LAW comment above), and the
+    // dtor below bumps for windows that ran inline under an outer stop.
+    // Flag-off: contexts are only published flag-on, but gate anyway so an
+    // accidental flag-off publication changes nothing.
+    if (Options::useJSThreads() && !t_pureCodeLifecycleStopWindowDepth) [[likely]]
+        noteConductorHeapFactRewrite();
 }
 
 ClassAStopWatchdogContext::~ClassAStopWatchdogContext()
 {
+    // checktraps-dejank-invalidation-point (amend round, blocker fix): the
+    // EXIT-EDGE bump. For a request that ran INLINE under an outer
+    // already-stopped world (WatchpointSet::fireAllUnderClassAStop branch
+    // (1), nested fires inside an open window), this dtor runs after the
+    // heap-fact rewrite completed and BEFORE the outer stop's resume edge —
+    // i.e. pre-resume for every mutator that outer stop parked, which the
+    // ctor bump cannot cover (their entry samples post-date it). For a
+    // request that conducted its own §A.3 window this bump is post-resume
+    // and therefore only belt-and-braces (the wrapped-closure in-window bump
+    // in stopTheWorldAndRun is the one those victims observe); a post-resume
+    // bump can at worst cause a spurious jettison on an unrelated
+    // concurrently-parked thread — sound, perf-only. Same suppression gate
+    // as the ctor.
+    if (Options::useJSThreads() && !t_pureCodeLifecycleStopWindowDepth) [[likely]]
+        noteConductorHeapFactRewrite();
+
     t_pendingClassAStopContext = m_previousContext;
     t_pendingClassAStopContextDescription = m_previousDescription;
 }
@@ -631,10 +786,32 @@ bool parkSitePollAndParkForStopTheWorld(VM& vm)
     // instead of admitting it; the ISB1.2 stop-generation sync on the AHA
     // path covers any code the window patched before this thread can re-enter
     // JIT code.
+    // checktraps-dejank-invalidation-point (amend round, P10 coverage fix):
+    // this park is a class-(2) wait — the parked thread can have DFG/FTL
+    // frames on its stack whose slow path led here through nodes that do NOT
+    // clobber the heap in DFGClobberize.h, so heap facts hoisted across the
+    // (now non-clobbering) CheckTraps polls can be live across this park.
+    // Mirror handleTraps' epoch bracket: sample before publishing
+    // quiescence, compare after resume, jettison this thread's on-stack
+    // optimizing code on overlap. Caveat recorded in
+    // docs/threads/AUDIT-checktraps.md §4 (P10b): unlike the handleTraps
+    // park, this rejoin point carries no invalidation point, so the jettison
+    // narrows but does not by itself close the window for facts used between
+    // this rejoin and the next IP — see the audit's open item P10c for the
+    // structural disposition. Compiler-side callers (DFGPlan/
+    // BytecodeGenerator on worklist threads) have no lite and no JS stack:
+    // skip (the VM-word topEntryFrame there may belong to a RUNNING foreign
+    // thread; walking it would be unsound).
+    uint64_t heapFactRewriteEpochOnEntry = conductorHeapFactRewriteEpoch();
     gcClientWillParkForThreadGranularStop();
     jsThreadsNotifyMutatorQuiesced();
     jsThreadsParkForStopWindow(vm);
     gcClientDidResumeFromThreadGranularStop();
+    if (conductorHeapFactRewriteEpoch() != heapFactRewriteEpochOnEntry) [[unlikely]] {
+        VMLite* selfLite = VMLite::currentIfExists();
+        if (selfLite && selfLite->vm == &vm)
+            vm.trapsForCurrentThread().jettisonOptimizedCodeOnStackAfterConductorHeapFactRewrite(vm.topCallFrame);
+    }
     return true;
 }
 

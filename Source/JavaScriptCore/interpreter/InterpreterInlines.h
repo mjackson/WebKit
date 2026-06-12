@@ -124,6 +124,28 @@ ALWAYS_INLINE JSValue Interpreter::executeCachedCall(CachedCall& cachedCall)
 
     // Execute the code:
     throwScope.release();
+    if (vm.gilOff()) [[unlikely]] {
+        // ANNEX CBI item 3 (w16 amend, jit-null-metadatatable-counter-bump
+        // round 2): (m_addressForCall, m_protoCallFrame.codeBlock) are two
+        // independent racy words against CachedCall::unlinkOrUpgradeImpl's
+        // live tier-up drain on another Thread. The drain's codeBlock-first /
+        // entry-second order only rules out NEW-entry+OLD-codeBlock; the
+        // OPPOSITE tear (OLD baseline entry + NEW DFG codeBlock) is the
+        // observed crash (baseline prologue argument-profiling against a DFG
+        // CodeBlock => null m_argumentValueProfiles storage => SIGSEGV at
+        // +0x8). And vmEntryToJavaScript re-reads the proto frame's codeBlock
+        // slot in asm — a THIRD racy read. Take ONE codeBlock snapshot,
+        // derive the entrypoint THROUGH it (a stale-but-matched pair is
+        // always executable; the snapshot is conservatively live in
+        // stack/registers and the jit leak keeps its machine code), and pass
+        // a private ProtoCallFrame copy carrying that same snapshot so the
+        // asm read cannot race the drain either.
+        ProtoCallFrame protoCallFrameCopy = cachedCall.m_protoCallFrame;
+        CodeBlock* codeBlockSnapshot = protoCallFrameCopy.codeBlock();
+        protoCallFrameCopy.setCodeBlock(codeBlockSnapshot);
+        entry = codeBlockSnapshot->jitCode()->addressForCall();
+        return JSValue::decode(vmEntryToJavaScript(entry, &vm, &protoCallFrameCopy));
+    }
     return JSValue::decode(vmEntryToJavaScript(entry, &vm, &cachedCall.m_protoCallFrame));
 }
 
@@ -153,6 +175,18 @@ ALWAYS_INLINE JSValue Interpreter::tryCallWithArguments(CachedCall& cachedCall, 
     // Execute the code:
     auto* codeBlock = cachedCall.m_protoCallFrame.codeBlock();
     auto* callee = cachedCall.m_protoCallFrame.callee();
+    if (vm.gilOff()) [[unlikely]] {
+        // ANNEX CBI item 3 (w16 amend, round 2 — see executeCachedCall): the
+        // entry/codeBlock words race CachedCall::unlinkOrUpgradeImpl's
+        // cross-thread tier-up rewrite; the drain's store order cannot rule
+        // out the OLD-entry+NEW-codeBlock tear, which faults in the baseline
+        // prologue (observed: scalebench W=16 sort comparators). Derive the
+        // entrypoint THROUGH the one codeBlock snapshot read above — the
+        // vmEntryToJavaScriptWithNArguments thunks store exactly this
+        // codeBlock into the callee frame, so the (entry, frame-codeBlock)
+        // pair is matched by construction.
+        entry = codeBlock->jitCode()->addressForCall();
+    }
 
     if constexpr (!sizeof...(args))
         return JSValue::decode(vmEntryToJavaScriptWith0Arguments(entry, &vm, codeBlock, callee, thisValue, nullptr, args...));

@@ -12176,12 +12176,17 @@ IGNORE_CLANG_WARNINGS_END
             return;
         }
 
+        // KnownCellUse is FixupPhase's check-hoisting strengthening of a
+        // CellUse edge on a node at an ExitInvalid position; treat it exactly
+        // like CellUse (the type check was hoisted, not removed).
         case CellUse:
+        case KnownCellUse:
         case NotCellUse:
         case UntypedUse:
         case KnownPrimitiveUse: {
+            bool isCellUseKind = m_node->child1().useKind() == CellUse || m_node->child1().useKind() == KnownCellUse;
             LValue value;
-            if (m_node->child1().useKind() == CellUse)
+            if (isCellUseKind)
                 value = lowCell(m_node->child1());
             else if (m_node->child1().useKind() == NotCellUse)
                 value = lowNotCell(m_node->child1());
@@ -12195,7 +12200,7 @@ IGNORE_CLANG_WARNINGS_END
             LBasicBlock continuation = m_out.newBlock();
 
             LValue isCellPredicate;
-            if (m_node->child1().useKind() == CellUse)
+            if (isCellUseKind)
                 isCellPredicate = m_out.booleanTrue;
             else if (m_node->child1().useKind() == NotCellUse)
                 isCellPredicate = m_out.booleanFalse;
@@ -12214,7 +12219,7 @@ IGNORE_CLANG_WARNINGS_END
 
             m_out.appendTo(notString, continuation);
             LValue result;
-            if (m_node->child1().useKind() == CellUse) {
+            if (isCellUseKind) {
                 ASSERT(m_node->op() != StringValueOf);
                 result = vmCall(Int64, m_node->op() == ToString ? operationToStringOnCell : operationCallStringConstructorOnCell, weakPointer(globalObject), value);
             } else {
@@ -12232,6 +12237,7 @@ IGNORE_CLANG_WARNINGS_END
         }
 
         case Int32Use:
+        case KnownInt32Use: // FixupPhase check-hoisting strengthens Int32Use at ExitInvalid positions.
         case Int52RepUse:
         case DoubleRepUse:
             setJSValue(numberToStringWithValidRadixConstant(m_node->child1(), 10));
@@ -20324,6 +20330,25 @@ IGNORE_CLANG_WARNINGS_END
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
+
+        // checktraps-dejank-invalidation-point (UNGIL §K.5 / SPEC-jit I21):
+        // GIL-off, DFGClobberize.h models CheckTraps as defining an
+        // invalidation point instead of clobbering the heap. Enforce it here:
+        // emit a real InvalidationPoint patchpoint in the continuation block,
+        // i.e. at the poll's rejoin — both the fast path and the
+        // operationHandleTraps slow path flow through it. A conductor
+        // heap-fact rewrite overlapping this thread's park jettisons this
+        // CodeBlock (VMTraps::handleTraps epoch check), which patches this
+        // label to the OSR exit, so the resumed mutator exits at the poll
+        // BEFORE reusing any hoisted heap fact. At the B3 level the
+        // patchpoint is exitsSideways/reads-top exactly like a plain
+        // InvalidationPoint; loads hoisted across it remain sound by the
+        // standard invalidation-point argument (fall-through implies no
+        // invalidation has fired). Gate MUST match DFGClobberize.h / AI /
+        // DFG compileCheckTraps. Flag-off (and GIL-on flag-on) lowering is
+        // byte-identical to the previous code.
+        if (Options::useJSThreads() && !Options::useThreadGIL() && m_origin.exitOK) [[unlikely]]
+            compileInvalidationPoint();
     }
 
     void compileRegExpExec()
@@ -21953,7 +21978,8 @@ IGNORE_CLANG_WARNINGS_END
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
         switch (child1.useKind()) {
-        case Int32Use: {
+        case Int32Use:
+        case KnownInt32Use: { // FixupPhase check-hoisting strengthens Int32Use at ExitInvalid positions.
             if (radix == 10) {
                 LBasicBlock cacheCase = m_out.newBlock();
                 LBasicBlock slowCase = m_out.newBlock();

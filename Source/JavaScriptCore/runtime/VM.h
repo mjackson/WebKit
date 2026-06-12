@@ -1435,10 +1435,26 @@ public:
     void gatherScratchBufferRoots(ConservativeRoots&);
 
     static constexpr unsigned expectedMaxActiveSideStateCount = 4;
+    // K4 §I ruling: checkpoint OSR-exit side state is PER-LITE GIL-off. The
+    // backing store stays this VM's single vector (scanSideState must reach
+    // every thread's tmps at a stopped world without a registry walk), but
+    // gilOff every accessor below routes through the per-thread arm: entries
+    // are owner-tagged (CheckpointOSRExitSideState::owningThreadUid) and all
+    // reads/writes filter on the current thread under
+    // m_checkpointSideStateLock. The DW-1 consumer set (checkpoint OSR-exit
+    // trampolines, unwind, VMEntryScope's exit assert) therefore only ever
+    // observes its own thread's side state. GIL-on/flag-off: the original
+    // bodies run verbatim (asserts unweakened); the lock is never taken.
     void pushCheckpointOSRSideState(std::unique_ptr<CheckpointOSRExitSideState>&&);
     std::unique_ptr<CheckpointOSRExitSideState> popCheckpointOSRSideState(CallFrame* expectedFrame);
     void popAllCheckpointOSRSideStateUntil(CallFrame* targetFrame);
-    bool hasCheckpointOSRSideState() const { return m_checkpointSideState.size(); }
+    JS_EXPORT_PRIVATE bool hasCheckpointOSRSideStateForCurrentThread() const;
+    bool hasCheckpointOSRSideState() const
+    {
+        if (gilOff()) [[unlikely]]
+            return hasCheckpointOSRSideStateForCurrentThread();
+        return m_checkpointSideState.size();
+    }
     void scanSideState(ConservativeRoots&) const;
 
     Interpreter interpreter;
@@ -2004,6 +2020,11 @@ private:
     Vector<ScratchBuffer*> m_scratchBuffers;
     size_t m_sizeOfLastScratchBuffer { 0 };
     Vector<std::unique_ptr<CheckpointOSRExitSideState>, expectedMaxActiveSideStateCount> m_checkpointSideState;
+    // K4 §I: guards m_checkpointSideState GIL-off only (N mutators share this
+    // VM-resident vector; entries are owner-tagged per-thread == per-lite).
+    // GIL-on never takes it. Leaf lock: nothing is acquired under it, and it
+    // is never held across allocation-free park/poll sites.
+    mutable Lock m_checkpointSideStateLock;
     InlineWatchpointSet m_primitiveGigacageEnabled { IsWatched };
     FunctionHasExecutedCache m_functionHasExecutedCache;
     std::unique_ptr<ControlFlowProfiler> m_controlFlowProfiler;

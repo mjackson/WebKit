@@ -4871,6 +4871,20 @@ RefPtr<AccessCase> InlineCacheCompiler::tryFoldToMegamorphic(CodeBlock* codeBloc
     // If the resulting set of cases is so big that we would stop caching and this is InstanceOf,
     // then we want to generate the generic InstanceOf and then stop.
     if (cases.size() >= Options::maxAccessVariantListSize() || m_propertyCache.canBeMegamorphic) {
+        // AUD1.K4 row II.19 (SPEC-ungil §K.1): codegen hygiene, NOT a
+        // safety closure — the cache's fill paths already no-op under
+        // useJSThreads (MegamorphicCache::fillsDisabledUnderJSThreads(),
+        // pre-existing) and the inline probes bail, so a gilOff
+        // MegamorphicCache-consulting AccessCase could only build an
+        // always-miss stub. Refuse those forms instead of generating dead
+        // code; see canUseMegamorphicGetByIdExcludingIndex. The
+        // canUseMegamorphic* predicates already refuse the by-id arms; this
+        // gate also covers the Indexed* arms below, which have no uid to
+        // consult a predicate for. InstanceOfMegamorphic is exempt: it is a
+        // generic prototype walk and never touches the MegamorphicCache.
+        // Flag-off and GIL-on generation unchanged.
+        if (vm().gilOffWithProcessGate() && m_propertyCache.accessType != AccessType::InstanceOf) [[unlikely]]
+            return nullptr;
         switch (m_propertyCache.accessType) {
         case AccessType::InstanceOf:
             return AccessCase::create(vm(), codeBlock, AccessCase::InstanceOfMegamorphic, nullptr);

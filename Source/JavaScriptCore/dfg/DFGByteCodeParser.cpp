@@ -12472,6 +12472,25 @@ auto ByteCodeParser::handleArraySort(Node* callee, Operand resultOperand, CallVa
     if (!is64Bit())
         return CallOptimizationResult::DidNothing;
 
+    // The comparator OSR-exit recovery contract (DFGOSRExitCompilerCommon's
+    // arraySortComparatorReturnTrampoline + llint_slow_path_array_sort_comparator_return)
+    // re-dispatches the host call instruction and supports exactly
+    // {op_call, op_call_ignore_result, op_tail_call}. handleIntrinsicCall's
+    // isOpcodeShape<OpCallShape> gate also admits op_iterator_open / op_iterator_next
+    // (reachable here via BoundFunctionCallIntrinsic expansion of a bound sort, which
+    // grows argumentCountIncludingThis past the argc < 2 rejection below) as well as
+    // varargs / direct-eval shapes. Refuse to host the intrinsic at any opcode outside
+    // the recovery set so the contract stays exact: an OSR exit inside the inlined
+    // comparator must always recover to a plain call site it can re-dispatch.
+    switch (m_currentInstruction->opcodeID()) {
+    case op_call:
+    case op_call_ignore_result:
+    case op_tail_call:
+        break;
+    default:
+        return CallOptimizationResult::DidNothing;
+    }
+
     if (argumentCountIncludingThis < 2)
         return CallOptimizationResult::DidNothing;
 

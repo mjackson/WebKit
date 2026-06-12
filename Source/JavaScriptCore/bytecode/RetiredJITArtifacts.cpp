@@ -26,6 +26,7 @@
 #include "config.h"
 #include "RetiredJITArtifacts.h"
 
+#include "CallLinkInfo.h"
 #include "GCAwareJITStubRoutine.h"
 #include "Heap.h"
 #include "InlineCacheHandler.h"
@@ -266,6 +267,66 @@ void RetiredJITArtifacts::retire(VM& vm, std::unique_ptr<RetiredCallback>&& call
     // crossed the epoch (see epochCoversEveryJSThread). THREADS-INTEGRATE(jit)
     UNUSED_PARAM(vm);
     (void)callback.release();
+}
+
+namespace {
+
+// Holds a retired §5.8 call-link record until its retirement epoch expires
+// (or forever, under the flag-on leak arm). While held, the record's named
+// CodeBlock stays pinned as a validated GC root on the epoch heap — the pin
+// was taken at PUBLISH time (pinPublishedCallLinkRecordCodeBlock; w16 amend)
+// and this holder owns it for the retirement tail. The destructor (epoch
+// expiry) unpins, then frees the record: the §4.4 epoch guarantee that no
+// straggler still holds the record pointer is exactly the guarantee that no
+// straggler can still transfer the named CodeBlock, so pin and record share
+// one lifetime by construction.
+class RetiredCallLinkRecordWithPin final : public RetiredCallback {
+public:
+    RetiredCallLinkRecordWithPin(JSC::Heap& epochHeap, CallLinkRecord* record)
+        : m_epochHeap(epochHeap)
+        , m_record(record)
+    {
+    }
+
+    ~RetiredCallLinkRecordWithPin() final
+    {
+        if (m_record->codeBlockToTransfer)
+            m_epochHeap.unpinRetiredCallLinkRecordCodeBlock(m_record->codeBlockToTransfer);
+        delete m_record;
+    }
+
+private:
+    JSC::Heap& m_epochHeap;
+    CallLinkRecord* m_record;
+};
+
+} // anonymous namespace
+
+void RetiredJITArtifacts::pinPublishedCallLinkRecordCodeBlock(VM& vm, CodeBlock* codeBlock)
+{
+    if (!codeBlock)
+        return;
+    // Records exist only with the flag on (CallLinkInfo::publishRecord is a
+    // no-op flag-off), so this path is flag-on by construction.
+    ASSERT(Options::useJSThreads());
+    // R4-2: the pin lives on the epoch heap (the client's SERVER under
+    // useSharedGCHeap) — the same heap retireCallLinkRecord resolves later,
+    // so the publish-time pin and the retirement-tail unpin balance.
+    epochHeapFor(vm).pinRetiredCallLinkRecordCodeBlock(codeBlock);
+}
+
+void RetiredJITArtifacts::retireCallLinkRecord(VM& vm, CallLinkRecord* record)
+{
+    if (!record)
+        return;
+    // Records exist only with the flag on (CallLinkInfo::publishRecord is a
+    // no-op flag-off), so this path is flag-on by construction.
+    ASSERT(Options::useJSThreads());
+    // w16 amend: the record's codeBlockToTransfer was pinned at publish time
+    // (pinPublishedCallLinkRecordCodeBlock) — do NOT pin again here. The
+    // retired holder takes over that pin and releases it at epoch expiry.
+    JSC::Heap& heap = epochHeapFor(vm);
+    retire(vm, std::unique_ptr<RetiredCallback>(new RetiredCallLinkRecordWithPin(heap, record)));
 }
 
 } // namespace JSC

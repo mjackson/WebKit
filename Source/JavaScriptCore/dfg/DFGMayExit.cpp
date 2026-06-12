@@ -385,6 +385,18 @@ ExitMode mayExitImpl(Graph& graph, Node* node, StateType& state)
         switch (node->child1().useKind()) {
         case KnownPrimitiveUse:
         case Int32Use:
+        // KnownInt32Use is FixupPhase's check-hoisting strengthening of an
+        // Int32Use edge on a node in an ExitInvalid stretch; same behavior as
+        // Int32Use (and it must not report Exits — these nodes sit at
+        // ExitInvalid by construction; DFGValidate checks that).
+        case KnownInt32Use:
+        // KnownCellUse is the same check-hoisting strengthening applied to a
+        // CellUse edge (FixupPhase fixupChecksInBlock): the cell check is
+        // hoisted to the last ExitOK point, so the remaining codegen
+        // (operationToStringOnCell and friends) can only exit for exceptions.
+        // Like KnownInt32Use, these edges only exist at ExitInvalid positions,
+        // so reporting Exits here would trip DFGValidate.
+        case KnownCellUse:
         case Int52RepUse:
         case DoubleRepUse:
         case NotCellUse:

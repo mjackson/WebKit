@@ -83,6 +83,19 @@ protected:
 
     JS_EXPORT_PRIVATE CString unexpectedExceptionMessage();
 
+    // Obligation-10 window-coherence, CONSUME side (B1 hardening follow-up):
+    // the ctor verifies the chain anchor at PUSH and the dtor's straddle
+    // assert covers this scope's OWN window, but a derived-class consumer
+    // that dereferences m_previousScope mid-lifetime (single such site:
+    // ThrowScope::~ThrowScope reading m_previousScope->stackPosition())
+    // previously consumed the anchor unverified — a trample between push and
+    // that read surfaced as an unattributed fault at the consumption line.
+    // Call this BEFORE any such dereference. Lives on ExceptionScope because
+    // protected-member access through an ExceptionScope* is only legal from
+    // this class. Assert-class builds only; never-taken under legitimate
+    // GIL-on holder migration (shared VM-copy storage).
+    void verifyPreviousScopeWindowCoherenceBeforeConsume(const char* site);
+
     VM& m_vm;
     ExceptionScope* m_previousScope;
     ExceptionEventLocation m_location;
@@ -94,6 +107,12 @@ protected:
     // member is free in shipping configurations (this whole class shape is
     // compiled out there).
     VMExceptionScopeVerificationState* m_verificationStateAtConstruction;
+    // Obligation-10 window attribution (B1): the lite identity at
+    // construction, co-printed by the ctor's push-side window-coherence
+    // check and the dtor's straddle assert so a (thread, lite) routing flip
+    // names the moved window in the failure log. Assert-class builds only
+    // (this whole class shape is compiled out in shipping configurations).
+    void* m_liteAtConstruction;
 };
 
 #else // not ENABLE(EXCEPTION_SCOPE_VERIFICATION)

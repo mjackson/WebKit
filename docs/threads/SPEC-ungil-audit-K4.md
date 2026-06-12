@@ -96,7 +96,123 @@ Everything below this line is RULED.
 | `m_mainVMLite` (`VM.h:1287`) | immutable-after-init | set once in ctor; lites managed by registry |
 | `m_gilOff` byte (VM ctor, U0c) | immutable-after-init | U0c BINDING: set ONCE in ctor |
 
-## II. VM string/number/per-op caches — class per-lite (§K.1)
+Row addendum (Group-3 reader/writer discriminator symmetry, filed
+2026-06 bughunter amend round): the C++ Group-3 writer selector
+(`VM::group3Primitives()`, VM.h) takes the lite arm only when
+`lite && lite->vm == this`; emission-level Group-3 READERS must use the
+SAME discriminator or a foreign gilOff lite reads a word the writer
+never stored (stale-value return, type-confusable). Landed with the
+host-call-return-value amendment: same-VM guard
+(`lite->vm == calleeVM`) in the `getHostCallReturnValueThunk` JIT thunk
+(LLIntThunks.cpp) and the `llint_get_host_call_return_value` asm op
+(LowLevelInterpreter64.asm). The divergent state is foreclosed by
+`JSLock::didAcquireLock` (same-VM carrier installed and
+RELEASE_ASSERTed on every entry), so the guard is never-taken
+defense-in-depth, not a behavior change. REMAINING readers with the
+unguarded lite-arm shape, filed for the same treatment or a per-site
+foreclosure note when next touched:
+`copyCalleeSavesToVMEntryFrameCalleeSavesBufferGroup3` /
+`restoreCalleeSavesFromVMEntryFrameCalleeSavesBufferGroup3`
+(topEntryFrame) and the `vmEntryToJavaScript` Setup /
+SetTopCallFrame lite arms (LowLevelInterpreter.asm) — at those sites
+the VM operand is the VM being entered/executed on this thread, so the
+didAcquireLock foreclosure applies identically; they are gaps in
+symmetry-by-construction, not known reachable bugs.
+
+Row addendum closure (filed 2026-06 bughunter A4 round): the deferred
+readers above are now GUARDED (same treatment as the host-call thunk):
+both `*CalleeSavesBufferGroup3` macros and the `vmEntryToJavaScript`
+Setup/SetTopCallFrame lite arms carry the same-VM guard
+(`VMLite::vm == <vm operand>` else VM-block arm). The treatment was
+extended to the remaining LLInt asm lite arms touching the SAME frozen
+Group-3 frame/unwind words (SPEC-vmstate §6.3 L1-L5):
+doVMEntry save-prev/store/restore-prev/overflow-restore
+(topCallFrame/topEntryFrame), llint_handle_uncaught_exception,
+llint_op_catch and llint_throw_from_slow_path_trampoline
+(callFrameForCatch / targetInterpreterPCForThrow /
+targetMachinePCForThrow — the A4 wild-pc harvest sites), and the
+native/internal-function call trampolines (topCallFrame store +
+m_exception check). All never-taken under the didAcquireLock
+foreclosure — defense-in-depth symmetry; flag-off and GIL-on take the
+VM-block arm exactly as before (guards sit inside the gilOff lite
+arms). Still UNGUARDED (stack-limit words only, non-pc-harvest,
+dual-publish writers; foreclosure note stands): doVMEntry/cloop entry
+stack checks, prologue stack check (T2 site), arity stack checks,
+sanitizeStackForVMImpl lastStackTop.
+
+Row addendum (wasm catch-unwind writers, filed 2026-06 bughunter amend
+round 2): `operationWasmRetrieveAndClearExceptionIfCatchable`
+(WasmOperations.cpp, both JSVALUE64/32_64 arms) wrote/cleared
+`callFrameForCatch` and `targetMachinePCAfterCatch` on the RAW VM
+block while the unwind writer (JITExceptions.cpp genericUnwind) stores
+them via `group3Primitives()` — the same writer-raw-block /
+reader-per-lite asymmetry class as the varargs-pair and
+encodedHostCallReturnValue rows. NOT reachable today: wasm is
+force-disabled under GIL-off (VMEntryScope.cpp AB-17 status block),
+and GIL-on the two storages are the same word. Rerouted through
+`group3Primitives()` anyway (mechanical, byte-identical GIL-on) so the
+row does not become the next missed-row rediscovery when wasm GIL-off
+support lands. The remaining wasm raw-block readers (e.g.
+WasmIPIntSlowPaths.cpp `ASSERT(!!vm.callFrameForCatch)`,
+InPlaceInterpreter.asm `VM::callFrameForCatch` load) stay as-is under
+the same useWasm-GIL-off disable gate; auditing the full wasm unwind
+surface is a precondition of lifting that gate, not of this sweep.
+
+Row addendum (JIT emission-side Group-3 readers, filed 2026-06
+bughunter amend round 3 — review finding): the same-VM guard sweep
+above covered shared asm + the process-shared thunk but NOT the
+per-CodeBlock JIT emission arms reading the identical frozen Group-3
+unwind words. Now GUARDED (lite->vm == compiled-for-VM immediate, else
+the VM-block word — one compare, cheaper than the asm sites since the
+VM is a codegen-time immediate): Baseline `emit_op_catch` gilOff leg
+(JITOpcodes.cpp: topEntryFrame + callFrameForCatch load/clear), the
+DFG OSR-exit exception ramp (DFGOSRExitCompilerCommon.cpp:
+targetInterpreterPCForThrow store; topEntryFrame + callFrameForCatch
+store), and `CCallHelpers::jumpToExceptionHandler` gilOff leg
+(targetMachinePCForThrow — the A4 wild-pc consumption site, JIT face).
+Never-taken under the didAcquireLock foreclosure; flag-off/GIL-on
+emission unchanged (guards sit inside the vm.gilOff() emission legs).
+EXPLICIT RULING for the remaining emission-side lite arms, left
+unguarded: `prepareCallOperation`, `emitPublishTopCallFrameForHostCall`,
+`emitPublishCallFrameForCatch`, `materializeGILOffExceptionSlot` /
+`loadException`, `loadTopEntryFrame` / `loadCallFrameForCatch`
+(AssemblyHelpers.h/.cpp), and `branchPtrAgainstSoftStackLimit`.
+Grounds: (a) the publish/exception/topCallFrame words are
+non-pc-harvest (a foreign-lite store/read there is a wrong-bookkeeping
+face, not a wild jump — same class as the asm "Still UNGUARDED"
+stack-limit list above); (b) most of these run under the reserved-temp
+scratch discipline with NO second free register for a compare+fallback
+arm without changing every call site's clobber contract; (c) the same
+didAcquireLock foreclosure applies. If the foreclosure premise is ever
+weakened, this ruling is the row to revisit FIRST.
+
+Row addendum (Table-I current-tree liveness re-sweep, filed 2026-06-12
+A3 amend round — review finding 2): every §I row whose value is consumed
+as a pointer, frame offset, PC, or length on a mutator hot path was
+re-verified LIVE in the current tree (not just ruled in this doc):
+- varargs pair (varargsLength / newCallFrameReturnValue): zero raw
+  VM-block writers remain anywhere in Source/JavaScriptCore (grep);
+  sole writer slow_path_size_frame_for_varargs routes via
+  group3Primitives() + thread_local echo; sole consumer varargsSetup
+  snapshot-loads and RELEASE_ASSERTs the pair (LLIntSlowPaths.cpp).
+- encodedHostCallReturnValue: zero raw VM-block writers remain (grep);
+  handleHostCall (both arms) + commonCallDirectEval route via
+  group3Primitives(); asm/thunk readers carry the same-VM guard.
+- catch/throw harvest rows (callFrameForCatch /
+  targetInterpreterPCForThrow / targetMachinePCForThrow): dual-arm
+  VM-block / VMLitePrimitives routing live in LowLevelInterpreter64.asm
+  (llint_op_catch :3261-3295, exception-handler jump :3335-3358, doVMEntry
+  :512/:542); genericUnwind stores via group3Primitives()
+  (JITExceptions.cpp:92-96); JIT-emission guards per the round-3 addendum
+  unchanged.
+- JIT varargs path: operationSizeFrameForVarargs /
+  operationSetupVarargsFrame / the ForwardArguments pair return all
+  values in registers (JITOperations.cpp:4660-4700) — no shared-storage
+  transit exists to trample.
+No unswept consumed-as-geometry row found; the residual W>=16 pas/SEGV
+mix is NOT attributable to a missed Table-I row on current evidence
+(post-fix pas cores show allocator-metadata faces in non-varargs code:
+EVIDENCE.md 2026-06-12 A3 amend round).
 
 All are hot, mutated on ordinary JS paths, value-cache semantics (a
 miss is only a perf event), and hold GC cells => per-lite copy,
@@ -123,6 +239,51 @@ GC-scanned via the registry walk (§A.1.3 GC-roots rule).
 | K4.II.17 | `m_doesGC` (`VM.h:1383`) | ASSERT_ENABLED-only expectation state; per-thread by meaning |
 | K4.II.18 | `m_hasOwnPropertyCache` (`VM.h:956`) | entry = {structureID, impl, result} multi-word; interleaved writes can pair a key from A with a result from B => per-lite. Creation = K.3 (LazyUniqueRef). JIT path: A16 ext (§0 U4) |
 | K4.II.19 | `m_megamorphicCache` (`VM.h:960`) | multi-word epoch'd entries (`MegamorphicCache.h:90`); torn entry can satisfy the wrong key => per-lite. Creation = K.3. JIT path: A16 ext (§0 U4) |
+
+Row addendum (II.18/II.19 interim closure, filed 2026-06 bughunter A5
+round; CORRECTED 2026-06-11 amend round per adversarial review): the
+two rows have DIFFERENT dispositions and must not be booked together.
+
+II.18 (m_hasOwnPropertyCache) — NEW SAFETY CLOSURE this round. The
+cache had NO pre-existing thread gate; concurrent tryAdd from N
+mutators races the RefPtr<UniquedStringImpl> ref/deref (atom-StringImpl
+refcount corruption => UAF / pas-face class) and can pair a key from
+thread A with a result from thread B (wrong-answer class), reachable
+from EVERY tier. Closed at the sole creation/consultation choke point
+objectPrototypeHasOwnProperty (ObjectPrototype.cpp), which skips and
+never creates the cache under gilOffWithProcessGate(); since DFG only
+selects the HasOwnProperty fast path when the cache already exists
+(DFGByteCodeParser existence gate), no tier ever bakes or touches it,
+and the DFGOperations ASSERT(hasOwnPropertyCache) paths are
+unreachable.
+
+II.19 (m_megamorphicCache) — CODEGEN HYGIENE ONLY; the row's safety
+hazard was ALREADY DARK on this tree before this round, closed by the
+pre-existing fill-side gate MegamorphicCache::
+fillsDisabledUnderJSThreads() (landed with the GIL-removal merge
+43fd5fb94387; all six initAs* fills no-op whenever useJSThreads is on,
+which every GIL-off process is) plus the pre-existing inline-probe
+bails (AssemblyHelpers::{load,store,has}MegamorphicProperty). The
+torn-entry / RefPtr-uid-refcount mechanism this round originally
+attributed to II.19 was therefore UNREACHABLE pre-fix; the new gates
+(canUseMegamorphicGetByIdExcludingIndex / canUseMegamorphicPutById in
+InlineCacheCompiler.h; tryFoldToMegamorphic in InlineCacheCompiler.cpp
+covering the uid-less Indexed* arms; InstanceOfMegamorphic exempt —
+generic prototype walk, no cache) only stop generating always-miss
+probe stubs. Keep them as hygiene; do NOT count them as a closure of a
+live producer, and do NOT treat any pre-fix crash family as
+"partially explained" by II.19.
+
+Cost note (recorded, not yet measured at power): in every gilOff
+process this leaves megamorphic-class sites on capped polymorphic
+stubs + generic slow calls and hasOwnProperty/Object.hasOwn uncached
+in all tiers — exactly the configuration SCALEBENCH measures. The
+ruled per-lite copies (+ §0 U4 A16-ext JIT repointing) remain the
+PERF follow-up and must land (or be caveated) before SCALEBENCH
+publication. Gates use the F1-convention gilOffWithProcessGate()
+frozen-Config-page test; flag-off and GIL-on behavior unchanged (one
+predicted-false branch — not literally byte-identical machine code);
+no assert weakened.
 
 ## III. VM shared keyed caches — class lock (§K.2 leaf, §LK.7)
 

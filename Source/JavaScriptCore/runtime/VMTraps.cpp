@@ -33,6 +33,7 @@
 #include "ExceptionHelpers.h"
 #include "HeapInlines.h"
 #include "JSCJSValueInlines.h"
+#include "JSThreadsSafepoint.h"
 #include "LLIntPCRanges.h"
 #include "MachineContext.h"
 #include "MacroAssemblerCodeRef.h"
@@ -47,6 +48,7 @@
 #include "Watchdog.h"
 #include <wtf/ProcessID.h>
 #include <wtf/Scope.h>
+#include <wtf/Vector.h>
 #include <wtf/ThreadMessage.h>
 #include <wtf/threads/Signals.h>
 
@@ -442,6 +444,61 @@ private:
 
 #endif // ENABLE(SIGNAL_BASED_VM_TRAPS)
 
+void VMTraps::jettisonOptimizedCodeOnStackAfterConductorHeapFactRewrite(CallFrame* topCallFrame)
+{
+    // checktraps-dejank-invalidation-point: same walk shape as
+    // invalidateCodeBlocksOnStack above, WITHOUT the one-shot
+    // m_needToInvalidateCodeBlocks gate — under N mutators every thread whose
+    // park overlapped a conductor heap-fact rewrite must jettison its OWN
+    // on-stack optimizing-JIT code (jettison fires this code's CheckTraps
+    // invalidation points; the §A.3 / GIL-off poll lowering emits one at
+    // every poll rejoin, see DFGClobberize.h CheckTraps). Runs on the parked
+    // mutator itself after resume, so vm()'s lite-aware resolution and
+    // group3Primitives() resolve THIS thread's state (§A.1.3 mode split),
+    // exactly as in the NeedDebuggerBreak service path. CodeBlock::jettison
+    // re-enters stopTheWorldAndRun internally (section 5.3 choke point);
+    // that nested window is a pure code-lifecycle window (suppressed from
+    // the epoch), so this never cascades.
+    VM& vm = this->vm();
+    EntryFrame* entryFrame = vm.group3Primitives().topEntryFrame;
+    if (!entryFrame)
+        return; // Not running JS code. Nothing to jettison.
+
+    // Amend round (review major fix): COLLECT under the codeBlockSet lock,
+    // jettison AFTER dropping it. The legacy invalidateCodeBlocksOnStack
+    // shape (jettison while holding the lock) predates jettison-as-stop-
+    // window: GIL-off, CodeBlock::jettison re-enters
+    // JSThreadsSafepoint::stopTheWorldAndRun, and conducting/queueing a §A.3
+    // window while holding this process-shared lock deadlocks against any
+    // sibling that must take the same lock on its way TO its park (the
+    // handleTraps breakpoint-sweep walk acquires it pre-park) — a thread
+    // blocked on a WTF::Lock is not at a stop safepoint, so the nested
+    // window's predicate can never converge (section 5.3 lock/stop-progress
+    // rules). This path fires on every epoch-overlapped park, potentially on
+    // N threads at once, so the inherited shape is not tolerable here the
+    // way it is on the rare single-thread debugger path. Dropping the lock
+    // is safe: every collected CodeBlock is on THIS thread's own stack, so
+    // it is conservatively scanned and cannot be freed; jettison re-checks
+    // its own state internally and tolerates an intervening jettison from
+    // another path. Deduplicate so a block appearing in multiple frames
+    // opens at most one nested stop window.
+    Vector<CodeBlock*, 8> codeBlocksToJettison;
+    {
+        Locker codeBlockSetLocker { vm.heap.codeBlockSet().getLock() };
+        CallFrame* callFrame = topCallFrame;
+        while (callFrame) {
+            CodeBlock* codeBlock = callFrame->isNativeCalleeFrame() ? nullptr : callFrame->codeBlock();
+            if (codeBlock && JSC::JITCode::isOptimizingJIT(codeBlock->jitType())) {
+                if (!codeBlocksToJettison.contains(codeBlock))
+                    codeBlocksToJettison.append(codeBlock);
+            }
+            callFrame = callFrame->callerFrame(entryFrame);
+        }
+    }
+    for (CodeBlock* codeBlock : codeBlocksToJettison)
+        codeBlock->jettison(Profiler::JettisonDueToVMTraps);
+}
+
 WorkQueue& VMTraps::queue()
 {
     static LazyNeverDestroyed<Ref<WorkQueue>> workQueue;
@@ -592,6 +649,37 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     auto scope = DECLARE_THROW_SCOPE(vm);
     ASSERT(onlyContainsAsyncEvents(mask));
     // No ASSERT(needHandling(mask)): cancelStop() from resumeTheWorld() can race with this call.
+
+    // checktraps-dejank-invalidation-point (UNGIL §K.5 / SPEC-jit I21):
+    // GIL-off, DFG/FTL CheckTraps no longer clobbers the abstract heap — it
+    // is an invalidation point, and THIS function is the park whose overlap
+    // with a conductor heap-fact rewrite window (haveABadTime, Class-A fire,
+    // OM transition stop, debugger JS) must jettison this thread's on-stack
+    // optimizing-JIT code so the resumed poll OSR-exits before reusing any
+    // hoisted heap fact. Sample the epoch BEFORE any servicing/park below
+    // (the NeedStopTheWorld notifyVMStop park, the GIL yield, every quantum
+    // park) and compare on EVERY exit path via the scope-exit: an unchanged
+    // epoch is one relaxed-ish load + compare. SOUNDNESS DEPENDS ON THE
+    // BUMP EDGE (review blocker, amend round): a window that parks this
+    // thread bumps IN-WINDOW, pre-resume (the wrapped-work closure in
+    // stopTheWorldAndRun's gilOff reroute), so the entry sample here —
+    // taken post-publication, because the publication's trap bits are what
+    // sent us here — still compares unequal after the park. See the
+    // BUMP-EDGE LAW comment in bytecode/JSThreadsSafepoint.cpp. Gate matches
+    // the static modeling predicate in DFGClobberize.h (useJSThreads && !useThreadGIL),
+    // NOT vm.gilOff(): the compile-time model is per-process, so the runtime
+    // check must be at least as broad. Flag-off: zero behavior change.
+    bool checkConductorHeapFactRewriteEpoch = Options::useJSThreads() && !Options::useThreadGIL();
+    uint64_t heapFactRewriteEpochOnEntry = 0;
+    if (checkConductorHeapFactRewriteEpoch) [[unlikely]]
+        heapFactRewriteEpochOnEntry = JSThreadsSafepoint::conductorHeapFactRewriteEpoch();
+    auto conductorHeapFactRewriteCheck = makeScopeExit([&] {
+        if (!checkConductorHeapFactRewriteEpoch) [[likely]]
+            return;
+        if (JSThreadsSafepoint::conductorHeapFactRewriteEpoch() == heapFactRewriteEpochOnEntry) [[likely]]
+            return;
+        jettisonOptimizedCodeOnStackAfterConductorHeapFactRewrite(vm.topCallFrame);
+    });
 
     // UNGIL §A.2.7/§A.2.8 (SD13/SD14/W0): GIL-off, a spawned Thread never
     // services the carrier-only delivery class — spawned breakpoints are
@@ -777,6 +865,18 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
         auto event = takeTopPriorityTrap(mask);
         switch (event) {
         case NeedDebuggerBreak:
+            // checktraps-dejank-invalidation-point: a serviced debugger break
+            // leads to debugger JS running while sibling mutators sit parked
+            // at polls. GIL-off the Debugger STW walk publishes a
+            // ClassAStopWatchdogContext (which bumps the heap-fact rewrite
+            // epoch); GIL-on flag-on no context is published, so bump here
+            // explicitly — siblings parked across the debugger's GIL tenure
+            // then jettison their on-stack optimized code on resume. (GIL-on
+            // CheckTraps modeling is still conservative, so this bump is
+            // belt-and-braces there; it becomes load-bearing if the GIL-on
+            // model is ever de-janked too.) Flag-off: dead branch.
+            if (Options::useJSThreads()) [[unlikely]]
+                JSThreadsSafepoint::noteConductorHeapFactRewrite();
             invalidateCodeBlocksOnStack(vm.topCallFrame);
             didHandleTrap = true;
             break;
