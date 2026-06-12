@@ -539,6 +539,131 @@ function checksumPhaseC() {
 }
 
 // ---------------------------------------------------------------------------
+// §1.10-WS Phase C — WORK-STEALING ARM (mode-selected; the naive phaseC()
+// above is untouched — it is the lock-pathology diagnostic). Selected by the
+// literal extra shell argument "ws" (jsc has no env accessor; same mechanism
+// as the "smoke" argument): jsc <flags> bench.js -- W [smoke] ws
+//
+// Algorithm (identical in go/main.go and Bench.java):
+//  - W per-worker deques over the 128 shard indices; shard s seeded into
+//    deque s % W in increasing s order. Each deque is a fixed array with
+//    [head, tail) live region, protected by the one mutex type (Lock —
+//    fairness rule §2.1; no lock-free Chase-Lev cleverness in any language).
+//  - Owner pops from the TAIL of its own deque; when empty it scans victims
+//    (w+1 .. w+W-1 mod W) and steals ceil(n/2) items from the victim's HEAD
+//    (victim lock held for the copy only, then own lock to append — never
+//    nested, so no deadlock).
+//  - Termination: shared atomic wsRemaining (init K) decremented per popped
+//    shard; a worker exits when its deque is empty, a full steal scan fails,
+//    and wsRemaining == 0 (otherwise re-scan: items can be transiently
+//    in-flight inside a steal).
+//  - Accumulation is THREAD-LOCAL: each worker folds its shards into a local
+//    map groupKey -> { totalTf, df, terms[] } (no group locks taken during
+//    the phase). After the Phase C barrier, thread 0 merges the W local maps
+//    into the shared groups single-threaded, then the naive sort/topN/
+//    checksumC code runs unchanged. checksumC is an order-independent
+//    mod-2^64 sum and each term occurs in exactly one shard, so the merged
+//    result is bit-identical to the naive arm's.
+// ---------------------------------------------------------------------------
+const WS_MODE = shellArgs.indexOf("ws") >= 0;
+
+const wsDeques = [];   // shared objects; each { lock, arr, head, tail }
+const wsLocals = [];   // slot per worker for its thread-local accumulator
+const wsState = { remaining: 0 };
+if (WS_MODE) {
+    for (let w = 0; w < W; ++w) {
+        wsDeques.push({ lock: new Lock(), arr: [], head: 0, tail: 0 });
+        wsLocals.push(null);
+    }
+    for (let s = 0; s < K; ++s) {
+        const dq = wsDeques[s % W];
+        dq.arr[dq.tail++] = s;
+    }
+    wsState.remaining = K;
+}
+
+function wsPopOwn(w) {
+    const dq = wsDeques[w];
+    let item = -1;
+    dq.lock.hold(() => {
+        if (dq.head < dq.tail)
+            item = dq.arr[--dq.tail];
+    });
+    return item;
+}
+
+function wsSteal(w) {
+    for (let off = 1; off < W; ++off) {
+        const dq = wsDeques[(w + off) % W];
+        let stolen = null;
+        dq.lock.hold(() => {
+            const n = dq.tail - dq.head;
+            if (n > 0) {
+                const cnt = (n + 1) >> 1; // steal-half = ceil(n/2), from the head
+                stolen = dq.arr.slice(dq.head, dq.head + cnt);
+                dq.head += cnt;
+            }
+        });
+        if (stolen !== null) {
+            const own = wsDeques[w];
+            own.lock.hold(() => {
+                for (let i = 0; i < stolen.length; ++i)
+                    own.arr[own.tail++] = stolen[i];
+            });
+            return true;
+        }
+    }
+    return false;
+}
+
+function phaseCWS(id) {
+    const local = new Map(); // thread-local accumulator: key -> {totalTf, df, terms}
+    for (;;) {
+        const s = wsPopOwn(id);
+        if (s < 0) {
+            if (wsSteal(id))
+                continue;
+            if (Atomics.add(wsState, "remaining", 0) <= 0) // atomic load
+                break;
+            continue; // transiently in-flight steal; re-scan
+        }
+        Atomics.add(wsState, "remaining", -1);
+        for (const [term, p] of shards[s].map) {
+            let totalTf = 0;
+            const df = p.docIds.length; // ALL postings: base + writer docs
+            for (let i = 0; i < df; ++i)
+                totalTf += p.tfs[i];
+            const key = term.length + ":" + term.charAt(1); // same key rule as phaseC()
+            let g = local.get(key);
+            if (g === undefined) {
+                g = { totalTf: 0, df: 0, terms: [] };
+                local.set(key, g);
+            }
+            g.totalTf += totalTf;
+            g.df += df;
+            g.terms.push({ term, totalTf });
+        }
+    }
+    wsLocals[id] = local;
+}
+
+// Thread 0, single-threaded after the Phase C barrier: merge the W local
+// accumulators into the shared groups, then checksumPhaseC() runs unchanged.
+function wsMergeLocals() {
+    const groups = published.groups;
+    for (let w = 0; w < W; ++w) {
+        const local = wsLocals[w];
+        for (const [key, lg] of local) {
+            const g = groups.get(key);
+            g.totalTf += lg.totalTf;
+            g.df += lg.df;
+            for (let i = 0; i < lg.terms.length; ++i)
+                g.terms.push(lg.terms[i]);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Worker body — all phases, barrier-separated. Thread 0 (the main thread) does
 // the single-threaded inter-phase sections and the timing.
 // ---------------------------------------------------------------------------
@@ -596,10 +721,15 @@ function workerBody(id) {
     // Phase C
     if (id === 0)
         t0 = nowMs();
-    phaseC();
+    if (WS_MODE)
+        phaseCWS(id);
+    else
+        phaseC();
     barrier.await();
     if (id === 0) {
         results.phaseC_ms = nowMs() - t0;
+        if (WS_MODE)
+            wsMergeLocals(); // single-threaded merge of thread-local accumulators
         results.checksumC = checksumPhaseC(); // thread 0 sorts + topN after barrier
         results.total_ms = nowMs() - tStart;
     }
@@ -624,6 +754,7 @@ function ms(x) {
 }
 
 print('{"impl":"js","threads":' + W
+    + (WS_MODE ? ',"mode":"ws"' : '')
     + ',"phaseA_ms":' + ms(results.phaseA_ms)
     + ',"phaseB_ms":' + ms(results.phaseB_ms)
     + ',"phaseC_ms":' + ms(results.phaseC_ms)

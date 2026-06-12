@@ -736,3 +736,193 @@ jsc [no flags | --useJSThreads=1 | pinned set | pinned minus one flag] \
   -e "globalThis.SCALING_THREADS=1; globalThis.SCALING_WORK_SCALE=1;" \
   JSTests/threads/scaling/map-heavy.js
 ```
+
+---
+
+# RUN 3 (2026-06-12, full ladder + GC-mode A/B + WS arm)
+
+Source of truth: `Tools/threads/scalebench/results-v3.json` (`valid: true`,
+spec "SCALEBENCH v1 + WS amendment"). Everything below is the json's cell
+medians, verbatim.
+
+## 15. Setup, provenance, protocol
+
+- Tree `175e2a28b57800add359004fa7b9dfe2ece24e10` (fully green). Same host:
+  64 cores, 247 GB RAM, kernel 6.12.68-92.122.amzn2023.x86_64. go1.24.13,
+  OpenJDK Corretto-21.0.10.7.1.
+- jsc: `WebKitBuild/Release/bin/jsc`, sha256
+  `8985994941f0cf4b0bf2b05854ece0d6c2e4705dc7d96534f97806a6d3449538`,
+  mtime 2026-06-12 20:17:32 UTC, size 383303704. **`jsc-build-id.txt` is
+  STALE** (still records the 2026-06-10 binary); the json records the real
+  binary identity.
+- Three JS env sets: pinned GIL-off STW (`JSC_useJSThreads=1
+  JSC_useThreadGIL=0 JSC_useVMLite=1 JSC_useSharedAtomStringTable=1
+  JSC_useSharedGCHeap=1 JSC_useThreadGILOffUnsafe=1`), the same plus
+  `JSC_useConcurrentSharedGCMarking=1` ("congc"), and GIL-on minimal
+  (`JSC_useJSThreads=1` only, flag-tax baseline).
+- Protocol deviation from SPEC §3 (task override, recorded in the json):
+  **3 measured reps per cell** (5 for the two W=1 flag-tax cells), median
+  reported, **no discarded warmup rep**.
+- Checksum gate: all successful runs across all languages, all W, both GC
+  modes, and both Phase-C arms produced the identical tuple
+  `A=b3e65a6855b9bdeb, postings=4158957, A2=39c33392b2a4c5b2,
+  B=c4bdd580f85ee058, C=af028188d7a56a96` (same tuple as runs 1-2).
+  WS parity holds: any checksum difference would have invalidated the batch;
+  none occurred.
+- §0 handicap statement, updated for this run: GC under JS threads on this
+  branch is stop-the-world with parallel marking; concurrent marking
+  (`JSC_useConcurrentSharedGCMarking=1`) was A/B-tested here and **crashes
+  intermittently at teardown**. Go and Java ship fully concurrent collectors.
+
+## 16. Scaling curves — total wall time, naive arm (medians of 3; speedup vs same-language W=1)
+
+| W | js-stw ms | speedup | js-congc ms | speedup | go ms | speedup | java ms | speedup |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 33258.7 | 1.000 | 33768.6 | 1.000 | 1738.3 | 1.000 | 1849.9 | 1.000 |
+| 2 | 45487.9 | 0.731 | 44415.1 | 0.760 | 1064.3 | 1.633 | 1321.3 | 1.400 |
+| 4 | 49959.6 | 0.666 | — (0/3 reps) | — | 699.6 | 2.485 | 1113.5 | 1.661 |
+| 8 | 48115.1 | 0.691 | 48767.9 (1/3) | 0.692 | 510.4 | 3.406 | 931.1 | 1.987 |
+| 16 | 47561.9 | 0.699 | 48192.1 | 0.701 | 392.8 | 4.425 | 928.0 | 1.993 |
+| 32 | 76557.4 | 0.434 | 75688.4 | 0.446 | 359.6 | 4.834 | 1057.3 | 1.750 |
+| 48 | 78671.7 | 0.423 | 78660.9 | 0.429 | 352.1 | 4.937 | 1041.2 | 1.777 |
+| 64 | 81319.1 | 0.409 | 81472.3 (2/3) | 0.414 | 357.3 | 4.865 | 1141.4 | 1.621 |
+
+- **JS scaling is negative at every W.** Best case W=16 = 0.70x of
+  single-thread; second cliff at W=32 (0.43x), driven by Phase A
+  (js-stw phase A: 27161 ms at W=8 vs 51436 ms at W=32 — allocation +
+  shared-map ingest nearly doubles when threads double past 16). cpu_util
+  falls 1.15 (W=1) -> 0.09 (W=64): the program is almost fully serialized
+  and added threads are pure overhead.
+- **Go scales**: 4.94x at W=48, knee at W=16-32. **Java scales to W=8-16**
+  (1.99x), then degrades slightly (1.62x at W=64).
+- Cross-language gap: at W=1, JS pinned 33.3 s vs Go 1.74 s (19x) vs Java
+  1.85 s (18x). At W=64: 81.3 s vs 0.36 s (228x) and 1.14 s (71x).
+- Regression vs run 1's 2026-06-10 binary at W=1: 24.31 s then, 33.26 s now
+  (+37%) — but run 1's binary failed every js W>1 cell, while today's binary
+  completes the full ladder with bit-identical checksums.
+
+## 17. HEADLINE — STW vs concurrent shared-GC marking, per W
+
+Delta = congc median − stw median (naive arm; negative = congc faster):
+
+| W | stw ms | congc ms | delta ms | delta % | congc reps ok | congc crashes (SIGSEGV) |
+|---|---|---|---|---|---|---|
+| 1 | 33258.7 | 33768.6 | +509.9 | +1.5% | 3/3 | 0 |
+| 2 | 45487.9 | 44415.1 | -1072.7 | -2.4% | 4/6 | 2 |
+| 4 | 49959.6 | null | — | — | 0/3 | 3 |
+| 8 | 48115.1 | 48767.9 | +652.8 | +1.4% | 1/3 | 2 |
+| 16 | 47561.9 | 48192.1 | +630.2 | +1.3% | 3/3 | 0 |
+| 32 | 76557.4 | 75688.4 | -869.1 | -1.1% | 3/3 | 0 |
+| 48 | 78671.7 | 78660.9 | -10.8 | -0.0% | 3/3 | 0 |
+| 64 | 81319.1 | 81472.3 | +153.2 | +0.2% | 2/3 | 1 |
+
+Two findings, both stated plainly:
+
+1. **Where congc completes, it buys ~nothing**: every delta is within
+   ±2.4%, i.e. inside run-to-run noise. Concurrent shared GC marking in its
+   current state does not move this workload.
+2. **It is not stable**: 8 SIGSEGVs across 30 congc reps (W=4: 3/3 crashed,
+   cell median null). The STW arm had **0 crashes in 24 runs**. Crash
+   signature (from core, W=2): `GCSegmentedArray<JSCell const*>::removeLast`
+   <- `HeapClientSet::flushClientMutatorMarkStackForExit` (Heap.cpp:6953)
+   <- `GCClient::Heap::detachCurrentThread` (Heap.cpp:7131)
+   <- `tearDownSpawnedThreadForExit` (ThreadManager.cpp:687) <- threadMain —
+   spawned-thread teardown races the concurrent shared-GC mark stack.
+   Per SPEC §6, the W=8 (1/3) and W=64 (2/3) congc medians fall below the
+   3-rep threshold and are shown for transparency only.
+
+## 18. Naive vs work-stealing Phase C (WS amendment, W ∈ {8, 32, 64})
+
+Phase C medians, WS vs naive (same-language, same-W, same GC mode — js
+comparisons against js-stw; naive comparators reused from §16's ladder,
+WS cells run fresh):
+
+| W | js naive C ms | js WS C ms | delta | go naive | go WS | delta | java naive | java WS | delta |
+|---|---|---|---|---|---|---|---|---|---|
+| 8 | 648.9 | 522.0 | -19.6% | 10.8 | 2.2 | -79.4% | 84.4 | 64.9 | -23.1% |
+| 32 | 618.0 | 469.3 | -24.1% | 11.0 | 2.0 | -81.7% | 185.1 | 256.8 | **+38.7%** |
+| 64 | 597.4 | 391.6 | -34.5% | 11.0 | 2.1 | -80.8% | 180.3 | 217.5 | **+20.6%** |
+
+- WS helps JS Phase C 20-35%, and helps Go ~80%, but Phase C is <1% of the
+  JS total and ~3% of Go's — **totals are unchanged within noise** (e.g. js
+  W=64 total: WS 81161.2 vs naive 81319.1 ms).
+- Java WS is **slower** at W=32/64 — the thread-local-accumulate + serial
+  merge loses to the naive shared-lock append there.
+- All WS checksum tuples identical to naive (parity gate passed).
+
+## 19. Peak RSS and CPU utilization
+
+| W | js-stw RSS MB | go RSS MB | java RSS MB | js cpu | go cpu | java cpu |
+|---|---|---|---|---|---|---|
+| 1 | 13938 | 180 | 847 | 1.15 | 1.48 | 2.03 |
+| 2 | 14395 | 181 | 771 | 0.66 | 1.30 | 1.67 |
+| 4 | 12993 | 184 | 800 | 0.36 | 1.09 | 1.28 |
+| 8 | 12892 | 183 | 805 | 0.25 | 0.85 | 1.03 |
+| 16 | 12704 | 196 | 872 | 0.20 | 0.63 | 0.88 |
+| 32 | 12351 | 204 | 766 | 0.16 | 0.41 | 0.82 |
+| 48 | 11992 | 207 | 932 | 0.12 | 0.31 | 0.76 |
+| 64 | 11772 | 205 | 870 | 0.09 | 0.25 | 0.71 |
+
+(RSS = peak KB from the json / 1024, rounded; cpu_util = (user+sys)/(wall*W).)
+
+JS pinned runs hold **11.8-14.7 GB across every W** — vs Go ~0.2 GB, Java
+~0.8-0.9 GB, and the GIL-on JS configuration's 0.43 GB. The shared GC heap
+under VMLite retains an order of magnitude more memory than GIL-on JS and
+57-78x more than Go.
+
+## 20. Single-thread flag tax (W=1, 5 reps each)
+
+| Config | total ms | RSS MB | cpu_util |
+|---|---|---|---|
+| jsc, zero flags | **N/A** — `ReferenceError: Lock is not defined` (Thread API needs `JSC_useJSThreads=1`; 1 demonstration rep, exit 3) | — | — |
+| `JSC_useJSThreads=1` only (GIL on) | 15140.0 | 424 | 1.03 |
+| pinned GIL-off set | 33691.9 | 13938 | 1.15 |
+
+**The pinned GIL-off flag set costs +122.5% wall time and 32.9x RSS on
+single-threaded execution** (33691.9 / 15139.98; 14272296 / 433968 KB).
+This is the entry fee before a second thread exists.
+
+## 21. Caveats (read before quoting any number above)
+
+Host: dedicated 64-core / 247 GB box, quiet throughout (no jsc/ninja/java/go
+processes at start; 1-min loadavg 1.03-1.94 at batch starts). Reps: **3 per
+cell** (5 for the two W=1 flag-tax cells), median reported, **no warmup
+rep** — a deliberate, recorded deviation from SPEC §3's 5+warmup protocol,
+so cell medians here are noisier than runs 1-2. Dropped/short cells:
+js-congc W=4 is **null** (3/3 SIGSEGV); js-congc W=8 has 1 surviving rep and
+W=64 has 2 — both below SPEC §6's 3-rep median threshold and marked as such;
+zero-flag jsc is N/A (cannot run the bench at all). The Phase-5 naive-arm
+comparators at W=8/32/64 were **reused** from the main ladders (same binary,
+env, session), not re-run; WS cells were fresh. Mid-run incident: /tmp
+(tmpfs) filled with 6-19 GB core dumps during the first js-congc W=2 cell;
+cores were deleted, core dumps disabled (RLIMIT_CORE=0) for all subsequent
+reps, and the affected cell fully re-run (both batches kept in raw data:
+4 ok / 2 SIGSEGV across 6 reps). `jsc-build-id.txt` is stale; trust the
+json's sha256/mtime. One bookkeeping note: the json's prose `findings` array
+quotes individual-rep Phase-C values for the WS comparison (e.g. 555.8 vs
+632.4 ms at W=8); the tables in §18 use the json's cell **medians**, which
+is why the percentages differ slightly from the prose. Finally, per-language
+speedups are against the same language's W=1 — they say nothing about the
+19-228x absolute cross-language gap, which is reported separately in §16.
+
+## 22. Run-3 reproduction
+
+```
+# Driver (3-rep ladders, GC-mode A/B, WS arm, flag-tax cells):
+python3 Tools/threads/scalebench/v3_driver.py   # writes results-v3.json
+
+# congc teardown-crash repro (W=4 hit 3/3 here):
+cd Tools/threads/scalebench && \
+  JSC_useJSThreads=1 JSC_useThreadGIL=0 JSC_useVMLite=1 \
+  JSC_useSharedAtomStringTable=1 JSC_useSharedGCHeap=1 \
+  JSC_useThreadGILOffUnsafe=1 JSC_useConcurrentSharedGCMarking=1 \
+  ../../../WebKitBuild/Release/bin/jsc bench.js -- 4
+```
+
+Bottom line, run 3: the full JS ladder now **completes** with bit-identical
+checksums (the first run where that is true), but scalability is still
+negative at every W (best 0.70x at W=16, 0.41x at W=64, vs Go's 4.9x), the
+concurrent-marking arm changes nothing measurable and crashes at spawned-
+thread teardown, the WS scheduler fixes only a phase that doesn't matter,
+and the flag set still charges +122% time / 33x memory before any
+parallelism begins.

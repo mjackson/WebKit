@@ -376,6 +376,137 @@ public final class Bench {
         return term.length() + ":" + term.charAt(1);
     }
 
+    // ---- §1.10-WS Phase C work-stealing arm (mode-selected, env SCALEBENCH_WS=1;
+    //      the naive inline Phase C loop in worker() is untouched).
+    //
+    // Identical algorithm to bench.js phaseCWS / go phaseCWSWork:
+    //   - W per-worker deques over the K shard indices; shard s seeded into
+    //     deque s % W in increasing s order. Fixed array, [head, tail) live
+    //     region, plain ReentrantLock per deque (the one mutex type, §2.1 —
+    //     no lock-free Chase-Lev in any language).
+    //   - Owner pops from the TAIL; when empty, scan victims (w+1..w+W-1
+    //     mod W) and steal ceil(n/2) from the victim's HEAD (victim lock for
+    //     the copy, then own lock to append — never nested).
+    //   - Shared atomic wsRemaining (init K) decremented per popped shard; a
+    //     worker exits when own deque empty + full scan failed + remaining==0.
+    //   - THREAD-LOCAL accumulation (HashMap groupKey -> LocalGroup, no group
+    //     locks); thread 0 merges the W local maps single-threaded after the
+    //     Phase C barrier, then the naive sort/topN/checksumC code runs
+    //     unchanged.
+    static boolean WS_MODE;
+
+    static final class WsDeque {
+        final ReentrantLock lock = new ReentrantLock();
+        int[] arr = new int[K];
+        int head, tail;
+    }
+
+    static final class LocalGroup {
+        long totalTf, df;
+        final ArrayList<TermTf> terms = new ArrayList<>();
+    }
+
+    static WsDeque[] wsDeques;
+    static HashMap<String, LocalGroup>[] wsLocals;
+    static final AtomicLong wsRemaining = new AtomicLong();
+
+    @SuppressWarnings("unchecked")
+    static void initWS() {
+        wsDeques = new WsDeque[W];
+        for (int w = 0; w < W; w++) wsDeques[w] = new WsDeque();
+        for (int s = 0; s < K; s++) {
+            WsDeque dq = wsDeques[s % W];
+            if (dq.tail == dq.arr.length) dq.arr = Arrays.copyOf(dq.arr, dq.arr.length * 2);
+            dq.arr[dq.tail++] = s;
+        }
+        wsLocals = new HashMap[W];
+        wsRemaining.set(K);
+    }
+
+    static int wsPopOwn(int w) {
+        WsDeque dq = wsDeques[w];
+        dq.lock.lock();
+        try {
+            if (dq.head < dq.tail) return dq.arr[--dq.tail];
+            return -1;
+        } finally {
+            dq.lock.unlock();
+        }
+    }
+
+    static boolean wsSteal(int w) {
+        for (int off = 1; off < W; off++) {
+            WsDeque dq = wsDeques[(w + off) % W];
+            int[] stolen = null;
+            dq.lock.lock();
+            try {
+                int n = dq.tail - dq.head;
+                if (n > 0) {
+                    int cnt = (n + 1) / 2; // steal-half = ceil(n/2), from the head
+                    stolen = Arrays.copyOfRange(dq.arr, dq.head, dq.head + cnt);
+                    dq.head += cnt;
+                }
+            } finally {
+                dq.lock.unlock();
+            }
+            if (stolen != null) {
+                WsDeque own = wsDeques[w];
+                own.lock.lock();
+                try {
+                    while (own.tail + stolen.length > own.arr.length)
+                        own.arr = Arrays.copyOf(own.arr, own.arr.length * 2);
+                    System.arraycopy(stolen, 0, own.arr, own.tail, stolen.length);
+                    own.tail += stolen.length;
+                } finally {
+                    own.lock.unlock();
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static void phaseCWS(int tid) {
+        HashMap<String, LocalGroup> local = new HashMap<>(); // thread-local accumulator
+        for (;;) {
+            int si = wsPopOwn(tid);
+            if (si < 0) {
+                if (wsSteal(tid)) continue;
+                if (wsRemaining.get() <= 0) break;
+                continue; // transiently in-flight steal; re-scan
+            }
+            wsRemaining.decrementAndGet();
+            Shard sh = shards[si];
+            for (var e : sh.map.entrySet()) {
+                String term = e.getKey();
+                PostingList pl = e.getValue();
+                long tt = 0;
+                for (int i = 0; i < pl.size; i++) tt += pl.tfs[i];
+                long df = pl.size; // ALL postings: base + writer docs
+                LocalGroup g = local.computeIfAbsent(groupKey(term), k -> new LocalGroup());
+                g.totalTf += tt;
+                g.df += df;
+                g.terms.add(new TermTf(term, tt));
+            }
+        }
+        wsLocals[tid] = local;
+    }
+
+    // Thread 0, single-threaded after the Phase C barrier: merge the W
+    // thread-local accumulators into the shared groups; the naive
+    // sort/topN/checksumC code then runs unchanged.
+    static void wsMergeLocals() {
+        for (int w = 0; w < W; w++) {
+            for (var e : wsLocals[w].entrySet()) {
+                Group g = groups.get(e.getKey());
+                LocalGroup lg = e.getValue();
+                g.totalTf += lg.totalTf;
+                g.df += lg.df;
+                g.terms.addAll(lg.terms);
+            }
+        }
+    }
+
     // ---- results (written by thread 0 between barriers; read by main after join) ----
     static long tStartA, tEndA, tStartB, tEndB, tStartC, tEndC, tEnd;
     static long checksumA, postingsCount, checksumA2, checksumC;
@@ -436,6 +567,9 @@ public final class Bench {
         if (tid == 0) tStartC = System.nanoTime();
 
         // Phase C — ANALYTICS
+        if (WS_MODE)
+            phaseCWS(tid);
+        else
         for (;;) {
             long si = nextShard.getAndIncrement();
             if (si >= K) break;
@@ -460,6 +594,7 @@ public final class Bench {
         barrier.await();
         if (tid == 0) {
             tEndC = System.nanoTime();
+            if (WS_MODE) wsMergeLocals(); // single-threaded merge of thread-local accumulators
             long sum = 0;
             for (var ge : groups.entrySet()) {
                 Group g = ge.getValue();
@@ -513,6 +648,7 @@ public final class Bench {
         boolean smoke = "1".equals(System.getenv("SCALEBENCH_SMOKE"));
         N_BASE = smoke ? 2000 : CFG_N_BASE;
         N_QUERIES = N_BASE;
+        WS_MODE = "1".equals(System.getenv("SCALEBENCH_WS"));
 
         selfTestPrng();
 
@@ -524,6 +660,8 @@ public final class Bench {
             for (char c = 'a'; c <= 'z'; c++) groups.put(len + ":" + c, new Group());
         }
 
+        if (WS_MODE) initWS();
+
         barrier = new Barrier(W);
         Thread[] ts = new Thread[W];
         for (int i = 0; i < W; i++) {
@@ -534,8 +672,9 @@ public final class Bench {
         for (Thread t : ts) t.join();
 
         StringBuilder out = new StringBuilder(512);
-        out.append("{\"impl\":\"java\",\"threads\":").append(W)
-           .append(",\"phaseA_ms\":").append(ms(tStartA, tEndA))
+        out.append("{\"impl\":\"java\",\"threads\":").append(W);
+        if (WS_MODE) out.append(",\"mode\":\"ws\"");
+        out.append(",\"phaseA_ms\":").append(ms(tStartA, tEndA))
            .append(",\"phaseB_ms\":").append(ms(tStartB, tEndB))
            .append(",\"phaseC_ms\":").append(ms(tStartC, tEndC))
            .append(",\"total_ms\":").append(ms(tStartA, tEnd))

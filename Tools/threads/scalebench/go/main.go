@@ -606,6 +606,143 @@ func finalizeC() uint64 {
 }
 
 // ---------------------------------------------------------------------------
+// Phase C — WORK-STEALING ARM (SPEC §1.10-WS; mode-selected, env
+// SCALEBENCH_WS=1; the naive phaseCWork above is untouched).
+//
+// Identical algorithm to bench.js phaseCWS / Bench.java phaseCWS:
+//   - W per-worker deques over the 128 shard indices; shard s seeded into
+//     deque s % W in increasing s order. Fixed array, [head, tail) live
+//     region, plain sync.Mutex per deque (the one mutex type, §2.1 — no
+//     lock-free Chase-Lev in any language).
+//   - Owner pops from the TAIL; when empty, scan victims (w+1..w+W-1 mod W)
+//     and steal ceil(n/2) from the victim's HEAD (victim lock for the copy,
+//     then own lock to append — never nested).
+//   - Shared atomic wsRemaining (init K) decremented per popped shard;
+//     a worker exits when own deque empty + full scan failed + remaining==0.
+//   - THREAD-LOCAL accumulation (map groupKey -> *wsLocalGroup, no group
+//     locks); worker 0 merges all W local maps single-threaded after the
+//     Phase C barrier, then the naive finalizeC() runs unchanged.
+// ---------------------------------------------------------------------------
+
+type wsDeque struct {
+	mu         sync.Mutex
+	arr        []uint64
+	head, tail int
+}
+
+type wsLocalGroup struct {
+	totalTf uint64
+	df      uint64
+	terms   []termStat
+}
+
+var (
+	wsMode      bool
+	wsDeques    []*wsDeque
+	wsLocals    []map[string]*wsLocalGroup
+	wsRemaining atomic.Int64
+)
+
+func initWS() {
+	wsDeques = make([]*wsDeque, workers)
+	for w := 0; w < workers; w++ {
+		wsDeques[w] = &wsDeque{}
+	}
+	for s := uint64(0); s < K; s++ {
+		dq := wsDeques[int(s)%workers]
+		dq.arr = append(dq.arr, s)
+		dq.tail++
+	}
+	wsLocals = make([]map[string]*wsLocalGroup, workers)
+	wsRemaining.Store(int64(K))
+}
+
+func wsPopOwn(w int) (uint64, bool) {
+	dq := wsDeques[w]
+	dq.mu.Lock()
+	if dq.head < dq.tail {
+		dq.tail--
+		item := dq.arr[dq.tail]
+		dq.mu.Unlock()
+		return item, true
+	}
+	dq.mu.Unlock()
+	return 0, false
+}
+
+func wsSteal(w int) bool {
+	for off := 1; off < workers; off++ {
+		dq := wsDeques[(w+off)%workers]
+		var stolen []uint64
+		dq.mu.Lock()
+		if n := dq.tail - dq.head; n > 0 {
+			cnt := (n + 1) / 2 // steal-half = ceil(n/2), from the head
+			stolen = append(stolen, dq.arr[dq.head:dq.head+cnt]...)
+			dq.head += cnt
+		}
+		dq.mu.Unlock()
+		if stolen != nil {
+			own := wsDeques[w]
+			own.mu.Lock()
+			own.arr = append(own.arr[:own.tail], stolen...)
+			own.tail += len(stolen)
+			own.mu.Unlock()
+			return true
+		}
+	}
+	return false
+}
+
+func phaseCWSWork(id int) {
+	local := make(map[string]*wsLocalGroup) // thread-local accumulator
+	for {
+		s, ok := wsPopOwn(id)
+		if !ok {
+			if wsSteal(id) {
+				continue
+			}
+			if wsRemaining.Load() <= 0 {
+				break
+			}
+			continue // transiently in-flight steal; re-scan
+		}
+		wsRemaining.Add(-1)
+		sh := shards[s]
+		for term, pl := range sh.m {
+			var tot uint64
+			for _, tf := range pl.tfs {
+				tot += uint64(tf)
+			}
+			df := uint64(len(pl.docIds)) // ALL postings: base + writer docs
+			key := groupKey(term)
+			g := local[key]
+			if g == nil {
+				g = &wsLocalGroup{}
+				local[key] = g
+			}
+			g.totalTf += tot
+			g.df += df
+			g.terms = append(g.terms, termStat{term, tot})
+		}
+	}
+	wsLocals[id] = local
+}
+
+// wsMergeLocals: worker 0, single-threaded after the Phase C barrier — merge
+// the W thread-local accumulators into the shared groups; finalizeC() then
+// runs unchanged.
+func wsMergeLocals() {
+	for w := 0; w < workers; w++ {
+		for key, lg := range wsLocals[w] {
+			g := groups[key]
+			g.totalTf += lg.totalTf
+			g.df += lg.df
+			g.terms = append(g.terms, lg.terms...)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Worker + main
 // ---------------------------------------------------------------------------
 
@@ -656,10 +793,17 @@ func worker(id int, done chan<- struct{}) {
 	}
 	bar.await() // Phase C starts
 
-	phaseCWork()
+	if wsMode {
+		phaseCWSWork(id)
+	} else {
+		phaseCWork()
+	}
 	bar.await() // Phase C done
 	if id == 0 {
 		phaseCms = msSince(tPhase)
+		if wsMode {
+			wsMergeLocals() // single-threaded merge of thread-local accumulators
+		}
 		checksumC = finalizeC()
 		totalms = msSince(tTotal0)
 	}
@@ -688,8 +832,13 @@ func main() {
 	}
 	nQueries = nBase
 
+	wsMode = os.Getenv("SCALEBENCH_WS") == "1"
+
 	initShards()
 	initGroups()
+	if wsMode {
+		initWS()
+	}
 	bar = newBarrier(workers)
 
 	done := make(chan struct{}, workers) // join only — NOT a work queue
@@ -700,7 +849,11 @@ func main() {
 		<-done
 	}
 
-	fmt.Printf("{\"impl\":\"go\",\"threads\":%d,"+
+	mode := ""
+	if wsMode {
+		mode = "\"mode\":\"ws\","
+	}
+	fmt.Printf("{\"impl\":\"go\",\"threads\":%d,"+mode+
 		"\"phaseA_ms\":%.3f,\"phaseB_ms\":%.3f,\"phaseC_ms\":%.3f,\"total_ms\":%.3f,"+
 		"\"checksumA\":\"%016x\",\"postings\":%d,\"checksumA2\":\"%016x\","+
 		"\"checksumB\":\"%016x\",\"checksumC\":\"%016x\","+

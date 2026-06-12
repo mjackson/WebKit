@@ -264,6 +264,74 @@ checksumC = u64 sum over groups g of
                  ^ fnv1a(join of g's topN as "term:totalTf," ) )
 ```
 
+### 1.10-WS Phase C — WORK-STEALING ARM (additive amendment, 2026-06-12)
+
+A second, mode-selected implementation of Phase C. The §1.10 naive arm is the
+**default** and stays byte-for-byte as written (it is the lock-pathology
+diagnostic); the WS arm is an alternate scheduler + accumulator for the SAME
+work over the SAME inputs and MUST produce bit-identical `checksumC` (and all
+other checksums — Phases A/B are untouched). This amendment changes no naive
+code path, no constants, and no naive checksums; results recorded before it
+remain valid.
+
+**Selection** (naive when unset):
+
+- Go: env `SCALEBENCH_WS=1`
+- Java: env `SCALEBENCH_WS=1`
+- JS: the literal extra shell argument `ws` (the jsc shell has no env
+  accessor — same mechanism as the `smoke` argument):
+  `jsc <flags> bench.js -- W [smoke] ws`
+
+In WS mode the output JSON carries an extra field `"mode":"ws"` immediately
+after `"threads"`; naive output is unchanged.
+
+**Algorithm (identical in all three languages; fairness rules §2 apply in
+full — notably JS uses shared objects + `Lock`/`Atomics`-on-objects, Go/Java
+use their idiomatic equivalents, and NO library concurrent maps or lock-free
+deque libraries anywhere):**
+
+1. **Per-worker deques over the K=128 shard indices.** W deques, one per
+   worker. Deque = a growable array with live region `[head, tail)` protected
+   by the one mutex type (JS `Lock`, Go `sync.Mutex`, Java `ReentrantLock`).
+   No Chase-Lev / lock-free cleverness in ANY language — the deque is
+   mutex-guarded everywhere, so the synchronization abstraction level stays
+   identical (§2.1).
+2. **Seeding:** shard `s` is pushed to deque `s % W`, in increasing `s` order,
+   before the phase starts.
+3. **Owner pop:** a worker pops from the TAIL of its own deque (under its
+   lock).
+4. **Steal-half when empty:** when its deque is empty, worker `w` scans
+   victims `w+1, w+2, … w+W-1 (mod W)` in that order; from the first victim
+   with `n > 0` items it steals `ceil(n/2)` items from the victim's HEAD
+   (victim lock held for the copy only), then appends them to its own tail
+   (own lock; locks never nested) and resumes popping.
+5. **Termination:** a shared atomic `wsRemaining` (init K) is decremented
+   once per popped shard. A worker exits when its deque is empty, a full
+   steal scan found nothing, AND `wsRemaining == 0`; if the scan failed but
+   `wsRemaining > 0`, items may be transiently in-flight inside a steal —
+   re-scan.
+6. **Thread-local accumulators:** per-shard work is §1.10's verbatim (same
+   `totalTf`/`df` computation over ALL postings, same group key = length ×
+   first letter of the base26 part), but folded into a THREAD-LOCAL map
+   `groupKey → { totalTf, df, terms[] }` — no group locks are taken during
+   the phase. After the Phase C barrier, thread 0 merges the W local maps
+   into the §1.10 shared `groups` structure single-threaded (in worker-id
+   order), then the naive sort/topN/`checksumC` code runs unchanged.
+7. **Equivalence argument (why checksums must match):** each term lives in
+   exactly one shard and each shard is popped exactly once (removal happens
+   under the holding deque's lock), so every (term, postings) contributes
+   exactly once; group `totalTf`/`df` are wrap-around sums (commutative);
+   `terms[]` merge order is erased by the §1.10 sort with its full
+   `(totalTf DESC, term ASC)` tie-break over unique terms; `checksumC` is an
+   order-independent mod-2^64 sum. Any checksum difference is a bug, never
+   acceptable variance.
+
+**Parity gate (per language, before any WS results are reported):** at W=4,
+3 runs of the naive arm and 3 runs of the WS arm; all 6 runs' full checksum
+tuples (`checksumA`, `postings`, `checksumA2`, `checksumB`, `checksumC`)
+must be identical to each other and across all three languages. A skipped
+cell is reported as skipped, never extrapolated.
+
 ### 1.11 Output (the program prints exactly this, one JSON line)
 
 ```json
