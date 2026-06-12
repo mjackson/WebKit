@@ -94,6 +94,7 @@ void HeapClientSet::add(GCClient::Heap& client) WTF_IGNORES_THREAD_SAFETY_ANALYS
             // shared client, or we see false and re-run the sticky switch.
             continue;
         }
+        snapshotBarrierFenceStateForAttach(client); // SPEC-congc 9.3(1) (CG-3c): fence/FEP snapshot inside the publishing GBL/!WSAC section, BEFORE the insert.
         m_clients.append(&client);
         ++m_size;
         if (m_size == 1)

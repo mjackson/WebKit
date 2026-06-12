@@ -755,6 +755,22 @@ NEVER_INLINE SlotVisitor::SharedDrainResult SlotVisitor::drainFromShared(SharedD
                         m_heap.m_markingConditionVariable.wait(m_heap.m_markingMutex);
                     m_heap.m_pausedParallelMarkers--;
                     m_heap.m_numberOfWaitingParallelMarkers++;
+                    // SPEC-congc CG-I22 corollary: this paused->waiting
+                    // re-entry is the only counter transition that can flip
+                    // didReachTermination false->true (the pause itself keeps
+                    // the m_pausedParallelMarkers conjunct false), and the
+                    // resume-half notifyAll above predates it — so without a
+                    // notify here the conductor parked in waitForTermination
+                    // (infinite timeout via waitBetweenSharedGCWindows) is
+                    // never re-woken once the LAST paused helper re-enters
+                    // with no work left: a deterministic termination wedge.
+                    // Mirror the HelperDrain termination path (notify + stop
+                    // timer for the mutator-has-the-conn case). Flag-off:
+                    // dead (nothing sets ShouldPause).
+                    if (didReachTermination(locker)) {
+                        m_heap.m_markingConditionVariable.notifyAll();
+                        m_heap.m_stopIfNecessaryTimer->scheduleSoon();
+                    }
                     m_heap.m_markingConditionVariable.waitUntil(m_heap.m_markingMutex, timeout, isReady);
                 }
 

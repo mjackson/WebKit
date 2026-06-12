@@ -60,6 +60,21 @@ verifier.
 1. `dw1-sort-comparator-osr.js` — GIL-off spawned-thread sort-comparator OSR
    pc-recovery family (DW-1). Flaky ~3/4: SEGV @0x5 (T5/T7) or wrong-value
    mismatch. The diff's DFGOSRExitCompilerCommon work did not close it.
+   **A-dw1 amend-round verdict (2026-06-12, tree clean @ f7bb4a86505a): item
+   stays OPEN — no in-slice fix exists or is possible.** Re-verified live:
+   6/6 SEGV on Release GIL-off (pinned flags), 2/2 PASS with `--useDFGJIT=0`,
+   matching the K4.II.8 shared-sort-scratch acquire race
+   (`DFGSpeculativeJIT.cpp:16246-16248`/`:16321`,
+   `FTLLowerDFGToB3.cpp:11662-11663`/`:11758`, slot `VM.h` `m_cachedSortScratch`)
+   — all sites outside A-dw1 ownership (zero sort-scratch refs in any owned
+   file; an in-slice change would be symptom-papering). Routed to the
+   dfg-codegen/ftl/runtime-VM owner per deepwater LEDGER.md §3 item 0.
+   Fix-shape correction recorded in the SPEC-ungil-audit-K4.md II.8 row
+   addendum: only `m_cachedSortScratch` goes per-lite (GC-scanned via the
+   registry walk, `useJSThreads`-gated emission); `m_sortScratchSentinel`
+   stays SHARED — it is baked as a compile-time constant at three sites and
+   immutable after VM init; routing it per-lite would cause silent
+   corruption. The diagnostic atomic-xchg variant must not land.
 2. congc C1 stage flag (`--useConcurrentSharedGCMarking=1`) — deterministic
    `isMarked(cell)` assert in `Heap::addToRememberedSet` (Heap.cpp:1565) +
    congc-t1 wedge. Blocks gate 6 / CG-F entirely.
@@ -77,3 +92,67 @@ item but could NOT reproduce the metadatatable family (15/15 clean bench complet
 on its discovery surface); meanwhile three residuals NOT on that list (items 2–4
 above) are live. The list was treated as untrusted data and superseded by the
 measurements above.
+
+Addendum (2026-06-12, B-congc amend pass): residual item 2 is RESOLVED on
+the amended tree. The `isMarked(cell)`/`addToRememberedSet` assert had
+already fallen to the preceding fix pass; the remaining congc-t1 blocker
+re-presented as a deterministic `Heap.cpp:2227` A4-walk abort, which was a
+spec-internal F37-vs-F43 contradiction, closed by SPEC-congc rev 12
+addendum F48 (ANNEX CGD8.1) + the matching conductor-client exemption at
+the assert site (ASSERT_ENABLED-only; flag-off/release byte-identical).
+Re-run, Debug GIL-off pinned env + `useConcurrentSharedGCMarking=1`:
+congc t1 5/5, t3/t4/t5/t9/t11 PASS; t8 still KNOWN-RED Arm-1 (item 3,
+unchanged); items 1 and 4 unchanged. Gate 6's "AFTER leg unrunnable"
+verdict no longer holds as stated — the C1 suite now runs; the overlap
+measurement itself remains NOT TAKEN (builder/bench scope).
+
+## B-congc PINNED VERIFY (2026-06-12, solo hunt, tree @ f7bb4a86505a + working-tree amendments, Debug bin 15:04)
+
+Exact pinned bars, all run synchronously this pass. Verdict: **NOT VERIFIED** (3 of 6 bars red).
+
+1. Debug congc suite, GIL-off pinned env + `--useConcurrentSharedGCMarking=1`:
+   **29/30** — t1 5/5 no wedge, t3 10/10, t11 10/10, t2/t4/t5/t9 green;
+   **t8 RED** (`ASSERTION FAILED: !jsThreadsHasSeenCrossThreadEntry(*vm)`,
+   `VMLite.cpp:1166`). BAR FAILS on t8 only.
+2. t8 flags-off 10x: **0/10 green in every reading of "flags-off"** —
+   GIL-off env without the congc flag: 10/10 same VMLite.cpp:1166 abort;
+   no GIL-off env (GIL-on): 10/10 functional fail rc=3 ("every storm thread
+   completed >= 1 Class-A stop mid-storm: expected true but got false").
+   BAR FAILS (KNOWN-RED CG-T8 Arm-1, unchanged).
+3. contgc stress (Debug GIL-off, `--collectContinuously=1`, 10x each):
+   `races/counter-lock.js` **10/10 abort** — STW-watchdog
+   `JSThreadsSafepoint.cpp:732 watchdogAssertStopProgress` (line moved from
+   :412; same family); `races/transition-vs-read.js` **7/10 abort**, same
+   signature. BAR FAILS (residual item 4, unchanged, now harder-failing).
+4. THE ACCEPTANCE — marking/mutation overlap, phase-A before/after, TAKEN
+   for the first time (workload: 4 mutator threads, old-object barrier
+   stores publishing every 50 iterations via property-Atomics; main runs
+   100 back-to-back fullGC(); Debug, GIL-off pinned env, numberOfGCMarkers=4;
+   3 runs/leg; driver /tmp/overlap2.js shape recorded here):
+   - BEFORE (`useConcurrentSharedGCMarking=0`): overlap fraction
+     (1 − Σpause/Σcycle from `--logGC=1`) = **−0.001/−0.001/−0.001** (≈0);
+     mutator progress during the GC loop = **250/250/250** increments.
+   - AFTER (`=1`): overlap fraction = **0.133/0.135/0.118**; mutator
+     progress = **16500/15500/9700** increments (39–66x BEFORE).
+   Real nonzero overlap: ~12–14% of GC-cycle wall time runs outside stop
+   pauses with mutators demonstrably progressing inside it. BAR MET.
+5. Corpus heap- group, both modes (run-tests.sh --filter=heap-, Debug,
+   GIL-off env): flag-off **9 pass / 0 fail / 1 premise-skip**; flag-on
+   **8/1/1 — heap-bench-allocation.js RED, deterministic 3/3 + CLI-flag
+   repro**: `ASSERTION FAILED: isMarked(cell)` `Heap.cpp:1565
+   Heap::addToRememberedSet`. The gate-6 signature is NOT fully fallen: it
+   remains reachable on the no-DollarVM/no-spawned-thread allocation-bench
+   shape (eden-generation remembered-set path). The earlier addendum's
+   "already fallen" claim holds only for the congc-t* shapes. BAR FAILS.
+6. Flag-off identity 10-test (Debug, env-clean, --useJSThreads=false vs no
+   flags): **0 mismatches** (one test rc=124 timeout IDENTICALLY both legs
+   — Debug slowness, not a divergence). BAR MET.
+
+Side-finding (not a bar): option validation vs JSC_ env application order —
+with BOTH `JSC_useConcurrentSharedGCMarking=1` and `JSC_useSharedGCHeap=1`
+in env, startup prints "disabling useConcurrentSharedGCMarking (…requires
+useSharedGCHeap)" yet `--dumpOptions=1` shows BOTH true: the §13.2
+validation pass runs against a partially-applied env snapshot and its
+disable does not stick. Ruled out as the cause of bar-5 (clean-CLI repro
+crashes identically), but any early consumer caching the flag at
+validation time would see a state the final option set contradicts.

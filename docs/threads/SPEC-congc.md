@@ -293,7 +293,7 @@ runEndPhase's in-window writeBarrier sites (`Heap.cpp:2067-2069`,
 SERVER stack + fence master, in-window only (null => WSAC debug
 assert; CGA2 R9); client-conductor in-window CMS appends are
 NEXT-CYCLE grey; the `:2063-2064` all-CMS-empty walk stays at
-the LANDED site, BEFORE these batches (F37; CGA1 A4). `MarkStackMergingConstraint` (F32; CGA1 A21) when C1R covers
+the LANDED site, conductor EXEMPT (F37/F48; CGA1 A4). `MarkStackMergingConstraint` (F32; CGA1 A21) when C1R covers
 the SERVER + race stacks only (CMS work terminates via the
 WND-open drain, `SlotVisitor.cpp:599-608`); the §3.1(e) drain
 PRECEDES the window's first constraint pass (NORMATIVE).

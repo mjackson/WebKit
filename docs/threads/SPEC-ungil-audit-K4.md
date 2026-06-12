@@ -240,6 +240,50 @@ GC-scanned via the registry walk (§A.1.3 GC-roots rule).
 | K4.II.18 | `m_hasOwnPropertyCache` (`VM.h:956`) | entry = {structureID, impl, result} multi-word; interleaved writes can pair a key from A with a result from B => per-lite. Creation = K.3 (LazyUniqueRef). JIT path: A16 ext (§0 U4) |
 | K4.II.19 | `m_megamorphicCache` (`VM.h:960`) | multi-word epoch'd entries (`MegamorphicCache.h:90`); torn entry can satisfy the wrong key => per-lite. Creation = K.3. JIT path: A16 ext (§0 U4) |
 
+Row addendum (II.8 implementation note, filed 2026-06-12 A-dw1 amend
+round; STATUS: ruling NOT YET IMPLEMENTED at the emission sites — bug
+LIVE at f7bb4a86505a, re-verified 6/6 SEGV on
+`JSTests/threads/dw1-sort-comparator-osr.js` Release GIL-off, 2/2 PASS
+with `--useDFGJIT=0`): the two members in this row have DIFFERENT
+dispositions and must NOT both be moved to VMLite.
+
+- `m_cachedSortScratch` — PER-LITE (the row's ruling stands). The
+  emission sites are a non-atomic loadPtr/null-storePtr pair on the
+  baked absolute `&vm().m_cachedSortScratch`
+  (`DFGSpeculativeJIT.cpp:16246-16248` acquire, `:16321` publish; FTL
+  twin `FTLLowerDFGToB3.cpp:11662-11663` / `:11758`); GIL-off, two
+  lites can both acquire the same 16-slot scratch butterfly and a
+  committing lite JSEmpty-fills it under the other's sort. Carry-over
+  requirements for the implementing owner: (a) the per-lite slot MUST
+  be GC-scanned via the registry walk (§A.1.3 GC-roots rule) — today
+  the slot is a VM root (`VM.cpp:3341` `visitor.append`), and dropping
+  the scan trades the acquire race for use-after-GC of the cached
+  butterfly; (b) per-lite emission MUST be gated on `useJSThreads` so
+  flag-off codegen stays byte-identical (pattern: the flag-on-only
+  tidScratch GPRTemporary in compileArraySortCommit); (c) the
+  diagnostic atomic-xchg variant must NOT land — it papers the
+  publish/commit half of the race.
+
+- `m_sortScratchSentinel` — stays SHARED (per-VM). It is immutable
+  after VM init (`VM.cpp:557` `setWithoutWriteBarrier`, never
+  reassigned) and used only as a hole/slow-path marker, and it is
+  baked as a COMPILE-TIME constant at three sites
+  (`DFGSpeculativeJIT.cpp:16273` TrustedImmPtr,
+  `FTLLowerDFGToB3.cpp:11697` constIntPtr, `DFGByteCodeParser.cpp:12729`
+  freezeStrong) while compiled code executes on lites other than the
+  compiling one. Per-lite dynamic sentinel loads mixed with baked
+  constants would make holes go undetected or commit the sentinel
+  cell into user arrays — silent corruption. Owner: amend the
+  implementation accordingly; do not route the sentinel per-lite.
+
+Ownership/routing: all fix sites (`DFGSpeculativeJIT.cpp`,
+`FTLLowerDFGToB3.cpp`, `DFGByteCodeParser.cpp`, `VM.h`/`VM.cpp`) are
+OUTSIDE the A-dw1 slice (verified: zero sort-scratch references in any
+A-dw1-owned file, so any in-slice change would be symptom-papering).
+Routed to the dfg-codegen/ftl/runtime-VM owner per the deepwater
+LEDGER.md §3 item 0 scheduling dependency. The run item stays OPEN
+until that slice lands.
+
 Row addendum (II.18/II.19 interim closure, filed 2026-06 bughunter A5
 round; CORRECTED 2026-06-11 amend round per adversarial review): the
 two rows have DIFFERENT dispositions and must not be booked together.

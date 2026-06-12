@@ -1263,6 +1263,42 @@ Open items for the review loop (tracked, not yet ruled):
   no handout exists to restate); deferred to the freeze (CG-7)
   packaging step.
 
+- rev 12 addendum (2026-06-12): F48 — A4-site conductor-client
+  exemption (full text ANNEX CGD8.1 below; GOVERNS). Repro
+  ground truth: congc-t1 under the pinned GIL-off env +
+  `useConcurrentSharedGCMarking=1` deterministically aborted at
+  the LANDED A4 walk (`Heap.cpp:2227`,
+  `ASSERTION FAILED: !client.m_mutatorMarkStack ||
+  client.m_mutatorMarkStack->isEmpty()`). Root cause is a
+  rev-7-vs-rev-9 internal contradiction, NOT an engine bug: F37
+  (rev 7) justified the walk's emptiness claim by "the final
+  window's §3.1(e) WND-open drain emptied every CMS and WSAC
+  bars client appends since" — but F43/CGD7.1(a) (rev 9) made
+  the client-conductor a FULL CLIENT whose in-window
+  conduct-path write barriers legally append to its OWN CMS at
+  ANY in-window point (NEXT-CYCLE grey), and WSAC never barred
+  the conductor's own thread. F37's reasoning covered only the
+  two post-site end-phase batches (CGD4.5(b)); rev 9 never
+  reconciled A4 with F43. RULING: the A4 emptiness claim binds
+  every NON-CONDUCTOR client ONLY; the walk exempts the client
+  whose `currentThreadClient()` is the conducting thread's.
+  Body edit byte-neutral in place (§5.2 :296, "BEFORE these
+  batches (F37" -> "conductor EXEMPT (F37/F48"; 36->36 chars,
+  body stays 953 lines / 49,998 bytes — all rev-9..12 anchors
+  live; the BEFORE-the-batches placement stays normative via
+  the A4 row + CGD8.1). A4 row amended in place (marked).
+  Empirical confirmation of the exemption's MINIMALITY: with
+  the exemption landed (conductor client skipped, every other
+  client still hard-asserted under its CMS lock), congc-t1
+  passes 5/5 GIL-off + flag-off bare + GIL-on C1 — i.e. no
+  non-conductor client's CMS was ever non-empty at the site;
+  the only appender was the conductor itself, exactly the
+  F43-legalized set. Not an assert weakening: the exempted
+  appends are the CGD4.5(b)/CGD7.1(a)-LEGAL class (drained at
+  the next WND-open per §5.2 drain (i); exit-flushed via
+  §9.2(1) otherwise); any other client's non-empty CMS still
+  fail-stops.
+
 ---
 
 ## ANNEX CGA1 (BINDING) — "the mutator"-singular audit table
@@ -1287,7 +1323,7 @@ same discipline). Dispositions per SPEC-congc §4.3.
 | A1 | `m_worldState` bit machine: `Heap.cpp:2348` (stopTheMutator), `:2390` (resumeTheMutator), `:2421-2459` (stopIfNecessarySlow), `:2497-2533` (waitForCollector), `:2534-2600` (acquireAccessSlow), `:2601-2670` (releaseAccessSlow), `:2652-2686` (conn relinquish + unpark), `:2688-2714` (handleNeedFinalize), `:2747` (notifyThreadStopping), asserts `:2354-2384` | LANDED-N-ARY (superseded when ISS) | Unreachable/no-op once ISS (RELEASE_ASSERTs `:2352`, `:2393`; reroute `:2421-2427`, `:2545-2616`); CG-I7 keeps them dead in ALL stages. `!ISS`: untouched (CG-I0). |
 | A2 | `m_mutatorDidRun` writes `Heap.cpp:2433, 2519, 2594` (legacy paths); consumer `:2234-2237` (`m_mutatorExecutionVersion`) | FOLDED | §4.1: per-client `m_didRunSinceLastWindow` set in AHA success tail + SINFAC hot-poll exit; conductor ORs into the `:2234` consumer at WND-open, clears in-window. Legacy writes stay `!ISS`-only. CG-I9. |
 | A3 | `m_mutatorSlotVisitor` (`Heap.h:1182`; ctor `Heap.cpp:378`; `forEachSlotVisitor` `HeapInlines.h:279`; assist use `Heap.cpp:3974`) | STAGE-GATED (C4) | §7.4: per-client assist visitors registered at ACT; the server's `m_mutatorSlotVisitor` remains for `!ISS` and as the conductor's own assist slot. CG-I14. |
-| A4 | `m_mutatorMarkStack` (`Heap.h:1215`; append `Heap.cpp:1499` — MULTI-PRODUCER once `useSharedGCHeap`, ctor `:485-497`, F44 rev 9; clear/log/empty-assert sites per CGD7.4; empty assert `:2063-2064`) | FOLDED | §5.2 CMS: per-client stack + leaf lock when C1R; window/threshold drains under `m_markingMutex`. AMENDED rev 7 (F37 — the rev 2 "at endMarking" placement deterministically fired on F31's conductor-context appends, which PRECEDE endMarking at `:2036-2039`): the relocated "all CMS empty" walk stays at the LANDED `:2063-2064` site (top of runEndPhase, after `m_helperClient.finish()`, strictly BEFORE the first conductor-context writeBarrier batch `:2067-2069`), where it is sound — the final window's §3.1(e) WND-open drain emptied every CMS and WSAC bars client appends since; the server/race-stack asserts stay there too (conductor-context server appends also postdate the site). CG-T11 C1 executing-CodeBlocks arm. CG-I2/I10. |
+| A4 | `m_mutatorMarkStack` (`Heap.h:1215`; append `Heap.cpp:1499` — MULTI-PRODUCER once `useSharedGCHeap`, ctor `:485-497`, F44 rev 9; clear/log/empty-assert sites per CGD7.4; empty assert `:2063-2064`) | FOLDED | §5.2 CMS: per-client stack + leaf lock when C1R; window/threshold drains under `m_markingMutex`. AMENDED rev 7 (F37 — the rev 2 "at endMarking" placement deterministically fired on F31's conductor-context appends, which PRECEDE endMarking at `:2036-2039`): the relocated "all CMS empty" walk stays at the LANDED `:2063-2064` site (top of runEndPhase, after `m_helperClient.finish()`, strictly BEFORE the first conductor-context writeBarrier batch `:2067-2069`), where it is sound — the final window's §3.1(e) WND-open drain emptied every CMS and WSAC bars client appends since; the server/race-stack asserts stay there too (conductor-context server appends also postdate the site). AMENDED rev 12 addendum (F48/CGD8.1 — F37's "WSAC bars client appends since" never held for the conductor's OWN client once F43/CGD7.1(a) made it a full client with in-window own-CMS appends, which can PRECEDE the site): the emptiness claim binds NON-CONDUCTOR clients only; the walk skips the conducting thread's `currentThreadClient()` (its CMS contents are NEXT-CYCLE grey, §5.2 drain (i)); every other client still hard-asserts empty under its CMS lock. CG-T11 C1 executing-CodeBlocks arm. CG-I2/I10. |
 | A5 | `m_mutatorShouldBeFenced`/`m_barrierThreshold` (`Heap.h:722-726, 1209`; writes `Heap.cpp:473-474`, `:3928-3940`, raises/lowers `:1111`, `:1247`, init `:4456`; readers `:714`, `:746`, `:1433`, `:3324`; JIT bakes `addressOf*` `Heap.h:723,726`) | FOLDED | §5.3: server master mutated in-window only + FEP; per-client copies republished in the mutating window; consumers read current client's copy when ISS. JIT address: §13.3(a) charter; GIL-off pinned always-fenced until it lands. CG-I3. |
 | A6 | `m_barriersExecuted` (`Heap.cpp:1448-1452`; reset per CGD7.4) | RACY-TOLERATED | AMENDED rev 9 (F44): landed as relaxed atomic load/store (43fd5fb94387) — no longer a plain `++`; lost updates documented benign in-tree; the TSAN suppression row RETIRES (no plain-access report remains). |
 | A7 | `sanitizeStackForVM(vm())` (`Heap.cpp:1704`, `:2206`, `:2675`) | VM-SINGULAR-DEFERRED | Per-VM, not per-mutator; self-guards on entered state. Post-GIL per-thread stacks are vmstate/ungil territory (lite-owned stacks); conductor calls it only in-window. |
@@ -2706,3 +2742,72 @@ same row (`:4542-4554 -> :4616-4628`, `:4550-4554 ->
 range end for the release/lock/wait block. Body occurrences
 fixed at rev 12 (§2.2, §9.1(2a)); rev 12 log records the
 disposition.
+
+## ANNEX CGD8 (BINDING) — rev 12 addendum ruling
+
+### CGD8.1 — F48: A4-site conductor-client exemption (full text)
+
+GOVERNS the §5.2 "conductor EXEMPT (F37/F48)" clause and the
+CGA1 A4 row as amended; composes with (does not supersede)
+F37's placement ruling and CGD4.5(b)'s next-cycle-grey
+disposition.
+
+Defect (internal spec contradiction, surfaced by a live
+deterministic abort): congc-t1 under the pinned GIL-off env +
+`useConcurrentSharedGCMarking=1` aborts at the LANDED A4 walk
+(`Heap.cpp:2227`, top of runEndPhase, after
+`m_helperClient.finish()`):
+`ASSERT(!client.m_mutatorMarkStack ||
+client.m_mutatorMarkStack->isEmpty())`. F37 (rev 7) placed the
+walk there and called it sound because "the final window's
+§3.1(e) WND-open drain emptied every CMS and WSAC bars client
+appends since" — reasoning only about the two POST-site
+conductor-context end-phase batches CGD4.5 had named. Rev 9's
+F43/CGD7.1(a) then made the client-conductor a FULL CLIENT:
+its in-window conduct-path write barriers route under C1R to
+its OWN CMS (terminal-leaf lock, legal at any depth) at ANY
+in-window point — including BEFORE runEndPhase reaches the A4
+site. WSAC bars suspended clients; it never barred the
+conducting thread itself. F43 was never reconciled with A4, so
+every C1 cycle in which the conductor fires a barrier after
+the final WND-open drain trips the walk by design.
+
+NORMATIVE:
+1. The A4 emptiness invariant binds every NON-CONDUCTOR
+   client ONLY. At the A4 site the walk SKIPS the client
+   returned by `GCClient::Heap::currentThreadClient()` on the
+   conducting thread; all other clients hard-assert
+   CMS-empty under their CMS lock (bare terminal-leaf
+   acquisition; not a nested LK.9d>LK.9c site — no outer
+   `m_markingMutex`).
+2. The exempted contents are exactly the CGD4.5(b)/CGD7.1(a)
+   LEGAL class: NEXT-CYCLE grey, drained at the next WND-open
+   (§5.2 drain (i)); on client exit they ride the §9.2(1)
+   `flushClientMutatorMarkStackForExit` path. No same-cycle
+   consumption is required (CGD4.5(b)'s landed-semantics
+   argument applies unchanged to pre-site appends: end-phase /
+   conduct-path barrier appends were always deliberately
+   deferred to the next cycle's merging constraint).
+3. This is NOT an assert weakening: the invariant the walk
+   enforces was always "no client that WSAC suspends can have
+   appended since the final drain". The conductor was never in
+   that set; asserting it was a spec error (F37/F43
+   non-reconciliation), not an engine error. Any non-conductor
+   client's non-empty CMS still fail-stops, and the server
+   `m_mutatorMarkStack` / race-stack asserts at the same site
+   are UNCHANGED.
+4. Soundness witness (exemption minimality, 2026-06-12, live
+   tree): with the exemption landed verbatim (skip
+   conductor-client; every other client still asserted),
+   congc-t1 passes 5/5 under the pinned GIL-off env + C1 flag,
+   plus flag-off bare and GIL-on C1 arms — i.e. no
+   non-conductor CMS was ever non-empty at the site across the
+   storm scenarios; the sole appender was the conductor,
+   exactly the F43-legalized set. A broader exemption (e.g.
+   skipping the walk wholesale) is REJECTED: it would paper
+   genuine WSAC violations.
+5. CG-T11's A4-site arm (CGT1.9) re-arms against the amended
+   shape: the C1 executing-CodeBlocks run must exercise BOTH a
+   non-empty conductor CMS surviving the site AND the
+   non-conductor hard-assert (a deliberately corrupted
+   non-conductor CMS in the harness must still abort).

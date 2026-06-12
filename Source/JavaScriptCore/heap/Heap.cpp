@@ -2212,15 +2212,28 @@ NEVER_INLINE bool Heap::runEndPhase(GCConductor conn)
     ASSERT(m_mutatorMarkStack->isEmpty());
     ASSERT(m_raceMarkStack->isEmpty());
 #if ASSERT_ENABLED
-    // SPEC-congc CGA1 A4 (F37; CG-2): the relocated "all CMS empty" walk
-    // stays at this LANDED site — after m_helperClient.finish(), strictly
-    // BEFORE the first conductor-context writeBarrier batch below (whose
-    // appends are deliberately NEXT-CYCLE grey: a client-conductor's land in
-    // its own CMS, a null-client C2 conductor's in the server stack —
-    // F31/CGD4.5). Sound here: the final window's §3.1(e) WND-open drain
-    // emptied every CMS and WSAC bars client appends since.
+    // SPEC-congc CGA1 A4 (F37 as amended by F48; CG-2): the relocated
+    // "all CMS empty" walk stays at this LANDED site — after
+    // m_helperClient.finish(), strictly BEFORE the first conductor-context
+    // writeBarrier batch below (whose appends are deliberately NEXT-CYCLE
+    // grey: a client-conductor's land in its own CMS, a null-client C2
+    // conductor's in the server stack — F31/CGD4.5). F48 ruling: the
+    // emptiness claim holds for every NON-CONDUCTOR client only — the final
+    // window's §3.1(e) WND-open drain emptied every CMS and WSAC bars
+    // suspended-client appends since, but WSAC never barred the conductor's
+    // OWN thread, and F43/CGD7.1(a) made the client-conductor a FULL CLIENT
+    // whose in-window conduct-path barriers legally append to its own CMS
+    // at ANY in-window point (not only the post-site end-phase batches F37
+    // reasoned about). Those appends are NEXT-CYCLE grey (drained at the
+    // next WND-open per §5.2 drain (i); exit-flushed via
+    // flushClientMutatorMarkStackForExit otherwise), so the conductor's own
+    // client is EXEMPT here — and ONLY it: any other client's non-empty CMS
+    // is still corruption and must fail-stop.
     if (sharedGCBarrierStateIsPerClient()) {
+        GCClient::Heap* conductorClient = GCClient::Heap::currentThreadClient();
         clientSet().forEach([&](GCClient::Heap& client) {
+            if (&client == conductorClient)
+                return; // F48: legal in-window conductor-client appends, next-cycle grey.
             // Bare terminal-leaf acquisition; not a nested LK.9d>LK.9c site
             // (no outer m_markingMutex — debug-only emptiness probe).
             Locker cmsLocker { client.m_mutatorMarkStackLock };
@@ -5657,8 +5670,21 @@ void Heap::openSharedGCStopWindow(GCClient::Heap& conductorClient, SharedGCWindo
             // LK.9d>LK.9c (lint R4 marker): the §5.2(i) WND-open drain edge —
             // the ONE place m_markingMutex nests over a CMS lock at CG-2.
             Locker cmsLocker { client.m_mutatorMarkStackLock };
-            if (client.m_mutatorMarkStack && !client.m_mutatorMarkStack->isEmpty())
+            if (client.m_mutatorMarkStack && !client.m_mutatorMarkStack->isEmpty()) {
                 client.m_mutatorMarkStack->transferTo(cmsDrainTarget);
+                // Wake parked helpers (ANNEX CGD1.3 condvar) — same producer
+                // contract as the §5.2(ii) donation edge below: helpers park
+                // in drainFromShared's waitUntil(isReady) with an INFINITE
+                // timeout, so a Reentry drain that loads
+                // m_sharedMutatorMarkStack without a notify strands the
+                // cells — hasWork flips true for the between-window
+                // conductor's waitForTermination (also parked, also never
+                // re-notified) while every consumer sleeps: a deterministic
+                // termination wedge once the mutators exit. The legacy
+                // (non-Reentry) target needs no wakeup, but notifying under
+                // the held m_markingMutex is harmless there.
+                m_markingConditionVariable.notifyAll();
+            }
         });
         if (anyClientRan)
             m_mutatorDidRun = true;

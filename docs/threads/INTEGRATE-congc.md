@@ -597,14 +597,16 @@ chartered but needed NO edit — the epoch=MAX park already lives in
   CALL-SITE is one line inside `HeapClientSet::add`'s already-shared
   GBL/!WSAC insert section, strictly before the registry append —
   `HeapClientSet.cpp` is OUTSIDE this slice's owned file set, so the call
-  is manifest row 3 below (CG-3c-M1). UNTIL THAT ROW IS APPLIED a
+  is manifest row 3 below (CG-3c-M1; APPLIED 2026-06-12 at
+  `HeapClientSet.cpp:97` — the rest of this bullet describes the exposure
+  window that existed BEFORE the row landed, kept for the record). Pre-apply, a
   mid-marking attachee's fence copies are zero-init (un-RAISED) — under
   the F19 GIL-off pin this is masked (emitted code reads the SERVER pair,
   which stays tautological), and GIL-on C1 the §5.3(2) WND-close republish
   covers every window after the attach; the uncovered shape is a GIL-on
   C1 attachee's interpreter barriers between its first AHA and the next
-  WND-close. Apply CG-3c-M1 before running the CG-T9 gate with marking
-  live (the test's attach-storm arm is its witness).
+  WND-close. CG-3c-M1 is now applied; the CG-T9-with-marking-live
+  precondition is met (the test's attach-storm arm is its witness).
 - §9.3(2)-(4): verified, no code — first AHA performs the seq_cst GSP load
   (landed F8 step 2); the assist-visitor registration enqueue is the C4
   delta above; didRun=false/CMS=null at ACT are zero-init.
@@ -778,7 +780,8 @@ arms GIL-on with `--useSharedGCHeap=1 --useJSThreads=1 --useDollarVM=1
 --numberOfGCMarkers=4` (C1 flag OFF — flag-on runs against this stale
 binary hit the already-FIXED CG-T8 Arm-1 drain-placement crash and are
 meaningless until the rebuild). STILL OWED to the builder pass: full
-rebuild; apply manifest rows CG-3c-M1/M2; flags-off corpus + CG-T1 re-run
+rebuild; apply manifest rows CG-3c-M1/M2 (M1 since APPLIED 2026-06-12;
+M2 still pending); flags-off corpus + CG-T1 re-run
 byte-identical (CG-3c adds NO flag-off behavior delta: every new branch is
 behind the option-byte-first C1R gate, the conductor-exit assert is
 ISS-only, and GCCellLockDepth is ASSERT_ENABLED-only with stage-gated
@@ -812,7 +815,9 @@ the stale Release jsc, exit 0 each; Debug-config `-fsyntax-only` clean on
 UnifiedSource-heap-3 AND heap-4 (PCH bypassed — the on-disk Debug PCH is
 stale vs the CG-3 Heap.h edits and was excluded from the command line).
 The builder-owed list above is UNCHANGED by this pass (manifest rows
-CG-3c-M1/M2 still pending; CG-T8 Arm-1 still KNOWN-RED-FIX-PENDING;
+CG-3c-M1/M2 still pending AT THE TIME OF THIS RECORD — M1 was
+subsequently APPLIED 2026-06-12, see row 3 and the amend record below;
+M2 remains pending; CG-T8 Arm-1 still KNOWN-RED-FIX-PENDING;
 item-(4) disposition still open).
 
 ## Manifest rows (chartered-out files; integrator-applied)
@@ -865,8 +870,13 @@ item-(4) disposition still open).
    protocol exists there; the helper would no-op anyway but the call is
    specified for the publishing shared insert only). The helper is defined
    in Heap.cpp and asserts the bracket invariants; !C1R it returns
-   immediately (CG-I0). STATUS: PENDING — until applied, see the CG-3c
-   status bullet for the (masked) exposure window.
+   immediately (CG-I0). STATUS: APPLIED (2026-06-12, B-congc amend pass) —
+   the hunk above is landed verbatim at `HeapClientSet.cpp:97`, in the
+   already-shared insert branch, immediately before `m_clients.append`,
+   exactly as specified (the trivial branch untouched). The CG-3c status
+   bullet's (masked) exposure window is CLOSED; the CG-T9 attach-storm
+   precondition is met (congc-t9 PASSES GIL-off + C1, see the 2026-06-12
+   amend record below).
 
 4. CG-3c-M2 — `runtime/JSCellInlines.h` (CG-I18 depth bookkeeping;
    ASSERT_ENABLED-only, release codegen untouched). In the three JSCellLock
@@ -1010,7 +1020,8 @@ Superseded since the prior check:
 Still blocking, in dependency order:
 1. CG-3 is NOT green. The CG-3c status section's own closing record lists
    the builder pass as STILL OWED: full rebuild; manifest rows
-   CG-3c-M1/M2 applied; flags-off corpus + CG-T1 byte-identical; bench-gate
+   CG-3c-M1/M2 applied (M1 APPLIED 2026-06-12, row 3; M2 still owed);
+   flags-off corpus + CG-T1 byte-identical; bench-gate
    flags-off delta 0; v5a-identity; then the whole-CG-3 gate block
    (CG-T3/T4/T5/T8/T9/T11, TSAN with the stage flag, pinned ladder rungs).
    None of that is recorded as run.
@@ -1047,3 +1058,58 @@ CG-3 (rebuild + owed gate block + CG-T8 re-run), recorded here as a CG-3
 gate-green entry; (b) land CG-4..CG-6 per §14 with CG-T6/T7/T10 and their
 status sections; (c) quiet host, clean committed tree; then re-dispatch
 CG-F + CG-7 as one task.
+
+## 2026-06-12 B-congc AMEND record (review-finding closure)
+
+Scope: the two major findings from this run's adversarial review of the
+congc slice. No git operations; working-tree amend only.
+
+1. Manifest truth restored (finding 2): CG-3c-M1 was landed verbatim at
+   `HeapClientSet.cpp:97` by the preceding fix pass but row 3 and four
+   status bullets still tracked it PENDING. Row 3 now reads APPLIED
+   (2026-06-12); the CG-3c exposure-window bullet, the two builder-owed
+   lists, and the "Still blocking" item 1 are amended in place to
+   M1-applied/M2-still-pending. CG-3c-M2 (`runtime/JSCellInlines.h`,
+   CG-I18 depth bookkeeping) was independently re-verified NOT landed
+   (no `GCCellLockDepth` reference in the file) and stays PENDING.
+
+2. Face 2 / congc-t1 RED resolved at SPEC level (finding 1): the
+   deterministic `Heap.cpp:2227` abort (`runEndPhase` per-client
+   CMS-emptiness walk) was confirmed live, root-caused as the
+   F37-vs-F43 spec contradiction, and closed by SPEC-congc rev 12
+   addendum F48 (full text ANNEX CGD8.1, SPEC-congc-history.md;
+   body §5.2 amended byte-neutrally, 953 lines / 49,998 bytes kept —
+   anchors preserved; CGA1 A4 row amended in place). Code: the A4-site
+   walk now SKIPS the conducting thread's `currentThreadClient()` ONLY
+   (its CMS contents are the CGD4.5(b)/CGD7.1(a)-legal NEXT-CYCLE-grey
+   class); every non-conductor client still hard-asserts CMS-empty
+   under its CMS lock; the server/race-stack asserts are unchanged.
+   NOT an assert weakening — the exemption matches exactly the
+   F43-legalized appender set, and the 5/5 green runs below prove its
+   minimality (no non-conductor CMS was ever non-empty at the site).
+   Whole change is `#if ASSERT_ENABLED` + behind
+   `sharedGCBarrierStateIsPerClient()`: release codegen and flag-off
+   behavior byte-identical.
+
+Verification (synchronous, Debug rebuild of UnifiedSource-heap-4 + link,
+this host, 2026-06-12):
+- congc-t1 GIL-off pinned env + `JSC_useConcurrentSharedGCMarking=1`:
+  PASS 5/5 (was: deterministic abort at `Heap.cpp:2227`).
+- congc-t1 flags-off bare (`--useSharedGCHeap=1 --useDollarVM=1`):
+  PASS; congc-t1 GIL-on C1 (`--useJSThreads=1
+  --useConcurrentSharedGCMarking=1 --numberOfGCMarkers=4`): PASS.
+- Full congc suite GIL-off + C1: t1/t3/t4/t5/t9/t11 PASS;
+  t8 fails ONLY with the pre-existing manifest KNOWN-RED Arm-1
+  signature (`!jsThreadsHasSeenCrossThreadEntry(*vm)`), which is
+  flags-off-reproducible and independent of C1 — unchanged status,
+  out of this amend's scope.
+- The earlier MEGA-RUN-RESULTS residual item 2 surface
+  (`isMarked(cell)` at `addToRememberedSet`, congc-t3/t11
+  deterministic; congc-t1 wedge) did NOT reproduce on the amended
+  tree: t3 and t11 are green and t1 completes. The 2227 abort was the
+  remaining Face 2 blocker; with F48 landed the C1 congc gate set is
+  green except KNOWN-RED t8 Arm-1.
+
+Builder-owed items NOT discharged here (unchanged): M2; flags-off
+corpus + CG-T1 byte-identical diff; bench-gate delta 0; v5a-identity;
+TSAN with the stage flag; CG-T8 Arm-1 fix; whole-CG-3 gate block.
