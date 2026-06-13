@@ -78,11 +78,33 @@ public:
             && m_asyncHeld.load(std::memory_order_acquire);
     }
 
+    // T5 fair handoff: count of threads inside lockProtoFuncHold's contended
+    // park loop (incremented before the first tryLock retry, decremented on
+    // every loop exit — acquired or terminated). Release paths consult it via
+    // wakeOneSyncHoldParker() so the common unlock wakes exactly one parked
+    // waiter immediately instead of leaving it to burn the rest of a 1ms
+    // sleep quantum. The ParkingLot queue is keyed on &m_lock (unique per
+    // NativeLockState). The counter is strictly an optimization: a release
+    // that misses a concurrent registration (or any unlock site that does not
+    // route through releaseSyncHold/asyncReleaseInternal/pump) is fully
+    // covered by the parker's bounded 1ms park timeout — the pre-existing D9
+    // poll cadence, now demoted to a backstop.
+    std::atomic<unsigned> m_syncHoldParkers { 0 };
+
+    // Wake one waiter parked in the contended sync lock.hold loop, if any.
+    // Call AFTER m_lock.unlock(); never throws, never blocks beyond the
+    // ParkingLot bucket lock. No-op when nobody is parked.
+    void wakeOneSyncHoldParker();
+
     // Release the sync hold the current thread owns (no pump).
     void releaseSyncHold()
     {
         m_holder.store(nullptr, std::memory_order_relaxed);
         m_lock.unlock();
+        // T5: immediate handoff to a parked contended-hold waiter (also
+        // covers cond.wait/asyncWait release paths in ConditionObject.cpp,
+        // which unlock through this helper).
+        wakeOneSyncHoldParker();
     }
 
     // R: after any m_lock release, schedule the async-acquirer pump if needed.

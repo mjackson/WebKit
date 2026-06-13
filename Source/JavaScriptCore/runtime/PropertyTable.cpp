@@ -182,19 +182,35 @@ PropertyTable::~PropertyTable()
         return IterationStatus::Continue;
     });
     destroyIndexVector(indexVector());
+    // T3 (flag-on): replaced vectors still in quarantine die with the table.
+    // Safe even against lock-free probes: the cell is only swept once
+    // unreachable, and any probing mutator holds the table pointer in a
+    // register/stack slot the conservative scan roots.
+    if (m_quarantinedIndexVectors) {
+        for (const QuarantinedIndexVector& quarantined : *m_quarantinedIndexVectors)
+            destroyIndexVector(quarantined.indexVector);
+    }
 }
 
 void PropertyTable::seal()
 {
+    // T3: wholesale in-place attribute edit — bracket it so lock-free probes
+    // (Structure::getConcurrently's seqlock fast path) cannot validate a
+    // half-applied snapshot. Callers reach here on a freshly pinned table of
+    // a transition that can already be discoverable, so treat it as published.
+    beginConcurrentEdit();
     forEachPropertyMutable([&](auto& entry) {
         if (!PropertyName(entry.key()).isPrivateName())
             entry.setAttributes(entry.attributes() | static_cast<unsigned>(PropertyAttribute::DontDelete));
         return IterationStatus::Continue;
     });
+    bumpConcurrentEditCount();
 }
 
 void PropertyTable::freeze()
 {
+    // T3: see seal() above.
+    beginConcurrentEdit();
     forEachPropertyMutable([&](auto& entry) {
         if (!PropertyName(entry.key()).isPrivateName()) {
             if (!(entry.attributes() & PropertyAttribute::Accessor))
@@ -204,6 +220,7 @@ void PropertyTable::freeze()
         }
         return IterationStatus::Continue;
     });
+    bumpConcurrentEditCount();
 }
 
 bool PropertyTable::isSealed() const
@@ -275,6 +292,41 @@ void PropertyTable::quarantineDeletedOffset(PropertyOffset offset)
     concurrentRelaxedStore(m_quarantinedDeletedOffsetCount, unsigned(m_quarantinedDeletedOffsets->size()));
 }
 
+// T3 (flag-on): deferred free of a replaced index vector. A lock-free probe
+// (Structure::getConcurrently fast path / PropertyTable::findConcurrently)
+// may have loaded m_indexVector immediately before rehash swapped it and may
+// still be walking the old allocation; probes never poll safepoints, so a
+// crossed owning-heap epoch (bumped only while the world is stopped) proves
+// no probe can still hold the pointer — the identical I18/I34 argument the
+// deleted-offset quarantine above rests on. Runs under the caller's table
+// serialization (m_lock or table-private, L6); the epoch-slot registry lock
+// is a leaf under it; Vector growth is fastMalloc (O1-clean).
+void PropertyTable::quarantineIndexVector(uintptr_t indexVector)
+{
+    ASSERT(Options::useJSThreads());
+    WTF::Atomic<uint64_t>* epochSlot = concurrentRelaxedLoad(m_quarantineEpochSlot);
+    if (!epochSlot) {
+        epochSlot = &butterflyQuarantineEpochSlot(*Heap::heap(this));
+        concurrentRelaxedStore(m_quarantineEpochSlot, epochSlot);
+    }
+    uint64_t currentEpoch = epochSlot->load(std::memory_order_seq_cst);
+
+    if (!m_quarantinedIndexVectors)
+        m_quarantinedIndexVectors = makeUnique<Vector<QuarantinedIndexVector>>();
+    // Opportunistic sweep: anything stamped strictly before the current
+    // epoch has had a full world-stopped window since it was unpublished.
+    // This bounds the list to the vectors retired since the last epoch bump
+    // (geometric sizes, so memory overhead stays within ~1x of the live
+    // vector); the destructor frees whatever remains.
+    m_quarantinedIndexVectors->removeAllMatching([&](const QuarantinedIndexVector& quarantined) {
+        if (quarantined.epoch >= currentEpoch)
+            return false; // No epoch bump since it was unpublished yet (I18).
+        destroyIndexVector(quarantined.indexVector);
+        return true;
+    });
+    m_quarantinedIndexVectors->append(QuarantinedIndexVector { indexVector, currentEpoch });
+}
+
 // SPEC-objectmodel §9.4 (frozen): promote quarantined offsets whose stamp
 // predates the owning heap's current epoch onto the Reusable list (§6 "lazy
 // promotion"; takeDeletedOffset draws only from Reusable). Runs under the
@@ -301,6 +353,12 @@ void PropertyTable::releaseQuarantinedSlots(uint64_t currentEpoch)
 
 PropertyOffset PropertyTable::renumberPropertyOffsets(JSObject* object, unsigned inlineCapacity, Vector<JSValue>& values)
 {
+    // T3: flag-on this only runs under the §10.6 stop (flattenDictionary-
+    // Structure bails otherwise), so no lock-free probe can be in flight —
+    // but bracket the in-place offset rewrite anyway: it is cheap, keeps the
+    // "every probe-visible mutation is bracketed" invariant auditable, and
+    // protects any future caller that is not under a stop.
+    beginConcurrentEdit();
     ASSERT(values.size() == size());
     unsigned i = 0;
     PropertyOffset offset = invalidOffset;
@@ -312,6 +370,7 @@ PropertyOffset PropertyTable::renumberPropertyOffsets(JSObject* object, unsigned
         return IterationStatus::Continue;
     });
     clearDeletedOffsets();
+    bumpConcurrentEditCount(); // T3: close the bracket opened above.
     return offset;
 }
 

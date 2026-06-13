@@ -124,6 +124,30 @@ public:
     // §5.2(i) open-kind narrowing to the exit flush). !C1R: no-op — the CMS
     // is null (F33/CGD4.4; CG-I0). Idempotent; safe on a re-attaching
     // harness client (the flush is just an early total donation).
+    //
+    // DRAIN SHAPE (NORMATIVE; T7 congc-teardown-crash root cause): the CMS
+    // is a GCSegmentedArray, and GCSegmentedArray::removeLast() does NOT
+    // refill across segment boundaries — it is a bare data()[preDecTop()],
+    // while isEmpty() stays false whenever a next segment exists. A bare
+    //   while (!cms->isEmpty()) target->append(cms->removeLast());
+    // loop therefore underflows m_top (0 -> SIZE_MAX) the moment the head
+    // segment empties with further segments still chained — a wild read and
+    // the observed teardown SIGSEGV (GCSegmentedArray<JSCell const*>::
+    // removeLast <- this helper <- GCClient::Heap::detachCurrentThread <-
+    // tearDownSpawnedThreadForExit), reachable whenever an exiting thread
+    // accumulated more than one segment (~500 cells) of barrier appends
+    // since the last WND-open drain. The implementation MUST use the same
+    // segment-boundary pattern as every other MarkStackArray drain
+    // (MarkStackArray::transferToImpl):
+    //   while (!cms->isEmpty()) {
+    //       cms->refill();
+    //       while (cms->canRemoveLast())
+    //           target->append(cms->removeLast());
+    //   }
+    // refill()'s head-segment destroy is licensed by the held CMS lock; the
+    // per-cell server append keeps taking the target's multi-producer
+    // m_appendLock (F44). Locking and §9.2(1) ordering are otherwise
+    // unchanged.
     static void flushClientMutatorMarkStackForExit(GCClient::Heap&);
 
 private:

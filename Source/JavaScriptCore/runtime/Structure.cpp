@@ -33,6 +33,7 @@
 #include "JSCInlines.h"
 #include "PropertyNameArray.h"
 #include "PropertyTable.h"
+#include "VMLite.h"
 #include "VMLiteShared.h"
 #include "WebAssemblyGCStructure.h"
 #include <wtf/CommaPrinter.h>
@@ -691,7 +692,18 @@ PropertyTable* Structure::materializePropertyTable(VM& vm, bool setPropertyTable
     // property map. We don't want getConcurrently() to see the property map in a half-baked
     // state.
     GCSafeConcurrentJSLocker locker(m_lock, vm);
-    if (setPropertyTable)
+    // T3 (flag-on): publish AFTER the replay loop below, not before. The
+    // lock-free fast path in getConcurrently probes the published slot
+    // WITHOUT m_lock; between replay steps the table's edit stamp is even
+    // but the table is not yet exact for this structure, so an early
+    // publication would let a probe validate a WRONG miss/attribute. Keeping
+    // the table private until the replay completes restores the invariant
+    // "a published head table is exact for its structure at any even
+    // stamp". Locked readers never saw the half-baked table either way (we
+    // hold m_lock across both orders). Flag-off: today's publish-first
+    // order, byte-identical (I22).
+    bool deferPublicationUntilExact = Options::useJSThreads() && setPropertyTable;
+    if (setPropertyTable && !deferPublicationUntilExact)
         this->setPropertyTable(vm, table);
 
     for (size_t i = structures.size(); i--;) {
@@ -729,7 +741,10 @@ PropertyTable* Structure::materializePropertyTable(VM& vm, bool setPropertyTable
             break;
         }
     }
-    
+
+    if (deferPublicationUntilExact)
+        this->setPropertyTable(vm, table); // T3: now exact — publish (still under m_lock; fence inside orders the fill).
+
     checkOffsetConsistency(
         table,
         [&] () {
@@ -2132,6 +2147,58 @@ PropertyTable* Structure::copyPropertyTableForPinning(VM& vm)
 
 PropertyOffset Structure::getConcurrently(UniquedStringImpl* uid, unsigned& attributes)
 {
+    // T3 (flag-on): validated LOCK-FREE fast path against THIS structure's
+    // cached table, before the m_lock-per-chain-node walk below. When the
+    // head holds a table, the locked walk degenerates to "lock head, probe
+    // table, unlock" — so a successful lock-free probe of the head table is
+    // exactly equivalent, minus the serialization (which is THE W=32 park
+    // site: every named-property slow path of every thread converging on one
+    // WTF::Lock). Protocol (PropertyTable.h "S6 L3/L4 in-place-edit stamp",
+    // reader discipline (b)):
+    //   1. load the table slot (publication ordered by setPropertyTable's
+    //      flag-on StoreStore fence; reads below are address-dependent);
+    //   2. snapshot the edit stamp; odd = edit in flight, fall back;
+    //   3. findConcurrently: never blocks/allocates/faults — bounds come
+    //      from the probed allocation's own header (allocateIndexVector),
+    //      replaced vectors are epoch-quarantined (rehash), loads relaxed;
+    //   4. loadLoadFence, recheck the stamp (catches any overlapping edit,
+    //      including post-steal mutations by a transition that stole the
+    //      table after we loaded it) AND recheck the slot still holds the
+    //      same table (catches a pre-snapshot steal whose private mutations
+    //      pre-date our stamp snapshot: a hit on an entry the THIEF added
+    //      would otherwise validate against this structure).
+    // Gated to lite-installed threads (mutators): the quarantine's epoch
+    // argument needs the safepoint/stop discipline — free-running compiler
+    // and GC threads keep today's locked walk. Validated misses are real
+    // misses: the head table is exact for this structure. Transition-
+    // watchpoint semantics untouched (this is a pure read; Structure.h
+    // §1508 notes concern transition publication, which still happens under
+    // m_lock with the same stores as before). Flag-off: unreachable, today's
+    // code byte-for-byte below (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        if (VMLite::currentIfExists()) {
+            for (unsigned attempt = 0; attempt < 3; ++attempt) {
+                PropertyTable* fastTable = propertyTableOrNull();
+                if (!fastTable)
+                    break;
+                uint32_t editCount = fastTable->concurrentEditCount(); // Acquire: orders the probe after it.
+                if (editCount & 1)
+                    break; // Edit in flight; the locked walk will wait for it.
+                PropertyTable::ConcurrentFindResult result = fastTable->findConcurrently(uid);
+                if (!result.validated)
+                    break; // Torn snapshot; take the locked walk.
+                WTF::loadLoadFence(); // Probe reads complete before the rechecks below.
+                if (fastTable->concurrentEditCount() != editCount)
+                    continue; // Raced an in-place edit; retry, then fall back.
+                if (propertyTableOrNull() != fastTable)
+                    break; // Table was stolen out from under us; locked walk.
+                if (result.offset != invalidOffset)
+                    attributes = result.attributes;
+                return result.offset;
+            }
+        }
+    }
+
     Vector<Structure*, 8> structures;
     Structure* tableStructure;
     PropertyTable* table;
@@ -2358,7 +2425,22 @@ void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
         visitor.append(thisObject->m_propertyTableUnsafe);
     } else if (visitor.vm().isAnalyzingHeap())
         visitor.append(thisObject->m_propertyTableUnsafe);
-    else if (thisObject->m_propertyTableUnsafe)
+    else if (Options::useJSThreads()) [[unlikely]] {
+        // T3 (flag-on): KEEP cached property tables across GC instead of
+        // dropping them on the floor. Flag-off this drop is a pure memory
+        // optimization: the next mutator Structure::get re-materializes AND
+        // re-caches via ensurePropertyTableIfNotEmpty. Flag-on, mutator gets
+        // route to getConcurrently (StructureInlinesLight.h L6(iii)), which
+        // never materializes — so a dropped table was never rebuilt and
+        // EVERY subsequent named-property slow-path lookup on this shape
+        // paid the m_lock-per-chain-node ancestor walk forever (measured:
+        // 81.4M walks/run at W=16, the rank-1 W=32 park site). Retaining the
+        // table keeps the head probe (and T3's lock-free fast path) hot.
+        // Memory: tables now live as long as their Structure (or until a
+        // transition steals them) — bounded by what flag-off briefly holds
+        // between GCs anyway.
+        visitor.append(thisObject->m_propertyTableUnsafe);
+    } else if (thisObject->m_propertyTableUnsafe)
         thisObject->m_propertyTableUnsafe.clear();
 
     switch (thisObject->variant()) {

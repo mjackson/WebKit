@@ -514,11 +514,18 @@ JS_EXPORT_PRIVATE void publishArrayStorageButterflyLocked(VM&, JSObjectWithButte
 // aliasedAllocationBase/Size copied VERBATIM - I7; spineEpoch incremented;
 // fresh slots hole-filled per the CURRENT shape: Double => PNaN raw lanes,
 // else cleared) and publishes it with one casButterfly, tag (notTTLTID, 1)
-// (I27). Spines still carrying a conversion-era C2 tail (vectorLength <
-// fragment coverage: those slots alias memory past the flat allocation's
-// precise end and are never dereferenceable) instead migrate to fully fresh
-// indexed fragments under a §10.6 per-event stop - sound because I34 lets no
-// access hold a slot pointer across a stop; see the definition's comment.
+// (I27). Coverage is over-allocated geometrically (the same nextLength()
+// 1.5x policy as the flat T1 path / flag-off ensureLengthSlow, capped at
+// MAX_STORAGE_VECTOR_LENGTH), so a steady append stream takes O(log n)
+// replacement spines - pure amortization; the published spine always covers
+// >= newVectorLength. Spines still carrying a conversion-era C2 tail
+// (vectorLength < fragment coverage: those slots alias memory past the flat
+// allocation's precise end and are never dereferenceable) instead migrate to
+// fully fresh indexed fragments under a §10.6 per-event stop - sound because
+// I34 lets no access hold a slot pointer across a stop; racing requesters of
+// the SAME object's migration are collapsed into one stop by a
+// stop-participating claim (losers park-wait and re-dispatch stop-free); see
+// the definition's comment.
 // Caller must hold NO §6-ranked lock (the stop veneer's GT11 contract).
 // Returns true when the published (or a racing) spine covers
 // newVectorLength; false = the word is no longer segmented, the shape moved,

@@ -38,6 +38,7 @@
 #include "VMLite.h"
 #include "TopExceptionScope.h"
 #include <wtf/MonotonicTime.h>
+#include <wtf/ParkingLot.h>
 #include <wtf/RunLoop.h>
 
 namespace JSC {
@@ -353,6 +354,24 @@ bool jsThreadParkTerminationRequested(VM& vm)
     return vm.traps().needHandling(VMTraps::NeedTermination | VMTraps::NeedWatchdogCheck);
 }
 
+// ---------------- T5 fair handoff (wake-on-release for sync lock.hold) ----------------
+
+void NativeLockState::wakeOneSyncHoldParker()
+{
+    // Pairs with lockProtoFuncHold's contended path: the parker increments
+    // m_syncHoldParkers (seq_cst) BEFORE its tryLock retries and parks on
+    // &m_lock only after a ParkingLot-bucket-locked validation that m_lock is
+    // still held. The seq_cst fence here orders the caller's preceding
+    // m_lock.unlock() store before our counter load (Dekker shape: parker's
+    // increment->tryLock vs releaser's unlock->load). Even if this check
+    // races and skips the unpark, the parker's 1ms park timeout bounds the
+    // miss to one pre-T5 poll quantum — correctness never depends on the wake.
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (!m_syncHoldParkers.load(std::memory_order_relaxed)) [[likely]]
+        return;
+    WTF::ParkingLot::unparkOne(&m_lock);
+}
+
 // ---------------- NativeLockState pump machinery (SPEC-api 5.5a) ----------------
 
 void NativeLockState::schedPumpLocked(VM& fallbackVM)
@@ -414,6 +433,13 @@ void NativeLockState::asyncReleaseInternal(AsyncTicket& ticket, VM& vm)
         m_asyncGrantRunner.store(nullptr, std::memory_order_relaxed);
     }
     m_lock.unlock();
+    // T5: wake a parked sync-hold contender immediately (covers the post-fn
+    // implicit release E and cond.asyncWait's 4.3(b) consumption). Done
+    // before releasePump so a parked SYNC contender gets first shot at the
+    // freed lock — matching the pre-T5 ordering, where the parker's tryLock
+    // (sub-ms) raced a pump that only runs on a later run-loop turn; the
+    // FIFO contract is unchanged (only sync holds may barge, 4.2).
+    wakeOneSyncHoldParker();
     releasePump(vm);
 }
 
@@ -429,12 +455,22 @@ void NativeLockState::pump()
     {
         Locker queueLocker { m_queueLock };
         if (m_asyncWaiters.isEmpty()) {
+            // Unlock stays under m_queueLock (an enqueue interleaved between
+            // the emptiness check and this unlock would otherwise strand its
+            // ticket: its scheduled pump tryLocks against the lock we still
+            // hold and relies on OUR release to re-run R). The T5 wake runs
+            // after the locker drops — no need to hold m_queueLock across
+            // the ParkingLot bucket lock.
             m_lock.unlock();
-            return;
+        } else {
+            grant = m_asyncWaiters.takeFirst();
+            m_asyncHeld.store(true, std::memory_order_release);
+            m_asyncHolder = grant;
         }
-        grant = m_asyncWaiters.takeFirst();
-        m_asyncHeld.store(true, std::memory_order_release);
-        m_asyncHolder = grant;
+    }
+    if (!grant) {
+        wakeOneSyncHoldParker(); // T5: the lock went free with no async grant.
+        return;
     }
     settleLockGrant(*this, *grant);
 }
@@ -556,13 +592,16 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         // safe; see the rationale in LockObject.h.)
         //
         // D9 (docs/threads/INTEGRATE-api.md "Landed deviations"): park in
-        // bounded tryLock + sleep quanta, polling
-        // jsThreadParkTerminationRequested() between quanta — VMTraps cannot
-        // wake a thread blocked in WTF::Lock::lock(), so an unbounded park
-        // here is unkillable under the watchdog when the holder can never
-        // release (e.g. an asyncHold grant whose release fn is never
-        // delivered, or a holder that was itself terminated). Mirrors the
-        // mandatory 5.6-4 property-wait termination poll.
+        // bounded tryLock + timed-park quanta (1ms max), polling the
+        // termination predicate between quanta — VMTraps cannot wake a
+        // thread blocked in WTF::Lock::lock(), so an unbounded park here is
+        // unkillable under the watchdog when the holder can never release
+        // (e.g. an asyncHold grant whose release fn is never delivered, or a
+        // holder that was itself terminated). Mirrors the mandatory 5.6-4
+        // property-wait termination poll. T5 layers wake-on-release on top:
+        // each quantum is a ParkingLot park that the unlock paths cut short,
+        // so the bounded quantum is only the poll backstop, not the handoff
+        // latency.
         bool acquired = false;
         // Open this parker's park->resumed window (see
         // jsThreadNoteParkResumptionPending, LockObject.h): a completing
@@ -570,6 +609,14 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         // holder's release and this parker's resume
         // (park-no-microtask-drain.js, contended-hold block).
         jsThreadNoteParkResumptionPending();
+        // T5 fair handoff: register as a wake-on-release parker BEFORE the
+        // first retry (seq_cst — see wakeOneSyncHoldParker's fence pairing),
+        // so every release from here on either sees the counter and unparks
+        // us, or completed its unlock before our registration — in which
+        // case the next tryLock (or the bucket-locked park validation)
+        // observes the free lock and never sleeps. Decremented on every loop
+        // exit below, mirroring the jsThreadNoteParkResumptionDone pairing.
+        state.m_syncHoldParkers.fetch_add(1, std::memory_order_seq_cst);
         {
             GILDroppedSection droppedSection(vm);
             // UNGIL §A.2.4 rule 4 / annex W W1 (AB-17 item 4): GIL-off the
@@ -594,7 +641,8 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
             // and its epilogue would unlock a lock it never acquired — the
             // WTF::Lock double-release abort ("Invalid value for lock: 0")
             // and every corruption downstream of two believed holders. Park
-            // in honest tryLock + bounded-sleep quanta instead.
+            // in honest tryLock + bounded timed-park quanta instead (T5:
+            // ParkingLot parks that release unparks immediately).
             while (!(acquired = state.m_lock.tryLock())) {
                 if (parkLitePollTerminationRequested(vm, parkLite))
                     break;
@@ -608,9 +656,33 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
                         break;
                     continue;
                 }
-                WTF::sleep(Seconds::fromMilliseconds(1));
+                // T5 fair handoff: park on this lock's ParkingLot queue
+                // instead of a blind 1ms sleep. The release paths
+                // (releaseSyncHold / asyncReleaseInternal / pump) unpark one
+                // waiter immediately after m_lock.unlock(), so the common
+                // handoff costs a wakeup, not up-to-1ms of idle, and waiters
+                // are served in ParkingLot FIFO order. The honest-tryLock
+                // structure is UNCHANGED: parking never acquires m_lock — we
+                // only ever own it through the tryLock above, so the
+                // double-release shape the tryLockWithTimeout comment warns
+                // about cannot occur. The 1ms timeout keeps the exact D9
+                // poll cadence as a backstop: termination and the W1
+                // watchdog-check episode are still observed within ~1ms even
+                // if a wake is lost or a release site bypasses the helpers,
+                // and the bucket-locked validation (m_lock still held)
+                // closes the failed-tryLock-then-release window — a release
+                // that beats our enqueue makes validation fail and we retry
+                // immediately rather than sleeping through a free lock.
+                WTF::ParkingLot::parkConditionally(
+                    &state.m_lock,
+                    [&] { return state.m_lock.isHeld(); },
+                    [] { },
+                    MonotonicTime::now() + Seconds::fromMilliseconds(1));
             }
         }
+        // T5: deregister on every exit (acquired or terminated); pairs with
+        // the fetch_add above so the releaser-side counter check stays exact.
+        state.m_syncHoldParkers.fetch_sub(1, std::memory_order_seq_cst);
         // Back under the GIL: close the window on every exit (acquired or
         // terminated) — the pairing invariant keeps the global count exact.
         jsThreadNoteParkResumptionDone();

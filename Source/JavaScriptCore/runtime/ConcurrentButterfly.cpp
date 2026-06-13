@@ -90,6 +90,7 @@
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/Threading.h>
 #include <wtf/Vector.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -289,6 +290,118 @@ bool butterflyWorldIsStopped(VM& vm)
     // this becomes the jit predicate alone. // THREADS-INTEGRATE(objectmodel)
     return g_jsThreadsStubWorldStopped.load(std::memory_order_relaxed) || JSThreadsSafepoint::worldIsStopped(vm);
 }
+
+// ===== Per-event-stop claim table (STW dedup; T1-butterfly-stw-growth) =====
+//
+// Problem: every per-event stop in this file is requested from a lock-free
+// re-dispatch loop, so W threads racing the SAME event (the tail migration of
+// one object, the F1/F2 TTL fire of one structure, the §4.6 AS SW flip of one
+// object) EACH pay a full stop-the-world rendezvous, only for W-1 of the stop
+// closures to observe the winner's publication and no-op. The locksites
+// profile measured the mode-(b) grow stop below as the single largest STW
+// source on the W=16 scale bench for exactly this reason.
+//
+// Mechanics: a fixed table of striped claim slots keyed by the event's anchor
+// pointer (the object, or the structure whose sets are being fired). The
+// first requester CASes its key in, pays the stop, and releases. Racers
+// (same key - or, rarely, a stripe collision) wait in a STOP-PARTICIPATING
+// loop: parkSitePollAndParkForStopTheWorld every iteration, so the holder's
+// rendezvous never waits on a spinner (a spinner parks like any mutator -
+// no deadlock), re-evaluating the caller's shouldAbandon() predicate
+// (typically "the word / TTL set I planned against moved") between polls.
+// Abandon => the caller re-dispatches/RESTARTs WITHOUT stopping the world;
+// that is precisely the winner-already-published case. On a pure stripe
+// collision the predicate stays false and the loop re-attempts the CAS once
+// the unrelated holder releases, so progress is guaranteed.
+//
+// The claim is an OPTIMIZATION ONLY: every stop closure re-validates its
+// preconditions inside the stop exactly as before, so correctness never
+// depends on holding a claim. Hence the world-stopped BYPASS below: a caller
+// already running under a stop (nested veneer calls run inline) must never
+// wait - the holder it would wait on may itself be parked by OUR stop and
+// could only release after resume.
+//
+// Lifetime/safety notes: claims are held only across one (pre-revalidated)
+// stop request - never across a return (RAII) and never while a §6-ranked
+// lock is held (RELEASE_ASSERTed; the wait parks, O2). The key is used only
+// as a hash + busy marker, never dereferenced, and the keyed cell is pinned
+// while we spin: the spinner's stack references it and parked stacks are
+// conservatively scanned. GIL-on the table is dead weight but harmless:
+// claim+stop+release happen within one uninterrupted API-lock tenure (the
+// stub stop runs inline and never releases the lock), so a held claim is
+// never observable by a second thread and the wait loop is unreachable.
+// Flag-off (I22): nothing in this TU is reached.
+
+namespace {
+
+constexpr size_t perEventStopClaimStripeCount = 256; // Power of two; collisions only cost a bounded wait + retry.
+Atomic<uintptr_t> s_perEventStopClaimStripes[perEventStopClaimStripeCount]; // Static storage: zero-initialized (0 = free).
+
+thread_local bool t_holdsPerEventStopClaim = false;
+
+ALWAYS_INLINE Atomic<uintptr_t>& perEventStopClaimStripe(const void* key)
+{
+    uintptr_t hash = reinterpret_cast<uintptr_t>(key);
+    hash ^= hash >> 17;
+    hash *= 0x9e3779b97f4a7c15ull;
+    hash ^= hash >> 32;
+    return s_perEventStopClaimStripes[hash & (perEventStopClaimStripeCount - 1)];
+}
+
+class PerEventStopClaim {
+    WTF_MAKE_NONCOPYABLE(PerEventStopClaim);
+public:
+    template<typename ShouldAbandonFunctor>
+    PerEventStopClaim(VM& vm, const void* key, const ShouldAbandonFunctor& shouldAbandon)
+        : m_stripe(perEventStopClaimStripe(key))
+    {
+        // World already stopped (we are inside a stop closure / a nested
+        // veneer call): BYPASS - proceed claim-free. Waiting here could
+        // deadlock (see the header comment), and the nested stop runs inline
+        // anyway, with every closure re-validating its own preconditions.
+        if (butterflyWorldIsStopped(vm)) {
+            m_acquired = true;
+            m_bypassed = true;
+            return;
+        }
+        RELEASE_ASSERT(!t_holdsPerEventStopClaim); // Claims bracket exactly ONE stop request; nesting outside a stop is a protocol error.
+        RELEASE_ASSERT(!t_cellLocksHeldByConcurrentButterfly); // O2/I20: the wait below parks; same contract as the veneer itself.
+        uintptr_t keyBits = reinterpret_cast<uintptr_t>(key);
+        ASSERT(keyBits); // 0 is the free marker.
+        while (true) {
+            if (m_stripe.compareExchangeWeak(static_cast<uintptr_t>(0), keyBits)) {
+                m_acquired = true;
+                t_holdsPerEventStopClaim = true;
+                return;
+            }
+            // Stop-participating wait: park for any in-flight window so the
+            // holder's rendezvous never waits on us, then re-test whether the
+            // holder's stop already did our work.
+            JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm);
+            if (shouldAbandon())
+                return; // m_acquired stays false: the caller re-dispatches without a stop.
+            Thread::yield();
+        }
+    }
+
+    ~PerEventStopClaim()
+    {
+        if (!m_acquired || m_bypassed)
+            return;
+        RELEASE_ASSERT(t_holdsPerEventStopClaim);
+        t_holdsPerEventStopClaim = false;
+        m_stripe.store(0, std::memory_order_release); // Publication order: the stop's effects precede the release.
+    }
+
+    bool acquired() const { return m_acquired; }
+
+private:
+    Atomic<uintptr_t>& m_stripe;
+    bool m_acquired { false };
+    bool m_bypassed { false };
+};
+
+} // anonymous namespace
 
 // ===== Task 9: §6 quarantine-epoch registry (ButterflyQuarantineEpochs) =====
 //
@@ -537,19 +650,31 @@ ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* objec
     // nothing - O4). I10: foreign butterfly transitions (incl. element
     // resizes) fire both sets under STW before producing a segmented object.
     {
-        bool sourceStillValid = sourceStructure->transitionThreadLocalIsStillValid() || sourceStructure->writeThreadLocalIsStillValid();
-        bool targetStillValid = newStructureOrNull
-            && (newStructureOrNull->transitionThreadLocalIsStillValid() || newStructureOrNull->writeThreadLocalIsStillValid());
-        if (sourceStillValid || targetStillValid) {
-            jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
-                // Re-check inside the stop: a racing fire may have got here first.
-                if (sourceStructure->transitionThreadLocalIsStillValid() || sourceStructure->writeThreadLocalIsStillValid())
-                    sourceStructure->fireTransitionThreadLocal(vm, "F2: flat->segmented conversion (foreign or shared-write transition)");
-                if (newStructureOrNull
-                    && (newStructureOrNull->transitionThreadLocalIsStillValid() || newStructureOrNull->writeThreadLocalIsStillValid()))
-                    newStructureOrNull->fireTransitionThreadLocal(vm, "F2: flat->segmented conversion (transition target)");
-            }));
-            return nullptr; // RESTART
+        auto anySetStillValid = [&]() {
+            if (sourceStructure->transitionThreadLocalIsStillValid() || sourceStructure->writeThreadLocalIsStillValid())
+                return true;
+            return newStructureOrNull
+                && (newStructureOrNull->transitionThreadLocalIsStillValid() || newStructureOrNull->writeThreadLocalIsStillValid());
+        };
+        if (anySetStillValid()) {
+            // STW dedup (T1-butterfly-stw-growth): W threads converting
+            // instances of the same structure race this fire; the sets are
+            // monotone, so the winner's single stop does everyone's work.
+            // Losers park-wait, observe the fired sets via shouldAbandon, and
+            // RESTART without a stop (identical caller contract: every path
+            // out of this block is `return nullptr`).
+            PerEventStopClaim claim(vm, sourceStructure, [&] { return !anySetStillValid(); });
+            if (claim.acquired() && anySetStillValid()) {
+                jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+                    // Re-check inside the stop: a racing fire may have got here first.
+                    if (sourceStructure->transitionThreadLocalIsStillValid() || sourceStructure->writeThreadLocalIsStillValid())
+                        sourceStructure->fireTransitionThreadLocal(vm, "F2: flat->segmented conversion (foreign or shared-write transition)");
+                    if (newStructureOrNull
+                        && (newStructureOrNull->transitionThreadLocalIsStillValid() || newStructureOrNull->writeThreadLocalIsStillValid()))
+                        newStructureOrNull->fireTransitionThreadLocal(vm, "F2: flat->segmented conversion (transition target)");
+                }));
+            }
+            return nullptr; // RESTART (after our stop, or the racing fire that abandoned ours - the world changed either way).
         }
     }
 
@@ -888,6 +1013,14 @@ ALWAYS_INLINE bool anyTTLSetStillValid(Structure* source, Structure* target)
 // the stop returns (§4.2 rule).
 void fireTTLSetsForSharedTransition(VM& vm, Structure* source, Structure* target, const char* reason)
 {
+    // STW dedup (T1-butterfly-stw-growth): the sets are monotone, so when W
+    // threads race the same fire only the claim winner pays the stop; losers
+    // park-wait until the sets read invalid and return stop-free. Every
+    // caller RESTARTs unconditionally after this returns, so "the racer
+    // fired" and "we fired" are indistinguishable to them.
+    PerEventStopClaim claim(vm, source, [&] { return !anyTTLSetStillValid(source, target); });
+    if (!claim.acquired() || !anyTTLSetStillValid(source, target))
+        return;
     jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
         // Re-check inside the stop: a racing fire may have got here first.
         if (source->transitionThreadLocalIsStillValid() || source->writeThreadLocalIsStillValid())
@@ -1767,6 +1900,17 @@ void ensureSharedWriteBit(VM& vm, JSObjectWithButterfly* object)
             if (butterflySharedWrite(word))
                 return; // Already (t, 1); every AS access is cell-locked anyway (I31/L5).
             bool flipped = false;
+            // STW dedup (T1-butterfly-stw-growth): racers flipping the same
+            // object's SW bit collapse into the claim winner's single stop;
+            // losers park-wait until the word moves and re-dispatch (the next
+            // pass sees SW=1 and returns).
+            PerEventStopClaim claim(vm, object, [&] {
+                return butterflyWordAtomic(object)->load(std::memory_order_seq_cst) != word;
+            });
+            if (!claim.acquired())
+                continue; // The word moved while a competing stop was in flight: re-dispatch.
+            if (butterflyWordAtomic(object)->load(std::memory_order_seq_cst) != word)
+                continue; // Cheap pre-stop re-validation: never pay a rendezvous for a stale plan.
             jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
                 // Re-verify the settled pair inside the stop: mutators are
                 // stopped at safepoints, and nuke windows are poll-free
@@ -1830,11 +1974,17 @@ void ensureSharedWriteBit(VM& vm, JSObjectWithButterfly* object)
         // checked (DCAS carries the ID lane; PA holds the lock that all PA
         // transitions take - I36).
         if (structure->writeThreadLocalIsStillValid()) {
-            jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
-                if (structure->writeThreadLocalIsStillValid()) // A racing fire may have got here first.
-                    structure->fireWriteThreadLocal(vm, "F1: first foreign write to a flat thread-local-write instance");
-            }));
-            continue; // Re-dispatch on the fresh word + structure after the stop.
+            // STW dedup (T1-butterfly-stw-growth): the set is monotone; the
+            // claim winner's stop fires it for every racer. Losers park-wait
+            // until it reads invalid and re-dispatch stop-free.
+            PerEventStopClaim claim(vm, structure, [&] { return !structure->writeThreadLocalIsStillValid(); });
+            if (claim.acquired() && structure->writeThreadLocalIsStillValid()) {
+                jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+                    if (structure->writeThreadLocalIsStillValid()) // A racing fire may have got here first.
+                        structure->fireWriteThreadLocal(vm, "F1: first foreign write to a flat thread-local-write instance");
+                }));
+            }
+            continue; // Re-dispatch on the fresh word + structure after the stop (ours or the racing winner's).
         }
 
         // ---- I36 carve-out: PA cells (8-mod-16 bases) cannot take the 16B
@@ -2273,6 +2423,23 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
         static_cast<uint32_t>((static_cast<uint64_t>(newVectorLength) + 1 + (butterflyFragmentSlots - 1)) / butterflyFragmentSlots));
     if (fullCoverage)
         ASSERT(neededIndexedFragments > oldIndexedFragments); // vectorLength < newVectorLength and old coverage exhausted.
+
+    // ---- Geometric over-allocation (T1-butterfly-stw-growth): exact-fit
+    // coverage made a steady append stream replace the spine every
+    // butterflyFragmentSlots elements (the locksites profile counted 2.25M
+    // grow calls on the W=16 scale bench). Over-allocate coverage to the same
+    // 1.5x policy the flat T1 path (and flag-off ensureLengthSlow) already
+    // uses via nextLength(), so a growing array takes O(log n) replacement
+    // spines instead of O(n) - and a mode-(b) tail migration's ONE stop buys
+    // the whole next 1.5x window instead of four slots. Pure amortization:
+    // the published spine still covers exactly >= newVectorLength (asserted
+    // below), every protocol step is unchanged, and the memory policy matches
+    // what the same array would have held flag-off.
+    uint32_t maxIndexedFragments = static_cast<uint32_t>((static_cast<uint64_t>(MAX_STORAGE_VECTOR_LENGTH) + 1 + (butterflyFragmentSlots - 1)) / butterflyFragmentSlots);
+    uint64_t amortizedVectorLength = std::min<uint64_t>(nextLength(newVectorLength), MAX_STORAGE_VECTOR_LENGTH);
+    uint32_t amortizedIndexedFragments = static_cast<uint32_t>((amortizedVectorLength + 1 + (butterflyFragmentSlots - 1)) / butterflyFragmentSlots);
+    neededIndexedFragments = std::min(std::max(neededIndexedFragments, amortizedIndexedFragments), maxIndexedFragments);
+    ASSERT(static_cast<uint64_t>(neededIndexedFragments) * butterflyFragmentSlots - 1 >= newVectorLength); // The exact-fit need survives the cap (newVectorLength <= MAX_STORAGE_VECTOR_LENGTH).
     uint32_t coveredVectorLength = neededIndexedFragments * butterflyFragmentSlots - 1; // Use every allocated slot (C4 bounds derefs).
     uint32_t publishedVectorLength = std::min<uint32_t>(coveredVectorLength, MAX_STORAGE_VECTOR_LENGTH);
     ASSERT(publishedVectorLength >= newVectorLength);
@@ -2333,8 +2500,26 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
     }
 
     // ---- Mode (b): per-event stop migration (no §6-ranked lock held - GT11).
+    //
+    // STW dedup (T1-butterfly-stw-growth): a tail-carrying spine's FIRST grow
+    // is raced by every appender of a freshly shared array, and each racer
+    // used to pay a full rendezvous only for its closure's word re-check to
+    // no-op (the locksites profile measured this line as the single largest
+    // STW source at W=16). The claim winner migrates; losers park-wait until
+    // the word moves and re-dispatch stop-free (the winner published full
+    // coverage, so they land on the lock-free mode (a) - or return covered).
+    // The pre-stop word re-validation below additionally catches plans gone
+    // stale during the allocation window without paying a rendezvous.
     bool published = false;
-    jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+    {
+        PerEventStopClaim claim(vm, object, [&] {
+            return butterflyWordAtomic(object)->load(std::memory_order_seq_cst) != word;
+        });
+        if (!claim.acquired())
+            return false; // The word moved while a competing migration was in flight: re-dispatch on the fresh state.
+        if (butterflyWordAtomic(object)->load(std::memory_order_seq_cst) != word)
+            return false; // Cheap pre-stop re-validation: never pay a rendezvous for a stale plan.
+        jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
         // Re-verify inside the stop; allocate nothing (O4).
         if (butterflyWordAtomic(object)->load(std::memory_order_seq_cst) != word)
             return; // The world moved before the stop landed: re-dispatch.
@@ -2364,7 +2549,8 @@ bool tryGrowSegmentedVectorLength(VM& vm, JSObjectWithButterfly* object, unsigne
         bool ok = casButterfly(object, word, encodeSegmentedButterfly(newSpine));
         RELEASE_ASSERT(ok);
         published = true;
-    }));
+        }));
+    } // Release the PerEventStopClaim before returning either way.
     if (!published)
         return false; // Re-dispatch on the fresh state.
     vm.writeBarrier(object); // Publication barrier (§4.5/I25); the old spine's

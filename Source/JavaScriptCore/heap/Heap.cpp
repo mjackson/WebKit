@@ -782,6 +782,25 @@ void Heap::deprecatedReportExtraMemorySlowCase(size_t size)
     reportExtraMemoryAllocatedSlowCase(nullptr, nullptr, size);
 }
 
+ALWAYS_INLINE bool Heap::activityCallbackDispatchAllowed()
+{
+    // T4(c): activity-callback timer state (GCActivityCallback::m_delay and
+    // friends) is plain data historically guarded by "one mutator thread".
+    // Once shared, multiple clients reach the didAllocate dispatch sites
+    // concurrently; the timers are bound to the MAIN VM's run loop and their
+    // doWork fires on the main client's thread, so restricting mutator-side
+    // dispatch to that same thread restores the single-writer regime without
+    // re-disabling the callbacks wholesale (the pre-T4 state, which removed
+    // every idle-time GC trigger once ISS and helped make capacity
+    // monotone). World-stopped dispatch sites (updateAllocationLimits) call
+    // the callbacks directly instead: every mutator is parked there, so no
+    // concurrent access exists regardless of the conducting thread.
+    if (!isSharedServer()) [[likely]]
+        return true;
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    return client && client == m_mainClient;
+}
+
 bool Heap::overCriticalMemoryThreshold(MemoryThresholdCallType memoryThresholdCallType)
 {
 #if USE(MEMORY_FOOTPRINT_API)
@@ -803,13 +822,17 @@ void Heap::reportAbandonedObjectGraph()
     // are abandoning so we just guess for them.
     size_t abandonedBytes = static_cast<size_t>(0.1 * capacity());
 
-    // We want to accelerate the next collection. Because memory has just 
-    // been abandoned, the next collection has the potential to 
-    // be more profitable. Since allocation is the trigger for collection, 
-    // we hasten the next collection by pretending that we've allocated more memory. 
-    // SharedGC (§5.4): activity callbacks never fire collections when shared
-    // — triggering is mutator-driven (CIND/CSAC; I15).
-    if (m_fullActivityCallback && !isSharedServer()) {
+    // We want to accelerate the next collection. Because memory has just
+    // been abandoned, the next collection has the potential to
+    // be more profitable. Since allocation is the trigger for collection,
+    // we hasten the next collection by pretending that we've allocated more memory.
+    // T4(c): re-enabled when shared (was the §5.4/I15 blanket disable). The
+    // callback's plain timer state is single-writer-safe here only on the
+    // main client's thread (the timer is bound to the main VM's run loop and
+    // doWork runs there); under shared, restrict dispatch to that thread —
+    // the I15 no-fire-and-forget invariant is preserved by collectAsync's
+    // ISS reroute to ticketing, not by suppressing the timer.
+    if (m_fullActivityCallback && activityCallbackDispatchAllowed()) {
         m_fullActivityCallback->didAllocate(*this,
             m_sizeAfterLastCollect - m_sizeAfterLastFullCollect + totalBytesAllocatedThisCycle() + m_bytesAbandonedSinceLastFullCollect.load(std::memory_order_relaxed));
     }
@@ -1710,11 +1733,11 @@ void Heap::collectNow(Synchronousness synchronousness, GCRequest request)
         // mutator-concurrently under MSPL with the world running, and
         // BlockDirectory::sweep's weak-bearing carve-out deliberately skips
         // blocks whose WeakSet has WeakBlocks in that mode — they stay unswept
-        // until the next world-stopped sweep (lazy in-lock sweeping is the
-        // designed shared-mode steady state; the IncrementalSweeper is disabled
-        // under isSharedServer()). So legitimately-unswept blocks remain after
-        // our own sweep, with no concurrent collection needed. Only assert when
-        // this heap serves a single client.
+        // until the next world-stopped sweep (lazy in-lock sweeping plus the
+        // T4(d) MSPL'd IncrementalSweeper — which skips the same weak-bearing
+        // blocks — is the shared-mode steady state). So legitimately-unswept
+        // blocks remain after our own sweep, with no concurrent collection
+        // needed. Only assert when this heap serves a single client.
         if (!isSharedServer())
             m_objectSpace.assertNoUnswept();
         
@@ -3247,6 +3270,11 @@ bool Heap::suspendCompilerThreads()
 void Heap::willStartCollection()
 {
     ++m_gcVersion;
+    // T4: per-cycle Wlr retention accounting — reset world-stopped at cycle
+    // start, accumulated by the Wlr constraint executor, consumed by
+    // updateAllocationLimits. Always 0 when !isSharedServer() (the only
+    // writer is ISS-gated), so flag-off behavior is unchanged.
+    m_sharedGCWindowRetainedBytesThisCycle = 0;
     if (Options::verifyGC()) [[unlikely]] {
         m_verifierSlotVisitor = makeUnique<VerifierSlotVisitor>(*this);
         ASSERT(!m_isMarkingForGCVerifier);
@@ -3338,17 +3366,23 @@ void Heap::notifyIncrementalSweeper()
             m_indexOfNextLogicallyEmptyWeakBlockToSweep = 0;
     }
 
-    // SharedGC (T8/I5b, deviation 4): mutator-concurrent sweeping is disabled
-    // once the server is shared — don't arm the sweeper timer. Unswept blocks
-    // are swept in-lock by allocation slow paths (§5.2 MSPL carve-out,
-    // §3.7), by shouldSweepSynchronously() paths on the conductor, or
-    // re-snapshotted by the next conducted cycle. Logically-empty weak blocks
-    // drain via WeakSet::sweep and sweepAllLogicallyEmptyWeakBlocks.
-    // doWork/doWorkUntil are also gated, so a pre-sticky armed timer stands
-    // down on its next fire. Option off / pre-sticky: today's behavior (I10).
-    if (isSharedServer()) [[unlikely]]
-        return;
-
+    // T4(d): the sweeper is RE-ENABLED when shared (was deviation 4's
+    // blanket disable, which — together with the weak-bearing carve-out in
+    // BlockDirectory::sweep — made committed capacity monotone: nothing ever
+    // swept-to-empty or decommitted between conducted cycles). The shared-
+    // mode sweeper runs its per-block work under MSPL (serializing against
+    // every allocation slow path's directory-bit reads and addBlock's m_bits
+    // resize — the documented §5.2 in-lock sweeping license) and NEVER frees
+    // or shrinks blocks mutator-concurrently (MC-SAFE S4: physical
+    // reclamation stays world-stopped — Heap::reclaimSharedGCMemoryAtCycleEnd);
+    // weak-bearing blocks are skipped exactly like BlockDirectory::sweep's
+    // carve-out and remain for world-stopped sweeps. See
+    // IncrementalSweeper::sweepNextBlockShared. Arming the timer from the
+    // conductor thread is safe: JSRunLoopTimer::setTimeUntilFire locks
+    // internally, and the owning run-loop thread is parked behind the §10.4
+    // barrier while we run here, so the sweeper's plain members
+    // (m_currentDirectory, cursor) are publication-ordered by the stop
+    // protocol's seq_cst resume edge.
     m_sweeper->startSweeping(*this);
 }
 
@@ -3393,7 +3427,31 @@ void Heap::updateAllocationLimits()
         // the new allocation limit based on the current size of the heap, with a
         // fixed minimum.
         size_t lastMaxHeapSize = m_maxHeapSize;
-        m_maxHeapSize = std::max(minHeapSize(m_heapType, m_ramSize), proportionalHeapSize(currentHeapSize, m_ramSize));
+        size_t windowRetainedBytes = isSharedServer() ? std::min(m_sharedGCWindowRetainedBytesThisCycle, currentHeapSize) : 0;
+        if (windowRetainedBytes) [[unlikely]] {
+            // T4(c) — threshold feedback-loop fix. m_totalBytesVisited (and
+            // hence currentHeapSize) includes the Wlr window-witness cohort,
+            // which is RETENTION, not live program size; feeding it into
+            // proportionalHeapSize() doubled m_maxHeapSize geometrically
+            // (capacity ladder 34MB -> 10.5GB, m_maxHeapSize -> 7.87GB):
+            // bigger limit -> bigger window -> bigger retained cohort ->
+            // bigger visited -> bigger limit. Key the GROWTH HEADROOM to the
+            // non-retained estimate instead, while still leaving the full
+            // retained size resident this cycle (m_maxHeapSize must exceed
+            // currentHeapSize so the CIND assert and m_maxEdenSize
+            // subtraction below stay sound). windowRetainedBytes
+            // undercounts the cohort's traced closure, so this subtraction
+            // can only be too small — i.e. limits stay >= what precise
+            // accounting would give (conservative; never starves eden).
+            // Reached only when the Wlr pass actually retained something
+            // this cycle (ISS + >= 2 clients): flag-off and single-client
+            // GIL-off take the landed formula below unchanged.
+            size_t minSize = minHeapSize(m_heapType, m_ramSize);
+            size_t headroomBase = std::max(currentHeapSize - windowRetainedBytes, minSize);
+            size_t headroom = std::max(proportionalHeapSize(headroomBase, m_ramSize), headroomBase) - headroomBase;
+            m_maxHeapSize = std::max(minSize, currentHeapSize + std::max(headroom, minSize));
+        } else
+            m_maxHeapSize = std::max(minHeapSize(m_heapType, m_ramSize), proportionalHeapSize(currentHeapSize, m_ramSize));
         m_maxEdenSize = m_maxHeapSize - currentHeapSize;
         if (m_isInOpportunisticTask && !isCritical) {
             // After an Opportunistic Full GC, we allow eden to occupy all the space we recovered.
@@ -3420,11 +3478,33 @@ void Heap::updateAllocationLimits()
         double minEdenToOldGenerationRatio = 1.0 / 3.0;
         if (edenToOldGenerationRatio < minEdenToOldGenerationRatio)
             m_shouldDoFullCollection = true;
+        // T4(b)/(c) — retention-pressure full-collection trigger. An eden
+        // cycle's Wlr-retained dead cohort is mark-sticky: it is reclaimable
+        // only at the next FULL collection (now that the §13 narrowing in
+        // sharedGCWindowWitnessSnapshot lets full collections skip
+        // stale-marked survivors). Without a coupling from retention volume
+        // to full-collection cadence, eden windows float their dead cohorts
+        // indefinitely ("eden GCs reclaim ~nothing": 3857MB -> 3810MB).
+        // When this eden cycle retained more than half an eden window,
+        // upgrade the next cycle to Full so the cohort is reclaimed promptly.
+        // Nonzero only when ISS with >= 2 clients (the only writer of the
+        // counter): flag-off and single-client GIL-off never take this
+        // branch.
+        if (isSharedServer() && m_sharedGCWindowRetainedBytesThisCycle > m_maxEdenSize / 2) [[unlikely]]
+            m_shouldDoFullCollection = true;
         m_maxHeapSize = std::max(m_maxHeapSize, currentHeapSize + m_maxEdenSize);
         dataLogLnIf(verbose, "Eden: maxHeapSize = ", m_maxHeapSize);
         dataLogLnIf(verbose, "Eden: maxEdenSize = ", m_maxEdenSize);
-        // SharedGC (§5.4): no activity-callback-driven collections when shared (I15).
-        if (m_fullActivityCallback && !isSharedServer()) {
+        // T4(c): re-enabled when shared (was the §5.4/I15 blanket disable;
+        // that disable removed the only idle-time full-GC trigger and helped
+        // make capacity monotone). Safe here: we run world-stopped (every
+        // mutator parked), so the callback's plain timer state has no
+        // concurrent reader/writer; the timer's eventual doCollection() goes
+        // through Heap::collect -> collectAsync, whose ISS arm reroutes to
+        // the §10B.1 ticketing (no fire-and-forget collection can result —
+        // I15's actual invariant is preserved by the trigger path, not by
+        // suppressing the timer).
+        if (m_fullActivityCallback) {
             ASSERT(currentHeapSize >= m_sizeAfterLastFullCollect);
             m_fullActivityCallback->didAllocate(*this, currentHeapSize - m_sizeAfterLastFullCollect);
         }
@@ -3500,11 +3580,14 @@ void Heap::setGarbageCollectionTimerEnabled(bool enable)
 constexpr size_t oversizedAllocationThreshold = 64 * KB;
 void Heap::didAllocate(size_t bytes)
 {
-    // SharedGC (§5.4): eden-activity dispatch is skipped when shared —
-    // activity callbacks never fire collections; collection triggering is
-    // mutator-driven via collectIfNecessaryOrDefer/collectSyncAllClients
-    // (I15, T5). Counters are relaxed atomics (F3); exact at safepoints (I7).
-    if (m_edenActivityCallback && !isSharedServer())
+    // T4(c): eden-activity dispatch re-enabled when shared, restricted to
+    // the main client's thread (single-writer regime for the callback's
+    // plain timer state — see activityCallbackDispatchAllowed()). The
+    // resulting timer fire routes through collectAsync's ISS arm into
+    // §10B.1 ticketing, so I15's no-fire-and-forget invariant holds at the
+    // trigger path. Counters are relaxed atomics (F3); exact at safepoints
+    // (I7).
+    if (m_edenActivityCallback && activityCallbackDispatchAllowed())
         m_edenActivityCallback->didAllocate(*this, totalBytesAllocatedThisCycle() + m_bytesAbandonedSinceLastFullCollect.load(std::memory_order_relaxed));
     if (!isSharedServer()) [[likely]] {
         // Single-writer regime: plain load+store RMW (no lock-prefixed xadd on
@@ -3666,8 +3749,9 @@ bool Heap::sweepNextLogicallyEmptyWeakBlock()
 {
     // SharedGC (T8 audit): callers — WeakSet::sweep (MSPL or conductor,
     // including the §A.3 class-4 conductor, AB-10 — see WeakSet.cpp),
-    // IncrementalSweeper (gated off once shared), and
-    // sweepAllLogicallyEmptyWeakBlocks (takes MSPL).
+    // IncrementalSweeper (T4(d): holds MSPL once shared —
+    // sweepNextBlockShared), and sweepAllLogicallyEmptyWeakBlocks (takes
+    // MSPL).
     ASSERT(!isSharedServer() || worldIsStoppedForAllClients() || mutatorSlowPathLock().isHeld() || (jsThreadsThreadGranularWorldIsStopped() && jsThreadsCurrentThreadIsStopConductor()));
     if (m_indexOfNextLogicallyEmptyWeakBlockToSweep == WTF::notFound)
         return false;
@@ -4083,10 +4167,21 @@ void Heap::addCoreConstraints()
             // sweep has not run), but a dead set can ride for up to two full
             // collections, not one cycle, and full-GC reclamation of
             // window-consumed blocks degrades accordingly. Quantify on the
-            // bench gate AFTER the temporary diagnostics are stripped. A
-            // narrowing that skips stale-marked survivors in full
-            // collections was sketched (EVIDENCE.md §13) but needs its own
-            // adversarial round — do NOT land it blind.
+            // bench gate AFTER the temporary diagnostics are stripped. The
+            // §13 narrowing that skips stale-marked survivors in FULL
+            // collections is now LANDED (T4-shared-gc-window-retention) in
+            // a TIGHTENED form inside
+            // MarkedBlock::sharedGCWindowWitnessSnapshot: under the header
+            // lock, gated on the LAST-ERA predicate (block version is the
+            // immediate predecessor of this full cycle's just-bumped
+            // version), because the bare stale-bit-zero lemma does NOT hold
+            // for blocks stale-swept and recycled from older eras (stale
+            // sweeps neither consult nor clear old mark words) — see the
+            // predicate comment there. With it, (b)'s full-collection
+            // degradation no longer applies to last-era survivors; (a)'s
+            // eden stickiness remains and is bounded by the
+            // retention-pressure full-collection trigger in
+            // updateAllocationLimits (T4(c)).
             //
             // SOUNDNESS LEMMAS (round-6): unlike the stock conservative
             // scan, this pass dereferences cells (structureID read +
@@ -4136,13 +4231,15 @@ void Heap::addCoreConstraints()
             // same reason. The broader gate is also the conservative
             // direction (retains more, never less). Flag-off (default
             // options) identity is unaffected: ISS never flips without
-            // useSharedGCHeap. Recorded in EVIDENCE.md §14.
+            // useSharedGCHeap. Recorded in EVIDENCE.md §14. T4 UPDATE: ISS
+            // remains the outer key, but inside it the pass now also
+            // requires a SECOND attached client at execution time — see the
+            // SINGLE-MUTATOR GATE comment in the executor below for the
+            // soundness argument (no parked mutators with one client; the
+            // count is frozen inside the stop window).
             if (!isSharedServer()) [[likely]]
                 return;
             if constexpr (std::is_same_v<std::decay_t<decltype(visitor)>, SlotVisitor>) {
-                if (lastVersion == m_phaseVersion)
-                    return;
-                lastVersion = m_phaseVersion;
                 // Round-7 F3: this pass dereferences cells (structureID +
                 // visitChildren) for which NO stopped thread published a
                 // pointer — its entire memory-safety argument (L1/L2) is
@@ -4152,9 +4249,62 @@ void Heap::addCoreConstraints()
                 // legacy mutator-conn collection without WSAC; enforce at
                 // the point of use. One load per phase version — free.
                 RELEASE_ASSERT(worldIsStoppedForAllClients());
+                // T4 SINGLE-MUTATOR GATE (narrows the round-7 F5 ruling; the
+                // ISS key alone made a single-client GIL-off heap pay full
+                // window retention for its entire process lifetime — the top
+                // RSS retention mechanism AND the largest flag-tax mechanism
+                // per the rss/flagtax profiles). The §10 window-witness hole
+                // is a property of cells allocated by mutators that are
+                // PARKED at stop time with their liveness reachable only
+                // through per-thread state the trace cannot see (Experiment
+                // B). With exactly ONE attached client, that client is the
+                // conductor of this very cycle (conduction requires a
+                // registered client; remove() cannot complete inside a stop
+                // window, so the count is frozen while we run): there are no
+                // parked mutators, the lone mutator's stack/registers flow
+                // through m_currentThreadState into the stock conservative
+                // scan, and every live window cell is rooted exactly as in
+                // the legacy single-mutator protocol (the GIL-on W=1 escape
+                // — same stopAllocating NA stamping, same endMarking witness
+                // retirement, sound for decades). A client that attached and
+                // detached entirely within the window needs no witness
+                // either: its published cells are heap-traced; its handed-
+                // out-but-unpublished cells died with its thread state (it
+                // has no parked image); its un-consumed free-list remainder
+                // was returned by its detach-side stopAllocating and is NA-
+                // stamped-dead. Per-execution sampling (not a per-cycle
+                // latch) is what keeps the windowed-marking flag sound: a
+                // client that attaches BETWEEN stop windows and parks at a
+                // later window is counted at that window's execution — and
+                // the skip below deliberately does NOT update lastVersion,
+                // so a later execution of the same phase version re-judges
+                // with the then-current count (skipping can never mask a
+                // pass that must run). ISS itself stays the outer key (F5's
+                // conservative direction): flag-off identity is unaffected.
+                // AMEND (audit): on the pinned bench
+                // (Tools/threads/scalebench/js/bench.js) W=1 means ONE
+                // attached client — the main shell thread is worker 0 and
+                // the spawn loop runs for ids 1..W-1, i.e. zero spawned
+                // Threads at W=1 — so this gate engages for the whole run
+                // (an audit claim of main+1 worker = 2 clients was checked
+                // against the spawn loop and is wrong). Whether the W=1
+                // flag-tax/RSS win comes from THIS mechanism vs T4(b)/(c)/
+                // (d) is still a bench question: confirm on the pinned
+                // beat-or-explain run before attributing the headline.
+                if (clientSet().size() <= 1)
+                    return;
+                if (lastVersion == m_phaseVersion)
+                    return;
+                lastVersion = m_phaseVersion;
                 SetRootMarkReasonScope rootScope(visitor, RootMarkReason::ConservativeScan);
                 HeapVersion markingVersion = m_objectSpace.markingVersion();
+                // §13 last-era skip license (T4): only a FULL cycle bumps
+                // the marking version (MarkedSpace::beginMarking), and that
+                // bump happened inside THIS stop window — see the predicate
+                // comment in MarkedBlock::sharedGCWindowWitnessSnapshot.
+                bool markingVersionJustBumped = m_collectionScope && m_collectionScope.value() == CollectionScope::Full;
                 Vector<HeapCell*> candidates;
+                size_t retainedBytes = 0; // T4: directly-appended witness bytes (closure excluded — an UNDERcount, which is the conservative direction for the updateAllocationLimits subtraction).
                 m_objectSpace.forEachBlock(
                     [&] (MarkedBlock::Handle* handle) {
                         // Round-7 F1: the witness judgment (NA version,
@@ -4171,8 +4321,9 @@ void Heap::addCoreConstraints()
                         // dropped (appendJSCellOrAuxiliary can retake it via
                         // aboutToMark).
                         candidates.shrink(0);
-                        handle->block().sharedGCWindowWitnessSnapshot(markingVersion, candidates);
+                        handle->block().sharedGCWindowWitnessSnapshot(markingVersion, markingVersionJustBumped, candidates);
                         if (!candidates.isEmpty()) {
+                            retainedBytes += candidates.size() * handle->cellSize();
                             for (HeapCell* cell : candidates)
                                 visitor.appendJSCellOrAuxiliary(cell);
                             // Under the bitvector lock so the empty judge in
@@ -4195,9 +4346,18 @@ void Heap::addCoreConstraints()
                 // no-root profile would be freed by the sweep. Same witness,
                 // same retention, same trace closure.
                 for (PreciseAllocation* allocation : m_objectSpace.preciseAllocations()) {
-                    if (allocation->isNewlyAllocated() && !allocation->isMarked())
+                    if (allocation->isNewlyAllocated() && !allocation->isMarked()) {
+                        retainedBytes += allocation->cellSize();
                         visitor.appendJSCellOrAuxiliary(allocation->cell());
+                    }
                 }
+                // T4(c): feed the threshold logic. Conductor-written inside
+                // the stop window (one constraint executor at a time), reset
+                // world-stopped in willStartCollection, consumed world-
+                // stopped in updateAllocationLimits — never touched with the
+                // world running. Accumulates across phase versions of one
+                // cycle (full collections can legitimately run this twice).
+                m_sharedGCWindowRetainedBytesThisCycle += retainedBytes;
             } else {
                 // GC-verifier mirror (AbstractSlotVisitor): skipped, like the
                 // conservative scan — the verifier has no window witnesses to
@@ -5947,9 +6107,9 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // always hold access, so the §10.4 barrier excludes them; this includes
     // the teardown path: GCClient::Heap::~Heap acquires access BEFORE
     // lastChanceToFinalize()'s MSPL section, review round 1); the
-    // IncrementalSweeper is fully disabled once shared (deviation 4), leaving
-    // in-lock allocation-path sweeps and conductor-side synchronous sweeps as
-    // the only sweepers.
+    // The IncrementalSweeper runs in restricted shared mode once ISS (T4(d):
+    // MSPL-held per-block steps, no physical frees) alongside in-lock
+    // allocation-path sweeps and conductor-side synchronous sweeps.
 
     // Step 6 — stacks (T6): gatherStackRoots()'s MachineThreads scan
     // suspends-and-copies every I4(b)-registered thread; the conductor's own
@@ -6063,6 +6223,10 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
         if (sharedGCWindowedStagesEnabled()) [[unlikely]] {
             runSafepointHooksAndReclaim();
             runTIDRebiasIfSnapshotSealed(cycleWasFull);
+            // T4(d): per-cycle, still inside the cycle's final window (WSAC
+            // set) — same placement rationale as the reclaim above; strictly
+            // before the covering window's ISB bump and step-8/9 resumes.
+            reclaimSharedGCMemoryAtCycleEnd();
         }
     }
 
@@ -6077,6 +6241,10 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     if (!sharedGCWindowedStagesEnabled()) {
         runSafepointHooksAndReclaim();
         runTIDRebiasIfSnapshotSealed(sawFullCollectionThisStop);
+        // T4(d): world-stopped physical reclamation — the only point in the
+        // shared steady state where MC-SAFE S4's world-stopped-only rule is
+        // satisfied every cycle. See the helper for the policy.
+        reclaimSharedGCMemoryAtCycleEnd();
     }
 
     // End of the conductor's main-VM teardown work. Flag-off, the
@@ -6093,6 +6261,46 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // Re-acquire our own access (§3.2: only at this landed tail, after the
     // FINAL WND-close); the §10.2 loop then re-checks the ticket.
     conductorClient.acquireHeapAccess();
+}
+
+void Heap::reclaimSharedGCMemoryAtCycleEnd()
+{
+    // T4(d) — decommit restoration for the shared server. Before this
+    // landed, capacity was monotone once ISS: MarkedSpace::shrink() (the
+    // only OS-return path for marked blocks) is world-stopped-only when
+    // shared (MC-SAFE S4), and the only world-stopped sweep/shrink sites
+    // were shouldSweepSynchronously() (critical-memory/mini-mode only) and
+    // teardown — so the steady state NEVER returned a block (rss profile:
+    // 12,481MB of 13,430MB RSS was marked-live committed capacity vs ~378MB
+    // true live; an explicit full GC reclaimed 1MB). This runs once per
+    // conducted CYCLE, inside the cycle's final stop window:
+    //  - every cycle: m_objectSpace.shrink() — frees the blocks already
+    //    judged empty by this cycle's marking (BlockDirectory::endMarking's
+    //    empty = live & ~markingNotEmpty), skipping destructible and inUse
+    //    blocks (allocator-held blocks carry inUse from resumeAllocating's
+    //    re-take, so a TLC-held free list can never be freed under it).
+    //    Cheap: a per-directory bitvector scan plus the frees themselves.
+    //  - full cycles whose committed capacity carries >= 50% slack over the
+    //    marked size: a full synchronous sweep first (sweepSynchronously —
+    //    MSPL is safely takeable while stopped, and its shrink leg is
+    //    world-stopped here), which runs destructors so DESTRUCTIBLE empty
+    //    blocks (excluded from plain shrink) and the weak-bearing blocks
+    //    skipped by mutator-concurrent sweeps also become reclaimable. The
+    //    slack gate keeps the full-sweep cost off tight steady-state loops;
+    //    once capacity tracks live size again the gate stays closed.
+    // Conductor context: same license as finalize()'s conductor-side
+    // synchronous sweeps (the main VM's atom table is installed for the
+    // stopped region; destructors may deref Identifiers).
+    RELEASE_ASSERT(isSharedServer());
+    RELEASE_ASSERT(worldIsStoppedForAllClients());
+    if (m_lastCollectionScope && m_lastCollectionScope.value() == CollectionScope::Full) {
+        size_t slackBase = std::max(m_sizeAfterLastCollect, minHeapSize(m_heapType, m_ramSize));
+        if (capacity() > slackBase + slackBase / 2) {
+            sweepSynchronously(); // Includes the world-stopped shrink leg.
+            return;
+        }
+    }
+    m_objectSpace.shrink();
 }
 
 void Heap::runSafepointHooksAndReclaim()

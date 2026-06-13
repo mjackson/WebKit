@@ -251,8 +251,15 @@ void VMTraps::tryInstallTrapBreakpoints(VMTraps::SignalContext& context, StackBo
             return;
         }
 
-        if (!foundCodeBlock->hasInstalledVMTrapsBreakpoints())
+        if (!foundCodeBlock->hasInstalledVMTrapsBreakpoints()) {
+            // T6 (gilOff handleTraps sweep early-out): record the install on
+            // the (possibly process-shared) set BEFORE the breakpoints become
+            // observable, under the set's lock (codeBlockSetLocker above is
+            // still held here), so a sweeper that skipped on `false` provably
+            // had nothing to jettison. Sticky; see CodeBlockSet.h.
+            vm.heap.codeBlockSet().noteCodeBlockMayHaveInstalledVMTrapBreakpoints(codeBlockSetLocker);
             foundCodeBlock->installVMTrapBreakpoints();
+        }
         return;
     }
 }
@@ -264,6 +271,19 @@ void VMTraps::invalidateCodeBlocksOnStack()
 
 void VMTraps::invalidateCodeBlocksOnStack(CallFrame* topCallFrame)
 {
+    // T6 (gilOff scalability): check the one-shot gate BEFORE taking the
+    // process-shared CodeBlockSet lock. m_needToInvalidateCodeBlocks is
+    // written under m_trapSignalingLock (requestThreadStopIfNeeded) and was
+    // never synchronized by the codeBlockSet lock — its writer does not hold
+    // that lock — so this pre-lock read races with a concurrent set exactly
+    // as much as the in-lock read did: a raise that lands after this read is
+    // delivered by its own trap bits at the next service, unchanged from the
+    // pre-change interleaving. GIL-on / flag-off: branch not taken,
+    // locked shape byte-identical.
+    if (vm().gilOff()) [[unlikely]] {
+        if (!m_needToInvalidateCodeBlocks)
+            return;
+    }
     Locker codeBlockSetLocker { vm().heap.codeBlockSet().getLock() };
     invalidateCodeBlocksOnStack(codeBlockSetLocker, topCallFrame);
 }
@@ -482,9 +502,26 @@ void VMTraps::jettisonOptimizedCodeOnStackAfterConductorHeapFactRewrite(CallFram
     // its own state internally and tolerates an intervening jettison from
     // another path. Deduplicate so a block appearing in multiple frames
     // opens at most one nested stop window.
+    // T6 (gilOff scalability): collect WITHOUT the process-shared
+    // codeBlockSet lock when this VM is gilOff. The collection below reads
+    // only THIS thread's own frames — every collected CodeBlock is on this
+    // thread's stack, hence conservatively scanned and unfreeable mid-walk —
+    // and never consults CodeBlockSet state. The lock in the legacy
+    // invalidateCodeBlocksOnStack shape (which this walk inherited) mutually
+    // excludes the SignalSender's CROSS-THREAD stack walk
+    // (tryInstallTrapBreakpoints reads this stack's frames under the same
+    // lock while the mutator is suspended) — and §A.2.5 never starts a
+    // SignalSender for a gilOff VM, so GIL-off there is nothing to exclude.
+    // This path fires on up to N threads per overlapped rewrite window;
+    // serializing all of them on the one shared lock was part of the
+    // measured 8% slow-acquisition share. Non-gilOff callers (none exist
+    // today — both call sites are gated on useJSThreads && !useThreadGIL —
+    // but keep the conservative shape) still take the lock.
     Vector<CodeBlock*, 8> codeBlocksToJettison;
     {
-        Locker codeBlockSetLocker { vm.heap.codeBlockSet().getLock() };
+        std::optional<Locker<Lock>> codeBlockSetLocker;
+        if (!vm.gilOff()) [[unlikely]]
+            codeBlockSetLocker.emplace(vm.heap.codeBlockSet().getLock());
         CallFrame* callFrame = topCallFrame;
         while (callFrame) {
             CodeBlock* codeBlock = callFrame->isNativeCalleeFrame() ? nullptr : callFrame->codeBlock();
@@ -763,7 +800,27 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
         }
     }
 
-    {
+    // T6 (gilOff scalability — codeBlockSet lock on every trap service): this
+    // sweep exists to jettison CodeBlocks whose VM-trap BREAKPOINTS were
+    // installed by the signal-based delivery path (tryInstallTrapBreakpoints,
+    // the only install site). GIL-off that path is structurally unreachable —
+    // §A.2.5 never starts a SignalSender for a gilOff VM, and useJSThreads
+    // forces usePollingTraps=1 (SPEC-jit M2b) — yet every handleTraps on
+    // every thread (~1.6M/run at W=16) serialized on the ONE process-shared
+    // CodeBlockSet lock to walk the whole shared set and find nothing
+    // (~8% of slow lock acquisitions, scaling with STW-rate x threads).
+    // Skip the locked walk when the set's sticky install flag says no
+    // CodeBlock can have breakpoints installed; the flag is set under the
+    // set's lock BEFORE any install becomes observable and is never cleared,
+    // so a skip can never lose a jettison the unconditional sweep would have
+    // performed (see CodeBlockSet.h). The skip predicate covers a GIL-on VM
+    // sharing the heap, too: its installs flip the shared set's flag, and
+    // gilOff sweepers then sweep exactly as before. GIL-on / flag-off: the
+    // gilOff() branch is not taken — the unconditional sweep is unchanged.
+    bool skipBreakpointJettisonSweep = false;
+    if (vm.gilOff()) [[unlikely]]
+        skipBreakpointJettisonSweep = !vm.heap.codeBlockSet().mayHaveCodeBlocksWithInstalledVMTrapBreakpoints();
+    if (!skipBreakpointJettisonSweep) {
         Locker codeBlockSetLocker { vm.heap.codeBlockSet().getLock() };
         vm.heap.forEachCodeBlockIgnoringJITPlans(codeBlockSetLocker, [&] (CodeBlock* codeBlock) {
             // We want to jettison all code blocks that have vm traps breakpoints, otherwise we could hit them later.

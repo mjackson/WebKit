@@ -399,7 +399,10 @@ public:
     // visitor only AFTER this returns (appendJSCellOrAuxiliary can re-enter
     // this block's header lock via aboutToMark). See the read-protocol and
     // soundness-lemma comment at the definition (MarkedBlock.cpp).
-    void sharedGCWindowWitnessSnapshot(HeapVersion markingVersion, Vector<HeapCell*>& candidates);
+    // markingVersionJustBumped: true iff this cycle is a FULL collection
+    // (MarkedSpace::beginMarking bumped the version inside this stop) —
+    // licenses the §13 last-era stale-marked-survivor skip (T4).
+    void sharedGCWindowWitnessSnapshot(HeapVersion markingVersion, bool markingVersionJustBumped, Vector<HeapCell*>& candidates);
 
     Dependency aboutToMark(HeapVersion markingVersion, HeapCell*);
         

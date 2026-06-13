@@ -1203,6 +1203,8 @@ private:
             || Options::useSharedGCIncrementalSweep() || Options::useSharedGCMutatorAssist();
     }
     void runSafepointHooksAndReclaim(); // §9 hooks + §11 reclaim sequence; both protocols' sole call sites.
+    void reclaimSharedGCMemoryAtCycleEnd(); // T4(d): world-stopped per-cycle shrink (+ slack-gated full sweep) — the shared server's only steady-state decommit point.
+    bool activityCallbackDispatchAllowed(); // T4(c): mutator-side activity-callback dispatch — true when !ISS, else main client's thread only (single-writer timer state).
     void pollIssRevertIfNeeded(); // §10D ISS reversion, main client's poll.
     // Manifest 5a park hooks (heap-owned impls; installed via
     // VMManager::setGCParkCallbacks, manifest items 3-5). Run inside
@@ -1603,6 +1605,12 @@ private:
     Atomic<bool> m_worldIsStoppedForAllClients { false }; // WSAC; conductor-written under GBL (F7).
     Atomic<bool> m_issRevertPending { false }; // §10D; written under *m_threadLock (HeapClientSet::remove / pollIssRevertIfNeeded); relaxed reads are a poll hint only.
     GCClient::Heap* m_mainClient { nullptr }; // First registered client (the owning VM's); written under HeapClientSet::m_lock (§3.3/§10A).
+    // T4: bytes directly appended by the Wlr window-witness pass this cycle
+    // (closure excluded — a deliberate undercount). Reset in
+    // willStartCollection, accumulated by the Wlr constraint executor,
+    // consumed by updateAllocationLimits — all world-stopped; always 0 when
+    // !isSharedServer() or with a single attached client.
+    size_t m_sharedGCWindowRetainedBytesThisCycle { 0 };
     GCSafepointEpoch m_safepointEpoch; // §11.
     Lock m_stopTheWorldSafepointHookLock;
     Vector<void (*)(JSC::Heap&)> m_stopTheWorldSafepointHooks WTF_GUARDED_BY_LOCK(m_stopTheWorldSafepointHookLock);

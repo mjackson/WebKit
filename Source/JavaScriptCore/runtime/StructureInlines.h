@@ -657,6 +657,15 @@ ALWAYS_INLINE void Structure::setPropertyTable(VM& vm, PropertyTable* table)
     // barrier, identical single-mov codegen flag-off.
     if (table)
         validateCell(table);
+    // T3 (flag-on): publication fence. Structure::getConcurrently's lock-free
+    // fast path reads this slot WITHOUT m_lock and then probes the table's
+    // index vector through address-dependent loads; order the table's
+    // construction/fill stores (constructor relaxed stores, index-vector
+    // header + contents) before the slot store so a racing probe never sees
+    // the pointer ahead of the memory it points at. Locked readers were
+    // already ordered by m_lock; flag-off readers are same-thread (I22).
+    if (Options::useJSThreads()) [[unlikely]]
+        WTF::storeStoreFence();
     m_propertyTableUnsafe.setWithoutWriteBarrier(table);
     vm.writeBarrier(this, table);
 }

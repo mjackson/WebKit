@@ -202,24 +202,63 @@ public:
     void addDeletedOffset(PropertyOffset);
 
     // S6 L3/L4 in-place-edit stamp (see m_concurrentEditCount).
-    // PROTOCOL (§3.25, re-derived after the wave-5 review): writers bump the
-    // stamp AFTER the in-place mutation completes, still under the table's
-    // serialization (cell lock). A lock-free reader snapshots the stamp, does
-    // its lock-free reads, then ACQUIRES THE LOCK and rechecks the stamp:
-    //   - any edit that completed in the window bumped after its mutation,
-    //     so the recheck differs and the reader RESTARTs;
-    //   - an edit still in progress at recheck time is impossible (the
-    //     reader holds the lock the writer mutates under).
-    // A pre-mutation-only bump would be a one-sided seqlock: a snapshot
-    // landing after the bump but mid-mutation would validate torn reads.
-    // The recheck MUST happen under the lock; there is no odd/in-progress
-    // marker, so a lock-free recheck is NOT sound.
+    // PROTOCOL (§3.25, upgraded to a TWO-SIDED seqlock for T3): every
+    // in-place edit of table memory a lock-free probe can read (index
+    // vector, entries) brackets the mutation, still under the table's
+    // serialization (cell lock / owning Structure's m_lock):
+    //   - beginConcurrentEdit(): stamp -> ODD, then a StoreStore fence,
+    //     BEFORE the first mutating store;
+    //   - bumpConcurrentEditCount(): stamp -> EVEN (release store) AFTER the
+    //     last mutating store.
+    // Two reader disciplines are sound:
+    //   (a) locked recheck (the original S6 L3/L4 form): snapshot the stamp,
+    //       do lock-free reads, ACQUIRE THE LOCK and recheck — any completed
+    //       edit changed the stamp; an in-flight edit is impossible under
+    //       the lock. (Equality-only consumers are unaffected by edits now
+    //       advancing the stamp by 2.)
+    //   (b) lock-free seqlock validation (T3, Structure::getConcurrently's
+    //       fast path): snapshot the stamp, REQUIRE it even, do the probe
+    //       through PropertyTable::findConcurrently (which reads sizes from
+    //       the probed allocation's own header and never faults on torn
+    //       data), loadLoadFence, then recheck the stamp lock-free. An edit
+    //       overlapping the window either left the stamp odd at snapshot
+    //       time or changed it by recheck time — torn probes never validate.
+    // Soundness of (b) additionally requires that EVERY in-place mutation of
+    // probe-visible memory is bracketed (add/take/updateAttributeIfExists,
+    // and the wholesale editors seal/freeze/renumberPropertyOffsets), and
+    // that replaced index vectors are quarantined, not freed (see rehash).
     uint32_t concurrentEditCount() const { return m_concurrentEditCount.load(std::memory_order_acquire); }
+    ALWAYS_INLINE void beginConcurrentEdit()
+    {
+        if (Options::useJSThreads()) [[unlikely]] {
+            m_concurrentEditCount.store(m_concurrentEditCount.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
+            WTF::storeStoreFence(); // Odd stamp visible before the first mutating store.
+        }
+    }
     ALWAYS_INLINE void bumpConcurrentEditCount()
     {
         if (Options::useJSThreads()) [[unlikely]]
             m_concurrentEditCount.store(m_concurrentEditCount.load(std::memory_order_relaxed) + 1, std::memory_order_release);
     }
+
+    // T3 (flag-on only): completely lock-free probe for the seqlock fast
+    // path (reader discipline (b) above). Never blocks, never allocates,
+    // never faults on torn data: all bounds come from the probed
+    // allocation's own header, every load is a relaxed atomic, the probe
+    // count is capped, and key comparison is pointer identity (no deref of
+    // table-derived pointers). `validated == false` means the probe saw
+    // torn/garbage state and the caller must fall back to the locked walk;
+    // `validated == true` results are meaningful ONLY if the caller's
+    // surrounding editCount snapshot/recheck (and table-identity recheck)
+    // succeed. Callers must additionally be threads that obey the mutator
+    // safepoint/stop protocol — the index-vector quarantine's epoch argument
+    // does not cover free-running compiler/GC threads.
+    struct ConcurrentFindResult {
+        PropertyOffset offset;
+        unsigned attributes;
+        bool validated;
+    };
+    ConcurrentFindResult findConcurrently(const KeyType&) const;
 
     // SPEC-objectmodel §9.4 (frozen name): move every quarantined offset whose
     // stamp is < currentEpoch onto the Reusable list. Caller holds the table's
@@ -352,6 +391,15 @@ private:
     static uintptr_t allocateZeroedIndexVector(bool isCompact, unsigned indexSize);
     static void destroyIndexVector(uintptr_t indexVector);
 
+    // T3 (flag-on): 16-byte allocation header in front of every index vector
+    // carrying that allocation's indexSize — see allocateIndexVector.
+    static constexpr size_t concurrentIndexVectorHeaderSize = 16;
+    static unsigned indexSizeOfIndexVectorAllocation(uintptr_t indexVector);
+
+    // T3 (flag-on): deferred (epoch-quarantined) free of a replaced index
+    // vector; defined in PropertyTable.cpp next to quarantineDeletedOffset.
+    void quarantineIndexVector(uintptr_t indexVector);
+
     template<typename Func>
     static ALWAYS_INLINE auto withIndexVector(uintptr_t indexVector, Func&& function) -> decltype(auto)
     {
@@ -403,6 +451,47 @@ private:
         __atomic_store(&field, &value, __ATOMIC_RELAXED);
     }
 
+    // T3 (flag-on lock-free probe): copy an entry out of possibly-racing
+    // table memory with word-sized relaxed atomic loads (no 16-byte libatomic
+    // call, no torn-word UB). The copy may mix fields from different edits;
+    // the caller's seqlock validation discards such windows.
+    template<typename Entry>
+    static ALWAYS_INLINE Entry concurrentLoadEntry(const Entry* source)
+    {
+        static_assert(std::is_trivially_copyable_v<Entry>);
+        using Word = std::conditional_t<!(sizeof(Entry) % sizeof(uint64_t)), uint64_t, uint32_t>;
+        static_assert(!(sizeof(Entry) % sizeof(Word)));
+        Entry result;
+        auto* src = std::bit_cast<const Word*>(source);
+        auto* dst = std::bit_cast<Word*>(&result);
+        for (size_t i = 0; i < sizeof(Entry) / sizeof(Word); ++i)
+            __atomic_load(const_cast<Word*>(src + i), dst + i, __ATOMIC_RELAXED);
+        return result;
+    }
+
+    // T3: writer-side pair of concurrentLoadEntry — entry stores in the
+    // serialized mutators (insert/remove/reinsert/attribute edits) go through
+    // word-sized relaxed atomics so they pair with the lock-free probe's
+    // relaxed loads instead of racing them as plain stores (§3.25 pattern).
+    // Reached only under Options::useJSThreads(): every call site gates on
+    // the flag and keeps today's plain stores flag-off (I22) — the word loop
+    // is NOT guaranteed plain-assignment codegen (e.g. two 8-byte movs vs one
+    // 16-byte vector store for PropertyTableEntry).
+    template<typename Entry>
+    static ALWAYS_INLINE void concurrentStoreEntry(Entry* destination, const Entry& value)
+    {
+        static_assert(std::is_trivially_copyable_v<Entry>);
+        using Word = std::conditional_t<!(sizeof(Entry) % sizeof(uint64_t)), uint64_t, uint32_t>;
+        static_assert(!(sizeof(Entry) % sizeof(Word)));
+        auto* src = std::bit_cast<const Word*>(&value);
+        auto* dst = std::bit_cast<Word*>(destination);
+        for (size_t i = 0; i < sizeof(Entry) / sizeof(Word); ++i)
+            __atomic_store(dst + i, const_cast<Word*>(src + i), __ATOMIC_RELAXED);
+    }
+
+    template<typename Index, typename Entry>
+    static ConcurrentFindResult findConcurrentlyImpl(const Index* indexVector, const Entry* table, unsigned indexSize, const KeyType& key);
+
     ALWAYS_INLINE unsigned indexSize() const { return concurrentRelaxedLoad(m_indexSize); }
     ALWAYS_INLINE unsigned indexMask() const { return concurrentRelaxedLoad(m_indexMask); }
     ALWAYS_INLINE uintptr_t indexVector() const { return concurrentRelaxedLoad(m_indexVector); }
@@ -437,6 +526,17 @@ private:
     unsigned m_deletedOffsetCount { 0 };
     unsigned m_quarantinedDeletedOffsetCount { 0 };
     WTF::Atomic<uint64_t>* m_quarantineEpochSlot { nullptr }; // Cached owning-heap slot (stable address); set at first quarantine, read via relaxed load.
+
+    // T3 (flag-on only; null and never touched flag-off): replaced index
+    // vectors awaiting their epoch-crossed free (see rehash /
+    // quarantineIndexVector). Mutated only under the table's serialization;
+    // never read by lock-free probes. NOT copied by the cloning constructors
+    // (each clone allocates fresh vectors; copying would double-free).
+    struct QuarantinedIndexVector {
+        uintptr_t indexVector;
+        uint64_t epoch;
+    };
+    std::unique_ptr<Vector<QuarantinedIndexVector>> m_quarantinedIndexVectors;
 
     static constexpr unsigned MinimumTableSize = 16;
     static_assert(MinimumTableSize >= 16, "compact index is uint8_t and we should keep 16 byte aligned entries after this array");
@@ -488,6 +588,75 @@ inline PropertyTable::FindResult PropertyTable::find(const KeyType& key)
     });
 }
 
+// T3 (flag-on): the lock-free probe body. Mirrors findImpl, with the
+// defensive differences a torn snapshot demands:
+//   - all bounds (mask, entry capacity, deleted marker) derive from the
+//     probed allocation's OWN header indexSize, never from the racing
+//     member words — a stale (quarantined) vector is probed in bounds;
+//   - every load is a relaxed atomic (index slots and whole entries);
+//   - entry indices outside [1, capacity] (torn garbage) and probe chains
+//     longer than the table (a torn snapshot can lack both an empty slot
+//     and a match) bail with validated=false instead of looping/faulting;
+//   - the serialized-state ASSERTs of findImpl (deleted-offset list
+//     membership) are NOT evaluated here: they dereference vectors a locked
+//     writer may be reallocating, and the invariant is only meaningful for
+//     a non-torn snapshot — the locked walk still asserts it on every
+//     fallback. Hits/misses are returned tentatively; the caller's seqlock
+//     validation decides whether they are real.
+template<typename Index, typename Entry>
+PropertyTable::ConcurrentFindResult PropertyTable::findConcurrentlyImpl(const Index* indexVector, const Entry* table, unsigned indexSize, const KeyType& key)
+{
+    unsigned hash = IdentifierRepHash::hash(key);
+    unsigned indexMask = indexSize - 1;
+    unsigned entryCapacity = indexSize >> 1; // == tableCapacity() of this allocation.
+    unsigned deletedIndex = entryCapacity + 1; // == deletedEntryIndex() of this allocation.
+    unsigned probeCount = 0;
+    unsigned index = hash & indexMask;
+
+    while (true) {
+        unsigned entryIndex = concurrentRelaxedLoad(indexVector[index]);
+        if (entryIndex == EmptyEntryIndex)
+            return ConcurrentFindResult { invalidOffset, 0, true };
+        if (entryIndex != deletedIndex) {
+            if (entryIndex > entryCapacity) [[unlikely]]
+                return ConcurrentFindResult { invalidOffset, 0, false }; // Torn index slot.
+            Entry entry = concurrentLoadEntry(&table[entryIndex - 1]);
+            if (key == entry.key())
+                return ConcurrentFindResult { entry.offset(), entry.attributes(), true };
+        }
+        ++probeCount;
+        if (probeCount > indexMask) [[unlikely]]
+            return ConcurrentFindResult { invalidOffset, 0, false }; // Torn snapshot: no terminating slot.
+        index = (index + probeCount) & indexMask;
+    }
+}
+
+inline PropertyTable::ConcurrentFindResult PropertyTable::findConcurrently(const KeyType& key) const
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(key);
+    ASSERT(key->isAtom() || key->isSymbol());
+    ASSERT(key != PROPERTY_MAP_DELETED_ENTRY_KEY);
+
+    // Relaxed load of the vector word; the probes below are address-dependent
+    // on it, and the publication side orders header/zero-fill stores before
+    // the pointer store (allocateIndexVector's StoreStore fence). Any word a
+    // racing reader can observe points at a live or epoch-quarantined
+    // allocation, whose header is immutable.
+    uintptr_t vectorWord = this->indexVector();
+    uintptr_t data = vectorWord & indexVectorMask;
+    if (!data) [[unlikely]]
+        return ConcurrentFindResult { invalidOffset, 0, false };
+    unsigned indexSize = indexSizeOfIndexVectorAllocation(vectorWord);
+    ASSERT(indexSize && !(indexSize & (indexSize - 1)));
+    if (vectorWord & isCompactFlag) {
+        const uint8_t* vector = std::bit_cast<const uint8_t*>(data);
+        return findConcurrentlyImpl(vector, tableFromIndexVector(const_cast<uint8_t*>(vector), indexSize), indexSize, key);
+    }
+    const uint32_t* vector = std::bit_cast<const uint32_t*>(data);
+    return findConcurrentlyImpl(vector, tableFromIndexVector(const_cast<uint32_t*>(vector), indexSize), indexSize, key);
+}
+
 inline std::tuple<PropertyOffset, unsigned> PropertyTable::get(const KeyType& key)
 {
     ASSERT(key);
@@ -519,6 +688,8 @@ ALWAYS_INLINE std::tuple<PropertyOffset, unsigned, bool> PropertyTable::addAfter
     ++propertyTableStats->numAdds;
 #endif
 
+    beginConcurrentEdit(); // S6 L3/L4 + T3: odd stamp before the insert (and any rehash) mutates probe-visible memory.
+
     // Ref the key
     entry.key()->ref();
 
@@ -535,8 +706,20 @@ ALWAYS_INLINE std::tuple<PropertyOffset, unsigned, bool> PropertyTable::addAfter
     unsigned index = result.index;
     unsigned entryIndex = usedCount() + 1;
     withIndexVector([&](auto* vector) {
-        vector[index] = entryIndex;
-        tableFromIndexVector(vector)[entryIndex - 1] = entry;
+        auto* table = tableFromIndexVector(vector);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // T3 (§3.25): entry words first, then the index slot, both relaxed —
+            // pairs with findConcurrently's relaxed loads (plain stores would
+            // race them); the seqlock bracket around this edit provides the
+            // actual consistency, this just keeps both sides atomic per word.
+            using EntryType = std::decay_t<decltype(table[0])>;
+            concurrentStoreEntry(&table[entryIndex - 1], EntryType(entry));
+            concurrentRelaxedStore(vector[index], entryIndex);
+        } else {
+            // Flag-off: today's plain stores in today's order (I22).
+            vector[index] = entryIndex;
+            table[entryIndex - 1] = entry;
+        }
     });
 
     // TSAN family 25: in-place insert under the table's serialization vs
@@ -557,8 +740,20 @@ inline void PropertyTable::remove(VM& vm, KeyType key, unsigned entryIndex, unsi
     // Replace this one element with the deleted sentinel. Also clear out
     // the entry so we can iterate all the entries as needed.
     withIndexVector([&](auto* vector) {
-        vector[index] = deletedEntryIndex();
-        tableFromIndexVector(vector)[entryIndex - 1].setKey(PROPERTY_MAP_DELETED_ENTRY_KEY);
+        auto* table = tableFromIndexVector(vector);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // T3 (§3.25): relaxed atomic stores paired with findConcurrently's
+            // relaxed loads (see addAfterFind); we are the serialized writer, so
+            // the read-modify-write of the entry below is single-writer-safe.
+            concurrentRelaxedStore(vector[index], deletedEntryIndex());
+            auto entry = concurrentLoadEntry(&table[entryIndex - 1]);
+            entry.setKey(PROPERTY_MAP_DELETED_ENTRY_KEY);
+            concurrentStoreEntry(&table[entryIndex - 1], entry);
+        } else {
+            // Flag-off: today's plain stores (single-field key store, I22).
+            vector[index] = deletedEntryIndex();
+            table[entryIndex - 1].setKey(PROPERTY_MAP_DELETED_ENTRY_KEY);
+        }
     });
     key->deref();
 
@@ -576,6 +771,7 @@ inline std::tuple<PropertyOffset, unsigned> PropertyTable::take(VM& vm, const Ke
 {
     FindResult result = find(key);
     if (result.offset != invalidOffset) {
+        beginConcurrentEdit(); // S6 L3/L4 + T3: odd stamp before the removal (and any shrink rehash).
         remove(vm, key, result.entryIndex, result.index);
         bumpConcurrentEditCount(); // S6 L3/L4: in-place removal — bump AFTER the mutation (see protocol comment).
     }
@@ -589,7 +785,17 @@ inline PropertyOffset PropertyTable::updateAttributeIfExists(const KeyType& key,
         FindResult result = findImpl(vector, table, key);
         if (result.offset == invalidOffset)
             return invalidOffset;
-        table[result.entryIndex - 1].setAttributes(attributes);
+        beginConcurrentEdit(); // S6 L3/L4 + T3: odd stamp before the in-place attribute store.
+        if (Options::useJSThreads()) [[unlikely]] {
+            // T3 (§3.25): relaxed atomic entry store paired with
+            // findConcurrently's relaxed loads; single serialized writer.
+            auto entry = concurrentLoadEntry(&table[result.entryIndex - 1]);
+            entry.setAttributes(attributes);
+            concurrentStoreEntry(&table[result.entryIndex - 1], entry);
+        } else {
+            // Flag-off: today's plain single-field store (I22).
+            table[result.entryIndex - 1].setAttributes(attributes);
+        }
         bumpConcurrentEditCount(); // S6 L3/L4: in-place attribute edit — bump AFTER the mutation (see protocol comment).
         return result.offset;
     });
@@ -760,8 +966,18 @@ inline void PropertyTable::reinsert(Index* indexVector, Entry* table, const Valu
 
     ASSERT(!isCompact() || usedCount() < UINT8_MAX);
     unsigned entryIndex = usedCount() + 1;
-    indexVector[index] = entryIndex;
-    table[entryIndex - 1] = entry;
+    if (Options::useJSThreads()) [[unlikely]] {
+        // T3 (§3.25): relaxed atomic stores — reinsert runs during rehash of a
+        // published table, which lock-free probes (findConcurrently) may be
+        // reading; pairs their relaxed loads (see addAfterFind).
+        using EntryType = std::decay_t<decltype(table[0])>;
+        concurrentStoreEntry(&table[entryIndex - 1], EntryType(entry));
+        concurrentRelaxedStore(indexVector[index], entryIndex);
+    } else {
+        // Flag-off: today's plain stores in today's order (I22).
+        indexVector[index] = entryIndex;
+        table[entryIndex - 1] = entry;
+    }
 
     // Relaxed: reinsert runs during rehash of a published table (addAfterFind
     // slow path) while concurrent readers may load size() lock-free (§3.25).
@@ -806,7 +1022,17 @@ inline void PropertyTable::rehash(VM& vm, unsigned newCapacity, bool canStayComp
             }
         });
     });
-    destroyIndexVector(oldIndexVector);
+    // T3 (flag-on): a lock-free probe (findConcurrently) may still be walking
+    // the replaced vector — it loaded m_indexVector before the swap above and
+    // does not poll safepoints mid-probe. Quarantine the old allocation under
+    // the owning heap's butterfly-quarantine epoch (same I18/I34 argument as
+    // deleted-offset reuse: a crossed epoch proves every mutator passed a
+    // world-stopped window after the unpublish, so no probe can still hold
+    // the pointer) instead of freeing it. Flag-off: today's immediate free.
+    if (Options::useJSThreads()) [[unlikely]]
+        quarantineIndexVector(oldIndexVector);
+    else
+        destroyIndexVector(oldIndexVector);
 
     size_t newDataSize = dataSize(this->isCompact());
     if (oldDataSize < newDataSize)
@@ -848,16 +1074,48 @@ inline size_t PropertyTable::dataSize(bool isCompact)
 
 ALWAYS_INLINE uintptr_t PropertyTable::allocateIndexVector(bool isCompact, unsigned indexSize)
 {
+    // T3 (flag-on): prepend a 16-byte header carrying THIS allocation's
+    // indexSize. A lock-free probe (findConcurrently) sizes its index/entry
+    // reads from the allocation it actually indexes into — never from the
+    // racing m_indexSize/m_indexMask member words — so even a stale
+    // (quarantined) vector is probed strictly in bounds. The header is
+    // immutable after this store; the StoreStore fence orders it (and any
+    // zero-fill) before the caller's publication of the vector pointer.
+    // 16 bytes keeps the entry array's existing 16-byte alignment.
+    if (Options::useJSThreads()) [[unlikely]] {
+        uint8_t* base = std::bit_cast<uint8_t*>(PropertyTableMalloc::malloc(PropertyTable::dataSize(isCompact, indexSize) + concurrentIndexVectorHeaderSize));
+        *std::bit_cast<uint32_t*>(base) = indexSize;
+        WTF::storeStoreFence();
+        return std::bit_cast<uintptr_t>(base + concurrentIndexVectorHeaderSize) | (isCompact ? isCompactFlag : 0);
+    }
     return std::bit_cast<uintptr_t>(PropertyTableMalloc::malloc(PropertyTable::dataSize(isCompact, indexSize))) | (isCompact ? isCompactFlag : 0);
 }
 
 ALWAYS_INLINE uintptr_t PropertyTable::allocateZeroedIndexVector(bool isCompact, unsigned indexSize)
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        // See allocateIndexVector above for the header contract.
+        uint8_t* base = std::bit_cast<uint8_t*>(PropertyTableMalloc::zeroedMalloc(PropertyTable::dataSize(isCompact, indexSize) + concurrentIndexVectorHeaderSize));
+        *std::bit_cast<uint32_t*>(base) = indexSize;
+        WTF::storeStoreFence();
+        return std::bit_cast<uintptr_t>(base + concurrentIndexVectorHeaderSize) | (isCompact ? isCompactFlag : 0);
+    }
     return std::bit_cast<uintptr_t>(PropertyTableMalloc::zeroedMalloc(PropertyTable::dataSize(isCompact, indexSize))) | (isCompact ? isCompactFlag : 0);
+}
+
+ALWAYS_INLINE unsigned PropertyTable::indexSizeOfIndexVectorAllocation(uintptr_t indexVector)
+{
+    // T3 (flag-on only — flag-off allocations carry no header).
+    ASSERT(Options::useJSThreads());
+    return *std::bit_cast<const uint32_t*>((indexVector & indexVectorMask) - concurrentIndexVectorHeaderSize);
 }
 
 ALWAYS_INLINE void PropertyTable::destroyIndexVector(uintptr_t indexVector)
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        PropertyTableMalloc::free(std::bit_cast<uint8_t*>(indexVector & indexVectorMask) - concurrentIndexVectorHeaderSize);
+        return;
+    }
     PropertyTableMalloc::free(std::bit_cast<void*>(indexVector & indexVectorMask));
 }
 

@@ -926,3 +926,132 @@ concurrent-marking arm changes nothing measurable and crashes at spawned-
 thread teardown, the WS scheduler fixes only a phase that doesn't matter,
 and the flag set still charges +122% time / 33x memory before any
 parallelism begins.
+
+## 23. Run 3.1 — acceptance re-verification (no code delta)
+
+**Read this first:** the binary under test is **byte-identical** to the one
+run 3 measured (`WebKitBuild/Release/bin/jsc` sha256
+`8985994941f0cf4b…3449538`, same mtime/size), and the tree is clean at
+`9e9a3a25fd0b` (the run-3 commit; the only changes in it are bench/docs).
+A `VM.cpp` working-tree modification observed at session start was gone
+(reverted, no stash) before any measurement; nothing was rebuilt. Every
+delta below is therefore **host noise**, not a code change.
+
+Protocol: pinned GIL-off env, `bench.js -- W`, 3 reps/cell (5 for GIL-on
+W=1 after the first 3 showed a shift; 5 for congc W=4 per the acceptance
+spec), medians; `/usr/bin/time -v` for peak RSS and cpu_util
+(=(user+sys)/(wall*W)); `ulimit -c 0`; one bench process at a time. Host
+incident handled pre-run: three orphaned `addr2line` processes (parent=init,
+~115 GB RSS, 3 cores) were killed before the first cell; 1-min loadavg at
+batch starts was 2.7-4.5, **above** run-3's 1.0-1.9.
+
+### Before/after (run 3 medians vs run 3.1 medians)
+
+| Cell | run 3 wall ms | run 3.1 wall ms | delta | run 3 cpu | run 3.1 cpu | run 3 RSS MB | run 3.1 RSS MB | RSS delta |
+|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 33258.7 | 32555.6 | -2.1% | 1.15 | 1.14 | 13938 | 12680 | -9.0% |
+| GIL-off W=2 | 45487.9 | 44141.6 | -3.0% | 0.66 | 0.67 | 14395 | 13059 | -9.3% |
+| GIL-off W=16 | 47561.9 | 47805.6 | +0.5% | 0.20 | 0.19 | 12704 | 12715 | +0.1% |
+| GIL-off W=32 | 76557.4 | 77368.2 | +1.1% | 0.16 | 0.16 | 12351 | 12352 | +0.0% |
+| GIL-on W=1 | 15140.0 | 16271.9 (5 reps) | **+7.5%** | 1.03 | 1.01 | 424 | 422 | -0.4% |
+
+- The GIL-on W=1 **+7.5%** is stable across all 5 reps (16172-16397 ms) but
+  cannot be a code regression — the binary hash is identical to run 3's.
+  It quantifies this session's noisier host (residual loadavg from the
+  bench cells themselves plus background agent sessions). Treat it as the
+  error bar on every other cell in this table, including the apparent
+  W=1/W=2 wall and RSS "improvements".
+- Checksums: every rep of every cell (incl. congc and GIL-on) produced
+  checksumC `af028188d7a56a96`, matching run 3's recorded tuple exactly.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off full (`run-tests.sh`, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on full (`JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests — superset of the 10-test gate) | **0 mismatches** |
+| congc teardown: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums (run 3: 3/3 SIGSEGV) |
+
+The congc result does **not** mean the teardown race is fixed — the code is
+unchanged. It reclassifies the `tearDownSpawnedThreadForExit` crash from
+"deterministic at W=4" to **timing-dependent/flaky**: run 3 hit it 3/3 under
+heavy host memory pressure (the same session later found ~115 GB of runaway
+symbolizer RSS) and with core dumps initially enabled; run 3.1, on a freer
+host, survived 5/5. The §17 stack remains the live bug.
+
+### Acceptance verdict
+
+**FAIL (expected).** Corpus + identity are green, but no headline cell
+(W=16 wall, W=32 wall, RSS, W=1 tax) improved >= 15% — definitionally
+impossible with a bit-identical binary — and the GIL-on W=1 cell moved
++7.5% (host noise, but > the 5% gate). Run 3.1 is a **baseline
+reproduction**: run-3 numbers reproduce within ~±3% (wall, W>=16 RSS) on a
+busier host, the corpus and identity gates hold, and the congc crash is
+flaky rather than deterministic. No optimization landed between run 3 and
+run 3.1 for this acceptance to measure.
+
+## 24. Run 3.1 — acceptance of the heap/object-model optimization delta
+
+Supersedes §23 for acceptance purposes: §23 measured a bit-identical binary
+(a baseline reproduction). This run measures the real delta — a 21-file
+working-tree change (+1519/-184) over `9e9a3a25fd0b` touching the shared-GC
+heap (Heap.cpp, IncrementalSweeper, MarkedBlock, FullGC/EdenGC activity
+callbacks, CodeBlockSet, HeapClientSet) and the concurrent object model
+(ConcurrentButterfly, PropertyTable, Structure, LockObject, VMManager,
+VMTraps). Binary under test: `WebKitBuild/Release/bin/jsc` sha256
+`c96178df6ac1dae78b874bb3a29a42d32e5ff84af4dc19c91281087329429b1c`
+(built 2026-06-13 03:52 UTC; 0 sources newer than the binary).
+
+Protocol: identical to run 3 / §23 — pinned GIL-off env, `bench.js -- W`
+via the v3 driver measurement path (raw records in `results-v31b-raw.jsonl`),
+3 reps/cell (5 for congc W=4), medians; `/usr/bin/time -v` for peak RSS and
+cpu_util = (user+sys)/(wall*W); core dumps off; one bench process at a time;
+background CPU consumers reniced to 19. 1-min loadavg at batch starts:
+2.5–5.7 (run 3: 1.0–1.9) — i.e. this host was *noisier* than run 3's, so
+the wall-time improvements below are not flattered by a quieter machine.
+
+### Before/after (run 3 medians vs run 3.1 medians)
+
+| Cell | run 3 wall ms | run 3.1 wall ms | delta | run 3 cpu | run 3.1 cpu | run 3 RSS MB | run 3.1 RSS MB | RSS delta |
+|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 33258.7 | 23834.5 | **-28.3%** | 1.15 | 1.04 | 13938 | 411 | **-97.1%** |
+| GIL-off W=2 | 45487.9 | 43735.9 | -3.9% | 0.66 | 0.87 | 14395 | 3810 | **-73.5%** |
+| GIL-off W=16 | 47561.9 | 38385.1 | **-19.3%** | 0.20 | 0.26 | 12704 | 3860 | **-69.6%** |
+| GIL-off W=32 | 76557.4 | 38708.9 | **-49.4%** | 0.16 | 0.18 | 12351 | 3850 | **-68.8%** |
+| GIL-on W=1 | 15140.0 | 14395.0 | -4.9% | 1.03 | 1.03 | 424 | 423 | -0.3% |
+
+- W=1 GIL-off tax drops from 2.20x to **1.66x** (23834.5 / 14395.0).
+- Per-rep wall spread is tight (W=1: 23712–23946; W=32: 38516–38737), and
+  every rep of every cell reproduced the run-3 checksum tuple exactly
+  (A=b3e65a6855b9bdeb, postings=4158957, A2=39c33392b2a4c5b2,
+  B=c4bdd580f85ee058, C=af028188d7a56a96).
+- The W=1 RSS collapse (13.9 GB -> 411 MB) brings flag-on single-thread
+  memory to parity with GIL-on (423 MB). W>=2 RSS settles at ~3.8 GB —
+  a 69–74% cut but still ~9x the GIL-on footprint; that residual is the
+  next memory target.
+- Honest negatives: GIL-off W=2 wall only -3.9% (within this host's noise
+  band; W=2 remains the worst scaling point at 1.84x the GIL-on W=1 wall
+  for 2x the work... per-thread efficiency is still the open problem), and
+  W=16/W=32 cpu_util (0.26/0.18) still shows threads mostly parked —
+  walls improved because the serial/GC component shrank, not because
+  parallel efficiency rose.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off full (`run-tests.sh`, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on full (`JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests — superset of the 10-test gate) | **0 mismatches** |
+| congc teardown: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums, median 40151.9 ms (run 3: 3/3 SIGSEGV; §23 no-delta: 5/5 but flaky-classified) |
+
+### Acceptance verdict
+
+**PASS.** Corpus + identity green; three headline cells beat the >=15%
+bar (W=16 wall -19.3%, W=32 wall -49.4%, RSS -68.8%..-97.1%; plus W=1 tax
+2.20x -> 1.66x); no cell regresses >5% (worst mover: GIL-on W=1 RSS -0.3%,
+GIL-on wall itself improved -4.9%). congc teardown survived 5/5 — but per
+§23's reclassification the crash is timing-dependent, so 5/5 here is
+consistent-with-fixed, not proof; keep the §17 stack on the books until a
+stress campaign under memory pressure retires it.

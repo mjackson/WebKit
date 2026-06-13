@@ -253,13 +253,58 @@ void jsThreadsBumpStopGeneration();
 void jsThreadsNVSExitInstructionSync();
 
 static Lock s_jsThreadsJobSlotLock; // §A.3.3/HBT4 pending-job-slot mutex (§LK row 4b).
-// TRUE LEAF (U20; review round on the §LK lint): nothing — not even the
-// registry lock — is ever acquired while s_jsThreadsParkLock is held. Waiters
-// evaluate their predicates (registry walks, m_worldLock samples) BEFORE
-// taking it; the bounded 1ms waits absorb the resulting check-then-wait
-// lost-wakeup window (<= one timeout of added latency, never a hang).
-static Lock s_jsThreadsParkLock;
-static Condition s_jsThreadsParkCondition; // NVS tickets + the conductor's predicate wait.
+
+// Park-state stripes (T2 park-protocol rework). The old single
+// s_jsThreadsParkLock / s_jsThreadsParkCondition pair funneled every NVS
+// ticket, the conductor's predicate wait, AND every quiesce notification
+// through ONE Lock and ONE Condition — two ParkingLot queue addresses in one
+// hash bucket — and the 1ms-bounded waits re-acquired that one lock per
+// timeout per parked thread. Two structural changes:
+//
+//   - STRIPING: park state is sharded across jsThreadsParkStripeCount
+//     cache-line-separated { lock, condition, generation } stripes; each
+//     thread picks a stripe at first use (round-robin, stable thereafter),
+//     so waiter lock traffic and resume wakeup herds no longer funnel
+//     through one Lock / one ParkingLot bucket.
+//
+//   - LOST-WAKEUP-PROOF UNTIMED WAITS: each stripe carries a generation
+//     counter, bumped ONLY under that stripe's lock by
+//     jsThreadsNotifyMutatorQuiesced. A waiter (a) samples its stripe's
+//     generation, (b) evaluates its predicate OUTSIDE the stripe lock
+//     (leaf discipline below), (c) re-checks the generation under the lock
+//     and only then blocks untimed. A notification racing the predicate
+//     sample either changed the generation (the waiter re-evaluates instead
+//     of blocking), or — because the bump serializes on the stripe lock the
+//     waiter holds through Condition::wait()'s queue registration — its
+//     notifyAll is issued after the waiter is registered and cannot be
+//     lost. This retires the bounded-1ms-poll backstop for the mutator
+//     tickets. The ONE remaining timed wait is the conductor's §A.3.2
+//     predicate wait (see jsThreadsThreadGranularStopTheWorldAndRun): it
+//     genuinely needs a poll, both to run the V4 watchdog
+//     (watchdogAssertStopProgress) periodically and to observe heap-access
+//     releases on paths that do not notify (e.g. a mutator releasing
+//     access on a plain exit-to-native path).
+//
+// TRUE LEAF (U20, preserved): nothing — not even the registry lock — is
+// ever acquired while ANY stripe lock is held. Waiters evaluate their
+// predicates (registry walks, m_worldLock samples) BEFORE taking their
+// stripe lock; only the generation re-check and the block run under it.
+// Notifiers bump the generation under the stripe lock but issue the
+// notifyAll AFTER dropping it (no herd wakeup into a still-held lock).
+struct alignas(128) JSThreadsParkStripe {
+    Lock lock;
+    Condition condition;
+    std::atomic<uint64_t> generation { 0 }; // Bumped ONLY under `lock`; sampled lock-free by waiters (seq_cst).
+};
+static constexpr unsigned jsThreadsParkStripeCount = 32; // Power of two (index mask below).
+static JSThreadsParkStripe s_jsThreadsParkStripes[jsThreadsParkStripeCount];
+
+static JSThreadsParkStripe& jsThreadsCurrentThreadParkStripe()
+{
+    static std::atomic<unsigned> s_nextStripeIndex { 0 };
+    static thread_local unsigned stripeIndex = s_nextStripeIndex.fetch_add(1, std::memory_order_relaxed) & (jsThreadsParkStripeCount - 1);
+    return s_jsThreadsParkStripes[stripeIndex];
+}
 static std::atomic<VM*> s_jsThreadsStopWord { nullptr }; // SB1 stop word; seq_cst accessors below ONLY (U20).
 static std::atomic<WTF::Thread*> s_jsThreadsConductorThread { nullptr }; // §A.3.3 tenure (thread-keyed, not VM-keyed).
 static std::atomic<unsigned> s_jsThreadsWorldStoppedDepth { 0 }; // §J.8 witness: window open AND predicate satisfied.
@@ -312,8 +357,18 @@ bool jsThreadsCurrentThreadIsStopConductor()
 
 void jsThreadsNotifyMutatorQuiesced()
 {
-    Locker locker { s_jsThreadsParkLock };
-    s_jsThreadsParkCondition.notifyAll();
+    // Wake every stripe. The generation bump under each stripe's lock is the
+    // lost-wakeup fence (see the stripe banner); the notifyAll itself runs
+    // OUTSIDE the critical section so woken waiters never herd into a lock
+    // the notifier still holds, and a waiterless stripe's notifyAll costs
+    // one atomic load (Condition's hasWaiters fast path).
+    for (auto& stripe : s_jsThreadsParkStripes) {
+        {
+            Locker locker { stripe.lock };
+            stripe.generation.store(stripe.generation.load(std::memory_order_relaxed) + 1, std::memory_order_seq_cst);
+        }
+        stripe.condition.notifyAll();
+    }
 }
 
 // EXIT1.1/EXIT1.2: forEachEnteredThread — THE registry-walk helper; §A.3
@@ -417,16 +472,19 @@ void jsThreadsParkForStopWindow(VM& vm)
     // window's stop word gates.
     if (jsThreadsCurrentThreadIsStopConductor())
         return; // HBT3.2: a conductor never parks on its own window.
+    auto& stripe = jsThreadsCurrentThreadParkStripe();
     for (;;) {
+        // Generation-validated untimed wait (stripe banner): the resume path
+        // clears the word and THEN notifies (bump-under-lock), so a clear
+        // racing this sample either flips the predicate below or changes the
+        // generation observed under the stripe lock — never a lost wakeup.
+        uint64_t generation = stripe.generation.load(std::memory_order_seq_cst);
         if (jsThreadsStopWordLoad() != &vm)
             break;
-        Locker locker { s_jsThreadsParkLock };
-        if (jsThreadsStopWordLoad() != &vm)
-            break;
-        // Bounded wait: resume notifies this condition; the timeout is a
-        // belt-and-suspenders backstop against a lost wakeup, not a
-        // correctness mechanism (the predicate is re-polled seq_cst).
-        s_jsThreadsParkCondition.waitFor(s_jsThreadsParkLock, Seconds::fromMilliseconds(1));
+        Locker locker { stripe.lock };
+        if (stripe.generation.load(std::memory_order_seq_cst) != generation)
+            continue; // A notification raced the predicate sample; re-evaluate.
+        stripe.condition.wait(stripe.lock);
     }
     // R1.d/ISB1: leaving the NVS ticket executes an unconditional
     // context-sync and refreshes the per-thread stop-generation copy.
@@ -485,14 +543,23 @@ void jsThreadsParkForModeStop(VM& vm)
 {
     // §A.3.2b(i) NVS ticket for Mode-machine stops. Pre: the calling thread
     // holds NO heap access (the AHA gate reverted it). The predicate is
-    // evaluated OUTSIDE the park-lock hold (leaf discipline, see the lock's
-    // comment); resumeTheWorld notifies this condition, and the bounded wait
-    // backstops the check-then-wait window and the RunOne edges.
+    // evaluated OUTSIDE the stripe-lock hold (leaf discipline, see the
+    // stripe banner); the generation re-check under the lock replaces the
+    // old bounded-wait backstop. Every edge that can flip the gate false
+    // notifies: resumeTheWorld (trap-bit cancel + RunAll), the §A.3
+    // conductor's post-window clear/recheck/restore, notifyVMStop's
+    // Mode::RunOne transition and context-switch retarget, and the
+    // last-VM-destruction RunAll fix-up — all bump-then-notify, so the
+    // untimed wait cannot hang on a stale gate.
+    auto& stripe = jsThreadsCurrentThreadParkStripe();
     for (;;) {
+        uint64_t generation = stripe.generation.load(std::memory_order_seq_cst);
         if (!jsThreadsModeStopGatesCurrentThread(vm))
             break;
-        Locker locker { s_jsThreadsParkLock };
-        s_jsThreadsParkCondition.waitFor(s_jsThreadsParkLock, Seconds::fromMilliseconds(1));
+        Locker locker { stripe.lock };
+        if (stripe.generation.load(std::memory_order_seq_cst) != generation)
+            continue; // A notification raced the predicate sample; re-evaluate.
+        stripe.condition.wait(stripe.lock);
     }
     // R1.d/ISB1: same NVS-exit contract as the §A.3 ticket above.
     jsThreadsNVSExitInstructionSync();
@@ -640,15 +707,22 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
 
         // §A.3.2 predicate wait: per-sample EXIT1.2 registry walks; the
         // registry lock is dropped before every block/yield between samples,
-        // and the walk NEVER runs under s_jsThreadsParkLock (leaf discipline,
-        // see the lock's comment — the bounded wait absorbs the
-        // check-then-wait lost-wakeup window). requestStart was re-sampled
-        // after the GCL bracket (per-leg budget, see the arbitration block
-        // above): this predicate wait has its own fresh 30s window, with NO
-        // progress re-arm — a conductor whose predicate cannot converge
-        // (bucket-iii lock-holding fire, unpolled access-holding native
-        // wait) still fail-stops in <= 30s.
+        // and the walk NEVER runs under a park-stripe lock (leaf discipline,
+        // see the stripe banner). This is the protocol's ONE remaining timed
+        // wait, by design (stripe banner): the conductor must run the V4
+        // watchdog periodically, and a mutator can release heap access on a
+        // path that never notifies (plain exit-to-native) — both need the
+        // poll. Quiesce notifications still wake it precisely via the
+        // generation re-check, so the timeout is latency-bounding only, not
+        // the wakeup mechanism. requestStart was re-sampled after the GCL
+        // bracket (per-leg budget, see the arbitration block above): this
+        // predicate wait has its own fresh 30s window, with NO progress
+        // re-arm — a conductor whose predicate cannot converge (bucket-iii
+        // lock-holding fire, unpolled access-holding native wait) still
+        // fail-stops in <= 30s.
+        auto& conductorStripe = jsThreadsCurrentThreadParkStripe();
         for (;;) {
+            uint64_t generation = conductorStripe.generation.load(std::memory_order_seq_cst);
             if (allEnteredThreadsAreQuiescent(vm))
                 break;
             // §A.3.2 fan re-assertion (review round): under the §A.2.1 alias
@@ -663,8 +737,10 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
             vm.requestStop();
             WTF::storeLoadFence();
             JSThreadsSafepoint::watchdogAssertStopProgress(requestStart, &vm); // Pass the target VM so a timeout names the non-quiescent lite(s).
-            Locker parkLocker { s_jsThreadsParkLock };
-            s_jsThreadsParkCondition.waitFor(s_jsThreadsParkLock, Seconds::fromMilliseconds(1));
+            Locker parkLocker { conductorStripe.lock };
+            if (conductorStripe.generation.load(std::memory_order_seq_cst) != generation)
+                continue; // A quiesce notification raced the predicate sample; re-sample now.
+            conductorStripe.condition.waitFor(conductorStripe.lock, Seconds::fromMilliseconds(1));
         }
 
         // AB-21 fix (GIL-removal review round): re-acquire the conductor's
@@ -1003,9 +1079,10 @@ void VMManager::resumeTheWorld() WTF_REQUIRES_LOCK(m_worldLock)
     m_worldConditionVariable.notifyAll();
 
     // §A.3.2b(i) (review round): Mode-stop-gated acquirers park on the NVS
-    // ticket condition, not on m_worldConditionVariable — wake them on
-    // resume (their bounded wait is only a backstop). The park lock is a
-    // true leaf, so taking it under m_worldLock is ordered.
+    // ticket stripes, not on m_worldConditionVariable — wake them on resume
+    // (their wait is now UNTIMED; this notification is load-bearing, made
+    // lossless by the stripe generation protocol). The park stripes are true
+    // leaves, so taking them under m_worldLock is ordered.
     if (VM::isGILOffProcess()) [[unlikely]]
         jsThreadsNotifyMutatorQuiesced();
 }
@@ -1342,6 +1419,13 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
                 if (m_useRunOneMode) {
                     m_worldMode = Mode::RunOne;
                     RELEASE_ASSERT(m_targetVM);
+                    // §A.3.2b(i) RunOne edge: the transition un-gates the
+                    // target VM's threads (gate exemption (b)) — with the
+                    // ticket waits now untimed, this edge must notify (the
+                    // old 1ms backstop that absorbed it is retired). Park
+                    // stripes are true leaves; ordered under m_worldLock.
+                    if (VM::isGILOffProcess()) [[unlikely]]
+                        jsThreadsNotifyMutatorQuiesced();
                 } else if (m_worldMode != Mode::RunAll)
                     resumeTheWorld(); // Sets m_worldMode = Mode::RunAll.
                 break; // Exit this loop.
@@ -1402,6 +1486,11 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
             Locker lock { m_worldLock };
             m_targetVM = status.second;
             m_worldConditionVariable.notifyAll();
+            // §A.3.2b(i): retargeting flips the gate's RunOne target
+            // exemption for the new target VM's ticket-parked threads; their
+            // wait is untimed, so this edge must notify (stripe banner).
+            if (VM::isGILOffProcess()) [[unlikely]]
+                jsThreadsNotifyMutatorQuiesced();
         }
     }
 
@@ -1516,6 +1605,12 @@ void VMManager::handleVMDestructionWhileWorldStopped(VM& vm)
         // We're the last VM, and we're about to shutdown. So, there's nothing to
         // resume. Fix m_worldMode to reflect this.
         m_worldMode = Mode::RunAll;
+        // §A.3.2b(i): this RunAll fix-up un-gates any ticket-parked
+        // acquirer (the gate samples worldMode); their wait is untimed, so
+        // notify (stripe banner). Park stripes are true leaves; ordered
+        // under m_worldLock.
+        if (VM::isGILOffProcess()) [[unlikely]]
+            jsThreadsNotifyMutatorQuiesced();
         return;
     }
 
