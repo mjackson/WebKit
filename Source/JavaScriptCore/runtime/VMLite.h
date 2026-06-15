@@ -80,6 +80,41 @@ class Heap;
 // identical alias — a type-alias redeclaration naming the same type is legal.
 using ButterflyTID = uint16_t;
 
+class VMLite;
+
+// =============================================================================
+// g_jscCurrentVMLite — the SOLE per-thread "installed VMLite" word (L4 backing
+// store; M2-alloc-tax-residual (a) collapses the prior dual-store).
+//
+// DEFINED in runtime/VM.cpp (full rationale block there). This was originally
+// the JIT/LLInt-visible MIRROR of a file-static `t_currentVMLite` in
+// VMLite.cpp; alloctax2 attribution showed the out-of-line
+// VMLite::currentIfExists() (JS_EXPORT_PRIVATE, reading the file-static via a
+// general-dynamic TLS resolution) cost +0.913G cyc on the W=1 GIL-off pc-loop
+// alone — every VM::group3Primitives() / trapsForCurrentThread() call paid a
+// real call + __tls_get_addr. Promoting the mirror to the authoritative store
+// and reading it from an ALWAYS_INLINE header accessor lets the compiler emit
+// a single `movq %fs:@TPOFF` (Linux IE-TLS) at every call site, and removes
+// the dual-write in setCurrent.
+//
+// L4 (§6.3, frozen): "plain C++ thread_local, NOT pthread_getspecific; accessor
+// SIGNATURES frozen; backing store replaceable" — this IS the sanctioned
+// backing-store replacement; currentIfExists()/current()/setCurrent()
+// signatures are unchanged.
+//
+// COHERENCE: VMLite::setCurrent (VMLite.cpp) is still the SOLE writer. On
+// Darwin it additionally pthread_setspecific's the value into the
+// g_jscConfig.vmLiteTLSKey slot for generated code (Mach-O TLV has no constant
+// offset); on ELF the JIT bakes this symbol's TPOFF directly. extern "C"
+// linkage so the offlineasm/JIT emitter and this header agree on the unmangled
+// name regardless of the enclosing namespace.
+// =============================================================================
+#if OS(LINUX)
+extern "C" __attribute__((tls_model("initial-exec"))) thread_local VMLite* g_jscCurrentVMLite;
+#else
+extern "C" thread_local VMLite* g_jscCurrentVMLite;
+#endif
+
 // =============================================================================
 // VMLitePrimitives — frozen ABI artifact (SPEC-vmstate §6.3, Groups 1-3).
 //
@@ -368,11 +403,17 @@ public:
     static constexpr ptrdiff_t offsetOfScratchSegments() { return OBJECT_OFFSETOF(VMLite, scratchSegments); } // A16 emission (U-T4).
     static constexpr ptrdiff_t offsetOfThreadContext() { return OBJECT_OFFSETOF(VMLite, threadContext); } // §A.2.1 chained-offset emission (U-T3/U-T4).
 
-    // TLS accessors (L4): backed by `thread_local VMLite* t_currentVMLite` in
-    // VMLite.cpp (NOT pthread_getspecific). Signatures frozen; the
-    // implementation is replaceable in Phase B (pinned register/TLS base).
-    JS_EXPORT_PRIVATE static VMLite* currentIfExists();   // TLS read
-    JS_EXPORT_PRIVATE static VMLite& current();           // asserts non-null
+    // TLS accessors (L4): backed by g_jscCurrentVMLite (see banner above the
+    // class). Signatures frozen; the backing store is the L4-sanctioned
+    // replaceable part. M2-alloc-tax-residual (a): ALWAYS_INLINE so the
+    // ~7 VM.h hot selectors (group3Primitives / trapsForCurrentThread /
+    // exceptionScopeVerificationState / currentThreadEntryScope / …) compile
+    // to one IE-TLS load instead of an out-of-line call. Flag-off identity:
+    // every hot caller is behind gilOffWithProcessGate(), so flag-off code
+    // never reaches the read; the read itself is a plain TLS load with no
+    // option dependency.
+    ALWAYS_INLINE static VMLite* currentIfExists() { return g_jscCurrentVMLite; }
+    ALWAYS_INLINE static VMLite& current() { ASSERT(g_jscCurrentVMLite); return *g_jscCurrentVMLite; }
     // Installs `lite` (may be null = uninstall) and returns the previous
     // value. Debug (I18/I20): asserts lite->tid != notTTLTID and that the
     // lite is registered. After the TLS write it invokes the TID-tag hook

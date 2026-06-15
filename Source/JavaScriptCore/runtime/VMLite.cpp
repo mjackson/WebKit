@@ -62,50 +62,34 @@ void jsThreadsNoteCrossThreadEntry(VM&);
 void jsThreadsForgetCrossThreadEntry(VM&);
 
 // L4 (frozen, SPEC-vmstate §6.3): plain C++ thread_local, NOT
-// pthread_getspecific. The accessor signatures in VMLite.h are frozen; this
-// backing store is replaceable in Phase B (pinned register/TLS base).
-static thread_local VMLite* t_currentVMLite { nullptr };
-
-// ===========================================================================
-// UNGIL §A.1.1 (U-T4a): the JIT/LLInt-visible mirror of t_currentVMLite.
+// pthread_getspecific. The accessor signatures in VMLite.h are frozen; the
+// backing store — g_jscCurrentVMLite, declared in VMLite.h and DEFINED in
+// runtime/VM.cpp — is the L4-sanctioned replaceable part.
 //
-// DEFINED in runtime/VM.cpp (full rationale block there); the gilOff-mode
-// `loadVMLite` emitter (jit/AssemblyHelpers.cpp, U-T3) bakes its initial-exec
-// TPOFF into Baseline/DFG/FTL code, and the LLInt offlineasm macro (U-T3
-// OPEN obligation) will read the same symbol. This TU re-declares it with
-// the IDENTICAL language linkage + TLS model so the stores below resolve to
-// the same thread-invariant slot.
+// M2-alloc-tax-residual (a): the prior file-static `t_currentVMLite` here is
+// COLLAPSED onto g_jscCurrentVMLite (which had been its JIT-visible mirror).
+// VMLite::setCurrent below remains the SOLE writer; currentIfExists()/
+// current() are now ALWAYS_INLINE header reads of the same word, so C++ and
+// generated code observe the identical slot by construction (no mirror-
+// coherence contract to discharge for the ELF arm anymore).
 //
-// COHERENCE CONTRACT (VM.cpp:230-246, discharged HERE — the dedicated IU
-// obligation row VM.cpp demands, owner "the VMLite.cpp slice", is satisfied
-// by this hunk; record the row in INTEGRATE-ungil.md, which is outside this
-// task's writable set): VMLite::setCurrent — the SOLE writer of
-// t_currentVMLite — mirrors EVERY TLS write here (and, on Darwin,
-// pthread_setspecific's the same value into the g_jscConfig.vmLiteTLSKey
-// slot), immediately after the t_currentVMLite store and BEFORE the TID-tag
-// hook fires, INCLUDING null/uninstall writes (carrier teardown, thread
-// exit): an unmirrored clear would leave a reused thread's generated code
-// reading a stale/freed lite.
+// COHERENCE CONTRACT, Darwin arm (VM.cpp:230-246, IU obligation row, owner
+// "the VMLite.cpp slice", discharged HERE): on Darwin, setCurrent additionally
+// pthread_setspecific's the value into the g_jscConfig.vmLiteTLSKey slot
+// immediately after the g_jscCurrentVMLite store and BEFORE the TID-tag hook
+// fires, INCLUDING null/uninstall writes (carrier teardown, thread exit): an
+// unmirrored clear would leave a reused thread's generated code reading a
+// stale/freed lite.
 //
-// Flag-off / GIL-on identity: the mirror is a plain TLS store on a path
-// (lite install/uninstall) that flag-off code reaches only at JSLock
-// acquire/release; no generated code reads the symbol except gilOff-mode
-// compilations (§A.1.3 COMPILED-FOR-VM-mode rule), and no shipping
-// configuration constructs a gilOff VM until the activation tasks land.
-// ===========================================================================
-#if OS(LINUX)
-extern "C" __attribute__((tls_model("initial-exec"))) thread_local VMLite* g_jscCurrentVMLite;
-#else
-extern "C" thread_local VMLite* g_jscCurrentVMLite;
-#endif
+// Flag-off / GIL-on identity: the store is a plain TLS write on a path (lite
+// install/uninstall) that flag-off code reaches only at JSLock acquire/
+// release; no generated code reads the symbol except gilOff-mode compilations
+// (§A.1.3 COMPILED-FOR-VM-mode rule), and the C++ hot readers are all behind
+// gilOffWithProcessGate().
 
 static ALWAYS_INLINE void mirrorCurrentVMLiteForGeneratedCode(VMLite* lite)
 {
-    // ELF / generic arm: the thread_local mirror itself (generated code reads
-    // it via IE-TLS on Linux; inert elsewhere but kept coherent — it costs
-    // one TLS store and removes a per-OS divergence in the writer).
-    g_jscCurrentVMLite = lite;
-
+    UNUSED_PARAM(lite);
 #if OS(DARWIN)
     // Darwin arm (jit App. R5 mechanics): Mach-O TLV has no constant offset,
     // so generated code reads a pthread TSD slot instead; the key is created
@@ -146,7 +130,7 @@ VMLite::~VMLite()
     // I20: no thread's TLS may ever point at a destroyed VMLite. We can only
     // check this thread's slot here; the registration assert below covers the
     // rest (an installed lite is always registered — setCurrent asserts it).
-    ASSERT(t_currentVMLite != this);
+    ASSERT(g_jscCurrentVMLite != this);
 
     // UNGIL §K.1 ~VM/lite-teardown walk (U-T8b, K4 binding consequence 3):
     // EVERY lite teardown path — owner TLS destructor, EXIT1.9 walk-free,
@@ -193,7 +177,7 @@ VMLite::~VMLite()
         Locker locker { registry.lock };
         ASSERT(!registry.lites.contains(this));
     }
-    // Poison (I20 debug): a stale t_currentVMLite or VMLite* on another
+    // Poison (I20 debug): a stale g_jscCurrentVMLite or VMLite* on another
     // thread that dereferences this carrier after destruction trips on
     // obviously-bad values instead of reading freed-but-plausible state.
     vm = reinterpret_cast<VM*>(static_cast<uintptr_t>(0xbbadbeef));
@@ -202,16 +186,8 @@ VMLite::~VMLite()
 #endif
 }
 
-VMLite* VMLite::currentIfExists()
-{
-    return t_currentVMLite;
-}
-
-VMLite& VMLite::current()
-{
-    ASSERT(t_currentVMLite);
-    return *t_currentVMLite;
-}
+// VMLite::currentIfExists() / VMLite::current() are ALWAYS_INLINE in VMLite.h
+// (M2-alloc-tax-residual (a)); no out-of-line bodies.
 
 VMLite* VMLite::setCurrent(VMLite* lite)
 {
@@ -233,14 +209,15 @@ VMLite* VMLite::setCurrent(VMLite* lite)
 #endif
     }
 
-    VMLite* previous = t_currentVMLite;
-    t_currentVMLite = lite;
+    VMLite* previous = g_jscCurrentVMLite;
+    g_jscCurrentVMLite = lite;
 
-    // UNGIL §A.1.1 (U-T4a): mirror the write for generated code — after the
-    // t_currentVMLite store, before the TID-tag hook, including null
-    // (uninstall) writes. See the contract block above the mirror
-    // declaration; gilOff-mode Baseline/DFG emission (loadVMLite) is sound
-    // only because every writer path funnels through here.
+    // UNGIL §A.1.1 (U-T4a): publish the write for generated code — after the
+    // g_jscCurrentVMLite store (which IS the slot the ELF loadVMLite emitter
+    // reads), before the TID-tag hook, including null (uninstall) writes. The
+    // helper is now a no-op on ELF and the Darwin pthread-TSD mirror only;
+    // gilOff-mode Baseline/DFG emission (loadVMLite) is sound only because
+    // every writer path funnels through here.
     mirrorCurrentVMLiteForGeneratedCode(lite);
 
     // §6.7: invoke the TID-tag hook AFTER the TLS write, with the new tid (0

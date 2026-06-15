@@ -488,6 +488,24 @@ public:
             m_exclusiveHeld.store(true, std::memory_order_relaxed);
         }
 
+        // M2-alloc-tax-residual (c): non-blocking exclusive acquire. Fails if
+        // ANY stripe is held, exclusive is held, OR an exclusive waiter is
+        // queued (so a try never starves a draining lock()). Used only by the
+        // shared-server steal-before-fresh leg in LocalAllocator::
+        // allocateSlowCase: at W=1 the sole mutator just dropped its own
+        // stripe → succeeds; at high W a sibling refill is almost always in a
+        // stripe → fails fast (one m_stateLock hop) and the caller goes
+        // straight to its re-striped fresh-mint. Never called flag-off /
+        // !isSharedServer().
+        bool tryLock() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+        {
+            Locker locker { m_stateLock };
+            if (m_stripeDepth.load(std::memory_order_relaxed) || m_exclusiveHeld.load(std::memory_order_relaxed) || m_exclusiveWaiting)
+                return false;
+            m_exclusiveHeld.store(true, std::memory_order_relaxed);
+            return true;
+        }
+
         void unlock() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         {
             Locker locker { m_stateLock };
@@ -2244,7 +2262,7 @@ public:
     //
     // B1-alloc-client-tls-fastpath: ALWAYS_INLINE over a plain C++
     // `thread_local Heap*` (storage defined in GCThreadLocalCache.cpp; same
-    // model as t_currentVMLite, VMLite.cpp:67) — every allocateCell under
+    // model as g_jscCurrentVMLite, runtime/VMLite.h) — every allocateCell under
     // (useSharedGCHeap && gilOff) routes through
     // allocationClientForCurrentThread -> this accessor, and the prior
     // out-of-line LazyNeverDestroyed<ThreadSpecific> resolver paid
@@ -2279,7 +2297,25 @@ private:
     // thread_local (constant zero-init, no guard), defined in
     // GCThreadLocalCache.cpp. JS_EXPORT_PRIVATE so the inlined reader links
     // from every TU including out-of-tree consumers of the header.
+    //
+    // M2-alloc-tax-residual (a): on ELF, default-visibility thread_local
+    // forces general-dynamic TLS (interposable → __tls_get_addr), which the
+    // optimizer treats as a non-inlinable call — phaseAreg nm showed v35
+    // emitting allocationClientForCurrentThread<VM> out-of-line at 0xf79a0
+    // despite ALWAYS_INLINE (v34 inlined it; +1.067G cyc on the W=1 GIL-off
+    // pc-loop). Pinning initial-exec restores the single `movq %fs:@TPOFF`
+    // load and lets the template re-inline into CompleteSubspaceInlines.h.
+    // The export is KEPT (out-of-tree TUs that inline CompleteSubspace::
+    // allocate still link); IE-TLS is sound because libJavaScriptCore is
+    // never dlopen()'d in any supported configuration (the same precondition
+    // g_jscCurrentVMLite already relies on, runtime/VM.cpp:217). The
+    // attribute on this declaration carries to the definition (same entity;
+    // GCThreadLocalCache.cpp includes this header).
+#if OS(LINUX)
+    JS_EXPORT_PRIVATE __attribute__((tls_model("initial-exec"))) static thread_local Heap* s_currentThreadClient;
+#else
     JS_EXPORT_PRIVATE static thread_local Heap* s_currentThreadClient;
+#endif
     static void setCurrentThreadClient(Heap*); // §10A.1; defined in GCThreadLocalCache.cpp.
 
     // I4(b) enforcement (§10.6/I12, T6): every thread that acquires heap

@@ -720,6 +720,32 @@ public:
         return const_cast<VM*>(this)->group3Primitives();
     }
 
+    // M2-alloc-tax-residual (b): pre-resolved overload. After (a) made
+    // currentIfExists() a single IE-TLS load, the remaining per-C++-call
+    // overhead in the operation*HeapBigInt prologues (alloctax2 #2: +1.97G
+    // self-cyc across Xor/Mul/Add) is the 2-3 INDEPENDENT group3Primitives()
+    // resolutions (JITOperationPrologueCallFrameTracer + DECLARE_THROW_SCOPE
+    // + OPERATION_RETURN), each of which is gilOffProcess byte + m_gilOff +
+    // TLS load + (lite, lite->vm) compares. Hot operation bodies WILL cache
+    // `VMLitePrimitives& p = vm.group3Primitives()` once and pass it to the
+    // overloaded tracer/scope forms (FrameTracers.h) — OPEN: zero callers in
+    // this slice; the jit/JITOperations.cpp + dfg/DFGOperations.cpp wiring is
+    // a separate owned-file slice and alloctax2 #2 is NOT closed until that
+    // lands ((a) alone recovers the bulk). Flag-off this aliases
+    // mainVMLitePrimitives() (gilOffProcess==0), so an operation body that
+    // unconditionally caches+passes is byte-identical on the flag-off path:
+    // the no-arg forms it replaces would have resolved the same block.
+    //
+    // ASSERT keeps the §F.5 storage-identity invariant the existing tracers
+    // RELEASE_ASSERT in their dtors: a caller-supplied primitives reference
+    // MUST be the storage group3Primitives() would have resolved on this
+    // thread for this VM (catches a stale cache across a foreign-lite window).
+    ALWAYS_INLINE VMLitePrimitives& group3Primitives(VMLitePrimitives& preResolved)
+    {
+        ASSERT(&preResolved == &group3Primitives());
+        return preResolved;
+    }
+
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
     // UNGIL obligation 10 (INTEGRATE-ungil.md; the C++ sibling of the
     // LLInt/JIT group-3 exception split): mode-split selector for the
@@ -1973,7 +1999,7 @@ private:
     // (no current lite, or lite->vm != this) that the thread is the
     // carrier or holds m_lock — otherwise a future non-mutator scope user
     // silently reopens the shared-word race; and note that a scope whose
-    // lifetime straddles a t_currentVMLite install/uninstall resolves
+    // lifetime straddles a g_jscCurrentVMLite install/uninstall resolves
     // DIFFERENT storage in ctor vs dtor (linked-list write-back is not
     // idempotent, unlike the group3Primitives precedent) — keep scopes
     // strictly inside a stable (thread, lite) window.

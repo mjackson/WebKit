@@ -1734,3 +1734,107 @@ loss). **Campaign-5 named target:** the residual 1.43× GIL-off/GIL-on
 pc-ratio (still ~1530 ms at W=1) plus the 1.39× pc sibling-interference
 — closing both takes W=16 pc1+2 to ~3540 ms → wall ~10960 ms ≈ 2.04×,
 clearing the bar.
+
+## §31 Run 3.6: campaign-5/M1 BigInt fast-path + alloc/IC delta — Java bar still missed; speedup-vs-self ratio drops
+
+Measures a 12-file working-tree delta (+749/−102) over `7b7f0f9cf2c8`:
+`JSBigInt.{h,cpp}` (M1, +255), `LocalAllocator.cpp`, `Heap.{h,cpp}`,
+`VMLite.{h,cpp}`, `VM.h`, `FrameTracers.h`, `DFGOperations.cpp`,
+`Repatch.cpp`, `PropertyInlineCache.h`. Release `jsc-v36` sha256
+`712282dd…`; Debug sha256 `c5bcc85a…`. Baseline `d8ed7b6f5254` reused
+bit-identically (`jsc-v33-baseline`, sha256 `2a85f8e5…` — identical to
+§25/§27/§28/§30). Driver `v36_ab.sh`, raw `results-v36ab-raw.jsonl`.
+
+**Host-drift control.** Loadavg 2.1–16.3 across 81 reps (no foreign
+build active during the timing batches; 64-core host). Same-host base
+column (back-to-back A/B per cell, W=32 + GIL-on interleaved) controls
+for it; absolute walls carry ±~2% host noise.
+
+### Before/after (run 3.5 §30 medians vs run 3.6 medians; same-host A/B vs `d8ed7b6f5254` in parentheses)
+
+| Cell | §30 wall ms | 3.6 wall ms | vs §30 | vs same-host base | speedup-vs-self | Java bar | §30 cpu | 3.6 cpu | §30 RSS MB | 3.6 RSS MB |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 22333.2 | **20730.2** | −7.2% | **−17.5%** (base 25129) | 1.00x | — | 1.05 | 1.05 | 423 | 422 |
+| GIL-off W=2 | 22630.1 | **21474.9** | −5.1% | **−26.2%** (base 29090) | 0.965x | — | 1.01 | 0.99 | 1315 | 1594 |
+| GIL-off W=4 | 17728.0 | **16412.9** | −7.4% | **−31.0%** (base 23772) | 1.263x | — | 0.80 | 0.82 | 1254 | 1299 |
+| GIL-off W=8 | 15348.6 | **15002.3** | −2.3% | **−30.5%** (base 21580) | **1.382x** | 1.99x | 0.63 | 0.65 | 1302 | 1305 |
+| GIL-off W=16 | 14478.1 | **13928.9** | −3.8% | **−33.0%** (base 20790) | **1.488x** | 1.99x | 0.51 | 0.40 | 1333 | 1323 |
+| GIL-off W=32 | 15358.2 | **14624.5** | −4.8% | **−31.3%** (base 21294) | **1.417x** | 1.75x | 0.37 | 0.38 | 1368 | 1335 |
+| GIL-on W=1 | 16087.2 | **13714.1** | **−14.7%** | **−14.1%** (base 15968) | — | — | 1.03 | 1.03 | 421 | 419 |
+
+- All 81/81 ladder+gilon+congc+stab32 reps rc=0; every checksum tuple
+  matches the reference
+  (`b3e65a6855b9bdeb|4158957|39c33392b2a4c5b2|c4bdd580f85ee058|af028188d7a56a96`).
+- **Speedup-vs-self vs Java curve** (vs v36's own W=1 20730.2 ms): W=8
+  1.382x **< 1.99x** (need ≤10417 ms, gap −4585); W=16 1.488x
+  **< 1.99x** (need ≤10417, gap −3512); W=32 1.417x **< 1.75x** (need
+  ≤11846, gap −2779). **All three Java bars MISSED**, and the ratios
+  *dropped* vs §30 (1.455→1.382, 1.543→1.488, 1.454→1.417): M1 cuts the
+  serial pc1+2 floor more at W=1 than at W≥8, so Amdahl moves the wrong
+  way again.
+- **Per-section delta** (medians, v36 vs §30 v35): pc1+2
+  −829/−353/−919/−159/−401/−969 ms at W=1..32 (M1 target moved); phaseA
+  −654/−790/−265/**+156**/−328/**+9** ms; phaseB −129/−116/−32/**+38**/
+  **+46**/**+271** ms. **§30-attribution update:** v36 W=16 pc1+2 =
+  6658 ms = **48% of 13929** (was 49% of 14478); GIL-off/GIL-on W=1
+  pc1+2 ratio **1.433x → 1.574x** (4244/2696) — *worsened*: M1 helps
+  the GIL-on path (−23.8% pc1+2) more than the GIL-off path (−16.3%);
+  W=16/W=1 sibling-interference on pc1+2 **1.391x → 1.569x** —
+  *worsened* (M1 helps W=1 more than W=16). Parallelizable-section
+  speedup (W=16 wall − pc1+2 vs W=1 wall − pc1+2) **2.33× → 2.27×**.
+- **M1 flag-off / GIL-on win:** the BigInt fast-path is not
+  threads-gated, so single-thread benefits regardless. GIL-on W=1
+  same-host A/B: **−14.1%** (15968→13714 ms, 5-rep interleaved, all 5
+  v36 reps faster than all 5 base reps). This is a clean ~2.25 s
+  single-thread win independent of GIL state; GIL-on pc1+2 dropped
+  3540→2696 ms (−23.8%).
+- **Honest negatives:** **(a)** speedup-vs-self *regressed* at all
+  three Java-bar W (1.455/1.543/1.454 → 1.382/1.488/1.417) — every
+  absolute wall is faster but the W=1 denominator dropped 7.2% while
+  W=8 dropped only 2.3%. **(b)** GIL-off/GIL-on pc-ratio worsened
+  1.43×→1.57× and pc-sibling-interference worsened 1.39×→1.57× — M1's
+  BigInt fast-path is most effective exactly where it least helps the
+  ratio gate (W=1, GIL-on); the §30 named target (closing the
+  sharedGCHeap pc-ratio + sibling-interference) is *not* what M1 does.
+  **(c)** phaseB regresses +38/+46/+271 ms at W∈{8,16,32}; phaseA +156
+  at W=8. **(d)** W=2 RSS +21% (1315→1594 MB). **(e)** stab32 still
+  bimodal: 5/30 reps land in a slow mode (phaseA ~12.5 s, sys ~48 s vs
+  ~11 s; min 14385 / max 23067, 60% spread); not arm-correlated, same
+  signature as §30(d). **(f)** Loadavg drifted 4.3→16.3 during stab32
+  (own-load echo on a quiet host); same-host base column controls.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| **W=32 stability 30 reps (P0)** | **30/30 exit 0, 0 SIGSEGV**, 1 unique cs tuple (median 15123.9 ms; 5/30 bimodal-slow, loadavg 4.3→16.3) |
+| Corpus GIL-off full (`run-tests.sh`, pinned env, Debug `c5bcc85a…`) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on full (`JSC_useJSThreads=1`, Debug) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release v36) | **0 mismatches** |
+| congc: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums, median 16540.2 ms (§30: 18158.6, −8.9%) |
+| GIL-on W=1 5-rep interleaved A/B vs `d8ed7b6f5254` | **−14.1%** (M1 win; ≤2% gate PASS) |
+| **BigInt-stress flag-off** (all 258 `*bigint*`+`big-int-*` JSTests/stress, Release v36) | **254 pass / 0 fail / 4 skip** |
+| **BigInt-stress GIL-off** (same 258, pinned env, Release v36) | **253 pass / 1 fail / 4 skip**; the 1 fail `big-int-function-apply.js` rc=3 is **pre-existing on jsc-v33-baseline + jsc-v35** (verified per-bin), not M1-related — **no v36 regression** |
+| No same-host wall cell regressing >5% vs §30 | **PASS** (every cell −2.3% to −14.7%) |
+| Speedup-vs-self beats Java at W=8/16/32 | **FAIL** (1.382/1.488/1.417 vs 1.99/1.99/1.75) |
+
+### Acceptance verdict
+
+**All correctness gates GREEN; Java bar MISSED (ratios regressed).**
+Corpus + identity + BigInt-stress green; W=32 0/30 crash; GIL-on
+same-host −14.1% (M1 single-thread win); congc −8.9%; no wall
+regression anywhere; W∈{1..32} −2.3% to −7.4% vs §30 v35 (−17.5% to
+−33.0% same-host vs `d8ed7b6f5254`). But M1 is the wrong lever for the
+ratio gate: it shrinks the serial BigInt floor uniformly-to-better at
+W=1/GIL-on than at W≥8/GIL-off, so speedup-vs-self moved 1.543→1.488 at
+W=16 and the GIL-off/on pc-ratio moved 1.43→1.57 — both *further from*
+the bar despite every absolute being faster. The campaign-5/M1 delta
+can land (pure wins on every wall cell + a 14% GIL-on single-thread
+win; no correctness regression; phaseB +1–14% at W≥8 is the only
+sub-component loss). **Campaign-6 named target unchanged from §30:**
+the 1.57× GIL-off/GIL-on pc-ratio (now ~1548 ms at W=1) plus the 1.57×
+pc sibling-interference — both *worsened* by M1 in relative terms. M1
+does not address either; the next delta must target the GIL-off
+allocation/heap path in the pc loop specifically (per-lite BigInt
+nursery / scratch reuse under `sharedGCHeap`), not the BigInt
+arithmetic itself.

@@ -3518,7 +3518,51 @@ void Heap::updateAllocationLimits()
             if (numClients >= 2) {
                 size_t committed = m_objectSpace.capacity();
                 size_t capacityOverhead = committed > currentHeapSize ? committed - currentHeapSize : 0;
-                perTLCFragmentationBytes = capacityOverhead - capacityOverhead / numClients;
+                // M3-phaseA-gc-overtrigger (SCALEBENCH §30): the (N-1)/N
+                // formula above was derived for the SERIAL section's shape
+                // — ONE active mutator, W-1 siblings parked at join() with
+                // their TLCs holding stale slack — but it fired identically
+                // during phaseA when ALL W clients are actively allocating
+                // and every TLC's slack is WORKING headroom, not parked
+                // fragmentation. Subtracting it there collapsed
+                // headroomBase toward minHeapSize and ~4x'd the
+                // FullCollection count (W=16: 12 -> 52 fulls; marking
+                // self-time 2.62% -> 9.10%, +6.48pp; phaseA +329-454ms).
+                // Scale the rebase by the PARKED fraction instead: count
+                // clients whose pre-stop state was access-HELD — the
+                // conductor (it triggered this GC from an allocation slow
+                // path; m_sharedGCConductorClient is set for the whole
+                // conducted tenure, line ~6364) plus every client that
+                // released access via the §10A trap-park hook
+                // (gcWillParkInStopTheWorld -> m_releasedByGCPark = true,
+                // still set throughout the stop window; cleared on resume).
+                // A SINFAC-path releaser is NOT counted — that UNDERcounts
+                // numActive, so numParked and the rebase can only be too
+                // LARGE: more GCs, never fewer (the same conservative
+                // direction as the clamp below; correctness > speed).
+                // numParked is further capped at numClients-1 so the rebase
+                // can never exceed the original B2(a) (N-1)/N value — the
+                // CIND assert / m_maxEdenSize subtraction / monotone-visited
+                // proof in the comment block above stays sound by the
+                // SAME headroomBase/clamp argument.
+                //   phaseA (all W active): numParked ~ 0 -> rebase ~ 0
+                //     -> headroomBase unchanged -> v34 GC schedule.
+                //   serial pc1+2 (1 active): numParked = W-1
+                //     -> identical to the original B2(a) intent.
+                // Flag-off / W=1 GIL-off: the numClients<2 short-circuit
+                // above is unchanged -> perTLCFragmentationBytes == 0
+                // -> byte-identical (the forEach is never reached;
+                // isSharedServer() gates the whole block anyway).
+                unsigned numActive = 0;
+                clientSet().forEach([&](GCClient::Heap& client) {
+                    if (&client == m_sharedGCConductorClient || client.m_releasedByGCPark)
+                        ++numActive;
+                });
+                if (!numActive)
+                    numActive = 1; // The conductor was active by construction; defensive (sync-request paths).
+                unsigned numParked = numClients > numActive ? numClients - numActive : 0;
+                numParked = std::min(numParked, numClients - 1); // Never exceed the original (N-1)/N rebase.
+                perTLCFragmentationBytes = capacityOverhead / numClients * numParked;
             }
         }
         size_t sharedRebaseBytes = std::min(windowRetainedBytes + perTLCFragmentationBytes, currentHeapSize);

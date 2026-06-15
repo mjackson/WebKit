@@ -733,7 +733,21 @@ static InlineCacheAction tryCacheGetBy(JSGlobalObject* globalObject, CodeBlock* 
                 if (!slotBaseObject)
                     return RetryCacheLater;
                 Structure* validationStructure = slot.slotBase() == baseValue ? structure : slotBaseObject->structure();
-                if (validationStructure->isDictionary())
+                // T4-ic-never-settles-giloff (alloctax2 #4, restore caching):
+                // previously refused ALL dictionaries here, which under GIL-off
+                // (where O2/GT11 forbids flattening from IC paths) made
+                // global-object / cacheable-dictionary self loads return
+                // RetryCacheLater forever — the Optimize operation never
+                // settles and every execution pays the full tryCache walk.
+                // CACHEABLE dictionaries are safe to revalidate and key on:
+                // getConcurrently() is the structure-lock walk, the
+                // uid->offset binding for an existing slot is stable (adds
+                // append, replace keeps the offset, delete transitions to an
+                // UNCACHEABLE dictionary i.e. a different StructureID so the
+                // IC guard fails), and startWatchingPropertyForReplacements
+                // covers in-place value churn. Only UNCACHEABLE dictionaries
+                // mutate their table in a way the IC guard cannot observe.
+                if (validationStructure->isUncacheableDictionary())
                     return RetryCacheLater;
                 unsigned attributes;
                 PropertyOffset tableOffset = validationStructure->getConcurrently(propertyName.uid(), attributes);
@@ -974,6 +988,29 @@ void repatchGetBy(JSGlobalObject* globalObject, CodeBlock* codeBlock, JSValue ba
         repatchSlowPathCallLocking(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
         break;
     case RetryCacheLater:
+        // T4-ic-never-settles-giloff (alloctax2 #4, escalation): GIL-off, the
+        // O2/GT11 "never flatten from an IC path" rule plus the OM-1
+        // uncacheable-dictionary refusal above make several RetryCacheLater
+        // returns permanent — the condition never clears, so this site stays
+        // wired to operationGetBy*Optimize forever and every call pays
+        // considerRepatchingCacheImpl + tryCacheGetBy for nothing (the +1.43G
+        // / 15.5% residual on the pc-loop bench). Count consecutive retries
+        // that left the IC still at Unset; once a small threshold is crossed,
+        // repatch to the GaveUp operation — the same cheap settled state
+        // GIL-on reaches after a single flatten. gilOff-gated so flag-off
+        // codegen and IC behavior are byte-identical (the counter is never
+        // touched and shouldGiveUpPermanently() is never consulted flag-off).
+        if (globalObject->vm().gilOff()) [[unlikely]] {
+            propertyCache.noteRetryWithoutProgress();
+            if (propertyCache.shouldGiveUpPermanently()) {
+                ConcurrentJSLocker locker(codeBlock->m_lock);
+                // Re-check under the lock (m_cacheType is lock-guarded): never
+                // demote an IC that has since installed a case.
+                if (propertyCache.cacheType() == CacheType::Unset)
+                    repatchSlowPathCall(codeBlock, propertyCache, appropriateGetByGaveUpFunction(kind));
+            }
+        }
+        break;
     case AttemptToCache:
         break;
     }

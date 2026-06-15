@@ -347,6 +347,35 @@ public:
         return considerRepatchingCacheImpl(vm, nullptr, nullptr, CacheableIdentifier());
     }
 
+    // T4-ic-never-settles-giloff (alloctax2 #4): GIL-off, several tryCache*
+    // guards return RetryCacheLater on a condition that NEVER clears (we refuse
+    // to flatten dictionaries from IC paths under O2/GT11), so the slow-path
+    // call target stays at the Optimize operation forever and every execution
+    // walks considerRepatchingCacheImpl + tryCache* for nothing. The repatch*
+    // tail bumps this counter on each RetryCacheLater that left the IC still at
+    // CacheType::Unset; once it crosses a small threshold the caller repatches
+    // straight to the GaveUp operation (settled, cheap — same end state GIL-on
+    // reaches after one flatten). Relaxed-atomic, lost updates tolerated, same
+    // TSAN discipline as the cool-down bytes. Flag-off this is dead code (the
+    // repatch* tail only consults it under vm.gilOff()).
+    ALWAYS_INLINE void noteRetryWithoutProgress()
+    {
+        uint8_t v = retryWithoutProgressCount.loadRelaxed();
+        WTF::incrementWithSaturation(v);
+        retryWithoutProgressCount.storeRelaxed(v);
+    }
+
+    ALWAYS_INLINE bool shouldGiveUpPermanently() const
+    {
+        // Counter-only predicate (relaxed read, lock-free). The caller
+        // re-checks cacheType()==Unset UNDER codeBlock->m_lock before actually
+        // repatching to GaveUp, so an IC that managed at least one inline/stub
+        // case is never demoted; m_cacheType stays a lock-guarded field per
+        // the existing TSAN discipline.
+        unsigned threshold = static_cast<unsigned>(Options::repatchCountForCoolDown()) * 2;
+        return retryWithoutProgressCount.loadRelaxed() > threshold;
+    }
+
     Structure* inlineAccessBaseStructure() const
     {
         return m_inlineAccessBaseStructureID.get();
@@ -690,6 +719,13 @@ public:
     ICRacyCell<uint8_t> repatchCount { 0 };
     ICRacyCell<uint8_t> numberOfCoolDowns { 0 };
     ICRacyCell<uint8_t> bufferingCountdown;
+    // T4-ic-never-settles-giloff: saturating count of RetryCacheLater results
+    // that left this IC still at CacheType::Unset. Consulted only under
+    // vm.gilOff() by the repatch* tails to escalate to the GaveUp slow path
+    // when a GIL-off-only guard will never clear. Same advisory relaxed-atomic
+    // discipline as the four cool-down bytes above; placed after them so
+    // offsetOfCountdown() is unchanged. Zero-initialized → flag-off identical.
+    ICRacyCell<uint8_t> retryWithoutProgressCount { 0 };
 private:
     Lock m_bufferedStructuresLock;
 public:

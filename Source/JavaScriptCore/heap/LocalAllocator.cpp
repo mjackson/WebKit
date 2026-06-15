@@ -254,45 +254,106 @@ void* LocalAllocator::allocateSlowCase(JSC::Heap& heap, size_t cellSize, GCDefer
     // tryAllocateIn:358 / steal:304), and the locker below is a no-op — the
     // legacy code path is byte-for-byte unchanged.
     if (heap.isSharedServer()) [[unlikely]] {
-        MutatorSlowPathLocker stripeLocker(heap, *m_directory);
-
-        if (void* result = tryAllocateFromOwnDirectory(cellSize))
-            return result;
-
         Subspace* subspace = m_directory->m_subspace;
-        if (subspace->isIsoSubspace()) {
-            if (void* result = static_cast<IsoSubspace*>(subspace)->tryAllocateLowerTierPrecise(cellSize))
+
+        // ---- Stripe scope #1: own-directory reuse (cheap, parallel). ----
+        {
+            MutatorSlowPathLocker stripeLocker(heap, *m_directory);
+
+            if (void* result = tryAllocateFromOwnDirectory(cellSize))
                 return result;
+
+            if (subspace->isIsoSubspace()) {
+                if (void* result = static_cast<IsoSubspace*>(subspace)->tryAllocateLowerTierPrecise(cellSize))
+                    return result;
+            }
+
+            ASSERT(!subspace->isPreciseOnly());
+            ASSERT_WITH_MESSAGE(cellSize == m_directory->cellSize(), "non-preciseOnly allocations should match allocator's the size class");
+            // B2-serial-eden-block-churn (b): bias toward OWN-directory retained-
+            // empty REUSE before minting a fresh page. tryAllocateFromOwnDirectory
+            // above scanned canAllocateBits; emptyBits additionally covers blocks
+            // the canAllocate cursor cannot see (addBlock'd-then-consumed blocks
+            // and mid-cycle swept-to-empty blocks — see findOwnEmptyBlockForRefill).
+            // Stripe-safe: own-directory only — we hold m_refillLock + the shared
+            // facade side; the in-lock sweep inside tryAllocateIn is the SAME I5b
+            // license as the cursor leg above. tryAllocateIn handles both decline
+            // shapes itself (weak-bearing carve-out -> didFinishUsingBlock; stale
+            // isEmpty on a now-full block -> unsweepWithNoNewlyAllocated path),
+            // so a null result leaves no inUse leak and we fall through to the
+            // fresh-block leg unchanged. Reached only when isSharedServer() (the
+            // enclosing branch); flag-off byte-identical.
+            if (MarkedBlock::Handle* block = m_directory->findOwnEmptyBlockForRefill()) {
+                if (void* result = tryAllocateIn(block, cellSize))
+                    return result;
+            }
         }
 
-        ASSERT(!subspace->isPreciseOnly());
-        ASSERT_WITH_MESSAGE(cellSize == m_directory->cellSize(), "non-preciseOnly allocations should match allocator's the size class");
-        // B2-serial-eden-block-churn (b): bias toward OWN-directory retained-
-        // empty REUSE before minting a fresh page. tryAllocateFromOwnDirectory
-        // above scanned canAllocateBits; emptyBits additionally covers blocks
-        // the canAllocate cursor cannot see (addBlock'd-then-consumed blocks
-        // and mid-cycle swept-to-empty blocks — see findOwnEmptyBlockForRefill).
-        // Stripe-safe: own-directory only — we hold m_refillLock + the shared
-        // facade side; the in-lock sweep inside tryAllocateIn is the SAME I5b
-        // license as the cursor leg above. tryAllocateIn handles both decline
-        // shapes itself (weak-bearing carve-out -> didFinishUsingBlock; stale
-        // isEmpty on a now-full block -> unsweepWithNoNewlyAllocated path),
-        // so a null result leaves no inUse leak and we fall through to the
-        // fresh-block leg unchanged. Reached only when isSharedServer() (the
-        // enclosing branch); flag-off byte-identical.
-        if (MarkedBlock::Handle* block = m_directory->findOwnEmptyBlockForRefill()) {
-            if (void* result = tryAllocateIn(block, cellSize))
-                return result;
+        // ---- M2-alloc-tax-residual (c): try cross-subspace steal BEFORE
+        // fresh-mint. The legacy (!isSharedServer) path does steal-before-fresh
+        // (tryAllocateWithoutCollecting); the T7 stripe leg deliberately
+        // skipped the steal (a foreign-directory I5b sweep is unsafe under a
+        // stripe) and went straight to tryAllocateBlock — trading "small RSS
+        // increase between GCs" for parallel refills. At W=1 GIL-off that
+        // trade is pure loss: alloctax2 #3 attributes +1.74G cyc (18.9% of
+        // the GIL-off/on residual) to kernel asm_exc_page_fault /
+        // _raw_spin_lock / __folio_throttle_swaprate, i.e. ~6.4x more
+        // first-touch faults from MarkedBlock::tryCreate than the legacy
+        // GIL-on path that would have stolen the same pages from a sibling
+        // directory's empties.
+        //
+        // The steal needs an EXCLUSIVE section (it sweeps a FOREIGN
+        // directory's block — I5b lock-free reads — and re-homes it via
+        // removeFromDirectory + addBlock, exactly the legacy steal protocol
+        // below). To preserve the T7 W>1 parallelism we take it only via
+        // facade.tryLock(): at W=1 the sole mutator just released its own
+        // stripe → tryLock succeeds → steal restores legacy block-reuse; at
+        // high W a sibling refill is almost always in a stripe → tryLock
+        // fails fast (one m_stateLock hop, no wait, no writer-preferring
+        // drain) → fresh-mint re-stripes below, byte-identical to the
+        // pre-M2 stripe leg. Stripe #1 is RELEASED before the try (an
+        // upgrade would self-deadlock — exclusive waits for stripeDepth==0).
+        // ----
+        if (Options::stealEmptyBlocksFromOtherAllocators() && heap.mutatorSlowPathLock().tryLock()) {
+            // Manual scope (tryLock has no RAII form): unlock on every exit.
+            if (MarkedBlock::Handle* block = subspace->findEmptyBlockToSteal()) {
+                RELEASE_ASSERT(block->alignedMemoryAllocator() == subspace->alignedMemoryAllocator());
+                // Weak-bearing carve-out (same as the legacy steal in
+                // tryAllocateWithoutCollecting / tryAllocateIn): decline a
+                // block carrying Dead-but-unfinalized WeakImpls — sweeping it
+                // here (world running) would race the owning client's
+                // lock-free Weak<> teardown. Clear inUse on its OWN
+                // directory and let fresh-mint proceed.
+                if (!heap.worldIsStoppedForAllClients() && block->weakSet().head()) [[unlikely]] {
+                    block->directory()->didFinishUsingBlock(block);
+                } else {
+                    RaceAmplifier::perturb(); // Same I8 amplifier site as the legacy steal.
+                    block->sweep(nullptr);
+                    block->removeFromDirectory();
+                    m_directory->addBlock(block);
+                    void* result = allocateIn(block, cellSize);
+                    heap.mutatorSlowPathLock().unlock();
+                    return result;
+                }
+            }
+            heap.mutatorSlowPathLock().unlock();
         }
-        if (MarkedBlock::Handle* block = m_directory->tryAllocateBlock(stripeLocker, heap)) [[likely]] {
-            m_directory->addBlock(block);
-            void* result = allocateIn(block, cellSize);
-            ASSERT(result);
-            return result;
+
+        // ---- Stripe scope #2: fresh-mint (parallel across directories — the
+        // T7 property). Reached when the try-steal above either lost the
+        // tryLock (high W) or found nothing to steal. ----
+        {
+            MutatorSlowPathLocker stripeLocker(heap, *m_directory);
+            if (MarkedBlock::Handle* block = m_directory->tryAllocateBlock(stripeLocker, heap)) [[likely]] {
+                m_directory->addBlock(block);
+                void* result = allocateIn(block, cellSize);
+                ASSERT(result);
+                return result;
+            }
         }
         // tryCreate failed — fall through to the server-wide section for the
-        // cross-directory steal + a final fresh-block attempt. The stripe is
-        // released at scope exit before the exclusive acquire below (no
+        // cross-directory steal + a final fresh-block attempt. Both stripe
+        // scopes are released before the exclusive acquire below (no
         // self-deadlock; writer-preferring drain).
     }
 
