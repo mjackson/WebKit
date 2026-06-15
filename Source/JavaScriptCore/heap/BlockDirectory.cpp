@@ -152,25 +152,79 @@ MarkedBlock::Handle* BlockDirectory::findOwnEmptyBlockForRefill()
     // or a sibling under the same stripe) cannot double-pick a block that is
     // about to be filled. Sole caller is the isSharedServer() stripe leg;
     // flag-off / !isSharedServer() never reaches here.
-    Locker locker(bitvectorLock());
-    m_emptyCursor = (emptyBits() & ~inUseBits()).findBit(m_emptyCursor, true);
+    //
+    // F3-bvl-stripe-elide (bimodal32 root-cause hardening, SCALEBENCH §32):
+    // the SCAN runs lock-free under the stripe's m_refillLock witness (the
+    // assertIsMutatorOrMutatorIsStopped() I5b TSA capability — same idiom as
+    // removeBlock); m_bits cannot resize concurrently because addBlock — the
+    // sole I5b writer — holds this directory's m_refillLock (or the exclusive
+    // facade side, which excludes our shared stripe), and word() const is a
+    // relaxed atomic load (BlockDirectoryBits.h). m_emptyCursor / m_blocks are
+    // likewise refillLock-/exclusive-serialized. The BIT WRITES are NOT elided:
+    // MarkedBlock::Handle::didConsumeFreeList writes the same-segment inUse
+    // word under BVL-only from a sibling client's allocateSlowCase BEFORE that
+    // client takes its stripe (LocalAllocator.cpp:190 -> MarkedBlock.cpp
+    // didConsumeFreeList), so a full elision would lost-update RMW the inUse
+    // word against it (correctness > speed). Taking the BVL only for the O(1)
+    // bit flips shrinks the hold from O(findBit) to O(1), so the W=32 burst
+    // convoy T1 de-triggered cannot reform even if a future workload revives
+    // the trigger (de-LOCK, not de-trigger). Reachable only when
+    // isSharedServer() (sticky clients-ever>=2), so W=1 / flag-off never
+    // executes the elided shape. ropelock W=16 phaseA: 0/704 samples on
+    // m_bitvectorLock — expected ~0 ms there; W=32-only hardening.
+    ASSERT(m_heap.isSharedServer());
+    assertIsMutatorOrMutatorIsStopped();
+    m_emptyCursor = (emptyBitsView() & ~inUseBitsView()).findBit(m_emptyCursor, true);
+    releaseAssertAcquiredBitVectorLock();
     if (m_emptyCursor >= m_blocks.size())
         return nullptr;
     dataLogLnIf(BlockDirectoryInternal::verbose, "Setting block ", m_emptyCursor, " in use (findOwnEmptyBlockForRefill) for ", *this);
+    MarkedBlock::Handle* result = m_blocks[m_emptyCursor];
+    Locker locker(bitvectorLock());
     setIsInUse(m_emptyCursor, true);
     setIsCanAllocate(m_emptyCursor, false);
     setIsEmpty(m_emptyCursor, false);
-    return m_blocks[m_emptyCursor];
+    return result;
 }
 
 MarkedBlock::Handle* BlockDirectory::findBlockForAllocation(LocalAllocator& allocator)
 {
+    // F3-bvl-stripe-elide (bimodal32 root-cause hardening, SCALEBENCH §32 —
+    // "T1 removed trigger, not lock"): when isSharedServer() the caller holds
+    // either this directory's m_refillLock stripe (tryAllocateFromOwnDirectory)
+    // or the exclusive facade side (tryAllocateWithoutCollecting); under
+    // either, addBlock — the sole m_bits resizer (I5b writer) — cannot run on
+    // this directory, so the canAllocate/inUse SCAN is safe lock-free
+    // (BlockDirectoryBits word() const is a relaxed atomic load). The bit
+    // WRITES still take the BVL — see the F3 note at findOwnEmptyBlockForRefill
+    // for why a full elision would lost-update against a sibling's pre-stripe
+    // didConsumeFreeList inUse RMW. The picked index cannot be stolen between
+    // the lock-free scan and the locked flip: only refill paths set inUse=true
+    // and they are refillLock-/exclusive-serialized; only refill / endMarking
+    // clear canAllocate and endMarking is world-stopped. isSharedServer() is
+    // sticky clients-ever>=2 (Heap.h §5.1), so W=1 GIL-off and flag-off keep
+    // the legacy whole-BVL section byte-identical below.
+    if (m_heap.isSharedServer()) [[unlikely]] {
+        assertIsMutatorOrMutatorIsStopped();
+        allocator.m_allocationCursor = (canAllocateBitsView() & ~inUseBitsView()).findBit(allocator.m_allocationCursor, true);
+        releaseAssertAcquiredBitVectorLock();
+        if (allocator.m_allocationCursor >= m_blocks.size())
+            return nullptr;
+        unsigned blockIndex = allocator.m_allocationCursor++;
+        MarkedBlock::Handle* result = m_blocks[blockIndex];
+        Locker locker(bitvectorLock());
+        setIsCanAllocate(blockIndex, false);
+        dataLogLnIf(BlockDirectoryInternal::verbose, "Setting block ", blockIndex, " in use (findBlockForAllocation) for ", *this);
+        setIsInUse(blockIndex, true);
+        return result;
+    }
+
     Locker locker(bitvectorLock());
     for (;;) {
         allocator.m_allocationCursor = (canAllocateBits() & ~inUseBits()).findBit(allocator.m_allocationCursor, true);
         if (allocator.m_allocationCursor >= m_blocks.size())
             return nullptr;
-        
+
         unsigned blockIndex = allocator.m_allocationCursor++;
         MarkedBlock::Handle* result = m_blocks[blockIndex];
         setIsCanAllocate(blockIndex, false);

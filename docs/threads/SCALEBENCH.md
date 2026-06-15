@@ -1967,3 +1967,134 @@ Full-train but a ~1700 ms W=16-vs-W=1 pc1+2 gap remains: per-Eden stop
 cost still scales with W via the suspend/resume round-trip T5 was meant
 to elide — verify `coopParkedClients` actually populates at the pc-loop
 JS-barrier park site, not just the safepoint site).
+
+## §33 Run 3.8: campaign-8 (F1/T4-retune cap=0, F3-bvl-stripe-elide, F4-burst byte-threshold, T5-barrier-site GILDroppedSection coop snapshot) — all correctness gates GREEN, neutral on scalability, Java bar still missed
+
+Measures a 4-file working-tree delta (+250/−33) over `a94b2cb7b7bf`:
+`BlockDirectory.cpp` (F3, +62), `Heap.cpp` (F1+F4+T5-consumer, +119/−26),
+`Heap.h` (+12), `LockObject.cpp` (T5-barrier-site, +90). Release `jsc-v38`
+sha256 `d308948b…`; Debug sha256 `f55345a6…`. Baseline `d8ed7b6f5254`
+reused bit-identically (`jsc-v33-baseline`, sha256 `2a85f8e5…` — identical
+to §25–§32). Driver `v38_ab.sh`, raw `results-v38ab-raw.jsonl`.
+
+**Host-drift control.** Loadavg 2.5–18.6 across 81 reps (a foreign
+`jsc … intcs` driver loop and a `/root/bun` rustc LTO build were killed
+before the run; residual ~2-core idle floor from unrelated sessions on a
+64-core host). Same-host base column (back-to-back A/B per cell, W=32 +
+GIL-on interleaved) controls for it; vs-§32 deltas at W≤8 carry ±~2%
+host noise.
+
+### Before/after (run 3.7 §32 medians vs run 3.8 medians; same-host A/B vs `d8ed7b6f5254` in parentheses)
+
+| Cell | §32 wall ms | 3.8 wall ms | vs §32 | vs same-host base | speedup-vs-self | Java bar | §32 cpu | 3.8 cpu | §32 RSS MB | 3.8 RSS MB |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 20174.6 | **19647.0** | −2.6% | **−21.7%** (base 25092) | 1.00x | — | 1.04 | 1.05 | 420 | 422 |
+| GIL-off W=2 | 21462.6 | **20951.3** | −2.4% | **−27.2%** (base 28799) | 0.938x | — | 0.97 | 0.99 | 1672 | 1679 |
+| GIL-off W=4 | 16138.2 | **16258.2** | +0.7% | **−31.7%** (base 23815) | 1.208x | — | 0.82 | 0.82 | 1377 | 1277 |
+| GIL-off W=8 | 14184.3 | **14322.4** | +1.0% | **−33.9%** (base 21674) | **1.372x** | 1.99x | 0.63 | 0.65 | 1308 | 1293 |
+| GIL-off W=16 | 13844.7 | **13642.0** | −1.5% | **−28.9%** (base 19198) | **1.440x** | 1.99x | 0.51 | 0.52 | 1339 | 1338 |
+| GIL-off W=32 | 14840.0 | **14424.4** | −2.8% | **−33.6%** (base 21716) | **1.362x** | 1.75x | 0.37 | 0.39 | 1318 | 1336 |
+| GIL-on W=1 | 13841.5 | **13922.5** | +0.6% | **−14.6%** (base 16309) | — | — | 1.04 | 1.04 | 421 | 423 |
+
+- All 81/81 ladder+gilon+congc+stab32 reps rc=0; every checksum tuple
+  matches the reference
+  (`b3e65a6855b9bdeb|4158957|39c33392b2a4c5b2|c4bdd580f85ee058|af028188d7a56a96`).
+- **W=1-neutrality (campaign-8 design constraint):** v38 W=1 GIL-off =
+  19647.0 ms = **−2.62% vs §32's 20174.6** → **PASS** (±3% gate). All
+  four campaign-8 changes are gated on `isSharedServer()` (sticky
+  clients-ever≥2) or the spawned-arm `[[unlikely]]` GILDroppedSection
+  branch — structurally unreachable at W=1. The −2.6% is host noise
+  (same-host base also moved 24927→25092, +0.7%; W=1 pc1+2 4195→4143
+  −1.2%; GIL-on W=1 +0.6%).
+- **Speedup-vs-self vs Java curve** (vs v38's own W=1 19647 ms): W=8
+  1.372x **< 1.99x** (need ≤9873, gap −4449); W=16 1.440x **< 1.99x**
+  (need ≤9873, gap −3769); W=32 1.362x **< 1.75x** (need ≤11227, gap
+  −3198). **All three Java bars MISSED.** vs §32 the ratios moved
+  **−0.050/−0.017/+0.003** (W=8 down, W=16 down, W=32 flat). The W=8
+  drop is the W=1 −2.6% numerator and W=8 +1.0% denominator combining;
+  both are noise-range individually.
+- **Per-section v38** (medians): pc1+2 4143/6646/6034/5746/**5806**/5843
+  ms at W=1..32 (vs §32's W=1 4195 / W=16 5898: −52/−92, flat); phaseA
+  12825/12038/8696/7129/**6342**/6450; phaseB 2516/2044/1456/1225/1212/
+  1807; phaseC 108/251/303/184/178/202. **§32-attribution update:** v38
+  W=16 pc1+2 = 5806 = **43% of 13642** (was 43%); GIL-off/on W=1 pc1+2
+  ratio **1.571x → 1.510x** (GIL-on pc1+2 2670→2744 +2.8% host noise;
+  W=1 paths unchanged by design); W=16/W=1 pc-sibling-interference
+  **1.406x → 1.401x** — *unchanged* (T5-barrier-site is wired but did
+  NOT measurably reduce the per-Eden stop cost; see (c) below).
+  Parallelizable-section speedup (W=16 wall − pc1+2 vs W=1 wall − pc1+2)
+  **2.01× → 1.98×** (15504/7836) — *flat*; the §32(a) 2.27→2.01
+  regression is NOT recovered.
+- **W=32 bimodality — STAYS FIXED.** stab32 v38: min 12766 / med
+  14405.7 / max 15150 ms, **19% spread** (≤25% gate); phaseA min 4612 /
+  med 6239 / max 6446, **0/30 slow-mode**, 2/30 fast-mode; sys_s max
+  11.4 s. vs §32: med 14560→14406 −1.1%. F3's lock-free findBit scan +
+  F4's byte-threshold did not regress this; the 2-of-30 fast tail is the
+  same effect as §32's 3/30.
+- **Honest negatives:** **(a)** T5-barrier-site (GILDroppedSection coop
+  snapshot at the JS-park funnel) was the §32 named target ("verify
+  coopParkedClients populates at the pc-loop JS-barrier park") — it is
+  now wired and the t5verify probe confirms publish, but pc-sibling-
+  interference moved only 1.406→1.401x (W=16 pc1+2 5898→5806, −92 ms).
+  The ~1700 ms W=16-vs-W=1 pc gap is therefore **NOT** the
+  suspend/resume round-trip; the next-named candidate is the per-Eden
+  STOP itself (W siblings handshaking the §10.4 barrier each cycle) or
+  the per-client `clientSet().forEach` reset cost. **(b)** F1/T4-retune
+  cap=0 left W=16 phaseA at 6342 ms — flat vs the t4crit-probe ~6296
+  (the §32(a) +519 ms regression vs v36 is **NOT recovered**; cap=0 is
+  ~0-ms-neutral as the implementation comment predicted, it just stops
+  T4 from un-publishing T5 snapshots). **(c)** Parallelizable-speedup
+  1.98× and sibling-int 1.40× both miss the achievable-ceiling gate
+  (≥2.3× / ≤1.2×) — the ceiling result cannot be claimed. **(d)** W=8
+  speedup-vs-self 1.422→1.372 nominal regression (the only ratio cell
+  moving >|0.02|), but the underlying W=8 wall is +1.0% and W=1 −2.6%,
+  both inside the ±~2% host-noise band. **(e)** W=4 RSS 1377→1277 MB
+  (−7%) and W=32 ladder shows 1-of-3 fast-mode (13017 ms): same fast
+  tail as stab32. **(f)** F4-burst's byte-threshold moved W=32 phaseB
+  from §32's range to 1807 ms (no §32 absolute to compare directly; the
+  W=32 ladder pc1+2 5843 vs §32 ~6360-6736 suggests the over-admit-Full
+  named target did improve, but W=32 wall only −2.8% net).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| **W=32 stability 30 reps (P0)** | **30/30 exit 0, 0 SIGSEGV**, 1 unique cs tuple (median 14405.7 ms; **0/30 slow-mode**, 2/30 fast-mode, 19% spread ≤25%, loadavg 6.2→18.6) |
+| Corpus GIL-off full (`run-tests.sh`, pinned env, Debug `f55345a6…`) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on full (`JSC_useJSThreads=1`, Debug) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release v38) | **0 mismatches** |
+| congc: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums, median 15872.2 ms (§32: 16228.4, −2.2%) |
+| GIL-on W=1 5-rep interleaved A/B vs `d8ed7b6f5254` | **−14.6%** (≤2% gate PASS; +0.6% vs §32 v37 = neutral) |
+| **W=1 GIL-off neutrality** (vs §32 20174.6 ms, ±3%) | **−2.62% PASS** |
+| No same-host wall cell regressing >5% vs §32 | **PASS** (every cell −2.8% to +1.0%) |
+| Speedup-vs-self beats Java at W=8/16/32 | **FAIL** (1.372/1.440/1.362 vs 1.99/1.99/1.75) |
+| Achievable-ceiling (parsec ≥2.3× AND sibint ≤1.2×) | **NOT MET** (1.98× / 1.401×) |
+
+### Acceptance verdict
+
+**All correctness gates GREEN; W=1-neutrality PASS; W=32 bimodality
+STAYS FIXED; scalability NEUTRAL; Java bar MISSED.** Corpus + identity
+green (identical pass counts to §32); W=32 0/30 crash, 19% spread,
+0 slow-mode; GIL-on same-host −14.6% (neutral vs §32, +0.6%); congc
+−2.2%; max vs-§32 regression +1.0% (W=8). Campaign-8 implements all
+four §32 named follow-ups and lands them without regression, but none
+moved the headline: T5-barrier-site is wired yet pc-sibling-interference
+holds at 1.40× (the suspend round-trip was not the dominant cost);
+F1/T4-retune is ~0-ms-neutral as designed; F3/F4 are W=32 hardening and
+hold the stab32 result without regressing it. The campaign-8 delta can
+land (W=1-neutral by construction; F3 de-locks rather than de-triggers
+the bimodal32 root cause; F4 closes the §32(b) burst over-admit; T5
+extends coop-snapshot coverage to JS parks; no correctness regression;
+no >5% wall regression). **Campaign-9 named target:** the residual
+1.40× pc-sibling-interference is now disambiguated — it is NOT the
+SIGUSR2 suspend cost (T5 closed that and the ratio held). Candidates:
+(i) the per-Eden STW handshake itself (W siblings each round-tripping
+the §10.4 access-released barrier ~31 times in pc1+2 vs W=1's 0
+round-trips), (ii) `clientSet().forEach` per-cycle reset cost (now
+touches W× two cache lines per cycle), (iii) the W=1 allocation tax
+(1.51× off/on, unchanged since §31 — a separate, larger lever). The
+parallel-section ceiling (1.98×, regressed from §31's 2.27× at v36)
+remains the second open thread: the §32(a) +519 ms W=16 phaseA loss is
+still present in v38 (phaseA 6342 ≈ v37's t4crit 6296) and is NOT the
+T4 cap (cap=0 is neutral) — re-examine the T5 publish/clear bracket
+overhead per parallel-phase iteration, or the MarkedBlock §32 delta.

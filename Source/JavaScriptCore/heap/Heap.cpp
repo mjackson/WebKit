@@ -3811,6 +3811,23 @@ void Heap::updateAllocationLimits()
         // W=1 GIL-off remain byte-identical (isSharedServer() is false at
         // W=1; the counter is never written on the !isSharedServer()
         // didAllocate leg).
+        //
+        // F4-burst (SCALEBENCH §32(b)): the §31 window = "first didAllocate
+        // of the cycle" proved too short at W=32 phaseB: all 32 siblings wake
+        // from the JS barrier and each performs >=1 (tiny) allocation inside
+        // a single short Eden cycle -> numClients=32 -> trigger fires ->
+        // Full; reset; next cycle the same wake-burst -> another Full, i.e.
+        // the alternating Eden/Full train §31 was meant to remove, restored
+        // by a transient burst rather than sustained N-mutator pressure. The
+        // bump is therefore deferred until a client has allocated at least
+        // m_distinctAllocatorByteThreshold bytes this cycle (recomputed below
+        // as m_maxEdenSize / registeredClients / 4 — i.e. one quarter of a
+        // fair-share eden slice). A wake-time freelist refill (~16KB) cannot
+        // cross it; a genuinely-allocating client crosses it well before the
+        // eden budget is spent, so a sustained k-mutator phase still reads
+        // numClients==k. The §31 pc-loop case is preserved a fortiori: the
+        // 15 parked siblings allocate 0 bytes, so numClients stays 1 there
+        // exactly as before.
         if (isSharedServer() && m_sizeAfterLastFullCollect && Options::sharedGCEdenSurvivalFullTriggerRatio()) [[unlikely]] {
             unsigned numClients = m_distinctAllocatingClientsThisCycle.load(std::memory_order_relaxed);
             if (numClients >= 2) {
@@ -3848,17 +3865,33 @@ void Heap::updateAllocationLimits()
     m_nonOversizedBytesAllocatedThisCycle.store(0, std::memory_order_relaxed);
     m_oversizedBytesAllocatedThisCycle.store(0, std::memory_order_relaxed);
     m_lastOversidedAllocationThisCycle.store(0, std::memory_order_relaxed);
-    // T1-sibint (SCALEBENCH §31): reset the distinct-allocator count and the
-    // per-client first-allocation flags alongside the byte counters. World is
-    // stopped (I7): the per-client bool has no concurrent reader/writer (each
-    // is otherwise touched only by its own access-holding thread in
-    // didAllocate's isSharedServer() leg), and clientSet() iteration is safe
-    // (no attach/detach in flight). Gated on isSharedServer() so flag-off and
-    // W=1 GIL-off never reach the forEach — byte-identical.
+    // T1-sibint (SCALEBENCH §31) + F4-burst (§32(b)): reset the distinct-
+    // allocator count, the per-client latched bool, and the per-client byte
+    // accumulator alongside the byte counters; recompute the byte threshold
+    // for the next cycle. World is stopped (I7): the per-client fields have
+    // no concurrent reader/writer (each is otherwise touched only by its own
+    // access-holding thread in didAllocate's isSharedServer() leg), and
+    // clientSet() iteration is safe (no attach/detach in flight). Gated on
+    // isSharedServer() so flag-off and W=1 GIL-off never reach the forEach —
+    // byte-identical.
     if (isSharedServer()) [[unlikely]] {
         m_distinctAllocatingClientsThisCycle.store(0, std::memory_order_relaxed);
+        // F4-burst: threshold = one quarter of a fair-share eden slice. The
+        // divisor uses registered clients (clientSet().size()), not last
+        // cycle's distinct count, so a phase with few active allocators gets
+        // a LARGER per-client threshold (harder to over-count) and a phase
+        // with many registered clients gets a smaller one (a genuinely busy
+        // client still crosses it quickly). size() is safe world-stopped
+        // (same I7 argument as forEach). m_maxEdenSize was finalised above
+        // for both Full and Eden branches. Floor: integer division may yield
+        // 0 for tiny edens / huge W -> degrades to the §31 first-alloc
+        // semantics (every allocation counts), never less aggressive than
+        // before.
+        unsigned registered = clientSet().size();
+        m_distinctAllocatorByteThreshold = m_maxEdenSize / std::max<unsigned>(registered, 1) / 4;
         clientSet().forEach([](GCClient::Heap& client) {
             client.m_allocatedThisServerCycle = false;
+            client.m_bytesAllocatedThisServerCycle = 0;
         });
     }
 
@@ -3964,23 +3997,33 @@ void Heap::didAllocate(size_t bytes)
         } else
             m_nonOversizedBytesAllocatedThisCycle.store(m_nonOversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed) + bytes, std::memory_order_relaxed);
     } else {
-        // T1-sibint (SCALEBENCH §31): on each client's FIRST didAllocate of
-        // the GC cycle, bump the server's distinct-allocator count. The
-        // per-client bool is plain (this client's own access-holding thread
-        // is the only mutator-side writer; the world-stopped reset in
-        // updateAllocationLimits is the only other writer — same regime as
-        // the byte counters' (a)/(b) argument above). currentThreadClient()
-        // is an initial-exec TLS read; the [[unlikely]] first-time arm is
-        // taken at most once per client per cycle. Null-check is defensive
-        // for world-stopped collector-thread allocations (no client bound);
-        // those contribute to byte counters but not the distinct-client
-        // count, which is the conservative direction for the Full trigger.
-        // W>=2-only: this whole leg is reached iff isSharedServer(); the
-        // !isSharedServer() arm above (W=1 / flag-off) is unchanged.
+        // T1-sibint (SCALEBENCH §31) + F4-burst (§32(b)): bump the server's
+        // distinct-allocator count once this client has allocated at least
+        // m_distinctAllocatorByteThreshold bytes this cycle (one quarter of a
+        // fair-share eden slice). The per-client bool + accumulator are plain
+        // (this client's own access-holding thread is the only mutator-side
+        // writer; the world-stopped reset in updateAllocationLimits is the
+        // only other writer — same regime as the byte counters' (a)/(b)
+        // argument above). currentThreadClient() is an initial-exec TLS read.
+        // Steady-state hot path is unchanged from §31: once the bool latches
+        // true the [[unlikely]] arm is skipped for the remainder of the
+        // cycle, so the accumulator add+compare cost is bounded by
+        // (threshold / mean-bytes-per-call) iterations per client per cycle.
+        // m_distinctAllocatorByteThreshold is written only world-stopped (no
+        // concurrent writer here; same publication regime as m_maxEdenSize).
+        // Null-check is defensive for world-stopped collector-thread
+        // allocations (no client bound); those contribute to byte counters
+        // but not the distinct-client count, which is the conservative
+        // direction for the Full trigger. W>=2-only: this whole leg is
+        // reached iff isSharedServer(); the !isSharedServer() arm above
+        // (W=1 / flag-off) is unchanged.
         GCClient::Heap* client = GCClient::Heap::currentThreadClient();
         if (client && !client->m_allocatedThisServerCycle) [[unlikely]] {
-            client->m_allocatedThisServerCycle = true;
-            m_distinctAllocatingClientsThisCycle.fetch_add(1, std::memory_order_relaxed);
+            client->m_bytesAllocatedThisServerCycle += bytes;
+            if (client->m_bytesAllocatedThisServerCycle >= m_distinctAllocatorByteThreshold) {
+                client->m_allocatedThisServerCycle = true;
+                m_distinctAllocatingClientsThisCycle.fetch_add(1, std::memory_order_relaxed);
+            }
         }
         if (bytes >= oversizedAllocationThreshold) {
             m_oversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
@@ -8186,12 +8229,32 @@ bool Heap::gilOffSiblingAssistMarking() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         // siblings to park. Flag-off byte-identical (call site unreachable).
         unsigned cap = Options::sharedGCMaxSiblingMarkingAssists();
         if (!cap) {
-            // 0 = auto: fill up to numberOfGCMarkers TOTAL drainers and no
-            // more. heapHelperPool().numberOfThreads() == numberOfGCMarkers-1
-            // in the default config, so auto admits ONE sibling — it stands in
-            // for the conductor's own MainDrain visitor, which is busy running
-            // the constraint solver / runTaskInParallel rather than draining.
-            cap = static_cast<unsigned>(std::max<int>(0, static_cast<int>(Options::numberOfGCMarkers()) - static_cast<int>(heapHelperPool().numberOfThreads())));
+            // 0 = auto. F1/T4-retune (SCALEBENCH §32 t4crit): the brief's
+            // "admit only while mutators are blocked on GC, else cap=0" gate
+            // is ALREADY structurally satisfied — m_siblingMarkingAssistEnabled
+            // is raised by runBeginPhase / lowered by runEndPhase, and with
+            // useConcurrentSharedGCMarking off the conducted collection is
+            // fully STW Begin..End (runFixpointPhase isSharedServer arm), so
+            // every instant this gate is open every mutator IS blocked on GC.
+            // The retune is therefore the auto-cap value alone. t4crit cap
+            // sweep at W=16 measured cap=1 conductMs 2482 / phaseA 6296 vs
+            // cap=1000 conductMs 2441 / phaseA 6329 — both inside noise; the
+            // 7 heapHelperPool drainers + conductor saturate marking and the
+            // 9th-23rd drainers contribute ~nothing to wall time. So auto now
+            // admits ZERO siblings: a capped sibling returns false here and
+            // its caller stays parked at the jsThreadsParkForStopWindow stripe
+            // condvar WITH a published coop snapshot, whereas an admitted
+            // sibling enters HelperDrain as an un-snapshotted suspend victim
+            // for tryCopyOtherThreadStacks — exactly the t5verify gap
+            // (parallel-phase coopParked 9-14/16; the non-published remainder
+            // are the T4-admitted HelperDrain helpers). Net: ~0 ms wall,
+            // tighter T5 coop-snapshot coverage. Explicit nonzero
+            // sharedGCMaxSiblingMarkingAssists still admits for experiments.
+            // The previous auto formula (numberOfGCMarkers - heapHelperPool
+            // threads == 1 in the default config) is W-INDEPENDENT anyway, so
+            // no W-scaling was lost. W=1 IMPACT ZERO / flag-off byte-identical
+            // as above (call site unreachable; >=2-client path only).
+            cap = 0;
         }
         if (m_numberOfSiblingMarkingAssists >= cap)
             return false;

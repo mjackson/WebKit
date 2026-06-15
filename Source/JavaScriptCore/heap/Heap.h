@@ -1579,6 +1579,15 @@ private:
     // leg of didAllocate (W>=2-only); store(0) world-stopped at the byte-
     // counter reset site below. Flag-off / W=1: never written, never read.
     std::atomic<unsigned> m_distinctAllocatingClientsThisCycle { 0 };
+    // F4-burst (SCALEBENCH §32(b)): per-client byte threshold a client must
+    // cross in a single GC cycle before it is counted toward
+    // m_distinctAllocatingClientsThisCycle. Recomputed world-stopped at the
+    // reset site (= m_maxEdenSize / registeredClients / 4); read by mutators
+    // in didAllocate's isSharedServer() leg with no concurrent writer (same
+    // regime as m_maxEdenSize / m_maxHeapSize). 0 until the first collection
+    // -> first cycle degrades to the §31 first-alloc semantics, which is the
+    // conservative direction. Flag-off / W=1: never written, never read.
+    size_t m_distinctAllocatorByteThreshold { 0 };
     std::atomic<size_t> m_bytesAbandonedSinceLastFullCollect { 0 };
     size_t m_maxEdenSize;
     size_t m_maxEdenSizeWhenCritical;
@@ -2475,7 +2484,8 @@ private:
     WTF::Thread* m_parkedRootSnapshotThread { nullptr }; // T5-rootscan-skip: written BEFORE the seq_cst m_parkedRootSnapshot publish; read by the conductor only when that load returns non-null (the seq_cst pair orders it). Never cleared independently (stale value is harmless — gated by the snapshot pointer).
     Atomic<CurrentThreadState*> m_parkedRootSnapshot { nullptr }; // T5-rootscan-skip: see the public accessor block above. seq_cst publish/clear by the owning thread; seq_cst load by the conductor at root-scan time.
     bool m_releasedByGCPark { false }; // §10A; written only inside VMManager::notifyVMStop (manifest 5a hooks, JSC::Heap::gcWillParkInStopTheWorld / gcDidResumeFromStopTheWorld; T5).
-    bool m_allocatedThisServerCycle { false }; // T1-sibint (SCALEBENCH §31): set on this client's first didAllocate() in the isSharedServer() leg each GC cycle (own access-holding thread only); cleared world-stopped by server Heap::updateAllocationLimits via clientSet().forEach. Feeds m_distinctAllocatingClientsThisCycle.
+    bool m_allocatedThisServerCycle { false }; // T1-sibint (SCALEBENCH §31) + F4-burst (§32(b)): set once this client's per-cycle byte accumulator crosses server.m_distinctAllocatorByteThreshold in the isSharedServer() didAllocate leg (own access-holding thread only); cleared world-stopped by server Heap::updateAllocationLimits via clientSet().forEach. Gates the once-per-cycle m_distinctAllocatingClientsThisCycle bump.
+    size_t m_bytesAllocatedThisServerCycle { 0 }; // F4-burst (§32(b)): per-client byte accumulator toward m_distinctAllocatorByteThreshold. Same touch rules as the bool above (own access-holding thread writes; world-stopped reset). Once the bool latches true the accumulator is dead for the rest of the cycle (steady-state hot path = the single bool read, identical to §31).
     Atomic<uint64_t> m_localEpoch { std::numeric_limits<uint64_t>::max() }; // §11; written ONLY by the conductor's stamping loop (world stopped) and detachCurrentThread (MAX) — attach deliberately does NOT stamp it (review round 2: a pre-access stamp can land stale across stop windows and regress bumpAndReclaim's min scan).
     bool m_isStandalone { false }; // §12.1; arms the vm() RELEASE_ASSERT (T9).
     Atomic<uint32_t> m_lastConservativeScanRegisteredUid { 0 }; // I4(b) cache (T6): uid of the last thread this client registered with machineThreads(); relaxed — a stale read merely re-runs the idempotent addCurrentThread().

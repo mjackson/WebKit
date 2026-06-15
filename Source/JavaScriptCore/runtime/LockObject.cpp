@@ -30,6 +30,7 @@
 #include "ExceptionHelpers.h"
 #include "JSCInlines.h"
 #include "JSLock.h"
+#include "MachineStackMarker.h" // T5-barrier-site: CurrentThreadState / RegisterState / ALLOCATE_AND_GET_REGISTER_STATE for the GILDroppedSection spawned-arm coop root snapshot.
 #include "JSNativeStdFunction.h"
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
@@ -341,7 +342,29 @@ struct GILDroppedSectionSpawnedArm {
     {
     }
     JSLock::DropAllLocks bracket;
+    // T5-barrier-site (SCALEBENCH §32 RUN-3.7, t5verify): coop root-snapshot
+    // STORAGE for the JS-level park span. Lives here (heap, via the
+    // makeUnique<GILDroppedSectionSpawnedArm> in GILDroppedSection's ctor)
+    // because the GILDroppedSection ctor's own stack frame RETURNS before the
+    // caller actually parks — a stack-local CurrentThreadState there would be
+    // dead memory by the time the conductor's gatherStackRoots reads it. The
+    // GILDroppedSection OBJECT itself is the caller's RAII local and stays
+    // live across the whole park, so `stackTop` is set to that address (see
+    // ctor below); the struct + RegisterState bytes live here until the dtor
+    // clears the snapshot and resets m_spawnedArm. alignas matches the
+    // RegisterState.h jmp_buf-fallback ALLOCATE_AND_GET_REGISTER_STATE so the
+    // consumer's roundUpToMultipleOf<sizeof(CPURegister)> end-pointer math is
+    // sound regardless of which RegisterState definition is selected.
+    CurrentThreadState parkedRootSnapshot;
+    alignas(alignof(void*) > alignof(RegisterState) ? alignof(void*) : alignof(RegisterState)) RegisterState parkedRootRegisterState;
 };
+
+// Defined in heap/Heap.cpp (T5-rootscan-skip-coop-parked-suspend): publish /
+// clear the cooperative root snapshot bracketing each pure-park span. Same
+// forward-decl shape as VMManager.cpp's existing T5 sites; kept out of Heap.h
+// so flag-off TUs that never reach a publish site see no symbol.
+void gcClientPublishParkedRootSnapshot(CurrentThreadState*);
+void gcClientClearParkedRootSnapshot();
 
 GILDroppedSection::GILDroppedSection(VM& vm)
     : m_vm(vm)
@@ -359,6 +382,62 @@ GILDroppedSection::GILDroppedSection(VM& vm)
         // Reaching unlockAllForThreadParking here would trip its AB-13
         // RELEASE_ASSERT (a spawned GIL-off thread never holds m_lock).
         m_spawnedArm = makeUnique<GILDroppedSectionSpawnedArm>(vm);
+        // T5-barrier-site (SCALEBENCH §32 RUN-3.7, t5verify pc1+pc2
+        // coopParked=0/16 accessReleased=16/16 on every one of 31 stops →
+        // 465 wasted SIGUSR2 suspend/resume round-trips). EVERY JS-level park
+        // — Condition.wait, contended Lock.hold, Thread.join, property/SAB
+        // Atomics.wait, jsThreadGILHandoffYield — funnels through THIS
+        // spawned-arm branch and lands in spawnedDropAllLocksBracketEnter
+        // (JSLock.cpp), which does releaseHeapAccess() ONLY: the sibling
+        // counts access-released for the §10.4 barrier but never publishes a
+        // coop root snapshot, so the conductor's gatherStackRoots falls back
+        // to suspend() for it. The earlier T5 wiring covered only
+        // safepoint/stop-protocol parks (JSThreadsSafepoint / VMManager
+        // notifyVMStop / Heap F8 acquire), all of which require a GC ALREADY
+        // in flight; a sibling parked at a JS Condition BEFORE the GC starts
+        // never reaches them. Publish HERE, at the single common wire-point.
+        //
+        // ORDERING (matches the protocol comment at Heap.cpp gatherStackRoots
+        // / GCClient::Heap::publishParkedRootSnapshot in Heap.h): the
+        // SpawnedArm ctor above has just run the DAL2 bracket's seq_cst
+        // releaseHeapAccess(); the seq_cst snapshot store below is the
+        // Dekker-paired publish. The dtor clears seq_cst BEFORE re-acquiring
+        // access (before m_spawnedArm = nullptr → spawnedDropAllLocksBracketExit
+        // → acquireHeapAccess), so a conductor that re-loads the snapshot at
+        // use time (Heap.cpp coopParkedSnapshotLookup) sees either the
+        // still-valid heap-backed struct or null (falls back to suspend).
+        //
+        // STORAGE: CurrentThreadState + RegisterState live in the
+        // heap-allocated m_spawnedArm (see GILDroppedSectionSpawnedArm above)
+        // so they outlive this ctor frame; `stackTop` is `this` — the
+        // GILDroppedSection object sits in the PARK-SITE CALLER's stack frame
+        // (the deepest frame guaranteed live across the whole park) and the
+        // span is pure-park (no HelperDrain entry, no JSCell* below it: only
+        // ParkingLot / futex / condvar machinery), so [this, stackOrigin] is
+        // an at-least-as-conservative superset of the thread's JS roots
+        // (tryCopyCooperativelyParkedThreadStack deliberately does NOT extend
+        // by the OS red-zone for the same reason). Callee-saves are spilled
+        // into a local via ALLOCATE_AND_GET_REGISTER_STATE (the per-arch asm
+        // macro DECLARES its destination, so it cannot target a member
+        // directly) and then byte-copied into the heap-backed member; the
+        // values are plain register words at the spill instant — copying them
+        // is sound for conservative scanning, including the jmp_buf fallback
+        // (never longjmp'd, just scanned).
+        //
+        // Flag-off / W=1: the enclosing predicate is `vm.gilOff() &&
+        // ThreadManager::isJSThreadCurrent()` — a SPAWNED GIL-off JS thread.
+        // Its existence implies main + ≥1 spawned client (clients ≥ 2), so
+        // this site structurally satisfies the W≥2-only / not-the-conductor
+        // gate the gcClientPublishParkedRootSnapshot contract (Heap.cpp)
+        // requires; flag-off and W=1 never enter this [[unlikely]] block at
+        // all. No clientSet().size() probe (would take the rank-6 registry
+        // lock on every JS park).
+        ALLOCATE_AND_GET_REGISTER_STATE(t5SpilledCalleeSaves);
+        memcpy(&m_spawnedArm->parkedRootRegisterState, &t5SpilledCalleeSaves, sizeof(RegisterState));
+        m_spawnedArm->parkedRootSnapshot.stackOrigin = Thread::currentSingleton().stack().origin();
+        m_spawnedArm->parkedRootSnapshot.stackTop = static_cast<void*>(this);
+        m_spawnedArm->parkedRootSnapshot.registerState = &m_spawnedArm->parkedRootRegisterState;
+        gcClientPublishParkedRootSnapshot(&m_spawnedArm->parkedRootSnapshot);
         return;
     }
     // Main/embedder carriers (GIL-off) and every GIL-on caller: m_lock is
@@ -374,6 +453,17 @@ GILDroppedSection::GILDroppedSection(VM& vm)
 GILDroppedSection::~GILDroppedSection()
 {
     if (m_spawnedArm) [[unlikely]] {
+        // T5-barrier-site: clear the coop root snapshot seq_cst BEFORE the
+        // DAL2 bracket exit re-acquires heap access below (m_spawnedArm =
+        // nullptr → ~GILDroppedSectionSpawnedArm → ~DropAllLocks →
+        // spawnedDropAllLocksBracketExit → acquireHeapAccess). Once access is
+        // re-acquired the thread is a live mutator again and MUST be a
+        // suspend() target; the conductor's seq_cst re-load at use time
+        // (Heap.cpp gatherStackRoots coopParkedSnapshotLookup) sees null and
+        // falls back. Idempotent vs gcClientDidResumeFromThreadGranularStop's
+        // own clear. Runs before the storage in m_spawnedArm is freed, so the
+        // published pointer is never observed dangling.
+        gcClientClearParkedRootSnapshot();
         // §J.3 spawned exit: close the DAL2 bracket NOW (the §A.3.2b/§A.3.8-
         // gated heap-access re-acquire — may park across an in-flight
         // stop-the-world — then the deferred lite trap poll), explicitly
