@@ -670,6 +670,12 @@ function wsMergeLocals() {
 const results = {
     phaseA_ms: 0, phaseB_ms: 0, phaseC_ms: 0, total_ms: 0,
     checksumA: 0n, postings: 0, checksumA2: 0n, checksumB: 0n, checksumC: 0n,
+    // S1-serial-ceiling-attribute: per-section wall timers for the thread-0-only
+    // inter-phase work (pure measurement; output-only — Go/Java need NOT emit
+    // matching keys, fairness-neutral per the task charter). These five sections
+    // are the entire gap between (phaseA_ms + phaseB_ms + phaseC_ms) and total_ms.
+    postingsChecksum1_ms: 0, buildDfSnap_ms: 0,
+    postingsChecksum2_ms: 0, makeGroups_ms: 0, checksumPhaseC_ms: 0,
 };
 
 // §1.11 requires a MONOTONIC clock. The jsc shell's preciseTime() is
@@ -693,10 +699,14 @@ function workerBody(id) {
     barrier.await();
     if (id === 0) {
         results.phaseA_ms = nowMs() - t0;
+        let s0 = nowMs();
         const { sum, postings } = postingsChecksum();
+        results.postingsChecksum1_ms = nowMs() - s0;
         results.checksumA = sum;
         results.postings = postings;
+        s0 = nowMs();
         published.dfSnap = buildDfSnap(); // frozen at the A/B barrier (§1.7)
+        results.buildDfSnap_ms = nowMs() - s0;
     }
     barrier.await(); // dfSnap published
 
@@ -711,8 +721,12 @@ function workerBody(id) {
         for (let i = 0; i < W; ++i)
             cs = (cs + partialB[i]) & MASK;
         results.checksumB = cs;
+        let s0 = nowMs();
         results.checksumA2 = postingsChecksum().sum;
+        results.postingsChecksum2_ms = nowMs() - s0;
+        s0 = nowMs();
         const { groups, keys } = makeGroups(); // pre-populated before Phase C (§1.10)
+        results.makeGroups_ms = nowMs() - s0;
         published.groups = groups;
         published.groupKeys = keys;
     }
@@ -730,7 +744,9 @@ function workerBody(id) {
         results.phaseC_ms = nowMs() - t0;
         if (WS_MODE)
             wsMergeLocals(); // single-threaded merge of thread-local accumulators
+        let s0 = nowMs();
         results.checksumC = checksumPhaseC(); // thread 0 sorts + topN after barrier
+        results.checksumPhaseC_ms = nowMs() - s0;
         results.total_ms = nowMs() - tStart;
     }
 }
@@ -767,4 +783,11 @@ print('{"impl":"js","threads":' + W
     + ',"docsIngested":' + counters.docsIngested
     + ',"tokensProcessed":' + counters.tokensProcessed
     + ',"writesDone":' + counters.writesDone
+    // S1-serial-ceiling-attribute: thread-0-only inter-phase section walls
+    // (JS-only diagnostic keys; fairness-neutral — Go/Java need not emit them).
+    + ',"postingsChecksum1_ms":' + ms(results.postingsChecksum1_ms)
+    + ',"buildDfSnap_ms":' + ms(results.buildDfSnap_ms)
+    + ',"postingsChecksum2_ms":' + ms(results.postingsChecksum2_ms)
+    + ',"makeGroups_ms":' + ms(results.makeGroups_ms)
+    + ',"checksumPhaseC_ms":' + ms(results.checksumPhaseC_ms)
     + '}');

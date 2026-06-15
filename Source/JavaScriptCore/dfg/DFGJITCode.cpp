@@ -409,10 +409,25 @@ void JITCode::setOSREntryBlock(VM& vm, const JSCell* owner, CodeBlock* osrEntryB
 }
 
 void JITCode::clearOSREntryBlockAndResetThresholds(CodeBlock *dfgCodeBlock)
-{ 
-    ASSERT(m_osrEntryBlock);
+{
+    CodeBlock* entry = m_osrEntryBlock.get();
+    if (Options::useJSThreads()) [[unlikely]] {
+        // P0-osr-entry-toctou (SCALEBENCH.md §27): with the GIL off, two mutators
+        // can reach failedOSREntry for the same DFG JITCode concurrently. The
+        // winner runs m_osrEntryBlock.clear() below; the loser would deref null
+        // here past the (Debug-only) ASSERT. The loser no-ops: osrEntryRetry,
+        // the entry trigger and the threshold were already reset by the winner,
+        // and WriteBarrier::clear() is idempotent. Callers (DFGOperations
+        // failedOSREntry, FTL::prepareOSREntry) snapshot osrEntryBlock() into a
+        // local before calling but the TOCTOU between that snapshot and this
+        // call is absorbed here. Flag-off the snapshot+ASSERT+deref below is
+        // exactly today's path.
+        if (!entry) [[unlikely]]
+            return;
+    }
+    ASSERT(entry);
 
-    BytecodeIndex osrEntryBytecode = m_osrEntryBlock->jitCode()->ftlForOSREntry()->bytecodeIndex();
+    BytecodeIndex osrEntryBytecode = entry->jitCode()->ftlForOSREntry()->bytecodeIndex();
     m_osrEntryBlock.clear();
     osrEntryRetry = 0;
     setTierUpEntryTrigger(osrEntryBytecode, JITCode::TriggerReason::DontTrigger);

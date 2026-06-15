@@ -3623,22 +3623,37 @@ void Heap::updateAllocationLimits()
         // alone closes the 19-eden-no-Full gap, so the ratchet line is left
         // byte-identical to upstream.
         //
-        // Ratio default 3.0 (not 2.0): with the rss3-measured per-eden
-        // survival roughly equal to one true-live-set, ratio=2.0 fires after
-        // ~one eden post-Full -> ~50% Full cadence (every other collection),
-        // a plausible wall-time regression that would shuffle the RSS cost
-        // into Full-GC pause cost. ratio=3.0 admits ~2 floating-live-sets
-        // before forcing Full (~1 Full per 3 collections), still bounding
-        // old-gen at ~3x true-live (vs the unbounded 774MB / 5.4x ratchet
-        // this fixes) while keeping Full cadence in the same regime as the
-        // upstream 1/3 edenToOldGenerationRatio gate's design intent. Bench
-        // (W=2/W=16 wall beat-or-explain) is the arbiter; the option is
-        // tunable and 0 disables.
-        if (isSharedServer() && m_sizeAfterLastFullCollect && Options::sharedGCEdenSurvivalFullTriggerRatio() && clientSet().size() >= 2) [[unlikely]] {
-            size_t oldGenGrowthBound = static_cast<size_t>(static_cast<double>(m_sizeAfterLastFullCollect) * Options::sharedGCEdenSurvivalFullTriggerRatio());
-            if (currentHeapSize > oldGenGrowthBound) {
-                m_shouldDoFullCollection = true;
-                dataLogLnIf(verbose, "Eden: shared N-mutator floating-garbage Full trigger (currentHeapSize ", currentHeapSize, " > sizeAfterLastFull ", m_sizeAfterLastFullCollect, " * ", Options::sharedGCEdenSurvivalFullTriggerRatio(), ")");
+        // Ratio is W-adaptive (R1-rss-ratio-adaptive, SCALEBENCH §27
+        // honest-negative (b)): the option default 3.0 admits ~2 floating
+        // live-sets before forcing Full, which was tuned for the W>=4 case
+        // and §27 confirms RSS is flat-to-down there (-0.8%..+5.2%). At
+        // exactly N=2 clients, campaign-3's T1/T3 keep more JIT code +
+        // segmented spines reachable per cycle than §25 projected, so the
+        // 3.0× bound is reached later and W=2 peak RSS regressed +10.3%
+        // same-host (1543->1701 MB). The effective ratio is therefore
+        // computed as min(option, 2.0 + 0.5*(clients-2)): clients==2 -> 2.0
+        // (one floating live-set then Full), clients==3 -> 2.5, clients>=4
+        // -> 3.0 (== option default; W>=4 path byte-identical to v33). The
+        // option remains a hard upper bound so an explicit override (e.g.
+        // for a workload with cheaper Fulls) is never raised by the
+        // adaptive floor, and 0 still disables the whole arm. Cost at W=2:
+        // Full cadence rises toward ~50%, but gcwall measured total STW at
+        // 5.4% of W=2 wall, so the marginal Fulls cost <1% wall against the
+        // ~158 MB RSS recovery. clientSet().size() is read once into a
+        // local (it takes its own lock; world stopped -> uncontended) and
+        // the >=2 test moves inside the body so the size() call stays
+        // behind the cheap isSharedServer() relaxed-load gate — flag-off
+        // and W=1 GIL-off remain byte-identical.
+        if (isSharedServer() && m_sizeAfterLastFullCollect && Options::sharedGCEdenSurvivalFullTriggerRatio()) [[unlikely]] {
+            unsigned numClients = clientSet().size();
+            if (numClients >= 2) {
+                double optionRatio = Options::sharedGCEdenSurvivalFullTriggerRatio();
+                double effectiveRatio = std::min(optionRatio, 2.0 + 0.5 * static_cast<double>(numClients - 2));
+                size_t oldGenGrowthBound = static_cast<size_t>(static_cast<double>(m_sizeAfterLastFullCollect) * effectiveRatio);
+                if (currentHeapSize > oldGenGrowthBound) {
+                    m_shouldDoFullCollection = true;
+                    dataLogLnIf(verbose, "Eden: shared N-mutator floating-garbage Full trigger (currentHeapSize ", currentHeapSize, " > sizeAfterLastFull ", m_sizeAfterLastFullCollect, " * ", effectiveRatio, " [clients=", numClients, ", option=", optionRatio, "])");
+                }
             }
         }
         m_maxHeapSize = std::max(m_maxHeapSize, currentHeapSize + m_maxEdenSize);

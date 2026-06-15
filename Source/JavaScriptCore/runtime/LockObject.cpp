@@ -33,12 +33,14 @@
 #include "JSNativeStdFunction.h"
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
+#include "ThreadAtomics.h"
 #include "ThreadObject.h"
 #include "ThreadManager.h"
 #include "VMLite.h"
 #include "VMManager.h"
 #include "TopExceptionScope.h"
 #include <wtf/MonotonicTime.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/ParkingLot.h>
 #include <wtf/RunLoop.h>
 
@@ -58,6 +60,142 @@ bool parkLitePollWatchdogCheckRequested(VM&, VMLite* parkLite);
 VMLite* capturedParkLiteOfCurrentThreadIfAny(VM&);
 bool reacquireParkedCarrierAndServiceWatchdogCheck(VM&);
 
+// ---------------- S2-parallel-cpu-waste instrumentation + W-adaptive spin ----------------
+//
+// SCALEBENCH §27 ceiling analysis: at W=16, parallel phases A+B+C consume
+// ~96.8k cpu-ms vs ~17.4k at W=1 — a 5.6× overhead, ~79k cpu-ms of pure
+// contention waste. cpu_util 0.44 × 16 cores × 14847 ms wall − 7700 ms serial
+// = 96.8k; threads ARE running (13.5 cores busy over 7150 ms parallel-wall),
+// just burning. Prime suspects (charter S2): (i) the §25-T5 adaptive spin
+// below against Zipf-hot K=128 shard locks (Phase A/B/C all do
+// shard.lock.hold per term); (ii) Atomics.add(counters, '…', 1) on a single
+// shared object every doc/query (the ThreadAtomics counters, dumped together
+// with the per-lock numbers below).
+//
+// Two pieces here:
+//   (a) Options::logJSLockContention() — per-NativeLockState {acquires,
+//       spinIters, parks} counters + a process-global registry, dumped at
+//       std::atexit. The registry holds Ref<NativeLockState> so the dump
+//       never reads freed memory; NativeLockState is ThreadSafeRefCounted and
+//       only the JS Lock object's destruction would otherwise drop the last
+//       ref. Diagnostic option only — flag-off and option-off the registry is
+//       never touched (one predicted-not-taken branch on the acquire path).
+//   (d) W-adaptive spin bound: the §25-T5 jsLockSpinLimit (40) is halved at
+//       clientSet().size() >= 8 (and quartered at >= 16). With K=128 shard
+//       locks Zipf-concentrated, at W=16 the hottest few shards see >>2
+//       contenders, so a 40-iter spin per failed tryLock is pure burn against
+//       a holder whose critical section outlasts the spin anyway. The bound is
+//       cached in s_jsLockAdaptiveSpinLimit (relaxed-loaded on the spin path)
+//       and refreshed only inside the heavy slow path (after the spin failed
+//       and we are about to GILDroppedSection + park anyway), so the
+//       rank-6-locked HeapClientSet::size() read never sits on the fast path.
+//       gilOff-only — the spin itself is gilOff-gated, so flag-off behavior is
+//       byte-identical to the pre-S2 code.
+//
+// Neither piece weakens any assert or changes flag-off behavior: the option
+// defaults off, every counter bump is gated on it, and the adaptive limit is
+// read only inside the existing gilOff-gated spin block.
+
+namespace {
+
+struct JSLockContentionRegistry {
+    Lock lock; // diagnostic-only; rank: leaf, never held across any other lock.
+    Vector<Ref<NativeLockState>> states WTF_GUARDED_BY_LOCK(lock);
+    unsigned nextId WTF_GUARDED_BY_LOCK(lock) { 1 };
+};
+
+JSLockContentionRegistry& jsLockContentionRegistry()
+{
+    static LazyNeverDestroyed<JSLockContentionRegistry> registry;
+    static std::once_flag onceKey;
+    std::call_once(onceKey, [] {
+        registry.construct();
+        std::atexit([] { dumpJSLockContentionStats(); });
+    });
+    return registry;
+}
+
+} // anonymous namespace
+
+void dumpJSLockContentionStats()
+{
+    if (!Options::logJSLockContention())
+        return;
+    auto& registry = jsLockContentionRegistry();
+    uint64_t totalAcquires = 0;
+    uint64_t totalSpinIters = 0;
+    uint64_t totalParks = 0;
+    unsigned hottestId = 0;
+    uint64_t hottestParks = 0;
+    {
+        Locker locker { registry.lock };
+        dataLogLn("[logJSLockContention] ======== Lock.prototype.hold per-lock stats (", registry.states.size(), " locks) ========");
+        for (auto& state : registry.states) {
+            uint64_t acquires = state->m_statAcquires.load(std::memory_order_relaxed);
+            uint64_t spinIters = state->m_statSpinIters.load(std::memory_order_relaxed);
+            uint64_t parks = state->m_statParks.load(std::memory_order_relaxed);
+            totalAcquires += acquires;
+            totalSpinIters += spinIters;
+            totalParks += parks;
+            if (parks > hottestParks) {
+                hottestParks = parks;
+                hottestId = state->m_statId;
+            }
+            // Suppress cold locks (acquired but never spun or parked) from the
+            // per-line dump to keep K=128-shard output readable; they still
+            // count toward the totals.
+            if (!spinIters && !parks)
+                continue;
+            dataLogLn("[logJSLockContention]   lock#", state->m_statId,
+                " acquires=", acquires,
+                " spinIters=", spinIters,
+                " parks=", parks,
+                " spin/acq=", acquires ? static_cast<double>(spinIters) / static_cast<double>(acquires) : 0.0,
+                " park/acq=", acquires ? static_cast<double>(parks) / static_cast<double>(acquires) : 0.0);
+        }
+    }
+    dataLogLn("[logJSLockContention] TOTAL acquires=", totalAcquires,
+        " spinIters=", totalSpinIters,
+        " parks=", totalParks,
+        " hottest=lock#", hottestId, " (", hottestParks, " parks)");
+    dumpThreadAtomicsRMWStats();
+}
+
+// §25-T5 jsLockSpinLimit, made W-adaptive (charter S2(d)). The constant the
+// in-tree T5 spin used (40) is the W<8 default; halved at W>=8, quartered at
+// W>=16. Stored as the EFFECTIVE limit so the hot spin path is one relaxed
+// load; refreshed by jsLockRefreshAdaptiveSpinLimit() only from the heavy
+// slow path (where one rank-6-locked clientSet().size() is noise next to
+// GILDroppedSection + ParkingLot). Process-global is correct: a single shared
+// VM (5.2), and the limit is purely a heuristic — a slightly stale value
+// never affects correctness (the spin's safety bail on jsThreadsStopPendingFor
+// and the unchanged slow-path fall-through are what matter).
+static constexpr unsigned jsLockSpinLimitBase = 40;
+static std::atomic<unsigned> s_jsLockAdaptiveSpinLimit { jsLockSpinLimitBase };
+static std::atomic<unsigned> s_jsLockSpinRefreshTick { 0 };
+
+static void jsLockRefreshAdaptiveSpinLimit(VM& vm)
+{
+    // GIL-off only caller (the spin block is gilOff-gated). Throttled: the
+    // refresh reads HeapClientSet::size(), which takes its rank-6 registry
+    // lock — at W=16 with hot shard contention the slow path fires millions of
+    // times, and an unthrottled global-lock read here would itself be a new
+    // contention point. clientSet().size() only changes at thread spawn/exit
+    // (rare relative to lock.hold), so sampling once per 256 slow-path entries
+    // is plenty fresh; a stale limit is harmless (heuristic only — the spin's
+    // safety bail and slow-path fall-through are unchanged). No other lock is
+    // held here; we are about to release heap access and park.
+    if (s_jsLockSpinRefreshTick.fetch_add(1, std::memory_order_relaxed) & 0xff)
+        return;
+    unsigned clients = vm.heap.clientSet().size();
+    unsigned limit = jsLockSpinLimitBase;
+    if (clients >= 16)
+        limit = jsLockSpinLimitBase / 4;
+    else if (clients >= 8)
+        limit = jsLockSpinLimitBase / 2;
+    s_jsLockAdaptiveSpinLimit.store(limit, std::memory_order_relaxed);
+}
+
 const ClassInfo JSLockObject::s_info = { "Lock"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSLockObject) };
 
 static JSC_DECLARE_HOST_FUNCTION(callLock);
@@ -76,6 +214,16 @@ JSLockObject* JSLockObject::create(VM& vm, Structure* structure)
 {
     JSLockObject* object = new (NotNull, allocateCell<JSLockObject>(vm)) JSLockObject(vm, structure);
     object->finishCreation(vm);
+    if (Options::logJSLockContention()) [[unlikely]] {
+        // S2 instrumentation: register the state for the atexit dump. The
+        // registry holds a Ref so the dump never reads freed memory; reachable
+        // only with useJSThreads (Lock is not exposed otherwise), so flag-off
+        // codegen is untouched.
+        auto& registry = jsLockContentionRegistry();
+        Locker locker { registry.lock };
+        object->lockState().m_statId = registry.nextId++;
+        registry.states.append(Ref { object->lockState() });
+    }
     return object;
 }
 
@@ -576,6 +724,7 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
     if (state.heldByCurrentThread() || state.asyncGrantRunByCurrentThread())
         return throwVMError(globalObject, scope, createError(globalObject, "Lock is not recursive"_s));
 
+    const bool logContention = Options::logJSLockContention();
     bool needsSlowPath = !state.m_lock.tryLock();
     if (needsSlowPath && vm.gilOff()) {
         // T5-jslock-adaptive-spin: textbook thin-lock briefly-contended fast
@@ -600,8 +749,14 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         // never touches m_syncHoldParkers, never opens the park-resumption
         // window — on success we fall straight through to the single
         // m_holder.store below exactly as the first-tryLock fast path does.
-        constexpr unsigned jsLockSpinLimit = 40;
-        for (unsigned spin = 0; spin < jsLockSpinLimit; ++spin) {
+        // S2(d): W-adaptive bound — relaxed-loaded so the fast spin path adds
+        // no global contention; refreshed only in the heavy slow path below.
+        // gilOff-gated by the enclosing branch, so flag-off this block is dead
+        // and jsLockSpinLimitBase (= the pre-S2 constant 40) is never even
+        // consulted there.
+        unsigned jsLockSpinLimit = s_jsLockAdaptiveSpinLimit.load(std::memory_order_relaxed);
+        unsigned spin = 0;
+        for (; spin < jsLockSpinLimit; ++spin) {
             if (jsThreadsStopPendingFor(vm)) [[unlikely]]
                 break;
             WTF::spinLoopPause();
@@ -610,8 +765,17 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
                 break;
             }
         }
+        if (logContention) [[unlikely]]
+            state.m_statSpinIters.fetch_add(spin, std::memory_order_relaxed);
     }
     if (needsSlowPath) {
+        // S2(d): refresh the cached W-adaptive spin limit here, where one
+        // rank-6-locked HeapClientSet::size() read is noise relative to the
+        // GILDroppedSection + ParkingLot work that follows. gilOff-only (the
+        // spin block this feeds is gilOff-gated; flag-off never reads the
+        // cache, so flag-off behavior is byte-identical regardless).
+        if (vm.gilOff())
+            jsLockRefreshAdaptiveSpinLimit(vm);
         if (!jsThreadsCanBlockOnCurrentThread(vm))
             return throwVMTypeError(globalObject, scope, "Lock.prototype.hold cannot block the current thread"_s);
         // SPEC-api 5.3: contended path. Drop the GIL (depth-free; see
@@ -709,6 +873,8 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
                 // closes the failed-tryLock-then-release window — a release
                 // that beats our enqueue makes validation fail and we retry
                 // immediately rather than sleeping through a free lock.
+                if (logContention) [[unlikely]]
+                    state.m_statParks.fetch_add(1, std::memory_order_relaxed);
                 WTF::ParkingLot::parkConditionally(
                     &state.m_lock,
                     [&] { return state.m_lock.isHeld(); },
@@ -735,6 +901,8 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         }
     }
     state.m_holder.store(&Thread::currentSingleton(), std::memory_order_relaxed);
+    if (logContention) [[unlikely]]
+        state.m_statAcquires.fetch_add(1, std::memory_order_relaxed);
 
     MarkedArgumentBuffer args;
     NakedPtr<Exception> exception;

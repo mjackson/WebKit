@@ -6581,6 +6581,10 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
 
         CODEBLOCK_LOG_EVENT(codeBlock, "delayFTLCompile", ("OSR entry failed too many times"));
         codeBlock->baselineVersion()->countReoptimization();
+        // GIL-off: another mutator may have cleared m_osrEntryBlock between the
+        // entryBlock snapshot above and this call (P0-osr-entry-toctou,
+        // SCALEBENCH.md §27). The callee now absorbs that race with an
+        // idempotent-loser early return; no re-check needed here.
         jitCode->clearOSREntryBlockAndResetThresholds(codeBlock);
         return nullptr;
     };

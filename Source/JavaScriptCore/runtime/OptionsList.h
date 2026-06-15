@@ -435,7 +435,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useSharedGCIncrementalSweep, false, Normal, "C3: incremental + mutator-concurrent sweeping under the shared GC (SPEC-congc sec 7.3)"_s) \
     v(Bool, useSharedGCMutatorAssist, false, Normal, "C4: incremental mutator assist under the shared GC (SPEC-congc sec 7.4)"_s) \
     v(Unsigned, sharedGCMutatorMarkStackDonationThreshold, 510, Normal, "CMS donation threshold in cells (SPEC-congc sec 5.2(ii)); default = one MarkStackArray segment, (4KB - segment header) / sizeof(const JSCell*) (GCSegmentedArray.h CapacityFromSize, release shape)"_s) \
-    v(Double, sharedGCEdenSurvivalFullTriggerRatio, 3.0, Normal, "Shared-GC N-mutator floating-garbage bound (SCALEBENCH sec 25 / T5-rss): when isSharedServer() with >=2 clients and post-eden heap size exceeds sizeAfterLastFullCollect * this ratio, force the next collection Full. 3.0 admits ~2 floating live-sets before a Full (bounds old-gen at ~3x true-live without the ~50% Full cadence 2.0 would drive). 0 disables."_s) \
+    v(Double, sharedGCEdenSurvivalFullTriggerRatio, 3.0, Normal, "Shared-GC N-mutator floating-garbage bound (SCALEBENCH sec 25 / T5-rss / sec 27 R1): when isSharedServer() with >=2 clients and post-eden heap size exceeds sizeAfterLastFullCollect * effectiveRatio, force the next collection Full. This option is the UPPER BOUND; the effective ratio is W-adaptive: min(this, 2.0 + 0.5*(clients-2)) -> 2.0 at W=2, 2.5 at W=3, 3.0 (this default) at W>=4. 3.0 admits ~2 floating live-sets before a Full; the W=2 floor of 2.0 closes the sec-27 +10.3% RSS regression at <1% wall cost. 0 disables."_s) \
     v(Bool, gcAtEnd, false, Normal, "If true, the jsc CLI will do a GC before exiting"_s) \
     v(Bool, forceGCSlowPaths, false, Normal, "If true, we will force all JIT fast allocations down their slow paths."_s) \
     v(Bool, forceDidDeferGCWork, false, Normal, "If true, we will force all DeferGC destructions to perform a GC."_s) \
@@ -700,6 +700,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Unsigned, maxJSThreads, 32766, Normal, nullptr) \
     v(Unsigned, jsThreadGILTimeSliceMs, 0, Normal, "reserved, inert in phase 1 (SPEC-api Deviation 9)"_s) \
     v(Unsigned, jsThreadStackSizeKB, 0, Normal, nullptr) \
+    v(Bool, logJSLockContention, false, Normal, "SCALEBENCH S2-parallel-cpu-waste instrumentation (useJSThreads only): at process exit, dataLog per-JS-Lock {acquires, spinIters, parks} from Lock.prototype.hold's acquire path plus the process-wide ThreadAtomics property-RMW retry totals. Off = zero acquire-path overhead (every counter bump is gated on this flag)."_s) \
     v(Bool, useThreadGIL, false, Normal, "serialize all JS Thread execution under a global lock (default flipped OFF at UNGIL U-T14; U0 option validation forces it back ON unless useVMLite, useSharedAtomStringTable, useSharedGCHeap AND useThreadGILOffUnsafe are all enabled)"_s) \
     v(Bool, useThreadGILOffUnsafe, false, Normal, "DEVELOPMENT ONLY: permit the GIL-off (N-parallel-mutator) configuration even though the UNGIL activation checklist (INTEGRATE-ungil.md AB list) is not fully landed; without this flag U0 option validation forces useThreadGIL=1"_s) \
     v(Bool, useSharedAtomStringTable, false, Normal, "process-global shared atom string table"_s) \

@@ -78,6 +78,17 @@ public:
             && m_asyncHeld.load(std::memory_order_acquire);
     }
 
+    // S2-parallel-cpu-waste instrumentation (Options::logJSLockContention()):
+    // per-lock acquire-path counters, bumped only when the option is set so the
+    // hot path stays a single predicted-not-taken branch when it is off. The
+    // type is never instantiated flag-off (Lock is not exposed without
+    // useJSThreads), so the extra words are flag-off-dead. Dumped at process
+    // exit by dumpJSLockContentionStats().
+    std::atomic<uint64_t> m_statAcquires { 0 };
+    std::atomic<uint64_t> m_statSpinIters { 0 }; // T5 adaptive-spin iterations burned BEFORE acquire/slow-path.
+    std::atomic<uint64_t> m_statParks { 0 }; // ParkingLot park quanta entered in the contended slow path.
+    unsigned m_statId { 0 }; // Assigned at registration; 0 = unregistered.
+
     // T5 fair handoff: count of threads inside lockProtoFuncHold's contended
     // park loop (incremented before the first tryLock retry, decremented on
     // every loop exit — acquired or terminated). Release paths consult it via
@@ -157,6 +168,13 @@ private:
 
     Ref<NativeLockState> m_state;
 };
+
+// S2-parallel-cpu-waste instrumentation: when Options::logJSLockContention()
+// is set, dataLog every registered NativeLockState's {acquires, spinIters,
+// parks} plus process-wide aggregates and the ThreadAtomics RMW retry totals
+// (ThreadAtomics.h). Registered via std::atexit on first JSLockObject
+// construction; safe to call at any time (read-only on relaxed atomics).
+JS_EXPORT_PRIVATE void dumpJSLockContentionStats();
 
 // Settles a granted async-acquisition ticket (resolve with a release
 // function, or run the held function then implicitly release). Shared with

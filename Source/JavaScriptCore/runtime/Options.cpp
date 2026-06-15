@@ -907,6 +907,25 @@ void Options::notifyOptionsChanged()
             RELEASE_ASSERT(gilOffProcessDerivation == s_gilOffProcessLatch);
     }
 
+    // SCALEBENCH §27.S2 (campaign-4 task C1-congc-no-default): deliberately
+    // NOT forcing useConcurrentSharedGCMarking=1 under the GIL-off shape.
+    // The campaign-3 ceiling hypothesis ("STW collection wall fraction") was
+    // MEASURED and REFUTED by gcwall instrumentation (METHOD B, 3-run W=16):
+    // STW-GC open-to-resume is 807 ms / 14847 ms = 5.4% of wall with congc
+    // OFF, and 765 ms / 15119 ms = 5.1% with congc ON — i.e. congc=1 saves
+    // ~42 ms of stop time but adds ~30 extra Reentry-rendezvous windows
+    // (57 -> 87-88) and REGRESSES bench wall +1.8% (+270 ms). congcab A/B
+    // independently: W=8 median +0.2%, W=16 +1.2%, cpu_util 718 -> 701 (did
+    // not rise), 0/16 checksum divergence. So defaulting C1 on here would
+    // cost wall, not save it; even a perfect congc caps the gain at 5.4%,
+    // far short of the 12600 ms Java-parity target. The actual W=16 ceiling
+    // is ~52% thread-0 serial inter-phase work + the parallel-phase 5.6x
+    // CPU-waste tax (SCALEBENCH §27.S1/S2). The congc-specific follow-up the
+    // profile names — eliminate the ~30 extra Reentry rendezvous windows C1
+    // introduces — is recorded in §27.S2 as DEFERRED. Leave the
+    // OptionsList.h default at false; revisit only with a fresh gcwall A/B
+    // showing >=10% STW wall fraction.
+
     // SPEC-congc §13.2 stage-flag validation (CG-2; INTEGRATE-congc.md
     // manifest row 1): the §7 prefix rule — a stage flag requires every
     // earlier stage's flag — and all four stages require useSharedGCHeap.

@@ -53,6 +53,37 @@ bool parkLitePollWatchdogCheckRequested(VM&, VMLite* parkLite);
 VMLite* capturedParkLiteOfCurrentThreadIfAny(VM&);
 bool reacquireParkedCarrierAndServiceWatchdogCheck(VM&);
 
+// ---------------- S2-parallel-cpu-waste instrumentation ----------------
+//
+// Process-wide property-Atomics RMW retry counters (declared in
+// ThreadAtomics.h). Bumped only under Options::logJSLockContention() so the
+// off-option / flag-off path is one predicted-not-taken branch. The bench
+// (Tools/threads/scalebench/js/bench.js) does Atomics.add(counters, '…', 1)
+// on a SINGLE shared object every doc/query; at W=16 that is ~W writers on
+// the same inline slot. The CAS-retry burn for that shape lives INSIDE
+// atomicSlotLockFreeLoop (ConcurrentButterfly.cpp), which loops internally on
+// CAS failure and never escapes Restart — so g_threadAtomicsRMWRestarts here
+// captures STRUCTURAL restarts only, and g_threadAtomicsSlotCASRetries is
+// the hook for that loop's fall-through-and-retry arm — DEFINED here,
+// INCREMENTED THERE (one-liner, owned by the ConcurrentButterfly implementer
+// slot; reads 0 until landed). dumpThreadAtomicsRMWStats() is called from
+// LockObject.cpp's atexit dump so both halves of the S2 instrumentation
+// report together.
+std::atomic<uint64_t> g_threadAtomicsRMWCalls { 0 };
+std::atomic<uint64_t> g_threadAtomicsRMWRestarts { 0 };
+std::atomic<uint64_t> g_threadAtomicsSlotCASRetries { 0 };
+
+void dumpThreadAtomicsRMWStats()
+{
+    uint64_t calls = g_threadAtomicsRMWCalls.load(std::memory_order_relaxed);
+    uint64_t restarts = g_threadAtomicsRMWRestarts.load(std::memory_order_relaxed);
+    uint64_t casRetries = g_threadAtomicsSlotCASRetries.load(std::memory_order_relaxed);
+    dataLogLn("[logJSLockContention] ThreadAtomics property-RMW: calls=", calls,
+        " outerRestarts=", restarts,
+        " slotCASRetries=", casRetries,
+        casRetries ? "" : " (slotCASRetries hook not yet wired in ConcurrentButterfly.cpp::atomicSlotLockFreeLoop)");
+}
+
 // ---------------- own-data-property helpers ----------------
 
 enum class OwnPropertyKind : uint8_t { Missing, Data, Accessor };
@@ -738,6 +769,9 @@ static JSValue atomicsCompareExchangeOnPropertyGilOff(JSGlobalObject* globalObje
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
+    const bool logContention = Options::logJSLockContention();
+    if (logContention) [[unlikely]]
+        g_threadAtomicsRMWCalls.fetch_add(1, std::memory_order_relaxed);
     while (true) {
         auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
         RETURN_IF_EXCEPTION(scope, { });
@@ -779,9 +813,13 @@ static JSValue atomicsCompareExchangeOnPropertyGilOff(JSGlobalObject* globalObje
                 RETURN_IF_EXCEPTION(scope, { });
                 UNUSED_VARIABLE(resolvedCurrent);
             }
+            if (logContention) [[unlikely]]
+                g_threadAtomicsRMWRestarts.fetch_add(1, std::memory_order_relaxed);
             continue;
         }
         case AtomicSlotStatus::Restart:
+            if (logContention) [[unlikely]]
+                g_threadAtomicsRMWRestarts.fetch_add(1, std::memory_order_relaxed);
             continue;
         case AtomicSlotStatus::NotNumber:
         case AtomicSlotStatus::LockedRevalidate: // Accessor-internal; never escapes.
@@ -821,6 +859,9 @@ static JSValue atomicsRMWOnPropertyGilOff(JSGlobalObject* globalObject, JSObject
     }
 
     bool isExchange = op == AtomicsRMWOp::Exchange;
+    const bool logContention = Options::logJSLockContention();
+    if (logContention) [[unlikely]]
+        g_threadAtomicsRMWCalls.fetch_add(1, std::memory_order_relaxed);
     while (true) {
         auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
         RETURN_IF_EXCEPTION(scope, { });
@@ -843,6 +884,8 @@ static JSValue atomicsRMWOnPropertyGilOff(JSGlobalObject* globalObject, JSObject
             throwTypeError(globalObject, scope, "Atomics RMW: stored value is not a number"_s);
             return { };
         case AtomicSlotStatus::Restart:
+            if (logContention) [[unlikely]]
+                g_threadAtomicsRMWRestarts.fetch_add(1, std::memory_order_relaxed);
             continue;
         case AtomicSlotStatus::NotEqual:
         case AtomicSlotStatus::NeedsStringResolution:

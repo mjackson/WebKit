@@ -2815,6 +2815,48 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
     }; // doJettison
 
     if (Options::useJSThreads() && reason != Profiler::JettisonDueToOldAge) [[unlikely]] {
+        // S3-jettison-stw-batch (SCALEBENCH §27 stwrate2): CodeBlock-jettison
+        // is 188/346 of §A.3 conducted windows at W=16 — N mutators kept in
+        // the SAME shared DFG/FTL CodeBlock all cross the same shared
+        // counter (OSR-exit reopt threshold, FTL OSR-entry failure count)
+        // and each independently reaches jettison() on this one block. The
+        // body is idempotent (m_isJettisoned is a per-instance
+        // RelaxedAtomicBool that goes monotone-true here and is only ever
+        // cleared by installCode on the BLOCK BEING INSTALLED, never on the
+        // jettisoned one), and the redundant callers' work is a strict
+        // subset of the first's (the isInvalidated() early returns below).
+        // So fold redundant requesters into the first conductor's window
+        // instead of conducting N-1 fresh §A.3 rendezvous:
+        //   (a) early-out if a sibling mutator's jettison of THIS block
+        //       already ran — its STW window's resume edge is the fence
+        //       that makes the relaxed read sound (we were parked in that
+        //       window, or we re-acquired heap access through the §A.3.2b
+        //       gate after it);
+        //   (b) if another §A.3 window is PENDING right now (rendezvous in
+        //       progress) and we would otherwise queue at arbitration and
+        //       conduct a fresh window after it, park into it as a
+        //       participant via parkSitePollAndParkForStopTheWorld — the
+        //       same class-(2) access-holding-wait helper the compile-side
+        //       spinners use, with the same P10/P10b epoch bracket — then
+        //       re-check (a). That window's conductor may be a sibling's
+        //       jettison of this same block (pure-code-lifecycle: epoch
+        //       silent, no cascade), or a Class-A fire whose step-5
+        //       jettisons cover this block; either way the re-check skips
+        //       our own window. If neither, we conduct exactly as before.
+        // gilOff-only (the GIL serializes mutators, so no redundant
+        // requesters exist GIL-on); the !worldIsStopped(vm) guard keeps R1.h
+        // inline callers (GC-end finalizers, conductor-stack step-5 nests)
+        // on the existing inline path — a GC-thread caller MUST NOT park
+        // here (it holds the GCL the queued §A.3 requester is waiting on).
+        // Flag-off: whole block is dead behind useJSThreads.
+        if (vm.gilOff() && !JSThreadsSafepoint::worldIsStopped(vm)) {
+            if (m_isJettisoned)
+                return;
+            if (JSThreadsSafepoint::parkSitePollAndParkForStopTheWorld(vm)) {
+                if (m_isJettisoned)
+                    return;
+            }
+        }
         // SPEC-jit section 5.3/I8: run the whole jettison world-stopped. If the
         // world is already stopped (GC window, outer fire closure), this runs
         // inline (R1.h); otherwise we conduct a stop. Code-deletion still waits

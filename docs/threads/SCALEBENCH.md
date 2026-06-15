@@ -1249,8 +1249,10 @@ to 8–10; re-run interleaved, see W=32 row note).
   rises only marginally (0.43→0.44); the wall improvement is mutator
   *throughput* (T3 keeps DFG/FTL on the hot indexed path instead of
   OSR-exiting on segmented butterflies), not parallelism. The remaining
-  W=16 ceiling is unchanged from §25's analysis: STW collection wall
-  fraction.
+  W=16 ceiling is **NOT** §25's "STW collection wall fraction" — gcwall
+  (§27.S2) measures STW-GC at **5.4%** of W=16 wall. The dominant ceiling
+  is the **~52% thread-0 serial inter-phase work** plus the parallel-phase
+  CPU-waste tax — see §27.S1/S2 below.
 - **GIL-on W=1 -1.6% same-host (5-rep interleaved**, base
   15691/15842/16021/16202/16361 vs v33 15623/15728/15765/15875/16187,
   loadavg 1.7–6.3 falling). T4-heap-layout-restore recovered ~1.6 of the
@@ -1320,3 +1322,246 @@ until the tier-up race is closed (a `tierUpCommon` / `m_osrEntryBlock`
 TOCTOU guard, not in any campaign-3 file) and the W=2 RSS regression is
 either fixed (`sharedGCEdenSurvivalFullTriggerRatio` tuned toward 2.0 at
 N=2) or explained as accepted.
+
+### §27.S1 Amendment — serial-fraction ceiling correction & per-section attribution
+
+The §27 ceiling line ("STW collection wall fraction") is **incomplete**.
+The `gcwall` instrumentation incidentally exposed that at W=16,
+`phaseA_ms + phaseB_ms + phaseC_ms ≈ 7150 ms` against `total_ms ≈ 14850 ms`
+— i.e. **~7700 ms (52%) of W=16 wall is thread-0-only inter-phase serial
+work** that runs between barriers while W-1 workers park: two
+`postingsChecksum()` walks over 4,158,957 postings (~10 heap-BigInt ops
+each), `buildDfSnap()`, `makeGroups()`, and `checksumPhaseC()`
+(`bench.js` worker-0 path). All three languages run identical serial
+work, so this is not a fairness defect; but a 52% structural serial
+fraction alone caps per-worker `cpu_util` near 0.50 — which is the
+observed 0.44, **before** any STW-GC accounting. STW collection is a
+contributor inside the parallel ~7150 ms, not the dominant W=16 ceiling.
+
+**The actionable lever is the GIL-off tax on the serial work.** GIL-on
+W=1 15764.7 ms vs GIL-off W=1 25063.5 ms = **1.59×**. The serial sections
+are single-threaded by construction, so under GIL-off they pay engine
+overhead (sharedGCHeap BigInt allocation, segmented-butterfly GetByVal,
+shared-Map iterator) for zero parallelism benefit. If the serial 7700 ms
+carries the 1.59× tax uniformly, GIL-on-parity serial ≈ 7700/1.59 ≈
+**4843 ms**, projecting W=16 wall ≈ 7150 + 4843 ≈ **11993 ms** — under
+the ≤12600 ms Java-parity bar (1.99× vs own W=1) and lifting `cpu_util`
+toward (4843 + 16·6050) / (16·11993) ≈ 0.53. That is the campaign-4
+target: recover ~2857 ms of serial wall at W=16 by closing the GIL-off
+tax on **one** identified hot section, not by touching the parallel
+phases.
+
+**Instrumentation (this amendment).** `bench.js` now emits five extra
+JSON keys timing each thread-0 serial section individually:
+`postingsChecksum1_ms`, `buildDfSnap_ms`, `postingsChecksum2_ms`,
+`makeGroups_ms`, `checksumPhaseC_ms`. Pure measurement — no control-flow
+change, no engine edit, output-only (Go/Java need not match; SPEC §1.11
+output keys are a superset contract). Sum of the five ≈
+`total_ms - (phaseA_ms + phaseB_ms + phaseC_ms)` modulo barrier-wakeup
+slop and (in WS mode) `wsMergeLocals`.
+
+**Attribution A/B (v33 binary, 5 reps each, quiet host):**
+```
+# GIL-off W=1
+for i in 1 2 3 4 5; do env JSC_useJSThreads=1 JSC_useThreadGIL=0 \
+  JSC_useVMLite=1 JSC_useSharedAtomStringTable=1 JSC_useSharedGCHeap=1 \
+  JSC_useThreadGILOffUnsafe=1 WebKitBuild/Release/bin/jsc \
+  Tools/threads/scalebench/js/bench.js -- 1; done
+# GIL-on W=1
+for i in 1 2 3 4 5; do env JSC_useJSThreads=1 JSC_useThreadGIL=1 \
+  WebKitBuild/Release/bin/jsc \
+  Tools/threads/scalebench/js/bench.js -- 1; done
+```
+W=1 isolates the serial-code tax from any parallel-phase effect (every
+section is "serial" at W=1); the per-section GIL-off/GIL-on ratio names
+the dominant contributor directly. A W=16 GIL-off run with the same
+binary cross-checks that the W=1 section walls reproduce at scale (they
+should: thread-0 runs them alone either way).
+
+| Section | GIL-on W=1 ms (med) | GIL-off W=1 ms (med) | ratio | GIL-off W=16 ms (med) |
+|---|---|---|---|---|
+| postingsChecksum1 | 1846.5 | 2785.0 | 1.51 | 3739.9 |
+| buildDfSnap | 34.6 | 37.8 | 1.09 | 56.8 |
+| postingsChecksum2 | 2002.5 | 3081.8 | 1.54 | 3973.3 |
+| makeGroups | 0.4 | 0.5 | 1.09 | 0.7 |
+| checksumPhaseC | 29.8 | 38.0 | 1.28 | 49.8 |
+| **sum** | **3913.9** | **5943.1** | 1.52 | **7820.5** (≈ expected 7700) |
+
+(Filled 2026-06-15 from `results-v34ab-raw.jsonl`, v34 binary — within ±1%
+of v33 at every cell, see §28. The W=16 serial sum **exceeds** the W=1
+GIL-off sum by +32%: thread-0's single-threaded checksum walk runs ~1.3×
+slower with 15 siblings parked at the barrier — sharedGCHeap allocator
+state churn / background scavenge interference, not the per-op GIL-off
+tax which is the W=1 ratio column. The two `postingsChecksum` calls are
+**98.6%** of the serial sum (7713 / 7820 ms at W=16).)
+
+**Expected outcome** (to be confirmed by the table): the two
+`postingsChecksum` calls dominate (≈8.3M iterations of BigInt
+mul/xor/`mix` + `p.docIds[i]`/`p.tfs[i]` segmented indexed reads + shard
+`Map` iteration). Whichever of {heap-BigInt alloc under `sharedGCHeap`,
+segmented `GetByVal` in a single-mutator context, shared-`Map` iterator
+overhead} carries the largest GIL-off/GIL-on ratio becomes the named
+campaign-4 engine task with a measured ms target equal to that section's
+(GIL-off − GIL-on) delta.
+
+### §27.S2 Amendment — congc default REFUTED; STW-GC is 5.4% not the ceiling
+
+**Decision (campaign-4 C1-congc-no-default):** `useConcurrentSharedGCMarking`
+stays **default `false`** (OptionsList.h:433); the GIL-off coupling block
+in `Options.cpp::notifyOptionsChanged()` deliberately does **not** force it
+on. Recorded there as a comment so a future campaign does not re-propose
+"default congc on" without a fresh ≥10% STW-wall measurement.
+
+**gcwall measurement (METHOD B, v33 binary, W=16, 3-run):**
+
+| arm | rendezvous windows | STW open→resume | wall | STW % of wall |
+|---|---|---|---|---|
+| congc=0 (default) | 57 | 807 ms | 14847 ms | **5.4%** |
+| congc=1 | 87–88 | 765 ms | 15119 ms | 5.1% |
+| Δ | **+30** | -42 ms | **+272 ms (+1.8%)** | — |
+
+**congcab independent A/B (interleaved, same host):** W=8 median 16.54 s
+vs 16.51 s (+0.2%), W=16 15.83 s vs 15.51 s (+1.2%); cpu% **718 → 701**
+(did not rise — the congc design predicate); 16/16 checksums identical;
+crash rate 1/9 vs 2/10, not arm-correlated (the §27 P0 tier-up TOCTOU).
+
+**Why this refutes the §25/§27 ceiling claim.** §25 named, and the §27
+results bullet repeated, "STW collection wall fraction" as the remaining
+W=16 ceiling. The ≥10% bar required to justify defaulting C1 is not met:
+STW-GC is 5.4% of wall. Even a *perfect* congc (STW→0) caps the gain at
+~800 ms, leaving W=16 ≈ 14040 ms — still above the ≤12600 ms Java-parity
+target. The stwrate2 verdict ("the answer is GC pause") is likewise
+refuted at 5.4%. The corrected attribution is §27.S1's: **~52% of W=16
+wall is thread-0 serial inter-phase work**, and the parallel ~7150 ms
+runs at ~5.6× CPU-waste vs GIL-on (cpu_util 0.44 with 16 workers awake
+for ~48% of wall ⇒ effective per-worker parallel utilisation well under
+1). Those two levers — serial GIL-off tax (§27.S1) and parallel-phase
+waste — are where campaign-4 effort goes.
+
+**Congc follow-up (DEFERRED).** The specific defect the profile names is
+the **~30 extra Reentry-rendezvous windows** C1 introduces (57 → 87–88):
+each concurrent-mark handoff opens a fresh stop window, and the
+rendezvous cost (~9 ms/window at W=16) eats the 42 ms STW saving and
+then some. Fixing this (coalesce C1 handoffs / piggyback on existing
+windows) is a real congc work item but is **deferred**: even at zero
+extra windows the ceiling is 5.4%, far short of the 12600 ms target.
+Re-evaluate only after the §27.S1 serial-tax lever has moved W=16 wall
+into range where 5% matters.
+
+**Net of this task:** 0 ms (decision). Prevents a **+1.8% W=16 wall
+regression** that defaulting congc would have introduced, and redirects
+campaign-4 to the measured 52%-serial / parallel-waste levers.
+
+## 28. Run 3.4 — P0 closure + R1/S2/S3 acceptance (campaign-3 follow-up)
+
+Measures a 12-file working-tree delta (+513/−24) over `21d09c27fef2`
+(campaign-3 / v33) landing the §27 follow-ups: **P0-osr-entry-toctou**
+(`DFGJITCode.cpp` snapshot-then-null-check absorbs the
+`clearOSREntryBlockAndResetThresholds` loser race; flag-off path
+byte-identical), **R1-rss-ratio-adaptive** (`Heap.cpp` W-adaptive
+`effectiveRatio = min(option, 2.0+0.5·(clients−2))` for the
+floating-garbage Full trigger), **S2(d)-jslock-adaptive-spin**
+(`LockObject.cpp` W-adaptive spin bound 40→20@W≥8→10@W≥16, refreshed
+only in the slow path) plus the option-gated `logJSLockContention`
+counters, **S3-jettison-stw-batch** (`CodeBlock.cpp` redundant-jettison
+fold-into-pending-window), the §27.S2 congc-no-default decision comment
+in `Options.cpp`, and the §27.S1 `bench.js` per-section timing keys. v34
+binary sha256
+`4f71fa548aac51fbebd86ebb49b0caa7e1e5b4057c76acc087a268c39bf078d7`
+(2026-06-15; 0 sources newer than the binary; Debug bin same mtime).
+
+**Host-drift control.** `d8ed7b6f5254` baseline reused
+(`jsc-v33-baseline`, sha256 `2a85f8e5…` — bit-identical to §25/§27) and
+measured back-to-back with v34 in every cell (raw in
+`results-v34ab-raw.jsonl`, driver `v34_ab.sh`). The baseline today
+reproduces its own §27 same-host numbers within ±2% (W=1 24777 vs §27
+base 24809 = −0.1%; W=16 21156 vs §27 base 20618 = +2.6%; GIL-on W=1
+16524 vs §27 base 16021 = +3.1%). 1-min loadavg at batch starts:
+2.7–10.8 (W=1/2 quiet at 2.4–4.2; W=16/32 ran into the 30-rep
+stability-gate decay tail at 7–13; W=32 interleaved). No sibling builds;
+top non-self CPU consumer ≤6.2%.
+
+### W=32 stability (P0 gate — runs first)
+
+`ulimit -c 0`, pinned GIL-off env, v34 binary, `bench.js -- 32`, **30
+consecutive reps**: **30/30 exit 0, 0 SIGSEGV**, every checksum tuple
+matches the reference. (v33: 4/26 SIGSEGV, §27.) Per-rep wall: 25/30 in
+15363–16255 ms, 5/30 bimodal-high at 21048–22668 ms (sys-time spike,
+host-contention bimodality observed since §25; not arm-correlated).
+**P0-osr-entry-toctou closed.**
+
+### Before/after (run 3.3 §27 medians vs run 3.4 medians; same-host A/B vs `d8ed7b6f5254` in parentheses)
+
+| Cell | §27 wall ms | 3.4 wall ms | vs §27 | vs same-host base | speedup-vs-self | Java bar | §27 cpu | 3.4 cpu | §27 RSS MB | 3.4 RSS MB | RSS vs base |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 25063.5 | 24558.4 | −2.0% | **−0.9%** (base 24777) | 1.00x | — | 1.04 | 1.04 | 422 | 420 | +0.3% |
+| GIL-off W=2 | 24503.3 | 24617.0 | +0.5% | **−13.5%** (base 28444) | 1.00x | — | 0.90 | 0.93 | 1701 | 1641 | **+7.0%** |
+| GIL-off W=4 | 19207.0 | 19101.7 | −0.5% | **−20.0%** (base 23876) | 1.29x | — | 0.71 | 0.72 | 1732 | 1747 | −0.5% |
+| GIL-off W=8 | 16166.3 | 16211.0 | +0.3% | **−22.9%** (base 21017) | **1.51x** | 1.99x | 0.56 | 0.57 | 1765 | 1741 | −2.3% |
+| GIL-off W=16 | 15193.4 | 15024.2 | −1.1% | **−29.0%** (base 21156) | **1.63x** | 1.99x | 0.44 | 0.46 | 1789 | 1792 | −1.4% |
+| GIL-off W=32 | 15950.1 | 15933.9 | −0.1% | **−27.2%** (base 21874) | **1.54x** | 1.75x | 0.33 | 0.32 | 1843 | 1847 | +4.5% |
+| GIL-on W=1 | 15764.7 | 16157.6 | +2.5% | **−2.2%** (base 16524) | — | — | 1.03 | 1.03 | 421 | 422 | +0.2% |
+
+- All 51/51 A/B reps rc=0, every checksum tuple matches the reference
+  (`b3e65a6855b9bdeb|4158957|39c33392b2a4c5b2|c4bdd580f85ee058|af028188d7a56a96`).
+  Per-rep spread tight (≤2%) at every cell except W=4 v34 (rep3 outlier
+  15994 ms phaseA 6739, vs reps 1/2 ~9500 — JIT-warmup luck; median is
+  rep1) and W=32 base rep3 27381 ms (sys 57.6 s, the §25/§27 bimodality;
+  median rep1 21874).
+- **Speedup-vs-self vs Java curve** (vs v34's own W=1 24558.4 ms): W=8
+  1.51x **< 1.99x** (gap −3870 ms wall); W=16 1.63x **< 1.99x** (gap
+  −2683 ms); W=32 1.54x **< 1.75x** (gap −1901 ms). **All three Java
+  bars MISSED.** v34 wall is within ±1.1% of v33 at every W — the
+  v34-over-v33 delta is correctness (P0), RSS tuning (R1), and
+  contention-shape work (S2(d)/S3) whose effect at this benchmark is
+  sys-time only: W=16 sys 19.4 s → 7.4 s (−62%), W=32 sys 25.5 s →
+  11.7 s (−54%) — fewer rendezvous/futex syscalls — but user+sys/wall
+  (cpu_util) moves only 0.44 → 0.46. The §27.S1 52%-serial ceiling is
+  unchanged (no v34 piece touches the serial code paths).
+- **§27.S1 attribution table now filled** (above). The two
+  `postingsChecksum` calls are 7713 of 7820 ms W=16 serial (98.6%),
+  GIL-off/GIL-on ratio 1.51–1.54×, and an additional 1.32× W=16/W=1
+  GIL-off penalty (3740/2785, 3973/3082) from sibling-parked sharedGCHeap
+  interference. **Campaign-4 named target:** the `postingsChecksum`
+  GIL-off tax — heap-BigInt mul/xor allocation under `sharedGCHeap` is
+  the dominant per-iteration cost (8.3M iterations); a per-lite BigInt
+  scratch / nursery or an int64 fast path here is worth ~2030 ms at W=1
+  (5867 → 3849) and ~3800 ms at W=16 (7713 → 3849) — the latter alone
+  takes W=16 to ~11200 ms ≈ 2.19×, clearing the 1.99× bar.
+- Honest negatives: **(a)** GIL-off W=2 RSS **+7.0% same-host**
+  (1534→1641 MB) — R1's W-adaptive ratio recovered ~60 MB of the §27
+  +10.3% (v33 1701→v34 1641, −3.5%) but the residual is the campaign-3
+  T1/T3 JIT-code/segmented-spine retention itself, not the Full-trigger
+  cadence (v34 W=2 already runs at effectiveRatio=2.0, ~50% Full
+  cadence). Recorded as accepted: 107 MB at W=2 only; W≥4 RSS flat to
+  −2.3%. **(b)** GIL-on W=1 vs §27 published +2.5% (16158 vs 15765) —
+  but the **same-host interleaved A/B is −2.2%** (base today 16524), so
+  this is host drift, not a v34 regression; the ≤2% gate uses the
+  same-host number and PASSES. **(c)** W=32 RSS +4.5% same-host
+  (unchanged from §27's +5.2%; within 5%).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| **W=32 stability 30 reps (P0)** | **30/30 exit 0, 0 SIGSEGV** (v33: 4/26) |
+| Corpus GIL-off full (`run-tests.sh`, pinned env, Debug bin) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on full (`JSC_useJSThreads=1`, Debug bin) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release v34) | **0 mismatches** |
+| congc: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums, median 19186.5 ms (§27: 19105.9, +0.4%) |
+| GIL-on W=1 5-rep interleaved A/B vs `d8ed7b6f5254` | **−2.2%** (≤2% gate PASS) |
+| No same-host wall cell regressing >5% | **PASS** (worst: W=2 +0.5% vs §27, −13.5% vs base) |
+| Speedup-vs-self beats Java at W=8/16/32 | **FAIL** (1.51/1.63/1.54 vs 1.99/1.99/1.75) |
+
+### Acceptance verdict
+
+**P0 CLOSED; Java bar MISSED.** Corpus + identity green; W=32 0/30
+crash; GIL-on same-host −2.2%; no wall regression anywhere; W∈{2..32}
+−13.5% to −29.0% same-host vs `d8ed7b6f5254`. But v34 wall ≈ v33 wall at
+every W (the v34-over-v33 delta moved only sys-time and RSS), so
+speedup-vs-self stays at **1.63× @ W=16 < 1.99×** — the §27.S1 serial
+ceiling is unchanged. The campaign-3 delta can land (P0 was its blocker;
+R1 partially closes the W=2 RSS negative; S2(d)/S3 are pure wins on
+sys-time with no wall regression). The Java-parity gap is now
+**quantified to a single section** (postingsChecksum heap-BigInt
+GIL-off tax, ~3800 ms W=16) and named as the campaign-4 target above.
