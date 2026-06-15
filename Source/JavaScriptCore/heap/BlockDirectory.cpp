@@ -153,6 +153,11 @@ MarkedBlock::Handle* BlockDirectory::tryAllocateBlock(const AbstractLocker& muta
     // SharedGC (§5.2(3)): mutatorSlowPathLocker is the caller's MSPL token
     // (LocalAllocator::allocateSlowCase); when shared, block creation and the
     // didAddBlock registration are serialized server-side.
+    // T7-mspl-per-directory: the token may now be a per-directory STRIPE
+    // (this directory's m_refillLock + the shared side of the MSPL facade) —
+    // tryCreate touches no shared state and so runs in parallel across
+    // directories; didAddBlock takes Heap::m_markedSpaceRegistryLock
+    // internally for the cross-directory MarkedSpace::m_blocks set.
     UNUSED_PARAM(mutatorSlowPathLocker);
     ASSERT(!heap.isSharedServer() || heap.mutatorSlowPathLock().isHeld());
 

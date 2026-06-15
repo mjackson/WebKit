@@ -650,6 +650,17 @@ void MarkedSpace::addActiveWeakSet(WeakSet* weakSet)
     // sets might contain new weak handles even though they are tied to old objects. This slightly
     // increases the amount of scanning that an eden collection would have to do, but the effect
     // ought to be small.
+    // T7-mspl-per-directory: the sole caller (WeakSet::addAllocator via
+    // WeakSet::allocate) holds the EXCLUSIVE facade side, which already
+    // excludes every stripe's didAllocateInBlock; we still leaf-lock the
+    // append under Heap::m_markedSpaceRegistryLock so m_newActiveWeakSets has
+    // a single guard (matching didAllocateInBlock above) and so a future
+    // stripe-mode WeakSet path would not need to revisit this site.
+    if (heap().isSharedServer()) [[unlikely]] {
+        Locker locker { heap().markedSpaceRegistryLock() };
+        m_newActiveWeakSets.append(weakSet);
+        return;
+    }
     m_newActiveWeakSets.append(weakSet);
 }
 
@@ -661,7 +672,19 @@ void MarkedSpace::didAddBlock(MarkedBlock::Handle* block)
     // SharedGC (§5.2): mutator-path calls (BlockDirectory::tryAllocateBlock)
     // hold MSPL when shared; m_blocks (a MarkedBlockSet with its own internal
     // bloom-filter/set) additions are thereby serialized against each other.
+    // T7-mspl-per-directory: callers may now hold a per-directory MSPL
+    // STRIPE — m_blocks is cross-directory, so leaf-lock it under
+    // Heap::m_markedSpaceRegistryLock (rank 7r). Removals
+    // (MarkedSpace::freeBlock) are world-stopped or server-teardown only —
+    // both exclude every stripe — so the registry lock here only contends
+    // with other stripes' didAddBlock (one HashSet add + one bloom-filter
+    // write; sub-microsecond hold). Flag-off / !isSharedServer(): not taken.
     m_capacity.fetch_add(MarkedBlock::blockSize, std::memory_order_relaxed); // §5.4/F3.
+    if (heap().isSharedServer()) [[unlikely]] {
+        Locker locker { heap().markedSpaceRegistryLock() };
+        m_blocks.add(&block->block());
+        return;
+    }
     m_blocks.add(&block->block());
 }
 
@@ -670,7 +693,20 @@ void MarkedSpace::didAllocateInBlock(MarkedBlock::Handle* block)
     // SharedGC (§5.2(2)): mutator calls arrive inside LocalAllocator::
     // allocateSlowCase's MSPL section; all other m_newActiveWeakSets accesses
     // are conductor-side while the world is stopped for all clients (I5).
+    // T7-mspl-per-directory: per-directory STRIPE callers leaf-lock the
+    // sentinel-list splice under Heap::m_markedSpaceRegistryLock (rank 7r) —
+    // the list is shared across every directory's refill (and with
+    // addActiveWeakSet, which takes the same registry lock). Flag-off: not
+    // taken.
     ASSERT(!heap().isSharedServer() || heap().mutatorSlowPathLock().isHeld() || heap().worldIsStoppedForAllClients());
+    if (heap().isSharedServer()) [[unlikely]] {
+        Locker locker { heap().markedSpaceRegistryLock() };
+        if (block->weakSet().isOnList()) {
+            block->weakSet().remove();
+            m_newActiveWeakSets.append(&block->weakSet());
+        }
+        return;
+    }
     if (block->weakSet().isOnList()) {
         block->weakSet().remove();
         m_newActiveWeakSets.append(&block->weakSet());

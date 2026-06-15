@@ -461,6 +461,24 @@ inline void assertIsCurrent(const Thread& thread) WTF_ASSERTS_ACQUIRED_CAPABILIT
     assertIsCurrent(thread.threadLikeAssertion());
 }
 
+// Architecture-appropriate spin-wait hint for bounded adaptive-spin loops
+// that retry an atomic before falling back to a parking slow path. Emits
+// PAUSE on x86 and ISB on ARM64 (matching the WTF::Lock spin body via
+// simde_mm_pause), degrading to a compiler barrier elsewhere. Kept here
+// rather than pulling the simde header into every spin site.
+ALWAYS_INLINE void spinLoopPause()
+{
+#if CPU(X86) || CPU(X86_64)
+    asm volatile("pause" ::: "memory");
+#elif CPU(ARM64)
+    asm volatile("isb" ::: "memory");
+#elif CPU(ARM) || CPU(ARM_THUMB2)
+    asm volatile("yield" ::: "memory");
+#else
+    asm volatile("" ::: "memory");
+#endif
+}
+
 } // namespace WTF
 
 using WTF::ThreadSuspendLocker;

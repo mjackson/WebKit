@@ -86,8 +86,35 @@ void* IsoSubspace::tryAllocateLowerTierPrecise(size_t size)
     // lower-tier free list; when the server is shared this runs inside
     // LocalAllocator::allocateSlowCase's MSPL section (the sole mutator-path
     // caller) — assert rather than re-lock (MSPL is not recursive).
+    // T7-mspl-per-directory: the caller's MSPL token may now be a
+    // per-directory STRIPE. The per-iso-subspace state below
+    // (m_lowerTierPreciseFreeList, m_remainingLowerTierPreciseCount,
+    // Subspace::m_preciseAllocations) is single-directory — two clients
+    // refilling the SAME iso directory serialize on m_directory.m_refillLock,
+    // and refills of OTHER directories never reach this subspace's state. The
+    // CROSS-directory MarkedSpace precise registry
+    // (registerPreciseAllocation: m_preciseAllocations vector +
+    // m_preciseAllocationSet + indexInSpace stamps) IS shared, so leaf-lock
+    // it under Heap::m_markedSpaceRegistryLock (rank 7r). The other precise
+    // registrars (CompleteSubspace::tryAllocateSlow*, PreciseSubspace,
+    // reallocatePreciseAllocationNonVirtual, enablePreciseAllocationTracking)
+    // all hold the EXCLUSIVE facade side, which excludes every stripe and so
+    // excludes us — the registry lock here only contends with sibling
+    // stripes' lower-tier-precise (rare: bounded by
+    // numberOfLowerTierPreciseCells per subspace, then never again) and with
+    // didAddBlock / didAllocateInBlock. Flag-off / !isSharedServer(): not
+    // taken.
     ASSERT(!m_space.heap().isSharedServer() || m_space.heap().mutatorSlowPathLock().isHeld() || m_space.heap().worldIsStoppedForAllClients());
 
+    if (m_space.heap().isSharedServer()) [[unlikely]] {
+        Locker locker { m_space.heap().markedSpaceRegistryLock() };
+        return tryAllocateLowerTierPreciseImpl(size);
+    }
+    return tryAllocateLowerTierPreciseImpl(size);
+}
+
+void* IsoSubspace::tryAllocateLowerTierPreciseImpl(size_t size)
+{
     auto revive = [&] (PreciseAllocation* allocation) {
         // Lower-tier cells never report capacity. This is intentional since it will not be freed until VM dies.
         // Whether we will do GC or not does not affect on the used memory by lower-tier cells. So we should not

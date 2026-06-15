@@ -36,6 +36,7 @@
 #include "ThreadObject.h"
 #include "ThreadManager.h"
 #include "VMLite.h"
+#include "VMManager.h"
 #include "TopExceptionScope.h"
 #include <wtf/MonotonicTime.h>
 #include <wtf/ParkingLot.h>
@@ -575,7 +576,42 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
     if (state.heldByCurrentThread() || state.asyncGrantRunByCurrentThread())
         return throwVMError(globalObject, scope, createError(globalObject, "Lock is not recursive"_s));
 
-    if (!state.m_lock.tryLock()) {
+    bool needsSlowPath = !state.m_lock.tryLock();
+    if (needsSlowPath && vm.gilOff()) {
+        // T5-jslock-adaptive-spin: textbook thin-lock briefly-contended fast
+        // path. The uncontended tryLock above is the existing fast path; this
+        // covers the next case down — the holder's critical section is shorter
+        // than the contender's GILDroppedSection bookkeeping (release heap
+        // access, possibly park for a pending stop, ParkingLot enqueue), so a
+        // bounded spin acquires before the slow path would even finish its
+        // prologue. Off-CPU sampling at W=16 attributes ~17% of parked time to
+        // this function with K=128 shard locks averaging well under two
+        // contenders, i.e. most parks are sub-microsecond races a spin wins.
+        // GIL-on this is dead (gilOff() false): the contended path is rare and
+        // dropping the GIL IS the point there, so flag-off behaviour is the
+        // pre-spin code byte-for-byte. The genuinely-contended tail still
+        // falls through to the unchanged m_syncHoldParkers/ParkingLot loop.
+        //
+        // Safety: we spin WITH heap access (no GILDroppedSection yet), so the
+        // loop must not delay an STW rendezvous — bail to the slow path the
+        // moment jsThreadsStopPendingFor observes a pending stop; the
+        // GILDroppedSection there releases heap access and parks for it. The
+        // spin is otherwise a pure tryLock retry: it never sets m_holder,
+        // never touches m_syncHoldParkers, never opens the park-resumption
+        // window — on success we fall straight through to the single
+        // m_holder.store below exactly as the first-tryLock fast path does.
+        constexpr unsigned jsLockSpinLimit = 40;
+        for (unsigned spin = 0; spin < jsLockSpinLimit; ++spin) {
+            if (jsThreadsStopPendingFor(vm)) [[unlikely]]
+                break;
+            WTF::spinLoopPause();
+            if (state.m_lock.tryLock()) {
+                needsSlowPath = false;
+                break;
+            }
+        }
+    }
+    if (needsSlowPath) {
         if (!jsThreadsCanBlockOnCurrentThread(vm))
             return throwVMTypeError(globalObject, scope, "Lock.prototype.hold cannot block the current thread"_s);
         // SPEC-api 5.3: contended path. Drop the GIL (depth-free; see

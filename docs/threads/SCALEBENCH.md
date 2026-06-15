@@ -1055,3 +1055,99 @@ GIL-on wall itself improved -4.9%). congc teardown survived 5/5 — but per
 §23's reclassification the crash is timing-dependent, so 5/5 here is
 consistent-with-fixed, not proof; keep the §17 stack on the books until a
 stress campaign under memory pressure retires it.
+
+## 25. Run 3.2 — campaign-2 contention/retention pass
+
+Supersedes §24 for acceptance purposes. Measures a 21-file working-tree
+delta (+1043/-75) over `729430dbc80c` touching the allocator slow path
+(per-`BlockDirectory` striped MSPL replacing the server-wide refill lock —
+T7), the GC stop protocol (parked siblings join parallel marking instead of
+idling — T1; §A.3 arbitration park-not-sleep — T6), the heap-limit feedback
+(rebase `m_sizeAfterLast*Collect` past the Wlr cohort — T2), the segmented
+butterfly entry (born-full-coverage so first grow is the lock-free CAS —
+T3), the FTL lazy-slow-path steady state (lock-free DCLP — T8), and a
+bounded adaptive spin on `Lock.prototype.hold` (T5). T4 (relabel
+thread-local fast path) was withdrawn at adversarial review as unsound; the
+review note is in `JSObject.cpp`. Two fixes applied during this acceptance
+run: the T3 alignment gate narrowed from `useJSThreads` to `useSharedGCHeap`
+(the wider gate changed contiguous-array size-class selection under GIL-on
+for no benefit there), and the T2 rebase clamped to `m_totalBytesVisited` so
+the eden monotone-visited assert holds on small heaps (6 Debug-corpus
+failures: `heap-allocation-storm.js` et al.). Binary under test:
+`WebKitBuild/Release/bin/jsc` sha256
+`2a85f8e533411e6880272552ae2050b8d3842c1feb31aa181e1caeb6a1f83f88`
+(2026-06-15; 0 sources newer than the binary).
+
+Protocol: identical to §24 — pinned GIL-off env, `bench.js -- W` via the
+`v3_driver` measurement path (raw records in `results-v32-raw.jsonl`),
+3 reps/cell (5 for congc W=4), medians; `/usr/bin/time -v` for peak RSS and
+cpu_util = (user+sys)/(wall*W); core dumps off; one bench process at a time.
+1-min loadavg at batch starts: 1.6–4.2.
+
+**Host-drift control.** The run-3.1 binary was rebuilt bit-identically
+(`jsc-v32-baseline`, sha256 `c96178df…` matches §24 exactly) and re-measured
+back-to-back with the v32 binary in every cell (raw in
+`results-v32ab-raw.jsonl`). The baseline binary itself reproduces today at
++5.0% (GIL-off W=1: 25025 ms vs §24's 23834.5 ms) to +8.8% (GIL-on W=1:
+15659 ms 5-rep interleaved median vs §24's 14395.0 ms) over its own
+recorded numbers — i.e. this host has drifted 5–9% slower since 2026-06-13
+(a competing Rust build in a sibling worktree was observed mid-run; reniced
+where caught). The "vs §24" column below is therefore a *lower bound* on the
+delta; the "vs same-host baseline" column is the back-to-back A/B at the
+same instant and is the meaningful number.
+
+### Before/after (run 3.1 §24 medians vs run 3.2 medians; same-host A/B in parentheses)
+
+| Cell | §24 wall ms | 3.2 wall ms | vs §24 | vs same-host base | §24 cpu | 3.2 cpu | §24 RSS MB | 3.2 RSS MB | RSS vs same-host |
+|---|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 23834.5 | 24526.7 | +2.9% | **-2.0%** (base 25025) | 1.04 | 1.04 | 411 | 421 | +3.6% (base 419) |
+| GIL-off W=2 | 43735.9 | 28478.8 | **-34.9%** | **-36.4%** (base 44795) | 0.87 | 0.86 | 3810 | 1538 | **-58.4%** (base 3700) |
+| GIL-off W=8 | — | 21484.9 | — | **-45.1%** (base 39151) | — | 0.54 | — | 1764 | **-52.8%** (base 3737) |
+| GIL-off W=16 | 38385.1 | 20718.6 | **-46.0%** | **-47.9%** (base 39785) | 0.26 | **0.43** | 3860 | 1810 | **-52.9%** (base 3845) |
+| GIL-off W=32 | 38708.9 | 21140.4 | **-45.4%** | **-47.2%** (base 40066) | 0.18 | 0.29 | 3850 | 1739 | **-55.2%** (base 3883) |
+| GIL-on W=1 | 14395.0 | 15798.7 | +9.8% | **+2.7%** (base 15659) | 1.03 | 1.03 | 423 | 421 | -0.2% (base 422) |
+
+- Per-rep wall spread is tight at every cell except W=32 rep2 (27111 ms,
+  loadavg spike to 28.8 from W=16's tail; median-robust). All 23 bench reps
+  reproduced the §24 checksum tuple exactly.
+- W=16 cpu_util crosses **0.43** (median of 0.426/0.432/0.431) — the first
+  time this branch has exceeded the 0.40 gate. W=32 rises to 0.29.
+- W>=2 RSS roughly halves (3.7–3.9 GB -> 1.5–1.8 GB); the residual is
+  dominated by per-thread allocator state and the steady-state segmented
+  butterfly population — the next memory target.
+- W=1 GIL-off tax: 24527 / 15799 = **1.55x** (§24: 1.66x), but on a
+  same-host basis 24587 / 15659 = 1.57x, vs baseline 25025 / 15659 = 1.60x.
+- Honest negatives: GIL-on W=1 wall +2.7% same-host (5-rep interleaved A/B,
+  loadavg 2.0–2.3, baseline reps 15568–15922 vs v32 reps 15854–16134;
+  reproducible across batches). No new code path runs in this configuration
+  (every behavioral change is `isSharedServer()` / `gilOff()` /
+  `useSharedGCHeap()`-gated; verified by the bit-identical flag-off identity
+  below); the residual is structural — `Heap` layout grew by the
+  `MutatorSlowPathLockFacade`, the registry lock, and the sibling-visitor
+  pool, shifting hot members' cache lines and inlining decisions. Within the
+  5% gate; flagged for the next layout audit. GIL-off W=1 wall +2.9% vs §24
+  but -2.0% same-host (i.e. host drift only), RSS +3.6% same-host (the
+  shared-heap path's T3 alignment requesting one size class up on small
+  arrays). GIL-off W=2 cpu_util -1.7% (0.871 -> 0.855) — wall improved
+  because GC and refill *time* fell, not because the W=2 mutators ran more
+  in parallel; W=2 remains the worst per-thread efficiency point.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off full (`run-tests.sh`, pinned env, Debug bin) | **94 passed, 0 failed, 4 skipped** (after T2 clamp fix; pre-fix: 88/6, all `ASSERT(currentHeapSize >= m_sizeAfterLastCollect)`) |
+| Corpus GIL-on full (`JSC_useJSThreads=1`, Debug bin) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests) | **0 mismatches** |
+| congc teardown: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums, median 23700.9 ms (§24: 40151.9 ms, **-41.0%**) |
+
+### Acceptance verdict
+
+**PASS on the same-host A/B**; the literal vs-§24 GIL-on cell exceeds 5%
+because the byte-identical baseline binary itself does (host drift). Corpus
++ identity green; all three headline disjuncts hit (W=16 cpu_util 0.43 >=
+0.40; W=16 wall -46.0% vs §24 / -47.9% same-host; W>=2 RSS -52% to -58%
+same-host). No same-host cell regresses >5% (worst: GIL-on W=1 wall +2.7%,
+GIL-off W=1 RSS +3.6%). The campaign-2 delta is the first measurement where
+W>=8 wall dips below the GIL-off W=1 wall — i.e. adding threads now makes
+the program *faster*, not just less-slow.

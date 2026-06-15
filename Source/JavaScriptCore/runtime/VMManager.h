@@ -405,4 +405,11 @@ private:
 
 #undef FOR_EACH_STOP_THE_WORLD_REASON
 
+// Cheap seq_cst probe of the STW stop word (UNGIL §U20 SB1): true when a
+// stop-the-world has been requested against this VM and mutators must reach a
+// safepoint promptly. Exposed for bounded-spin sites that hold heap access and
+// must bail to their parking slow path (which honours the stop) instead of
+// spinning through a pending stop.
+JS_EXPORT_PRIVATE bool jsThreadsStopPendingFor(VM&);
+
 } // namespace JSC

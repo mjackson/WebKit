@@ -3422,6 +3422,42 @@ void JSObject::relabelIndexingShapeConcurrent(VM& vm, TransitionKind transition)
     // stay deferred).
     DeferGCForAWhile deferGC(vm);
 
+    // T4-relabel-threadlocal-fastpath: WITHDRAWN at adversarial review.
+    //
+    // The proposed gate (TID==me ∧ SW=0 ∧ both TTL sets valid ⇒ no foreign
+    // observer ⇒ rewrite+publish without a stop) is UNSOUND. TTL semantics
+    // (Structure.h I11/I12) witness only foreign WRITES and foreign
+    // TRANSITIONS; a foreign READ of an indexed lane fires nothing and flips
+    // nothing, and publishing this array into a shared container is a store to
+    // the CONTAINER that touches neither this object's tag nor its Structure's
+    // TTL sets. So a (TID=owner, SW=0, TTL-valid) array can already be in a
+    // foreign thread's hands, being walked by getIndexQuicklyConcurrent —
+    // which performs no ownership check and no load-load fence between
+    // indexingType() and the lane load. An out-of-stop in-place
+    // Int32→Double / Double→Contiguous rewrite then lets that reader decode a
+    // raw-double bit pattern as a boxed JSValue (or vice-versa): type-confused
+    // pointer deref. This is the SAME undetectability the F3 flatten rationale
+    // already records verbatim ("read-only foreign sharing is undetectable …
+    // so no 'unshared' fast path is sound", Structure.h
+    // flattenDictionaryStructureUnderStop comment), and it is exactly the
+    // invariant the racer-settled early return in the loop below depends on
+    // ("If a future path ever publishes an indexing shape outside a stop, this
+    // return becomes unsafe"). The proposal additionally violated I29
+    // (allocation between gate and publish via nonPropertyTransition with no
+    // post-allocation re-validation; DeferGCForAWhile defers collection, not
+    // §10.6 stop participation).
+    //
+    // Cost of NOT taking a fast path: measured negligible. The Class-A/§A.3
+    // stop windows this loop produces are warmup-phase one-shots — ~36/run,
+    // count flat with N and scale, 1.6 ms total of a 48.8 s wall (~0.003%;
+    // STW-WATCHDOG-CLOSURE.md / SCALEBENCH §11.2). The relabel STW is not a
+    // campaign-2 top site; do NOT re-propose a dynamic "thread-local" gate
+    // here. If a future profile ever shows this loop hot, the only sound
+    // route is a CALLER-THREADED proof of non-escape (e.g. an explicit
+    // known-unshared overload invoked from inside ObjectInitializationScope
+    // for the slice/from/of result-fill path) — not a heuristic on the
+    // object's own tag/TTL state.
+
     while (true) {
         StructureID oldStructureID = this->structureID(); // RAW bits (M5).
         if (oldStructureID.isNuked())

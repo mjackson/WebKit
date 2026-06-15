@@ -969,14 +969,23 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileFTLLazySlowPath, void*, (CallF
     LazySlowPath& lazySlowPath = *jitCode->lazySlowPaths[index];
 
     if (vm.gilOff()) [[unlikely]] {
-        // UNGIL U-T4b: generate exactly once under the generation lock;
-        // losers (and every later traversal of the deliberately-unpatched
-        // jump — see FTLLazySlowPath.cpp, the gilOff repatch skip) reuse the
-        // winner's stub via the thunk's tail call to our return value.
+        // UNGIL U-T4b / T8: the gilOff repatch skip (FTLLazySlowPath.cpp)
+        // means EVERY traversal of this slow path lands here forever. The
+        // stub is write-once: do textbook double-checked publication so the
+        // steady state is one acquire-load and zero locks. The global
+        // generation lock is taken only for the first-compile race; losers
+        // re-check under the lock. generate() release-stores the tagged code
+        // pointer after the stub (and its executable memory) is fully
+        // constructed, so a non-null acquire-load here is safe to tail-call.
+        if (void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently())
+            return stubCodePtr;
         Locker locker { ftlLazySlowPathGenerationLock };
-        if (!lazySlowPath.stub())
-            lazySlowPath.generate(codeBlock);
-        return lazySlowPath.stub().code().taggedPtr();
+        if (void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently())
+            return stubCodePtr;
+        lazySlowPath.generate(codeBlock);
+        void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently();
+        ASSERT(stubCodePtr);
+        return stubCodePtr;
     }
 
     lazySlowPath.generate(codeBlock);

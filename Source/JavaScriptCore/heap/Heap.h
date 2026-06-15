@@ -427,10 +427,127 @@ public:
 
     HeapClientSet& clientSet() LIFETIME_BOUND { return m_clientSet; }
 
+    // T7-mspl-per-directory: the mutator-slow-path lock (MSPL, rank 7) is now
+    // a writer-preferring RW facade so unrelated size-classes' refills do not
+    // serialize on one server-wide WTF::Lock. The two acquisition modes:
+    //
+    //   EXCLUSIVE (lock()/unlock(), the legacy "server-wide MSPL"): excludes
+    //   every per-directory stripe AND every other exclusive holder. Taken by
+    //   the genuinely cross-directory / cross-registry sections that the old
+    //   single lock covered and that the per-directory + registry stripes do
+    //   NOT make safe on their own:
+    //     - cross-directory empty-block steal (sweep + removeFromDirectory of
+    //       a FOREIGN directory while a sibling stripe could be resizing that
+    //       directory's m_bits — the I5b lock-free read in
+    //       MarkedBlock::Handle::sweep is the hazard);
+    //     - mutator-concurrent full sweeps (Heap::sweepSynchronously,
+    //       IncrementalSweeper::sweepNextBlockShared) for the same I5b reason
+    //       across every directory;
+    //     - WeakSet::allocate / sweep / shrink (the weak-mutation protocol is
+    //       still server-wide; review-round-4 carve-outs unchanged);
+    //     - GCThreadLocalCache teardown, server teardown,
+    //       enablePreciseAllocationTracking, sweepAllLogicallyEmptyWeakBlocks.
+    //
+    //   STRIPE (enterStripe()/exitStripe(), shared): the per-BlockDirectory
+    //   refill leg (own-directory cursor search, in-lock block sweep,
+    //   tryAllocateBlock + addBlock — the 75%-JSBigInt locksite). Any number
+    //   of stripes run concurrently; each stripe holder ALSO holds that
+    //   directory's BlockDirectory::m_refillLock (rank 7a) so two clients
+    //   refilling the SAME directory still serialize, and so the I5b m_bits
+    //   resize in addBlock excludes the same-directory lock-free bit reads
+    //   inside MarkedBlock::Handle::sweep / assertIsMutatorOrMutatorIsStopped.
+    //   Cross-directory MarkedSpace state touched on the stripe leg
+    //   (m_blocks set, m_newActiveWeakSets, the precise registry via
+    //   tryAllocateLowerTierPrecise) is leaf-locked under
+    //   m_markedSpaceRegistryLock (rank 7r).
+    //
+    // isHeld() preserves the legacy assertion idiom
+    // `heap.mutatorSlowPathLock().isHeld()` verbatim (it appears in
+    // out-of-file-set call sites: WeakSet.cpp, WeakSetInlines.h,
+    // IncrementalSweeper.cpp, GCThreadLocalCache.cpp): true iff EITHER an
+    // exclusive section or at least one stripe is currently held by some
+    // thread — the same "held by ANYONE" weakness WTF::Lock::isHeld already
+    // carried (documented at BlockDirectory.cpp assertNoUnswept).
+    //
+    // Flag-off / !isSharedServer(): no MutatorSlowPathLocker ever calls into
+    // this facade (the locker's isSharedServer() gate short-circuits), so the
+    // only observable difference from the old `Lock m_mutatorSlowPathLock` is
+    // Heap layout — no flag-off code path executes any new instruction.
+    class MutatorSlowPathLockFacade {
+        WTF_MAKE_NONCOPYABLE(MutatorSlowPathLockFacade);
+    public:
+        MutatorSlowPathLockFacade() = default;
+
+        void lock() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+        {
+            Locker locker { m_stateLock };
+            m_exclusiveWaiting++;
+            while (m_stripeDepth.load(std::memory_order_relaxed) || m_exclusiveHeld.load(std::memory_order_relaxed))
+                m_cond.wait(m_stateLock);
+            m_exclusiveWaiting--;
+            m_exclusiveHeld.store(true, std::memory_order_relaxed);
+        }
+
+        void unlock() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+        {
+            Locker locker { m_stateLock };
+            ASSERT(m_exclusiveHeld.load(std::memory_order_relaxed));
+            m_exclusiveHeld.store(false, std::memory_order_relaxed);
+            m_cond.notifyAll();
+        }
+
+        void enterStripe() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+        {
+            Locker locker { m_stateLock };
+            // Writer-preferring: a waiting exclusive section drains stripes
+            // first (sweepSynchronously / IncrementalSweeper must make
+            // progress; stripes are the high-rate side).
+            while (m_exclusiveHeld.load(std::memory_order_relaxed) || m_exclusiveWaiting)
+                m_cond.wait(m_stateLock);
+            m_stripeDepth.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        void exitStripe() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+        {
+            Locker locker { m_stateLock };
+            ASSERT(m_stripeDepth.load(std::memory_order_relaxed));
+            if (m_stripeDepth.fetch_sub(1, std::memory_order_relaxed) == 1 && m_exclusiveWaiting)
+                m_cond.notifyAll();
+        }
+
+        // Debug-assert helper only (relaxed; no synchronization implied —
+        // identical contract to WTF::Lock::isHeld).
+        bool isHeld() const
+        {
+            return m_exclusiveHeld.load(std::memory_order_relaxed) || m_stripeDepth.load(std::memory_order_relaxed);
+        }
+
+    private:
+        Lock m_stateLock;
+        Condition m_cond;
+        // Atomic ONLY so isHeld()'s lock-free hint reads are well-defined
+        // (TSAN); all RMW happens under m_stateLock.
+        std::atomic<unsigned> m_stripeDepth { 0 };
+        unsigned m_exclusiveWaiting { 0 };
+        std::atomic<bool> m_exclusiveHeld { false };
+    };
+
     // MSPL, rank 7 (SPEC-heap.md §6): serializes block handout, steals,
     // accounting, lower-tier precise allocation, addBlock resizes (I5b), and
     // precise-allocation registration (§5.6) when isSharedServer().
-    Lock& mutatorSlowPathLock() WTF_RETURNS_LOCK(m_mutatorSlowPathLock) { return m_mutatorSlowPathLock; }
+    // T7-mspl-per-directory: now an RW facade — see MutatorSlowPathLockFacade.
+    MutatorSlowPathLockFacade& mutatorSlowPathLock() { return m_mutatorSlowPathLock; }
+
+    // T7-mspl-per-directory: leaf lock (rank 7r) for the cross-directory
+    // MarkedSpace state that stripe holders touch on the refill leg:
+    // MarkedSpace::m_blocks (didAddBlock), m_newActiveWeakSets
+    // (didAllocateInBlock / addActiveWeakSet), and the precise registry
+    // (registerPreciseAllocation via IsoSubspace::tryAllocateLowerTierPrecise).
+    // Taken ONLY when isSharedServer(); never held across BVL /
+    // m_localAllocatorsLock / any rank>=8 lock; never held across an
+    // allocation, sweep, or stop. Exclusive MSPL holders may also take it
+    // (lock order: 7/7a -> 7r). Flag-off: never touched.
+    Lock& markedSpaceRegistryLock() WTF_RETURNS_LOCK(m_markedSpaceRegistryLock) { return m_markedSpaceRegistryLock; }
 
     // Sticky ISS (§5.1/I13): set once the client set EVER reaches size() > 1
     // with the option on; cleared only via §10D reversion.
@@ -1142,6 +1259,25 @@ private:
     bool tryConductSharedCollectionForPoll(GCClient::Heap&); // Non-blocking election attempt (SINFAC/CIND poll service).
     void conductSharedCollection(GCClient::Heap&); // §10 steps 3-9; pre: GCL held, GCA set.
 
+public:
+    // T1-gc-siblings-mark: called by a gilOff Mode-machine SIBLING parked
+    // access-released at VMManager::notifyVMStop. If a conducted cycle's
+    // marking phase is open (m_siblingMarkingAssistEnabled under
+    // m_markingMutex), acquires/creates a sibling SlotVisitor and runs
+    // drainFromShared(HelperDrain) to termination of THIS marking phase
+    // (returns when runEndPhase sets m_parallelMarkersShouldExit). Returns
+    // true iff the sibling joined a marking phase (caller re-evaluates the
+    // Mode/stop predicate); false means no marking is open — caller falls
+    // back to the bounded condvar poll. Pre: caller is heap-access-released
+    // (gcClientWillParkForThreadGranularStop already ran) and holds no
+    // VMManager / api-rank lock. The HelperDrain protocol (m_markingMutex /
+    // m_markingConditionVariable, F14/F17, the §9.1(2) pause checkpoints)
+    // is already N-helper-safe; siblings are indistinguishable from pool
+    // helpers to the marker-counter machine. Flag-off: unreachable (the
+    // only call site is inside the [[unlikely]] vm.gilOff() branch).
+    bool gilOffSiblingAssistMarking();
+private:
+
     // SPEC-congc §3 window model (CG-1, C0 infra). A shared collection is ONE
     // GCA tenure containing a SEQUENCE of stop windows. Flag-off (every §13.2
     // stage flag false) the conduct is exactly ONE window (§3.6 degenerate):
@@ -1403,7 +1539,25 @@ private:
     // them at the end.
     Vector<std::unique_ptr<SlotVisitor>> m_parallelSlotVisitors;
     Vector<SlotVisitor*> m_availableParallelSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
-    
+
+    // T1-gc-siblings-mark: per-sibling parallel SlotVisitor pool. The W-1
+    // gilOff Mode-machine SIBLINGS (parked access-released at
+    // VMManager::notifyVMStop while the elected representative runs
+    // conductSharedCollection) join marking exactly as the heapHelperPool
+    // helpers do — drainFromShared(HelperDrain) on a visitor from THIS pool
+    // (lazily grown; a fresh visitor gets didStartMarking() at creation so
+    // its m_markingVersion is current). Kept SEPARATE from
+    // m_availableParallelSlotVisitors so the pool helpers' apriori-count
+    // RELEASE_ASSERT stays sound. Growth and forEachSlotVisitor's iteration
+    // of this vector both serialize on m_parallelSlotVisitorLock; the
+    // mayGrow sticky bit gates that lock acquisition so flag-off
+    // forEachSlotVisitor is byte-identical (the bit is set ONLY by the
+    // conductor under the gilOff gate in runBeginPhase, BEFORE any sibling
+    // is enabled, so a false read can never race a growth).
+    Vector<std::unique_ptr<SlotVisitor>> m_siblingSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
+    Vector<SlotVisitor*> m_availableSiblingSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
+    Atomic<bool> m_siblingSlotVisitorPoolMayGrow { false };
+
     HandleSet m_handleSet;
     std::unique_ptr<CodeBlockSet> m_codeBlocks;
     // §5.8 record-named CodeBlock pins — see pinRetiredCallLinkRecordCodeBlock.
@@ -1513,6 +1667,19 @@ private:
     // m_markingMutex-protected marker counters) from the marking hot loop.
     bool m_parallelMarkersShouldPause { false };
     unsigned m_pausedParallelMarkers { 0 };
+    // T1-gc-siblings-mark: BOTH guarded by m_markingMutex. assistEnabled is
+    // raised by runBeginPhase (after forEachSlotVisitor(didStartMarking) +
+    // m_parallelMarkersShouldExit=false; gilOff-only) and lowered by
+    // runEndPhase in the SAME critical section that sets shouldExit — so a
+    // sibling that observes enabled==true under the mutex is guaranteed
+    // shouldExit==false at that instant and the cycle's didStartMarking has
+    // happened-before via the mutex. The count tracks siblings BETWEEN that
+    // observe and their post-drain decrement; runEndPhase waits it to zero
+    // after m_helperClient.finish() (the shouldExit notifyAll wakes them),
+    // restoring the active==waiting==paused==0 invariant before the ASSERT
+    // block and endMarking()'s reset() walk. Flag-off: never set/nonzero.
+    bool m_siblingMarkingAssistEnabled { false };
+    unsigned m_numberOfSiblingMarkingAssists { 0 };
 
     ConcurrentPtrHashSet m_opaqueRoots;
     static constexpr size_t s_blockFragmentLength = 32;
@@ -1537,7 +1704,8 @@ private:
 
     // --- Shared heap server state (SPEC-heap.md §5.1; THREADS T1) ---
     HeapClientSet m_clientSet;
-    Lock m_mutatorSlowPathLock; // MSPL, rank 7 (§5.2/§5.6).
+    MutatorSlowPathLockFacade m_mutatorSlowPathLock; // MSPL, rank 7 (§5.2/§5.6); T7: striped RW facade.
+    Lock m_markedSpaceRegistryLock; // T7-mspl-per-directory, rank 7r (leaf); see markedSpaceRegistryLock().
     Lock m_gcConductorLock; // GCL, rank 2 (§10/§10C).
     Lock m_gcBarrierLock; // GBL, rank 4 (§10.4/F7).
     Condition m_gcBarrierCondition; // GBC; signaled by clients releasing access while GSP (F8).
@@ -1906,25 +2074,52 @@ public:
 // L2: construct only AFTER collectIfNecessaryOrDefer() has returned — never
 // hold MSPL across a collection request or a stop.
 // L4: rank 7 sections must never acquire cell/Structure locks (10a/10b).
+//
+// T7-mspl-per-directory: two acquisition shapes (see
+// Heap::MutatorSlowPathLockFacade for the full protocol):
+//   MutatorSlowPathLocker(heap)            -> EXCLUSIVE (server-wide) MSPL.
+//   MutatorSlowPathLocker(heap, directory) -> STRIPE: shared MSPL +
+//                                             directory.refillLock() (rank 7a).
+// Flag-off / !isSharedServer(): both forms are a no-op (the directory form is
+// only ever constructed inside an isSharedServer() branch).
 class MutatorSlowPathLocker : public AbstractLocker {
     WTF_FORBID_HEAP_ALLOCATION;
 public:
     explicit MutatorSlowPathLocker(JSC::Heap& heap) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
     {
         if (heap.isSharedServer()) [[unlikely]] {
-            m_lock = &heap.mutatorSlowPathLock();
-            m_lock->lock();
+            m_facade = &heap.mutatorSlowPathLock();
+            m_facade->lock();
         }
+    }
+
+    MutatorSlowPathLocker(JSC::Heap& heap, BlockDirectory& directory) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+    {
+        // Stripe form. Callers gate on isSharedServer() themselves (the only
+        // construction site is LocalAllocator::allocateSlowCase's striped
+        // branch); assert rather than re-check so flag-off never reaches the
+        // facade.
+        ASSERT(heap.isSharedServer());
+        m_facade = &heap.mutatorSlowPathLock();
+        m_facade->enterStripe();
+        m_directoryRefillLock = &directory.refillLock();
+        m_directoryRefillLock->lock();
     }
 
     ~MutatorSlowPathLocker() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
     {
-        if (m_lock) [[unlikely]]
-            m_lock->unlock();
+        if (m_directoryRefillLock) [[unlikely]] {
+            m_directoryRefillLock->unlock();
+            m_facade->exitStripe();
+            return;
+        }
+        if (m_facade) [[unlikely]]
+            m_facade->unlock();
     }
 
 private:
-    Lock* m_lock { nullptr };
+    JSC::Heap::MutatorSlowPathLockFacade* m_facade { nullptr };
+    Lock* m_directoryRefillLock { nullptr };
 };
 
 namespace GCClient {

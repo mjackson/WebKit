@@ -63,6 +63,39 @@ ALWAYS_INLINE unsigned Butterfly::optimalContiguousVectorLength(size_t propertyC
         vectorLength = BASE_CONTIGUOUS_VECTOR_LEN_EMPTY;
     else
         vectorLength = std::max(BASE_CONTIGUOUS_VECTOR_LEN, vectorLength);
+    if (Options::useSharedGCHeap()) [[unlikely]] {
+        // T3-segmented-born-fullcoverage (SPEC-objectmodel §4.2/§4.4-T2): round
+        // every freshly-sized contiguous flat vectorLength to (1+VL) % 4 == 0
+        // (i.e. VL == butterflyFragmentSlots*k - 1). The §4.2 conversion
+        // computes its aliased indexed fragment count from this VL (C2), so an
+        // aligned VL makes the published spine FULL-COVERAGE at birth
+        // (spine->vectorLength == indexedFragmentCount*4 - 1) and the very
+        // first tryGrowSegmentedVectorLength takes the lock-free mode-(a) CAS
+        // instead of a mode-(b) per-event STW. The literal alternative —
+        // hole-filling the aliased tail at conversion — is UNSAFE in general:
+        // availableContiguousVectorLength back-computes VL to fill the size
+        // class exactly, so the tail bytes are PAST the heap cell. Aligning
+        // here instead requests a cell that already covers the whole last
+        // fragment. Round-up the request first, then round the size-class
+        // back-computed value down to the same residue; both are monotone, so
+        // the result is still >= the original request. At most
+        // (butterflyFragmentSlots-1) slots of extra capacity. Gate is
+        // useSharedGCHeap (not useJSThreads): segmented conversion is the
+        // shared-heap concurrent object model, and U0 forces GIL-on without
+        // it; under GIL-on the mode-(b) STW is single-mutator-cheap and the
+        // alignment cost (changed size-class selection on every contiguous
+        // allocation) showed as a +9% bench.js W=1 wall regression. Flag-off
+        // untouched (the option gate is the only added branch).
+        static_assert(hasOneBitSet(butterflyFragmentSlots), "bitwise round-up below");
+        unsigned alignedRequest = vectorLength | static_cast<unsigned>(butterflyFragmentSlots - 1);
+        unsigned result = availableContiguousVectorLength(propertyCapacity, alignedRequest);
+        unsigned excess = (result + 1) & static_cast<unsigned>(butterflyFragmentSlots - 1);
+        ASSERT(result >= excess);
+        result -= excess;
+        ASSERT(result >= vectorLength); // alignedRequest is the smallest aligned value >= vectorLength, and the round-down picks the largest aligned value <= the size-class back-computed result (which is >= alignedRequest).
+        ASSERT(!((result + 1) % butterflyFragmentSlots));
+        return result;
+    }
     return availableContiguousVectorLength(propertyCapacity, vectorLength);
 }
 
@@ -406,7 +439,12 @@ inline void validateSpineAliasesFlatButterfly(const ButterflySpine* spine, Butte
     RELEASE_ASSERT(spine->outOfLineFragmentCount == aliasedOutOfLineFragmentCountForConversion(outOfLineCapacity));
     uint32_t flatVectorLength = hasIndexingHeader ? flat->vectorLength() : 0;
     RELEASE_ASSERT(spine->indexedFragmentCount == aliasedIndexedFragmentCountForConversion(hasIndexingHeader, flatVectorLength));
-    RELEASE_ASSERT(spine->vectorLength == flatVectorLength); // Conversion-time live VL == flat VL (§4.2 step 3 re-reads it under the lock).
+    // Conversion-time live VL: == flat VL when (1+flatVL)%4 == 0 (the
+    // T3-segmented-born-fullcoverage common case via the flag-on
+    // optimalContiguousVectorLength alignment), or == full coverage when §4.2
+    // step 3 hole-filled a slack-backed C2 tail; == flat VL otherwise.
+    RELEASE_ASSERT(spine->vectorLength >= flatVectorLength);
+    RELEASE_ASSERT(!hasIndexingHeader || spine->vectorLength <= spine->indexedFragmentCount * butterflyFragmentSlots - 1);
     RELEASE_ASSERT(spine->aliasedAllocationBase == aliasedAllocationBaseForConversion(flat, preCapacity, outOfLineCapacity));
 
     char* base = flat->pointer();

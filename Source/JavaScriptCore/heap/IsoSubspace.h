@@ -56,6 +56,10 @@ public:
     void* tryAllocateLowerTierPrecise(size_t cellSize);
     void destroyLowerTierPreciseFreeList();
 
+private:
+    void* tryAllocateLowerTierPreciseImpl(size_t); // T7-mspl-per-directory: factored body; caller takes the registry lock when shared.
+public:
+
     void sweep();
 
     template<typename Func> void forEachLowerTierPreciseFreeListedPreciseAllocation(const Func&);

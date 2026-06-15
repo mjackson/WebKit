@@ -2005,6 +2005,27 @@ NEVER_INLINE bool Heap::runBeginPhase(GCConductor conn)
 
     m_parallelMarkersShouldExit = false;
 
+    // T1-gc-siblings-mark: open the sibling-assist gate. gilOff-only (the
+    // sole caller is inside the [[unlikely]] vm.gilOff() notifyVMStop
+    // branch); flag-off this block is dead and the landed sequence is
+    // byte-identical. Ordering: AFTER forEachSlotVisitor(didStartMarking)
+    // and m_parallelMarkersShouldExit=false above — the m_markingMutex
+    // release here is the happens-before edge that publishes both to a
+    // sibling's enabled-check acquire. The mayGrow sticky bit is set by the
+    // CONDUCTOR (this thread) before any sibling can grow the pool
+    // (assistEnabled was lowered by the previous cycle's runEndPhase and is
+    // still false at this instant), so forEachSlotVisitor's lock-free
+    // false-read can never race a growth. Siblings parked on the bounded
+    // 1ms poll are NOT woken here (m_worldConditionVariable is a different
+    // condvar) — they discover the open gate at their next poll re-fire;
+    // worst case one quantum of lost assist, which is the same granularity
+    // the fallback already had.
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        m_siblingSlotVisitorPoolMayGrow.store(true, std::memory_order_relaxed);
+        Locker locker { m_markingMutex };
+        m_siblingMarkingAssistEnabled = true;
+    }
+
     m_helperClient.setFunction(
         [this] () {
             SlotVisitor* visitor;
@@ -2234,10 +2255,34 @@ NEVER_INLINE bool Heap::runEndPhase(GCConductor conn)
         
     {
         Locker locker { m_markingMutex };
+        // T1-gc-siblings-mark: close the gate IN THE SAME critical section
+        // that sets shouldExit — a sibling whose enabled-check (under this
+        // mutex) sees true is guaranteed shouldExit==false at that instant,
+        // and once shouldExit is set no NEW sibling can enter (it sees
+        // enabled==false). The notifyAll below wakes any sibling already
+        // parked inside drainFromShared(HelperDrain)'s isReady wait; each
+        // returns Done, leaving its waiting count (F17), then decrements
+        // m_numberOfSiblingMarkingAssists. Flag-off: dead store of false
+        // into a field that was never true.
+        if (VM::isGILOffProcess()) [[unlikely]]
+            m_siblingMarkingAssistEnabled = false;
         m_parallelMarkersShouldExit = true;
         m_markingConditionVariable.notifyAll();
     }
     m_helperClient.finish();
+    // T1-gc-siblings-mark: the pool-helper finish() above does NOT cover
+    // siblings (they are not heapHelperPool tasks). Wait them out so the
+    // active==waiting==paused==0 invariant (the ASSERT block below) and
+    // endMarking()'s forEachSlotVisitor reset() walk see no in-flight
+    // sibling visitor. shouldExit + the notifyAll already issued above
+    // guarantee every entered sibling's drainFromShared returns; the
+    // decrement-side notifyAll (gilOffSiblingAssistMarking) wakes this
+    // wait. Flag-off: the count is identically zero and the gate is dead.
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        Locker locker { m_markingMutex };
+        while (m_numberOfSiblingMarkingAssists)
+            m_markingConditionVariable.wait(m_markingMutex);
+    }
 
 #if ASSERT_ENABLED
     // ANNEX CGP1 (CG-3a) counter-balance debug assert: after
@@ -3436,20 +3481,57 @@ void Heap::updateAllocationLimits()
             // (capacity ladder 34MB -> 10.5GB, m_maxHeapSize -> 7.87GB):
             // bigger limit -> bigger window -> bigger retained cohort ->
             // bigger visited -> bigger limit. Key the GROWTH HEADROOM to the
-            // non-retained estimate instead, while still leaving the full
-            // retained size resident this cycle (m_maxHeapSize must exceed
-            // currentHeapSize so the CIND assert and m_maxEdenSize
-            // subtraction below stay sound). windowRetainedBytes
-            // undercounts the cohort's traced closure, so this subtraction
-            // can only be too small — i.e. limits stay >= what precise
-            // accounting would give (conservative; never starves eden).
-            // Reached only when the Wlr pass actually retained something
-            // this cycle (ISS + >= 2 clients): flag-off and single-client
-            // GIL-off take the landed formula below unchanged.
+            // non-retained estimate instead. windowRetainedBytes undercounts
+            // the cohort's traced closure, so this subtraction can only be
+            // too small — i.e. limits stay >= what precise accounting would
+            // give (conservative; never starves eden). Reached only when the
+            // Wlr pass actually retained something this cycle (ISS + >= 2
+            // clients): flag-off and single-client GIL-off take the landed
+            // formula below unchanged.
+            //
+            // T2-wlr-rss-residual FLOOR FIX: campaign-1 keyed only the
+            // GROWTH headroom on the subtracted base; the FLOOR of
+            // m_maxHeapSize stayed at the raw currentHeapSize (= visited,
+            // including the cohort), and m_sizeAfterLastCollect /
+            // m_sizeAfterLastFullCollect below were stored as the raw value
+            // too. With W>=2 the cohort is ~the whole window
+            // (bytesAllocatedThisCycle == v on every cycle in the rss2
+            // profile), so m_maxHeapSize and m_sizeAfterLast*Collect both
+            // ratcheted up by the cohort each full collection — heap.capacity
+            // 3146MB at W=2 vs 317MB at W=1, accounting for ~84% of the
+            // +3.4GB RSS delta. REBASE currentHeapSize itself to the
+            // non-retained estimate so EVERY downstream consumer in this
+            // function (m_maxHeapSize floor, m_maxEdenSize subtraction at
+            // L+3, m_sizeAfterLastFullCollect, m_sizeAfterLastCollect, and
+            // hence collectIfNecessaryOrDefer's bytesAllowedThisCycle =
+            // m_maxHeapSize - m_sizeAfterLastCollect and its ASSERT) keys on
+            // the same base. headroomBase >= minSize and we add >= minSize,
+            // so m_maxHeapSize > currentHeapSize (rebased) — the CIND assert
+            // and the m_maxEdenSize subtraction stay sound. The eden-branch
+            // ASSERT(currentHeapSize >= m_sizeAfterLastCollect) on the next
+            // cycle holds via the clamp below. Flag-off identity:
+            // windowRetainedBytes == 0 outside ISS + >= 2 clients, so this
+            // branch — and the rebase — are unreachable there.
             size_t minSize = minHeapSize(m_heapType, m_ramSize);
             size_t headroomBase = std::max(currentHeapSize - windowRetainedBytes, minSize);
             size_t headroom = std::max(proportionalHeapSize(headroomBase, m_ramSize), headroomBase) - headroomBase;
-            m_maxHeapSize = std::max(minSize, currentHeapSize + std::max(headroom, minSize));
+            // Clamp the rebased currentHeapSize to at most m_totalBytesVisited
+            // so the next eden's monotone-visited asserts (line 3538
+            // currentHeapSize >= m_sizeAfterLastCollect; line 3576
+            // >= m_sizeAfterLastFullCollect) hold: an eden cycle's
+            // currentHeapSize is m_totalBytesVisited(now) + bytesVisited(eden)
+            // + extraMemorySize(eden) >= m_totalBytesVisited(now). headroomBase
+            // can exceed m_totalBytesVisited when the minSize floor applies on
+            // a small heap (heap-allocation-storm.js et al.) or when
+            // extraMemorySize > windowRetainedBytes; in those cases the clamp
+            // sets m_sizeAfterLast*Collect a little lower than headroomBase,
+            // which only enlarges bytesAllowedThisCycle (a more lenient
+            // trigger — conservative). m_maxHeapSize stays keyed on
+            // headroomBase so the threshold itself is unchanged;
+            // m_maxHeapSize - currentHeapSize >= max(headroom, minSize) > 0
+            // preserves the CIND assert and m_maxEdenSize subtraction.
+            currentHeapSize = std::min(headroomBase, m_totalBytesVisited);
+            m_maxHeapSize = headroomBase + std::max(headroom, minSize);
         } else
             m_maxHeapSize = std::max(minHeapSize(m_heapType, m_ramSize), proportionalHeapSize(currentHeapSize, m_ramSize));
         m_maxEdenSize = m_maxHeapSize - currentHeapSize;
@@ -4305,40 +4387,128 @@ void Heap::addCoreConstraints()
                 bool markingVersionJustBumped = m_collectionScope && m_collectionScope.value() == CollectionScope::Full;
                 Vector<HeapCell*> candidates;
                 size_t retainedBytes = 0; // T4: directly-appended witness bytes (closure excluded — an UNDERcount, which is the conservative direction for the updateAllocationLimits subtraction).
-                m_objectSpace.forEachBlock(
-                    [&] (MarkedBlock::Handle* handle) {
-                        // Round-7 F1: the witness judgment (NA version,
-                        // allocBit, marks staleness, per-cell bits) is taken
-                        // as ONE consistent snapshot under the block's
-                        // header lock — the same lock aboutToMarkSlow holds
-                        // while it clears/folds the bitmaps and bumps both
-                        // versions concurrently on parallel marker helpers.
-                        // The old hoisted lock-free reads violated the
-                        // documented isMarkedRaw()/Dependency protocol. See
-                        // the protocol + stale-bit-zero lemma comment at
-                        // MarkedBlock::sharedGCWindowWitnessSnapshot().
-                        // Appends happen HERE, after the header lock is
-                        // dropped (appendJSCellOrAuxiliary can retake it via
-                        // aboutToMark).
-                        candidates.shrink(0);
-                        handle->block().sharedGCWindowWitnessSnapshot(markingVersion, markingVersionJustBumped, candidates);
-                        if (!candidates.isEmpty()) {
-                            retainedBytes += candidates.size() * handle->cellSize();
-                            for (HeapCell* cell : candidates)
-                                visitor.appendJSCellOrAuxiliary(cell);
-                            // Under the bitvector lock so the empty judge in
-                            // BlockDirectory::endMarking() and any subsequent
-                            // sweep classification observe it; an IsEmpty
-                            // whole-payload rehand-out of a window-live block
-                            // is thereby impossible. (appendJSCellOrAuxiliary
-                            // only sets it via aboutToMarkSlow when the
-                            // block's marks were stale — eden cycles need
-                            // this explicit form.)
-                            BlockDirectory* directory = handle->directory();
-                            Locker locker { directory->bitvectorLock() };
-                            directory->setIsMarkingNotEmpty(handle, true);
-                        }
+                auto visitWindowBlock = [&] (MarkedBlock::Handle* handle) {
+                    // Round-7 F1: the witness judgment (NA version,
+                    // allocBit, marks staleness, per-cell bits) is taken
+                    // as ONE consistent snapshot under the block's
+                    // header lock — the same lock aboutToMarkSlow holds
+                    // while it clears/folds the bitmaps and bumps both
+                    // versions concurrently on parallel marker helpers.
+                    // The old hoisted lock-free reads violated the
+                    // documented isMarkedRaw()/Dependency protocol. See
+                    // the protocol + stale-bit-zero lemma comment at
+                    // MarkedBlock::sharedGCWindowWitnessSnapshot().
+                    // Appends happen HERE, after the header lock is
+                    // dropped (appendJSCellOrAuxiliary can retake it via
+                    // aboutToMark).
+                    candidates.shrink(0);
+                    handle->block().sharedGCWindowWitnessSnapshot(markingVersion, markingVersionJustBumped, candidates);
+                    // Under the bitvector lock so the empty judge in
+                    // BlockDirectory::endMarking() and any subsequent
+                    // sweep classification observe it; an IsEmpty
+                    // whole-payload rehand-out of a window-live block
+                    // is thereby impossible. (appendJSCellOrAuxiliary
+                    // only sets it via aboutToMarkSlow when the
+                    // block's marks were stale — eden cycles need
+                    // this explicit form.) T2: set unconditionally —
+                    // a parked client's m_lastActiveBlock with ZERO
+                    // surviving NA cells must STILL not be IsEmpty-
+                    // recycled (resumeAllocating reinstates it as
+                    // m_currentBlock regardless; a concurrent rehand
+                    // would alias the handle across two clients — the
+                    // §9 corruption chain). The campaign-1 form set it
+                    // only when candidates was non-empty, which was
+                    // safe only because the allocBit-leg over-retention
+                    // guaranteed every step-5-stamped block had at
+                    // least one candidate; the narrowing below removes
+                    // that guarantee.
+                    {
+                        BlockDirectory* directory = handle->directory();
+                        Locker locker { directory->bitvectorLock() };
+                        directory->setIsMarkingNotEmpty(handle, true);
+                    }
+                    if (!candidates.isEmpty()) {
+                        retainedBytes += candidates.size() * handle->cellSize();
+                        for (HeapCell* cell : candidates)
+                            visitor.appendJSCellOrAuxiliary(cell);
+                    }
+                };
+                // T2-wlr-rss-residual WALK NARROWING: visit only the blocks
+                // ACTUALLY HELD by parked mutators at this stop — each
+                // registered client's per-allocator m_lastActiveBlock (the
+                // block the §10 step-5 stopAllocating() flush NA-stamped) —
+                // instead of m_objectSpace.forEachBlock(). The campaign-1
+                // forEachBlock walk paid O(heap blocks) per cycle and, via
+                // the allocBit leg of sharedGCWindowWitnessSnapshot,
+                // RETAINED every cell of every block consumed this window
+                // (logGC W=2: v=98281-98422kb == bytesAllocatedThisCycle
+                // every cycle vs W=1 v=0kb), which is what drove the W>=2
+                // capacity ratchet to ~3.1GB even with the T4(c) headroom
+                // subtraction (the floor stayed at the raw visited size —
+                // the T2 floor fix above closes that independently).
+                //
+                // SOUNDNESS RE-DERIVATION (against L1/L2 above; required by
+                // the T2 ruling): the §10 window-witness hole — and the §9
+                // corruption chain it feeds — is a property of a PARKED
+                // mutator's m_lastActiveBlock ONLY. After step 5 every
+                // LocalAllocator has m_currentBlock == nullptr and
+                // m_lastActiveBlock == (the block it was bump-allocating
+                // from at park time, or nullptr if its free list was already
+                // exhausted). resumeAllocating() reinstates exactly that
+                // block as m_currentBlock and re-derives its free list by
+                // SWEEPING (MarkedBlock::Handle::resumeAllocating ->
+                // sweep(&freeList)): an unmarked NA-stamped cell would be
+                // free-listed and rehanded out (double-allocation), and a
+                // block with no marks would be IsEmpty-judged in
+                // BlockDirectory::endMarking() and rehanded whole to another
+                // client while the parked owner still holds it. So this pass
+                // MUST mark every NA-stamped cell of every client's
+                // m_lastActiveBlock and set its markingNotEmpty bit — and
+                // that suffices: a block NOT any client's m_lastActiveBlock
+                // at stop time was either fully consumed before the park
+                // (LocalAllocator::didConsumeFreeList: m_currentBlock <-
+                // null, inUse cleared via didFinishUsingBlock) or returned
+                // by a detached client's stopAllocatingForGood; no client
+                // resumes into it, so it carries no §9 obligation. Its
+                // window-allocated cells are fully constructed (L2: no
+                // client parks mid-initialization) with all outgoing edges
+                // published to the conductor (L1), and gatherStackRoots()
+                // scans EVERY registered thread's saved stack/register image
+                // (m_machineThreads, §10.6/I4(b)) — so each such cell is
+                // either (i) reachable from a heap root or a parked stack
+                // image and marked by the Cs/Msr fixpoint, or (ii)
+                // reachable only from an NA-stamped cell of some client's
+                // m_lastActiveBlock and marked by THIS pass's traced
+                // closure (appendJSCellOrAuxiliary -> visitChildren), or
+                // (iii) unreachable, i.e. dead and correctly reclaimed.
+                // There is no fourth case; in particular Experiment B's
+                // "no heap edge AND no stack-image reference" cohort lives
+                // in (iii) for consumed blocks (it was the m_lastActiveBlock
+                // resume-sweep that made retaining it load-bearing, and
+                // consumed blocks have no resume-sweep). The allocBit leg
+                // of sharedGCWindowWitnessSnapshot is therefore unreachable
+                // here (MarkedBlock::Handle::stopAllocating ASSERTs
+                // !isAllocated(this)); the snapshot reduces to its NA leg.
+                //
+                // Locking: clientSet().forEach()'s precondition is met (we
+                // are the conductor with worldIsStoppedForAllClients() —
+                // RELEASE_ASSERTed above); the registry is frozen inside the
+                // stop window (I13 add/remove sides), so the walk sees
+                // exactly the parked-client set. Each client's
+                // GCThreadLocalCache::m_perDirectory and each allocator's
+                // m_lastActiveBlock are owner-thread-mutated outside the
+                // stop window and frozen inside it (I2 exception). The
+                // per-block body takes only the block header lock and the
+                // directory bitvector lock — same lock surface as the
+                // campaign-1 forEachBlock body, both taken inside
+                // clientSet().forEach() at step-8 already (resumeAllocating
+                // -> sweep), so no new lock-order edge.
+                clientSet().forEach([&](GCClient::Heap& client) {
+                    client.threadLocalCache().forEachLocalAllocator([&](LocalAllocator* allocator) {
+                        if (MarkedBlock::Handle* handle = allocator->lastActiveBlock())
+                            visitWindowBlock(handle);
                     });
+                });
                 // Precise-allocation leg (closes EVIDENCE.md §11 residual 1):
                 // MarkedSpace::endMarking() also retires the per-allocation
                 // newlyAllocated witness, so a window-allocated PRECISE cell
@@ -7660,6 +7830,113 @@ DEFINE_DYNAMIC_ISO_SUBSPACE_MEMBER_SLOW(moduleProgramExecutableSpace)
 // these helpers, so the pairing flag cannot be torn by recursion.
 
 static thread_local bool t_releasedByThreadGranularPark { false };
+
+// ===== T1-gc-siblings-mark: gilOff Mode-machine sibling -> parallel marker =====
+//
+// Converts the W-1 sibling park at VMManager::notifyVMStop (the bounded 1ms
+// m_worldConditionVariable.waitFor while the elected representative runs
+// conductSharedCollection) into a parallel-marking assist: the sibling joins
+// the existing m_markingMutex / m_markingConditionVariable HelperDrain
+// protocol on a per-sibling SlotVisitor, indistinguishable from a
+// heapHelperPool helper to the F14/F17 counter machine and the §9.1(2)
+// pause checkpoints. The representative-side fixpoint already waits on this
+// pool (runTaskInParallel, drainInParallel), so siblings directly relieve
+// the helper-starved 4890 wait. Gate is m_siblingMarkingAssistEnabled under
+// m_markingMutex (raised by runBeginPhase AFTER didStartMarking +
+// shouldExit=false; lowered by runEndPhase WITH shouldExit=true) — a false
+// return means no marking phase is open (debugger Mode-stop, between
+// cycles, or before runBeginPhase) and the caller falls back to its bounded
+// poll. Pre: caller is heap-access-released and holds no VMManager /
+// api-rank lock; the only locks taken here are m_parallelSlotVisitorLock
+// (leaf) and m_markingMutex (the marker protocol's own rank). Flag-off:
+// unreachable (sole call site is inside the [[unlikely]] vm.gilOff()
+// branch); the runBeginPhase / runEndPhase wiring is gilOff-gated and the
+// member fields are never set.
+bool Heap::gilOffSiblingAssistMarking() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    {
+        Locker locker { m_markingMutex };
+        if (!m_siblingMarkingAssistEnabled)
+            return false;
+        // Count this sibling IN before dropping the mutex: runEndPhase's
+        // close (under this mutex) lowers enabled + raises shouldExit, then
+        // waits this count to zero — so an entered sibling is always
+        // accounted for, and a not-yet-entered sibling sees enabled==false
+        // and never enters. The shouldExit==false observation here is the
+        // happens-before that publishes runBeginPhase's didStartMarking
+        // (m_markingVersion etc.) to the visitor acquisition below.
+        m_numberOfSiblingMarkingAssists++;
+    }
+
+    SlotVisitor* visitor;
+    {
+        Locker locker { m_parallelSlotVisitorLock };
+        if (!m_availableSiblingSlotVisitors.isEmpty())
+            visitor = m_availableSiblingSlotVisitors.takeLast();
+        else {
+            // Lazy growth: a fresh visitor missed THIS cycle's
+            // forEachSlotVisitor(didStartMarking), so call it here (the
+            // m_markingMutex acquire above synchronizes-with the
+            // runBeginPhase release that wrote m_markingVersion /
+            // collectionScope). The visitor lands in m_siblingSlotVisitors
+            // under the same lock forEachSlotVisitor's gilOff arm takes, so
+            // every LATER conductor walk (updateMutatorIsStopped, reset,
+            // bytesVisited) covers it. Created at most once per sibling
+            // thread per process (returned to the pool below); cap is W-1.
+            auto newVisitor = makeUnique<SlotVisitor>(*this, toCString("S", m_siblingSlotVisitors.size() + 1));
+            if (Options::optimizeParallelSlotVisitorsForStoppedMutator())
+                newVisitor->optimizeForStoppedMutator();
+            newVisitor->didStartMarking();
+            visitor = newVisitor.get();
+            m_siblingSlotVisitors.append(WTF::move(newVisitor));
+        }
+    }
+
+    {
+        // Exactly the heapHelperPool body: ParallelModeEnabler +
+        // drainFromShared(HelperDrain). Returns Done when runEndPhase sets
+        // m_parallelMarkersShouldExit (one whole marking phase per call).
+        // Siblings are JS mutator threads — do NOT registerGCThread here
+        // (sticky Helper would trip every post-resume
+        // ASSERT(!mayBeGCThread()) on the JS path); nothing in the
+        // HelperDrain marking path requires it. The §9.1(2) per-batch
+        // pause checkpoint and the m_rightToRun safepoint in drain() make
+        // this visitor a full participant of any foreign-stop /
+        // resumeThePeriphery handshake.
+        ParallelModeEnabler parallelModeEnabler(*visitor);
+        visitor->drainFromShared(SlotVisitor::HelperDrain);
+    }
+
+    {
+        Locker locker { m_parallelSlotVisitorLock };
+        m_availableSiblingSlotVisitors.append(visitor);
+    }
+
+    {
+        Locker locker { m_markingMutex };
+        RELEASE_ASSERT(m_numberOfSiblingMarkingAssists);
+        if (!--m_numberOfSiblingMarkingAssists)
+            m_markingConditionVariable.notifyAll(); // Wakes runEndPhase's sibling-drain wait.
+    }
+    return true;
+}
+
+// VMManager.cpp seam (same forward-declared free-function shape as the
+// gcClientWillPark / DidResume pair below): resolves the calling thread's
+// server heap and forwards. Returns false (caller falls back to its bounded
+// poll) when the thread has no client / no shared server / no open marking
+// phase. Called ONLY from inside the [[unlikely]] vm.gilOff() sibling-park
+// branch — flag-off unreachable.
+bool gcSiblingAssistMarkingIfEnabled()
+{
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    if (!client)
+        return false;
+    JSC::Heap& server = client->server();
+    if (!server.isSharedServer())
+        return false;
+    return server.gilOffSiblingAssistMarking();
+}
 
 void gcClientWillParkForThreadGranularStop()
 {

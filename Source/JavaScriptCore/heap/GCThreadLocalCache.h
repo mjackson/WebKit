@@ -84,6 +84,16 @@ public:
     void stopAllocating();
     void resumeAllocating();
     void prepareForAllocation();
+    // SharedGC Wlr T2: visit every LocalAllocator this cache holds (owned
+    // non-iso AND registered iso — m_perDirectory is the I3-authoritative
+    // owner set). Conductor-side, world stopped for all clients (I2
+    // exception): the map is owner-thread-mutated outside the stop window.
+    template<typename Functor>
+    void forEachLocalAllocator(const Functor& functor)
+    {
+        for (LocalAllocator* allocator : m_perDirectory.values())
+            functor(allocator);
+    }
     // §5.3 teardown (I9), world running: per-slot stopAllocatingForGood()
     // under MSPL (directory-bit flips are I5b writes), then unlink each
     // allocator under its directory's m_localAllocatorsLock (rank 7 -> 8).

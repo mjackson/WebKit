@@ -219,6 +219,66 @@ void* LocalAllocator::allocateSlowCase(JSC::Heap& heap, size_t cellSize, GCDefer
     // never inside the lock.
     RaceAmplifier::perturb();
 
+    // T7-mspl-per-directory: when the server is shared, the per-BlockDirectory
+    // STRIPE replaces the server-wide MSPL for the hot refill leg
+    // (own-directory cursor search + lower-tier-precise + tryAllocateBlock +
+    // addBlock). With N gilOff mutators and ~75% of contended refills being
+    // JSBigInt, the single Heap::m_mutatorSlowPathLock made every
+    // JSRopeString / JSArray / JSLexicalEnvironment refill queue behind
+    // BigInt block creation; the stripe lets unrelated size-classes refill in
+    // parallel (the textbook TLAB-refill stripe). Correctness:
+    //  - same-directory I5b: BlockDirectory::m_refillLock (rank 7a)
+    //    serializes addBlock's m_bits resize against this directory's
+    //    lock-free bit reads in MarkedBlock::Handle::sweep /
+    //    assertIsMutatorOrMutatorIsStopped — exactly the role the old
+    //    server-wide lock played for one directory;
+    //  - cross-directory MarkedSpace state: didAddBlock / didAllocateInBlock
+    //    / registerPreciseAllocation take Heap::m_markedSpaceRegistryLock
+    //    (rank 7r, leaf) internally;
+    //  - cross-directory empty-block STEAL is NOT attempted under the stripe
+    //    (it sweeps a FOREIGN directory's block — a lock-free I5b read on a
+    //    directory whose stripe we do not hold). The stripe leg goes
+    //    own-cursor -> lower-tier -> fresh-block; only if MarkedBlock::
+    //    tryCreate itself fails (OS OOM / cap) do we fall through to the
+    //    legacy server-wide section below, which excludes every stripe and so
+    //    may safely steal. Skipping the steal-before-fresh-block reuse trades
+    //    a small RSS increase between GCs (empty foreign blocks wait for the
+    //    next world-stopped shrink) for parallel refills — the brief's
+    //    "server-wide ONLY for genuinely cross-directory" rule.
+    //  - the weak-bearing carve-out at tryAllocateIn means block->sweep here
+    //    only ever sees an empty WeakSet, so WeakSet::sweep's body is a
+    //    no-op; its `mutatorSlowPathLock().isHeld()` assert is satisfied via
+    //    the facade's stripe-depth term.
+    // Flag-off / !isSharedServer(): this whole block is dead-not-taken (same
+    // pattern as the existing isSharedServer() carve-outs at
+    // tryAllocateIn:358 / steal:304), and the locker below is a no-op — the
+    // legacy code path is byte-for-byte unchanged.
+    if (heap.isSharedServer()) [[unlikely]] {
+        MutatorSlowPathLocker stripeLocker(heap, *m_directory);
+
+        if (void* result = tryAllocateFromOwnDirectory(cellSize))
+            return result;
+
+        Subspace* subspace = m_directory->m_subspace;
+        if (subspace->isIsoSubspace()) {
+            if (void* result = static_cast<IsoSubspace*>(subspace)->tryAllocateLowerTierPrecise(cellSize))
+                return result;
+        }
+
+        ASSERT(!subspace->isPreciseOnly());
+        ASSERT_WITH_MESSAGE(cellSize == m_directory->cellSize(), "non-preciseOnly allocations should match allocator's the size class");
+        if (MarkedBlock::Handle* block = m_directory->tryAllocateBlock(stripeLocker, heap)) [[likely]] {
+            m_directory->addBlock(block);
+            void* result = allocateIn(block, cellSize);
+            ASSERT(result);
+            return result;
+        }
+        // tryCreate failed — fall through to the server-wide section for the
+        // cross-directory steal + a final fresh-block attempt. The stripe is
+        // released at scope exit before the exclusive acquire below (no
+        // self-deadlock; writer-preferring drain).
+    }
+
     MutatorSlowPathLocker mutatorSlowPathLocker(heap);
 
     void* result = tryAllocateWithoutCollecting(cellSize);
@@ -254,6 +314,38 @@ void LocalAllocator::didConsumeFreeList()
     
     m_freeList.clear();
     m_currentBlock = nullptr;
+}
+
+void* LocalAllocator::tryAllocateFromOwnDirectory(size_t cellSize)
+{
+    // T7-mspl-per-directory: the own-directory cursor-search half of
+    // tryAllocateWithoutCollecting(), factored out so the striped refill leg
+    // can run it WITHOUT the cross-directory steal (which would touch a
+    // foreign directory's lock-free I5b state we have no stripe over). The
+    // BVL inside findBlockForAllocation already serializes the bit reads /
+    // inUse flips against this directory's addBlock resize; the per-directory
+    // refillLock (held by our caller's stripe locker) covers the lock-free
+    // bit reads inside tryAllocateIn's block->sweep. Shared-server only
+    // (sole caller is allocateSlowCase's isSharedServer() branch).
+    SuperSamplerScope superSamplerScope(false);
+
+    ASSERT(!m_currentBlock);
+    ASSERT(m_freeList.allocationWillFail());
+
+#if ASSERT_ENABLED
+    assertSharedAllocatorMutationIsSafe(m_directory);
+#endif
+
+    for (;;) {
+        MarkedBlock::Handle* block = m_directory->findBlockForAllocation(*this);
+        if (!block)
+            break;
+
+        if (void* result = tryAllocateIn(block, cellSize))
+            return result;
+    }
+
+    return nullptr;
 }
 
 void* LocalAllocator::tryAllocateWithoutCollecting(size_t cellSize)

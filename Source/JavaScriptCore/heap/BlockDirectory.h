@@ -105,6 +105,19 @@ public:
 
     Lock& bitvectorLock() LIFETIME_BOUND WTF_RETURNS_LOCK(m_bitvectorLock) { return m_bitvectorLock; }
 
+    // T7-mspl-per-directory: per-directory MSPL stripe (rank 7a). Held by
+    // MutatorSlowPathLocker(heap, directory) together with the shared side of
+    // Heap::MutatorSlowPathLockFacade. Serializes the SAME-directory refill
+    // path (own-directory cursor search, in-lock block sweep,
+    // tryAllocateBlock + addBlock — including the I5b m_bits resize) across N
+    // clients' LocalAllocators on this directory, while letting refills of
+    // OTHER directories proceed in parallel. The exclusive (server-wide)
+    // facade side excludes ALL stripes, so cross-directory operations
+    // (steal's foreign-directory sweep/removeBlock, IncrementalSweeper,
+    // sweepSynchronously) still see the single-lock semantics they were
+    // written against. Flag-off / !isSharedServer(): never taken.
+    Lock& refillLock() LIFETIME_BOUND WTF_RETURNS_LOCK(m_refillLock) { return m_refillLock; }
+
 #define BLOCK_DIRECTORY_BIT_ACCESSORS(lowerBitName, capitalBitName)     \
     bool is ## capitalBitName(size_t index) const WTF_REQUIRES_SHARED_LOCK(m_bitvectorLock) { return m_bits.is ## capitalBitName(index); } \
     bool is ## capitalBitName(MarkedBlock::Handle* block) const WTF_REQUIRES_SHARED_LOCK(m_bitvectorLock) { return is ## capitalBitName(block->index()); } \
@@ -224,6 +237,7 @@ private:
     // concurrently to the mutator must lock this when accessing the bitvectors.
     BlockDirectoryBits m_bits WTF_GUARDED_BY_LOCK(m_bitvectorLock); // Don't access this directly use one of the accessors above.
     Lock m_bitvectorLock;
+    Lock m_refillLock; // T7-mspl-per-directory, rank 7a; see refillLock().
     Lock m_localAllocatorsLock;
     CellAttributes m_attributes;
 

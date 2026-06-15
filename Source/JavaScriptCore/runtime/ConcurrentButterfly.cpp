@@ -784,6 +784,54 @@ ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* objec
                 break;
             }
 
+            // ---- T3-segmented-born-fullcoverage: publish FULL COVERAGE
+            // (vectorLength == indexedFragments*4 - 1) so the very first
+            // tryGrowSegmentedVectorLength on this spine takes the lock-free
+            // mode-(a) CAS instead of a mode-(b) per-event STW. The flag-on
+            // optimalContiguousVectorLength alignment (ButterflyInlines.h)
+            // sizes every fresh contiguous flat butterfly so (1+flatVL)%4 == 0
+            // and there is NO C2 tail to begin with - that is the path the
+            // scalebench Phase-A arrays take. The branch below additionally
+            // covers butterflies sized by other paths whose size-class
+            // rounding left tail slack: it hole-fills the aliased tail
+            // [flatVectorLength, coveredVectorLength) ONLY when those bytes
+            // provably lie inside the flat butterfly's heap cell
+            // (availableContiguousVectorLength re-derives the cell's usable
+            // VL from the same MarkedSpace::optimalSizeFor the creator's
+            // allocator used; C3 + the structure-pinned outOfLineCapacity
+            // make the recorded aliased size the exact requested size). The
+            // unconditional fill the locksites note suggested would WRITE
+            // PAST THE HEAP CELL whenever the creator went through
+            // availableContiguousVectorLength itself (it back-computes VL to
+            // fill the size class exactly - zero slack), so it is gated. The
+            // fill races nothing: tail addresses are past flatVectorLength so
+            // every §4.4 in-bounds store and every flat-side reader (both
+            // C4-bounded by flat VL) stays clear, and fragment-0 slot-0 (the
+            // I9b frozen flat-era VL high half + the live publicLength low
+            // half) is untouched. When neither the alignment nor the slack
+            // check applies the spine publishes flatVectorLength exactly as
+            // before and the first grow falls into mode-(b) once - now a
+            // residual rare path.
+            uint32_t publishedVectorLength = flatVectorLength;
+            if (hasIndexingHeader && indexedFragments) {
+                uint32_t coveredVectorLength = indexedFragments * static_cast<uint32_t>(butterflyFragmentSlots) - 1;
+                ASSERT(flatVectorLength <= coveredVectorLength);
+                if (flatVectorLength < coveredVectorLength
+                    && Butterfly::availableContiguousVectorLength(aliasedOutOfLineCapacity, flatVectorLength) >= coveredVectorLength) {
+                    bool fillDouble = hasDouble(sourceStructure->indexingType()); // structureID re-checked above; I28 relabels change it.
+                    uint64_t hole = fillDouble ? std::bit_cast<uint64_t>(PNaN) : static_cast<uint64_t>(JSValue::encode(JSValue()));
+                    for (uint32_t i = flatVectorLength; i < coveredVectorLength; ++i) {
+                        // Direct flat-address lane store (== spine->indexedSlot(i)
+                        // by I8 once the spine is built). V7: relaxed atomic so
+                        // post-publication segmented readers' relaxed lane loads
+                        // pair; tsanPublish below imports the edge.
+                        WTF::atomicStore(std::bit_cast<uint64_t*>(flat->pointer()) + i, hole, std::memory_order_relaxed);
+                    }
+                    publishedVectorLength = coveredVectorLength;
+                } else if (flatVectorLength == coveredVectorLength)
+                    publishedVectorLength = coveredVectorLength; // == flatVectorLength; the optimalContiguousVectorLength flag-on path.
+            }
+
             // ---- Build the spine (private until publication; immutable
             // after - I6). Slice-aliasing per the §4.1 equations (I8);
             // aliased base/size recorded VERBATIM for GC (§4.5/I7 - the old
@@ -791,7 +839,7 @@ ButterflySpine* convertToSegmentedButterfly(VM& vm, JSObjectWithButterfly* objec
             // spine's interior fragment pointers).
             butterflyConcurrentStore(&spine->outOfLineFragmentCount, totalOutOfLineFragments); // V7: paired with the reader-side relaxed loads (Butterfly.h).
             butterflyConcurrentStore(&spine->indexedFragmentCount, indexedFragments);
-            butterflyConcurrentStore(&spine->vectorLength, flatVectorLength); // Authoritative live VL; the flat-era copy stays frozen in fragment 0 slot 0's high half (I9b).
+            butterflyConcurrentStore(&spine->vectorLength, publishedVectorLength); // Authoritative live VL (== flatVectorLength, or full coverage per T3 above); the flat-era copy stays frozen in fragment 0 slot 0's high half (I9b) regardless.
             butterflyConcurrentStore(&spine->spineEpoch, 1u); // First spine this object publishes; replacements (§4.3-1/T2) copy + increment.
             butterflyConcurrentStore(&spine->aliasedAllocationBase, aliasedAllocationBaseForConversion(flat, 0, aliasedOutOfLineCapacity)); // C3 RELEASE_ASSERT inside.
             butterflyConcurrentStore(&spine->aliasedAllocationSize, aliasedAllocationSizeForConversion(aliasedOutOfLineCapacity, hasIndexingHeader, static_cast<size_t>(flatVectorLength) * sizeof(EncodedJSValue)));
@@ -2376,13 +2424,22 @@ ALWAYS_INLINE void fillFragmentSlotWithHole(WriteBarrierBase<Unknown>* slot, boo
 //       aliased-tail exposure.
 //
 //   (b) The spine carries a conversion-era C2 tail (vectorLength <
-//       coverage): those tail slots alias memory PAST the flat allocation's
-//       precise end (Butterfly sizing makes flat vectorLengths odd, so a
-//       VL % 4 == 1 conversion leaves a 2-slot tail outside the recorded
-//       aliasedAllocationSize) - they may not exist and are never
-//       dereferenced (C2/C4). Raising vectorLength across them is therefore
-//       ILLEGAL, and hole-filling them pre-publication could also clobber a
-//       racing grow+store (I21). Resolution: rebuild ALL indexed fragments
+//       coverage). T3-segmented-born-fullcoverage made this the RARE
+//       residual: flag-on optimalContiguousVectorLength rounds every
+//       freshly-sized contiguous flat VL so (1+VL)%4 == 0 (no tail at
+//       conversion), and §4.2 step 3 additionally hole-fills any
+//       slack-backed tail and publishes full coverage. Mode (b) now fires
+//       only for a flat butterfly that was sized OUTSIDE
+//       optimalContiguousVectorLength AND whose heap-cell size class left
+//       no usable slack past flatVectorLength, or after an explicit
+//       shrink/reshape. When it does fire: those tail slots alias memory
+//       PAST the flat allocation's precise end (Butterfly sizing makes
+//       flat vectorLengths odd, so a VL % 4 == 1 conversion leaves a
+//       2-slot tail outside the recorded aliasedAllocationSize) - they may
+//       not exist and are never dereferenced (C2/C4). Raising vectorLength
+//       across them is therefore ILLEGAL, and hole-filling them
+//       pre-publication could also clobber a racing grow+store (I21).
+//       Resolution: rebuild ALL indexed fragments
 //       FRESH under a §10.6 per-event stop - I34 guarantees no access is
 //       mid-flight across a stop (no path holds a slot pointer across a
 //       poll), so indexed-fragment identity (including fragment 0's

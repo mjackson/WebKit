@@ -279,6 +279,20 @@ void Heap::forEachSlotVisitor(const Func& func)
     func(*m_mutatorSlotVisitor);
     for (auto& visitor : m_parallelSlotVisitors)
         func(*visitor);
+    // T1-gc-siblings-mark: include the lazily-grown sibling-assist visitors
+    // so didStartMarking / endMarking()'s reset / updateMutatorIsStopped /
+    // bytesVisited etc. cover them. The mayGrow bit is sticky-set ONLY by
+    // the conductor (runBeginPhase, gilOff-gated) BEFORE any sibling can
+    // grow the vector (assistEnabled is still false at that point), so a
+    // false read here cannot race a growth — flag-off the bit is never set
+    // and this branch is dead (byte-identical iteration). The lock
+    // serializes against gilOffSiblingAssistMarking()'s lazy creation; no
+    // caller's func acquires a lock, so no rank inversion.
+    if (m_siblingSlotVisitorPoolMayGrow.load(std::memory_order_relaxed)) [[unlikely]] {
+        Locker locker { m_parallelSlotVisitorLock };
+        for (auto& visitor : m_siblingSlotVisitors)
+            func(*visitor);
+    }
 }
 
 namespace GCClient {

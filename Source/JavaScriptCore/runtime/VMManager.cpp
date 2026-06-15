@@ -44,6 +44,7 @@
 #include <wtf/Locker.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/ParkingLot.h> // T6-arbitration-park-not-sleep: §A.3 job-slot park/unpark.
 #include <wtf/RunLoop.h>
 #include <wtf/Scope.h>
 #include <wtf/Threading.h>
@@ -248,6 +249,9 @@ void VMManager::setJSDebuggerCallback(StopTheWorldCallback callback)
 // Defined in heap/Heap.cpp (U-T5): per-thread park access pairing.
 void gcClientWillParkForThreadGranularStop();
 void gcClientDidResumeFromThreadGranularStop();
+// Defined in heap/Heap.cpp (T1-gc-siblings-mark): sibling parallel-marking
+// assist; true iff a marking phase was open and the sibling drained it.
+bool gcSiblingAssistMarkingIfEnabled();
 // Defined in runtime/VMLite.cpp (U-T5): ANNEX ISB1.
 void jsThreadsBumpStopGeneration();
 void jsThreadsNVSExitInstructionSync();
@@ -672,7 +676,29 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
                 dataLogLn("JSThreads §A.3 arbitration: requester queued ", totalQueued.seconds(), "s total (budget re-armed on window completions; completed-window count now ", observedWindows, ") — live fire-storm queue, not a wedge.");
             }
             JSThreadsSafepoint::watchdogAssertStopProgress(requestStart, &vm);
-            WTF::sleep(Seconds::fromMilliseconds(1));
+            // T6-arbitration-park-not-sleep: park keyed on the job-slot lock
+            // address instead of an unconditional 1ms sleep, so a queued
+            // requester wakes IMMEDIATELY when the previous conductor's
+            // window completes (the resume tail unparkOne()s this address
+            // right after the arbitration Locker releases). The 1ms timeout
+            // is kept as the watchdog backstop — same cadence for the
+            // progress-aware re-arm and the 60s/120s breadcrumb above — so
+            // a missed unpark (none expected; the validation predicate
+            // covers the bump-before-queue race) costs at most one quantum,
+            // identical to the prior sleep. Validation: park only while the
+            // completed-window token equals what we've already observed; a
+            // completion that races between tryLock() and queue insertion
+            // fails the predicate and we retry tryLock() without blocking.
+            // ParkingLot's internal queue lock orders the conductor's
+            // relaxed token bump before our predicate read (release/acquire
+            // on the bucket lock), so no lost wakeup. Flag-off: this whole
+            // function is §A.3 gilOff-only; line is unreachable with the
+            // GIL on.
+            ParkingLot::parkConditionally(
+                &s_jsThreadsJobSlotLock,
+                [observedWindows] { return s_jsThreadsCompletedWindowCount.load(std::memory_order_relaxed) == observedWindows; },
+                [] { },
+                MonotonicTime::now() + Seconds::fromMilliseconds(1));
         }
         Locker arbitration { AdoptLock, s_jsThreadsJobSlotLock };
         // Per-leg budget: winning tenure IS progress. The GCL bracket and
@@ -836,6 +862,17 @@ void jsThreadsThreadGranularStopTheWorldAndRun(VM& vm, const ScopedLambda<void()
             vm.requestStop();
         jsThreadsNotifyMutatorQuiesced();
     } // ~JSThreadsStopScope: drop the GCL bracket (resume order), then...
+    // T6-arbitration-park-not-sleep: the arbitration Locker has now released
+    // s_jsThreadsJobSlotLock — wake ONE queued §A.3 requester parked on its
+    // address so its next tryLock() succeeds without paying the 1ms backstop.
+    // s_jsThreadsCompletedWindowCount was bumped inside the window (the
+    // parker's validation predicate), and ParkingLot's internal bucket lock
+    // orders that relaxed bump before the woken thread's predicate re-check,
+    // so there is no lost wakeup. unparkOne (not All) is the T5 fair-handoff
+    // pattern (see wakeOneSyncHoldParker): each completing conductor releases
+    // exactly one successor; the rest stay parked until THEIR predecessor
+    // completes. Flag-off: this function is gilOff-only.
+    ParkingLot::unparkOne(&s_jsThreadsJobSlotLock);
     if (releasedAccess)
         selfClient->acquireHeapAccess(); // ...re-acquire access LAST (R1.i).
 }
@@ -1159,6 +1196,27 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
             }
             // Sibling: park on our own ticket, access-released; never counted.
             gcClientWillParkForThreadGranularStop();
+            // T1-gc-siblings-mark: instead of idling on the bounded poll,
+            // join the conducted cycle's parallel marking as a HelperDrain
+            // helper. The representative's conductSharedCollection runs the
+            // stock fixpoint and was observed PARKED at runTaskInParallel's
+            // bonus-visitor refcount drain (helper-starved) while W-1
+            // siblings sat here — this is the 20.8% + 2.9% W=16 off-cpu
+            // share. The assist returns when runEndPhase sets
+            // m_parallelMarkersShouldExit (one whole marking phase), then
+            // re-evaluates the Mode/stop predicate above (`continue`): an
+            // F28 successor cycle re-opens the gate and the sibling
+            // re-enters; a non-GC Mode-stop (debugger) finds the gate
+            // closed and falls through to the bounded poll. Preconditions
+            // are met: access is released (above), no m_worldLock or
+            // api-rank lock is held, and the HelperDrain protocol takes
+            // only m_markingMutex / m_parallelSlotVisitorLock — no rank
+            // overlap with this loop's locks. False return = no marking
+            // phase open: keep the bounded poll exactly as before so the
+            // §A.3-word / representative re-evaluation stays live.
+            // Flag-off: unreachable (whole block is inside vm.gilOff()).
+            if (gcSiblingAssistMarkingIfEnabled())
+                continue;
             {
                 Locker lock { m_worldLock };
                 // Bounded wait: resume paths notify this condition; the
@@ -1190,6 +1248,17 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
             auto it = servicers.find(&vm);
             if (it != servicers.end() && it->value == &Thread::currentSingleton())
                 servicers.remove(it);
+            // T6-arbitration-park-not-sleep (sibling leg): wake gilOff
+            // siblings parked on the bounded 1ms waitFor above so they
+            // re-evaluate the Mode/representative predicate the moment this
+            // representative drops tenure, instead of on timeout. The resume
+            // paths (resumeTheWorld / continueRunOne) already notifyAll, but
+            // a representative can drop tenure on the early-RunAll return
+            // path without either firing, leaving siblings to time out.
+            // Under m_worldLock so the predicate re-check is ordered.
+            // gilOff-only (this whole lambda is guarded above); flag-off
+            // never reaches here.
+            m_worldConditionVariable.notifyAll();
         }
         gcClientDidResumeFromThreadGranularStop();
         jsThreadsNVSExitInstructionSync();
