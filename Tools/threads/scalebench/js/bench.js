@@ -80,6 +80,38 @@ const N_BASE = isSmoke() ? N_BASE_SMOKE : N_BASE_DEFAULT;
 // spec-exact BigInt path runs and the checksumA/A2 reference tuple is
 // unchanged.
 const INTCS = shellArgs.indexOf("intcs") >= 1;
+
+// SCALEBENCH tarray arm (fixed-layout discriminant): `bench.js -- W tarray`
+// stores posting lists as growable Int32Array pairs instead of generic JS
+// arrays. Tests how much of the JS-vs-Java absolute-throughput gap is the
+// boxed-array / segmented-butterfly object model vs everything else (Map,
+// strings, JIT warmup, shared-heap). Int32Array is the one place JS already
+// gives Java-like fixed-layout unboxed contiguous storage. Default OFF: the
+// helpers below reduce to the original {docIds:[], tfs:[]} shape and the
+// reference checksum tuple is unchanged. tarray + intcs may be combined.
+const TARRAY = shellArgs.indexOf("tarray") >= 1;
+
+// Posting-list shape helpers — single dispatch at load. Default mode is the
+// original behavior; indexed reads p.docIds[i]/p.tfs[i] work unchanged in
+// both modes (Int32Array supports [] and slice()).
+function newPostingTA() { return { docIds: new Int32Array(8), tfs: new Int32Array(8), n: 0 }; }
+function postingPushTA(p, d, tf) {
+    let cap = p.docIds.length; // buffer capacity, NOT postingLen
+    if (p.n === cap) {
+        cap *= 2;
+        const nd = new Int32Array(cap); nd.set(p.docIds); p.docIds = nd;
+        const nt = new Int32Array(cap); nt.set(p.tfs); p.tfs = nt;
+    }
+    p.docIds[p.n] = d; p.tfs[p.n] = tf; p.n++;
+}
+const newPosting = TARRAY ? newPostingTA : () => ({ docIds: [], tfs: [] });
+const postingPush = TARRAY ? postingPushTA : (p, d, tf) => { p.docIds.push(d); p.tfs.push(tf); };
+const postingLen = TARRAY ? p => p.n : p => p.docIds.length;
+const postingSliceDocIds = TARRAY ? p => p.docIds.slice(0, p.n) : p => p.docIds.slice();
+const postingSliceTfs = TARRAY ? p => p.tfs.slice(0, p.n) : p => p.tfs.slice();
+const emptyPosting = TARRAY
+    ? () => ({ docIds: new Int32Array(0), tfs: new Int32Array(0), n: 0 })
+    : () => ({ docIds: [], tfs: [] });
 const N_QUERIES = N_BASE;
 const N_BASEn = BigInt(N_BASE);
 
@@ -300,11 +332,10 @@ function ingestDoc(d) {
         shard.lock.hold(() => {
             let p = shard.map.get(term);
             if (p === undefined) {
-                p = { docIds: [], tfs: [] };
+                p = newPosting();
                 shard.map.set(term, p);
             }
-            p.docIds.push(d);
-            p.tfs.push(count);
+            postingPush(p, d, count);
         });
     }
     Atomics.add(counters, "tokensProcessed", toks.length);
@@ -327,7 +358,7 @@ function postingsChecksum() {
     for (let s = 0; s < K; ++s) {
         for (const [term, p] of shards[s].map) {
             const th = fnv1a(term);
-            const n = p.docIds.length;
+            const n = postingLen(p);
             postings += n;
             for (let i = 0; i < n; ++i) {
                 const item = th
@@ -361,7 +392,7 @@ function postingsChecksumInt() {
     for (let s = 0; s < K; ++s) {
         for (const [term, p] of shards[s].map) {
             const th = fnv1a32(term);
-            const n = p.docIds.length;
+            const n = postingLen(p);
             postings += n;
             for (let i = 0; i < n; ++i) {
                 const item = (th
@@ -378,7 +409,7 @@ function buildDfSnap() {
     const snap = new Map();
     for (let s = 0; s < K; ++s) {
         for (const [term, p] of shards[s].map)
-            snap.set(term, p.docIds.length);
+            snap.set(term, postingLen(p));
     }
     return snap;
 }
@@ -392,11 +423,11 @@ function copyPostings(term) {
     shard.lock.hold(() => {
         const p = shard.map.get(term);
         if (p !== undefined) {
-            docIds = p.docIds.slice();
-            tfs = p.tfs.slice();
+            docIds = postingSliceDocIds(p);
+            tfs = postingSliceTfs(p);
         }
     });
-    return docIds === null ? { docIds: [], tfs: [] } : { docIds, tfs };
+    return docIds === null ? emptyPosting() : (TARRAY ? { docIds, tfs, n: docIds.length } : { docIds, tfs });
 }
 
 function queryPoint(p) {
@@ -406,7 +437,7 @@ function queryPoint(p) {
     shard.lock.hold(() => {
         const pl = shard.map.get(term);
         if (pl !== undefined) {
-            for (let i = 0; i < pl.docIds.length; ++i) {
+            for (let i = 0; i < postingLen(pl); ++i) {
                 if (pl.docIds[i] < N_BASE) {
                     df++;
                     sumTf += pl.tfs[i];
@@ -427,14 +458,14 @@ function queryAnd(p) {
         lists.push(copyPostings(terms[i])); // copy under shard lock (§1.9)
     const cand = new Map();
     const first = lists[0];
-    for (let i = 0; i < first.docIds.length; ++i) {
+    for (let i = 0; i < postingLen(first); ++i) {
         const d = first.docIds[i];
         if (d < N_BASE)
             cand.set(d, 1);
     }
     for (let k = 1; k < nTerms; ++k) {
         const list = lists[k];
-        for (let i = 0; i < list.docIds.length; ++i) {
+        for (let i = 0; i < postingLen(list); ++i) {
             const d = list.docIds[i];
             if (d < N_BASE && cand.get(d) === k)
                 cand.set(d, k + 1);
@@ -463,7 +494,7 @@ function queryScored(p, dfSnap) {
         const df = dfSnap.get(term);
         const idf = df === undefined ? 0n : (N_BASEn * 1000n) / BigInt(df);
         const list = copyPostings(term);
-        for (let i = 0; i < list.docIds.length; ++i) {
+        for (let i = 0; i < postingLen(list); ++i) {
             const d = list.docIds[i];
             if (d < N_BASE) {
                 const cur = cand.get(d);
@@ -543,7 +574,7 @@ function phaseC() {
             break;
         for (const [term, p] of shards[s].map) {
             let totalTf = 0;
-            const df = p.docIds.length; // ALL postings: base + writer docs
+            const df = postingLen(p); // ALL postings: base + writer docs
             for (let i = 0; i < df; ++i)
                 totalTf += p.tfs[i];
             // Group key: string length crossed with the first letter of the
@@ -676,7 +707,7 @@ function phaseCWS(id) {
         Atomics.add(wsState, "remaining", -1);
         for (const [term, p] of shards[s].map) {
             let totalTf = 0;
-            const df = p.docIds.length; // ALL postings: base + writer docs
+            const df = postingLen(p); // ALL postings: base + writer docs
             for (let i = 0; i < df; ++i)
                 totalTf += p.tfs[i];
             const key = term.length + ":" + term.charAt(1); // same key rule as phaseC()
@@ -815,7 +846,7 @@ function ms(x) {
     return Math.round(x * 1000) / 1000;
 }
 
-print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + ',"threads":' + W
+print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + (TARRAY ? ',"tarray":true' : '') + ',"threads":' + W
     + (WS_MODE ? ',"mode":"ws"' : '')
     + ',"phaseA_ms":' + ms(results.phaseA_ms)
     + ',"phaseB_ms":' + ms(results.phaseB_ms)
