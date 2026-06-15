@@ -2261,3 +2261,91 @@ necessary but not sufficient evidence). **Campaign-9 named target
 (amended):** before any further scalability work, resolve the
 `Heap.cpp:1658` Debug assertion under congc — the §33 named pc-sibling
 target stands second.
+
+## §35 flat-gap-bughunter
+
+Tree `9791feb9b3d9` + worktree delta below; Release jsc sha256
+`2edfe0eaa3ff…`, Debug `dcc6c51abe17…`. Pinned GIL-off env, 64 HW
+threads, loadavg 0.4–1.4 during the 3-rep matrix. Evidence pack:
+`docs/threads/FLAT-GAP-EVIDENCE.md` (perf/eu-stack/logGC/verboseOSR/
+holdtime micro from the pre-fix tree).
+
+### Survivor list (changes that landed this round)
+
+| target | file | what it does | flag-off effect |
+|---|---|---|---|
+| **forof-tdz-osr-loop** | `dfg/DFGFixupPhase.cpp` | The optional `Check<Int32Use>` hint inserted at `PutClosureVar` (per-iteration for-of scope copy) BadType-exits forever on the iteration-0 TDZ-empty sentinel — ValueProfile cannot record SpecEmpty. Honor the `BadType` exit profile and drop the hint on recompile (same idiom as the rest of the file). Stops the 26 234-exit / 8-jettison loop that pinned `ingestDocFlat` in Baseline (FLAT-GAP-EVIDENCE §5). | Gated `Options::useJSThreads()`; flag-off codegen byte-identical. |
+| **hold-vmEntry-trampoline** | `runtime/LockObject.cpp` | gilOff-only fast path for `lock.hold(fn)` when `fn` is a non-host JSFunction with an installed `codeBlockForCall()` and `numParameters() ≤ 1`: dispatch via `vmEntryToJavaScriptWith0Arguments` (the CachedCall / MicrotaskCall shape) instead of `getCallData→JSC::call→executeCallImpl`. Hoist `Thread::currentSingleton()` (4 TLS reads → 1). holdtime micro 117 ns/call → ~35 ns/call; FLAT-GAP-EVIDENCE §1 attributed 16.5 % self at W=16 to the slow trampoline. | gilOff-gated; flag-off falls through to the unchanged `JSC::call` path. |
+| **lazy-species-install-race** | `runtime/JSGlobalObject.{cpp,h}` | NEW engine bug found this round: `Int32Array.prototype.slice` on N worker threads races the lazy `tryInstallTypedArraySpeciesWatchpoint` (50 % SIGABRT at W=16, `RELEASE_ASSERT(watchpointSet.state() == IsWatched)` at `ObjectPropertyChangeAdaptiveWatchpoint.h:44`). Route the once-per-type install through `JSThreadsSafepoint::stopTheWorldAndRun` with an in-window re-check, exactly the `haveABadTime()` pattern. | gilOff-gated; flag-off / GIL-on falls through to the unchanged inline body. |
+| **serial-math-global-getbyidflush-loop** | `bench.js` | `const $imul = Math.imul` module-level hoist. GIL-off CheckTraps widening blocks LICM of the `Math` GlobalProperty `GetByIdFlush`; pc-shaped loop 89.6 → 2.0 ns/elem. Fairness correction (Go/Java have no global-property indirection for imul). | Flat-arm only; default arm untouched. |
+| **hold-closure-alloc** | `bench.js` | Hoist the 5 `lock.hold(() => …)` arrows to per-worker JSFunctions captured over `sc`; loop-varying values staged through `sc.h*` slots. ~5 M closure+env allocs → 5×W. Fairness correction (Go/Java allocate 0 bytes per critical section). | Flat-arm only. |
+| **serial-seg-getbutterfly-osrexit** | `bench.js` | `flattenFlatShards()` / `flattenGroupsFlat()`: rebuild cross-thread-filled posting lists / group arrays as thread-0 `Int32Array` so the serial readers + phaseB are monomorphic. `ingestWriterDocFlat` keeps phaseB writers typed. Fairness correction (Go `[]int` / Java `ArrayList` are contiguous regardless of which thread appended). | Flat-arm only. |
+
+### JS-flat wall ms vs Java / Go (3-rep medians; Go/Java from §34)
+
+| W | **JS-flat ms** | Java ms | Go ms | JS/Java | JS/Go |
+|---|---|---|---|---|---|
+| 1 | **3389** | 1974 | 1836 | 1.72× | 1.85× |
+| 16 | **1320** | 976 | 422 | **1.35×** | **3.13×** |
+| 32 | **2351** | 1022 | 378 | 2.30× | 6.22× |
+
+W=16 reps {1318, 1320, 1343}; W=1 {3377, 3389, 3450}; W=32
+{1529, 2351, 2428} (bimodal — §34(C) fast-mode signature, 1/8 fast in an
+8-rep stability sweep). All 9 matrix reps + 12 W=16 stability reps + 8
+W=32 stability reps rc=0; every rep matches the flat reference
+`686d6890|4154468|0fbbd673|3af6b072|e1d22021`.
+
+Against the §34 entry baseline (JS-flat W=1 ≈ 5461 ms, W=16 ≈ 4577 ms):
+W=1 −38 %, **W=16 −71 %**. The W=16 gap to Java closes from 4.7× to
+**1.35×**; to Go from 10.8× to **3.13×**. The W=1 gap to Go closes from
+3.0× to **1.85×** — the forof-tdz-osr-loop fix alone moved
+`ingestDocFlat` from Baseline to FTL and recovered most of the
+single-thread floor.
+
+Residual W=16 wall composition: phaseA 593 + phaseB 234 + phaseC 33 +
+serial (pc1+df+pc2+csC) 461 = 1320 ms. pc1 still 351–372 ms (4.6 M
+postings, FTL): the remaining serial floor. W=32 regresses vs W=16
+(phaseA 593 → ~1520) — over-subscription / shard-lock contention; Java
+and Go are also flat-to-down at W=32.
+
+### Default arm (spec-exact, unchanged path)
+
+W=1: 19 003 ms, W=16: 13 013 ms; reference tuple
+`b3e65a6855b9bdeb|4158957|39c33392b2a4c5b2|c4bdd580f85ee058|
+af028188d7a56a96` matches §34 at both W. W=1 −5 % vs §34 (20 102 ms),
+W=16 −1 % — the engine deltas are neutral on the BigInt/string-heavy
+spec arm (its hot loops were already FTL-stable; `lock.hold` is gilOff-
+gated and the for-of fix only changes recompile behaviour).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug `dcc6c51abe17…`, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| Default-arm reference tuple unchanged (W=1 + W=16) | **PASS** |
+| Flat-arm checksum stable (all W, all reps) | **PASS** (`686d6890|4154468|0fbbd673|3af6b072|e1d22021`) |
+| W=16 stability (12 reps post-species-fix) | **12/12 rc=0**, 1282–1628 ms |
+| W=32 stability (8 reps) | **8/8 rc=0**, 1553–2714 ms (bimodal) |
+| **JS-flat W=16 wall < 4000 ms** | **PASS — 1320 ms** |
+
+### Named follow-up targets
+
+1. **lazy-species-install-race, sibling sites**: the same TOCTOU exists
+   for `tryInstallArrayBufferSpeciesWatchpoint` and the lazy
+   typed-array-iterator-protocol watchpoints (any
+   `state() == ClearWatchpoint` gate in
+   `JSGenericTypedArrayViewPrototypeFunctions.h` /
+   `ArrayBufferPrototype.cpp`). Only the Int32Array-species site is
+   exercised by the flat bench; the others should get the same STW
+   wrapper before any user code reaches them.
+2. **W=32 phaseA contention**: 1520 ms vs W=16's 593 ms with the same
+   work and 2× threads — K=128 shard locks at W=32 hit the
+   adaptive-spin → park threshold harder. Not a correctness issue;
+   recorded for the next scalability pass.
+3. **pc1 serial floor (~350 ms)**: pc1 is FTL-warm at W=1 (143 ms) but
+   2.5× at W≥2 — the `for…of flatShards[s]` Map-iterator on
+   foreign-allocated Maps still costs the segmented-butterfly read path
+   on first walk. A per-shard term-id Int32Array index built at
+   `flattenFlatShards()` time would make pc1 a flat typed-array walk.

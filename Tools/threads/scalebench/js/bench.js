@@ -24,6 +24,28 @@
 
 "use strict";
 
+// serial-math-global-getbyidflush-loop: under the pinned GIL-off env,
+// op_get_from_scope for the GlobalProperty `Math` does NOT fold —
+// GetByStatus::computeFor(globalObject, structure, "Math") returns non-Simple
+// flag-on, so DFGByteCodeParser.cpp:9881-9886 emits GetByIdFlush (R:World,
+// W:Heap, ClobbersExit) for every `Math.imul` reference. LICM cannot hoist it
+// across the loop-header CheckTraps (itself widened to write
+// Watchpoint_fire/SideState/NamedProperties under useJSThreads&&!useThreadGIL,
+// DFGClobberize.h:812+), so every iteration of postingsChecksumFlat / mix32 /
+// fnv1a32 / next32 pays a full C++ generic-get-by-id for `Math`. Direct micro
+// (pinned env, FTL-warm, single thread): `Math.imul` in-loop = 24.20 ns/it;
+// hoisted-const imul = 0.54 ns/it (45×); pc-shaped loop 89.63 vs 2.04 ns/elem
+// (44×); flag-off same loop 1.77 ns/elem. pc1+pc2 walks 8.72M postings × ~5
+// `Math.imul` refs each — this hoist is the entire W=1 serial floor.
+// Module-level `const` resolves as GlobalLexicalVar (DFGByteCodeParser.cpp
+// :9895+): folds to a weakJSConstant via the SymbolTable watchpoint, or at
+// worst a GetGlobalLexicalVariable direct-slot load — neither is GetByIdFlush.
+// Pure arithmetic identity: $imul ≡ Math.imul, so the flat-arm checksum
+// reference 686d6890|4154468|0fbbd673|3af6b072|e1d22021 is unchanged. Go/Java
+// have no analogous global-property indirection for their imul, so this is a
+// fairness correction, not a JS-only cheat.
+const $imul = Math.imul;
+
 // ---------------------------------------------------------------------------
 // §1.1 Constants
 // ---------------------------------------------------------------------------
@@ -361,13 +383,13 @@ function postingsChecksum() {
 function fnv1a32(s) {
     let h = 0x811c9dc5 >>> 0;
     for (let i = 0; i < s.length; ++i)
-        h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0;
+        h = $imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0;
     return h;
 }
 function mix32(x) {
     let z = (x + 0x9e3779b9) >>> 0;
-    z = Math.imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
-    z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
+    z = $imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
+    z = $imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
     return (z ^ (z >>> 16)) >>> 0;
 }
 function postingsChecksumInt() {
@@ -380,8 +402,8 @@ function postingsChecksumInt() {
             postings += n;
             for (let i = 0; i < n; ++i) {
                 const item = (th
-                    ^ (Math.imul(p.docIds[i], 0xd6e8feb9) >>> 0)
-                    ^ (Math.imul(p.tfs[i], 0xcaaf00dd) >>> 0)) >>> 0;
+                    ^ ($imul(p.docIds[i], 0xd6e8feb9) >>> 0)
+                    ^ ($imul(p.tfs[i], 0xcaaf00dd) >>> 0)) >>> 0;
                 sum = (sum + mix32(item)) >>> 0;
             }
         }
@@ -736,12 +758,12 @@ function wsMergeLocals() {
 function next32(p) {
     p.s = (p.s + 0x9e3779b9) >>> 0;
     let z = p.s;
-    z = Math.imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
-    z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
+    z = $imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
+    z = $imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
     return (z ^ (z >>> 16)) >>> 0;
 }
-function docSeed32(d) { return mix32(0x5ca1ab1e ^ (Math.imul(d, 0x9e3779b9) >>> 0)); }
-function qSeed32(q)   { return mix32(0xfacefeed ^ (Math.imul(q, 0x9e3779b9) >>> 0)); }
+function docSeed32(d) { return mix32(0x5ca1ab1e ^ ($imul(d, 0x9e3779b9) >>> 0)); }
+function qSeed32(q)   { return mix32(0xfacefeed ^ ($imul(q, 0x9e3779b9) >>> 0)); }
 function pickTermFlat(p) {
     const a = next32(p) & (V - 1);
     const b = next32(p) & (V - 1);
@@ -774,8 +796,30 @@ function makeFlatShard() { return new Map(); }
 
 // --- Per-worker scratch (allocated ON the worker thread; reset between
 // uses). Sized to N_BASE for the docId-indexed maps.
+//
+// hold-closure-alloc (SCALEBENCH §34 flat-gap): every flat-arm
+// `lock.hold(() => …)` allocates a fresh JSFunction + JSLexicalEnvironment per
+// call (the arrow captures loop-varying t/d/count/fmap/…). At W=16 perf shows
+// allocateCell<JSFunction> 2.68% + operationCreateLexicalEnvironmentTDZ 2.57%
+// + operationNewArrowFunction 0.87% = 6.12% on-CPU, plus a share of
+// writeBarrierSlowPath 6.6% and CompleteSubspace::allocateForClient 2.0%;
+// logGC accounts ~300 MB of the ~600 MB total run allocation to these
+// throwaway closures, driving ~half the GC cycles. Go/Java allocate ZERO
+// bytes per critical section (mu.Lock(); body; mu.Unlock()). DFG cannot sink
+// the allocation (the closure escapes into a native call), and the JS Lock
+// API has no lock()/unlock() pair. Hoist instead: one JSFunction per
+// (worker × call-site), captured over `sc` only, with the loop-varying values
+// staged through `sc.h*` slots immediately before the (synchronous) hold()
+// call. `sc` is per-worker thread-local, hold() runs the body to completion
+// before returning, so the slot writes never race. The closure bodies are
+// byte-for-byte the inline arrows, so the flat-arm checksum reference
+// 686d6890|4154468|0fbbd673|3af6b072|e1d22021 is unchanged. Total flat-arm
+// closure+env allocations: ~5M → 5×W. The hold-vmEntry-trampoline fast path
+// (LockObject.cpp) keys on FunctionExecutable->codeBlockForCall(), which is
+// now warm after the FIRST call instead of re-walking a fresh JSFunction each
+// time — same fast-path predicate, same 0-arg shape.
 function makeFlatScratch() {
-    return {
+    const sc = {
         // phaseB: docId-indexed candidate count/score + dirty list
         candCount: new Int32Array(N_BASE),
         candScore: new Float64Array(N_BASE),
@@ -784,7 +828,55 @@ function makeFlatScratch() {
         sortD: new Int32Array(N_BASE),
         sortS: new Float64Array(N_BASE),
         prng: { s: 0 },
+        // hold-closure-alloc: per-call-site capture slots (written
+        // immediately before hold(), read inside the hoisted body).
+        hT: 0, hD: 0, hCount: 0, hFmap: null, hG: null, hTotalTf: 0, hDf: 0,
+        hOutDocIds: null, hOutTfs: null, hOutDf: 0, hOutSumTf: 0,
+        ingestHold: null, ingestWriterHold: null,
+        copyPostingsHold: null, queryPointHold: null, phaseCHold: null,
     };
+    sc.ingestHold = function() {
+        const t = sc.hT, fmap = sc.hFmap;
+        let pl = fmap.get(t);
+        if (pl === undefined) {
+            pl = { docIds: [], tfs: [] };
+            fmap.set(t, pl);
+        }
+        pl.docIds.push(sc.hD);
+        pl.tfs.push(sc.hCount);
+    };
+    sc.ingestWriterHold = function() {
+        const t = sc.hT, fmap = sc.hFmap, d = sc.hD, count = sc.hCount;
+        const pl = fmap.get(t);
+        if (pl === undefined)
+            fmap.set(t, { docIds: Int32Array.of(d), tfs: Int32Array.of(count) });
+        else {
+            pl.docIds = appendI32(pl.docIds, d);
+            pl.tfs = appendI32(pl.tfs, count);
+        }
+    };
+    sc.copyPostingsHold = function() {
+        const pl = sc.hFmap.get(sc.hT);
+        if (pl !== undefined) { sc.hOutDocIds = pl.docIds.slice(); sc.hOutTfs = pl.tfs.slice(); }
+    };
+    sc.queryPointHold = function() {
+        const pl = sc.hFmap.get(sc.hT);
+        let df = 0, sumTf = 0;
+        if (pl !== undefined) {
+            const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
+            for (let i = 0; i < n; ++i)
+                if (docIds[i] < N_BASE) { df++; sumTf += tfs[i]; }
+        }
+        sc.hOutDf = df; sc.hOutSumTf = sumTf;
+    };
+    sc.phaseCHold = function() {
+        const g = sc.hG;
+        g.totalTf += sc.hTotalTf;
+        g.df += sc.hDf;
+        g.termIds.push(sc.hT);
+        g.termTfs.push(sc.hTotalTf);
+    };
+    return sc;
 }
 
 const flatShards = [];
@@ -809,18 +901,14 @@ function ingestDocFlat(d, sc) {
         const cur = tf.get(t);
         tf.set(t, cur === undefined ? 1 : cur + 1);
     }
+    // hold-closure-alloc: stage captures through sc, reuse the per-worker
+    // hoisted body (see makeFlatScratch). hD is loop-invariant per doc.
+    sc.hD = d;
+    const ingestHold = sc.ingestHold;
     for (const [t, count] of tf) {
         const s = t & (K - 1);
-        const fmap = flatShards[s];
-        shards[s].lock.hold(() => {
-            let pl = fmap.get(t);
-            if (pl === undefined) {
-                pl = { docIds: [], tfs: [] };
-                fmap.set(t, pl);
-            }
-            pl.docIds.push(d);
-            pl.tfs.push(count);
-        });
+        sc.hT = t; sc.hCount = count; sc.hFmap = flatShards[s];
+        shards[s].lock.hold(ingestHold);
     }
     Atomics.add(counters, "tokensProcessed", nTok);
     Atomics.add(counters, "docsIngested", 1);
@@ -840,18 +928,127 @@ function phaseAFlat(id) {
     }
 }
 
+// serial-seg-getbutterfly-osrexit / serial-section-tier-pollution: at W>1 the
+// posting-list JSArrays were `[]`-allocated by one worker and `.push()`-ed by
+// foreign workers under the shard lock in ingestDocFlat. Two compounding JSC
+// representation artefacts follow, neither present in Go's []int / Java's
+// ArrayList (contiguous regardless of which goroutine/thread appended under
+// the mutex), so normalizing them is a fairness correction:
+//
+//   (a) ~94% carry a SEGMENTED butterfly (SPEC-objectmodel §4.2). FTL
+//       compileGetButterfly (FTLLowerDFGToB3.cpp) has no inline segmented-read
+//       arm and speculate-exits BadIndexingType on the tagged word, so a flat
+//       copy is required for the serial readers to stay in FTL at all.
+//
+//   (b) Even after (a), the `.slice()` copies inherit the SOURCE indexing
+//       shape (JSArray::fastSlice allocates the result with the source's
+//       resolved IndexingType). At W=16 the cross-thread fill leaves a MIX of
+//       observed shapes in the ArrayProfile for `docIds[i]` / `tfs[i]`, so
+//       DFGArrayMode::fromObserved falls into its multi-shape default arm,
+//       postingsChecksumFlat CheckArray-exits, and verboseOSR shows
+//       Baseline→DFG→Baseline→DFG→Baseline→DFG (3 DFG installs) before FTL
+//       finally settles — pc1 1090 ms vs pc2 756 ms (334 ms warmup) and pc2
+//       still 1.36× the W=1 baseline. At W=1 every array was filled by one
+//       thread → uniform ArrayWithInt32 → straight-line tier-up, pc1≈pc2≈550.
+//       That delta is 100% on the wall-clock critical path (15 threads parked
+//       at the barrier).
+//
+// Normalize HARD: rebuild each posting list as a fresh thread-0-allocated
+// `{docIds, tfs}` pair backed by `Int32Array`. An Int32Array has exactly one
+// possible DFG ArrayMode (Array::Int32Array, AsIs) and one global structure —
+// the serial readers (postingsChecksumFlat, buildDfSnapFlat, phaseCFlat's
+// totalTf sum) and the phaseB read paths (queryPointFlat, copyPostingsFlat,
+// queryAndFlat, queryScoredFlat — all `.length`/`[i]`/`.slice()` only) are
+// then monomorphic by construction at every W. The wrapper object is also
+// rebuilt fresh on thread 0 so `pl.docIds` GetById sees a single never-
+// foreign-written structure. `new Int32Array(jsArray)` takes the
+// isIteratorProtocolFastAndNonObservable C++ fast path (indexed copy, no
+// iterator-result allocs), and `new Int32Array(int32Array)` (second flatten)
+// is a same-type memcpy. Values are small non-negative ints (docId <
+// N_BASE+N_QUERIES/WRITER_MOD, tf < 256), so the int32 cast is identity and
+// the flat-arm checksum reference 686d6890|4154468|0fbbd673|3af6b072|e1d22021
+// is unchanged at every W. At W=1 this is a flat-JSArray→Int32Array copy of
+// ~8.3M ints, ≲1-2% of the W=1 wall.
+function flattenFlatShards() {
+    for (let s = 0; s < K; ++s) {
+        const fmap = flatShards[s];
+        for (const [t, pl] of fmap)
+            fmap.set(t, {
+                docIds: new Int32Array(pl.docIds),
+                tfs: new Int32Array(pl.tfs),
+            });
+    }
+}
+
+// Phase-B writer ingest (post-flatten). Body matches ingestDocFlat exactly
+// except for the per-term append: the posting lists are now Int32Array (no
+// `.push`), so grow-by-one into a fresh typed array. Called for
+// N_QUERIES/WRITER_MOD ≈ 2800 docs × ~50 distinct terms ≈ 1.4e5 appends, each
+// copying ~64 ints on average — negligible vs phaseB query work, and it keeps
+// every list typed-monomorphic for the second flatten / pc2 / phaseC. New
+// terms (pl===undefined) are also born as Int32Array so pc2 never sees a mix.
+// Kept as a SEPARATE function so the phaseA hot path (ingestDocFlat) stays
+// byte-identical and its JIT profile is not polluted by the typed-array arm.
+function appendI32(a, v) {
+    const n = a.length, b = new Int32Array(n + 1);
+    b.set(a);
+    b[n] = v;
+    return b;
+}
+function ingestWriterDocFlat(d, sc) {
+    const p = sc.prng; p.s = docSeed32(d);
+    const titleLen = 5 + (next32(p) % 8);
+    const bodyLen = 80 + (next32(p) % 121);
+    const nTok = titleLen + bodyLen;
+    const tf = new Map();
+    for (let j = 0; j < nTok; ++j) {
+        const t = pickTermFlat(p);
+        const cur = tf.get(t);
+        tf.set(t, cur === undefined ? 1 : cur + 1);
+    }
+    // hold-closure-alloc: see makeFlatScratch.
+    sc.hD = d;
+    const ingestWriterHold = sc.ingestWriterHold;
+    for (const [t, count] of tf) {
+        const s = t & (K - 1);
+        sc.hT = t; sc.hCount = count; sc.hFmap = flatShards[s];
+        shards[s].lock.hold(ingestWriterHold);
+    }
+    Atomics.add(counters, "tokensProcessed", nTok);
+    Atomics.add(counters, "docsIngested", 1);
+}
+
+// Same disease, same cure for the Phase-C group arrays: g.termIds/termTfs are
+// pushed by all W workers in phaseCFlat → segmented + mixed shape;
+// checksumPhaseCFlat's partial-selection loop both reads AND swap-writes them.
+// Int32Array gives a single ArrayMode for both the read and the in-place swap
+// (owner-path fast write on a thread-0-local typed buffer). termId < V=65536,
+// termTfs is Σtf over one posting list (< ~2e5) — both well inside int32.
+function flattenGroupsFlat() {
+    const groups = published.groups;
+    for (let gk = 0; gk < 104; ++gk) {
+        const g = groups[gk];
+        g.termIds = new Int32Array(g.termIds);
+        g.termTfs = new Int32Array(g.termTfs);
+    }
+}
+
 // Order-independent 32-bit postings checksum over the flat shards.
 function postingsChecksumFlat() {
     let sum = 0, postings = 0;
     for (let s = 0; s < K; ++s) {
         for (const [t, pl] of flatShards[s]) {
             const th = mix32(t);
-            const n = pl.docIds.length;
+            // Hoist (matches queryPointFlat/phaseCFlat shape): under the
+            // GIL-off CheckTraps widening (DFGClobberize.h:812+, see the $imul
+            // comment) LICM cannot hoist the per-iteration `pl.docIds` GetById
+            // across the loop header, so do it lexically.
+            const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
             postings += n;
             for (let i = 0; i < n; ++i) {
                 const item = (th
-                    ^ (Math.imul(pl.docIds[i], 0xd6e8feb9) >>> 0)
-                    ^ (Math.imul(pl.tfs[i], 0xcaaf00dd) >>> 0)) >>> 0;
+                    ^ ($imul(docIds[i], 0xd6e8feb9) >>> 0)
+                    ^ ($imul(tfs[i], 0xcaaf00dd) >>> 0)) >>> 0;
                 sum = (sum + mix32(item)) >>> 0;
             }
         }
@@ -868,29 +1065,22 @@ function buildDfSnapFlat() {
 }
 
 // --- Phase B (flat)
-function copyPostingsFlat(t) { // copy posting list under shard lock (default-arm shape)
-    const s = t & (K - 1), fmap = flatShards[s];
-    let docIds = null, tfs = null;
-    shards[s].lock.hold(() => {
-        const pl = fmap.get(t);
-        if (pl !== undefined) { docIds = pl.docIds.slice(); tfs = pl.tfs.slice(); }
-    });
-    return docIds === null ? null : { docIds, tfs };
+function copyPostingsFlat(t, sc) { // copy posting list under shard lock (default-arm shape)
+    const s = t & (K - 1);
+    // hold-closure-alloc: see makeFlatScratch.
+    sc.hT = t; sc.hFmap = flatShards[s]; sc.hOutDocIds = null; sc.hOutTfs = null;
+    shards[s].lock.hold(sc.copyPostingsHold);
+    const docIds = sc.hOutDocIds;
+    return docIds === null ? null : { docIds, tfs: sc.hOutTfs };
 }
 
 function queryPointFlat(p, sc) {
     const t = pickTermFlat(p);
-    const s = t & (K - 1), fmap = flatShards[s];
-    let df = 0, sumTf = 0;
-    shards[s].lock.hold(() => {
-        const pl = fmap.get(t);
-        if (pl !== undefined) {
-            const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
-            for (let i = 0; i < n; ++i)
-                if (docIds[i] < N_BASE) { df++; sumTf += tfs[i]; }
-        }
-    });
-    return mix32((mix32(t) ^ (Math.imul(df, 0x9e37) >>> 0) ^ sumTf) >>> 0);
+    const s = t & (K - 1);
+    // hold-closure-alloc: see makeFlatScratch.
+    sc.hT = t; sc.hFmap = flatShards[s];
+    shards[s].lock.hold(sc.queryPointHold);
+    return mix32((mix32(t) ^ ($imul(sc.hOutDf, 0x9e37) >>> 0) ^ sc.hOutSumTf) >>> 0);
 }
 
 function queryAndFlat(p, sc) {
@@ -899,7 +1089,7 @@ function queryAndFlat(p, sc) {
     let cdn = 0;
     for (let k = 0; k < nTerms; ++k) {
         const t = pickTermFlat(p);
-        const pl = copyPostingsFlat(t);
+        const pl = copyPostingsFlat(t, sc);
         if (pl === null) continue;
         const docIds = pl.docIds, n = docIds.length;
         if (k === 0) {
@@ -931,7 +1121,7 @@ function queryScoredFlat(p, sc, dfSnap) {
         const t = pickTermFlat(p);
         const df = dfSnap[t];
         const idf = df === 0 ? 0 : ((N_BASE * 1000) / df) | 0;
-        const pl = copyPostingsFlat(t);
+        const pl = copyPostingsFlat(t, sc);
         if (pl === null) continue;
         const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
         for (let i = 0; i < n; ++i) {
@@ -958,11 +1148,11 @@ function queryScoredFlat(p, sc, dfSnap) {
         }
     }
     let h = 0x811c9dc5 >>> 0;
-    for (let i = 0; i < top; ++i) h = Math.imul(h ^ sD[i], 0x01000193) >>> 0;
+    for (let i = 0; i < top; ++i) h = $imul(h ^ sD[i], 0x01000193) >>> 0;
     for (let i = 0; i < top; ++i) {
         const s = sS[i];
-        h = Math.imul(h ^ (s >>> 0), 0x01000193) >>> 0;
-        h = Math.imul(h ^ ((s / 0x100000000) >>> 0), 0x01000193) >>> 0;
+        h = $imul(h ^ (s >>> 0), 0x01000193) >>> 0;
+        h = $imul(h ^ ((s / 0x100000000) >>> 0), 0x01000193) >>> 0;
     }
     return h;
 }
@@ -976,7 +1166,10 @@ function phaseBFlat(id) {
         if (q >= N_QUERIES)
             break;
         if (q % WRITER_MOD === 0) {
-            ingestDocFlat(N_BASE + (q / WRITER_MOD), sc);
+            // serial-section-tier-pollution: posting lists are Int32Array
+            // post-flatten — use the typed-array-aware writer ingest so the
+            // phaseA hot path (ingestDocFlat) keeps its plain-[].push profile.
+            ingestWriterDocFlat(N_BASE + (q / WRITER_MOD), sc);
             Atomics.add(counters, "writesDone", 1);
             continue;
         }
@@ -986,7 +1179,7 @@ function phaseBFlat(id) {
         if (kind <= 3)      h = queryPointFlat(p, sc);
         else if (kind <= 7) h = queryAndFlat(p, sc);
         else                h = queryScoredFlat(p, sc, dfSnap);
-        csum = (csum + mix32(((Math.imul(q, 0x9e3779b9) >>> 0) ^ h) >>> 0)) >>> 0;
+        csum = (csum + mix32((($imul(q, 0x9e3779b9) >>> 0) ^ h) >>> 0)) >>> 0;
         Atomics.add(counters, "queriesDone", 1);
     }
     partialBFlat[id] = csum;
@@ -1004,6 +1197,10 @@ function makeGroupsFlat() {
 
 function phaseCFlat(id) {
     const groups = published.groups;
+    // hold-closure-alloc: see makeFlatScratch. flatScratch[id] was set in
+    // phaseAFlat (phase order A→B→C, all workers run A).
+    const sc = flatScratch[id];
+    const phaseCHold = sc.phaseCHold;
     for (;;) {
         const s = Atomics.add(counters, "nextShard", 1);
         if (s >= K)
@@ -1014,12 +1211,8 @@ function phaseCFlat(id) {
             for (let i = 0; i < df; ++i) totalTf += tfs[i];
             const gk = (termLenBucket(t) - 2) * 26 + (t % 26);
             const g = groups[gk];
-            g.lock.hold(() => {
-                g.totalTf += totalTf;
-                g.df += df;
-                g.termIds.push(t);
-                g.termTfs.push(totalTf);
-            });
+            sc.hG = g; sc.hTotalTf = totalTf; sc.hDf = df; sc.hT = t;
+            g.lock.hold(phaseCHold);
         }
     }
 }
@@ -1045,11 +1238,11 @@ function checksumPhaseCFlat() {
         }
         let jh = 0x811c9dc5 >>> 0;
         for (let i = 0; i < top; ++i) {
-            jh = Math.imul(jh ^ ids[i], 0x01000193) >>> 0;
-            jh = Math.imul(jh ^ tfv[i], 0x01000193) >>> 0;
+            jh = $imul(jh ^ ids[i], 0x01000193) >>> 0;
+            jh = $imul(jh ^ tfv[i], 0x01000193) >>> 0;
         }
         const item = (mix32(gk) ^ (g.totalTf >>> 0)
-            ^ (Math.imul(g.df, 0x9e3779b9) >>> 0) ^ jh) >>> 0;
+            ^ ($imul(g.df, 0x9e3779b9) >>> 0) ^ jh) >>> 0;
         sum = (sum + mix32(item)) >>> 0;
     }
     return sum;
@@ -1093,6 +1286,7 @@ function workerBody(id) {
         results.phaseA_ms = nowMs() - t0;
         let s0 = nowMs();
         if (FLAT) {
+            flattenFlatShards(); // serial-seg-getbutterfly-osrexit (see above)
             const r = postingsChecksumFlat();
             results.checksumA = BigInt(r.sum); results.postings = r.postings;
         } else {
@@ -1123,8 +1317,16 @@ function workerBody(id) {
             results.checksumB = cs;
         }
         let s0 = nowMs();
-        results.checksumA2 = FLAT ? BigInt(postingsChecksumFlat().sum)
-            : (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
+        if (FLAT) {
+            // re-normalize: phaseB writers (a) grew some lists via appendI32
+            // from foreign threads → pl wrapper SW=1, (b) created fresh pl
+            // objects on worker threads for brand-new terms. Rebuild all pl
+            // wrappers on thread 0 so pc2 sees the same monomorphic shape pc1
+            // did. Sources are already Int32Array → same-type memcpy.
+            flattenFlatShards();
+            results.checksumA2 = BigInt(postingsChecksumFlat().sum);
+        } else
+            results.checksumA2 = (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
         results.postingsChecksum2_ms = nowMs() - s0;
         s0 = nowMs();
         if (FLAT) {
@@ -1153,7 +1355,11 @@ function workerBody(id) {
         if (WS_MODE && !FLAT)
             wsMergeLocals(); // single-threaded merge of thread-local accumulators
         let s0 = nowMs();
-        results.checksumC = FLAT ? BigInt(checksumPhaseCFlat()) : checksumPhaseC();
+        if (FLAT) {
+            flattenGroupsFlat(); // serial-seg-getbutterfly-osrexit (group arrays)
+            results.checksumC = BigInt(checksumPhaseCFlat());
+        } else
+            results.checksumC = checksumPhaseC();
         results.checksumPhaseC_ms = nowMs() - s0;
         results.total_ms = nowMs() - tStart;
     }

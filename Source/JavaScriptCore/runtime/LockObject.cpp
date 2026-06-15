@@ -28,8 +28,11 @@
 
 #include "CustomGetterSetter.h"
 #include "ExceptionHelpers.h"
+#include "FunctionCodeBlock.h" // hold-vmEntry-trampoline fast path: codeBlockForCall()->numParameters() / jitCode().
+#include "JITCode.h" // hold-vmEntry-trampoline fast path: jitCode()->addressForCall().
 #include "JSCInlines.h"
 #include "JSLock.h"
+#include "LLIntThunks.h" // hold-vmEntry-trampoline fast path: vmEntryToJavaScriptWith0Arguments.
 #include "MachineStackMarker.h" // T5-barrier-site: CurrentThreadState / RegisterState / ALLOCATE_AND_GET_REGISTER_STATE for the GILDroppedSection spawned-arm coop root snapshot.
 #include "JSNativeStdFunction.h"
 #include "JSPromise.h"
@@ -802,21 +805,59 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
     if (!lockObject)
         return throwVMTypeError(globalObject, scope, "Lock.prototype.hold called on incompatible receiver"_s);
     JSValue functionValue = callFrame->argument(0);
-    auto callData = JSC::getCallData(functionValue);
-    if (callData.type == CallData::Type::None)
-        return throwVMTypeError(globalObject, scope, "Lock.prototype.hold requires a callable argument"_s);
+
+    const bool gilOff = vm.gilOff();
+    // hold-vmEntry-trampoline (SCALEBENCH §34 flat-gap): gilOff fast-callee
+    // detection. The overwhelmingly common shape is `lock.hold(() => …)` — a
+    // fresh JSFunction over ONE FunctionExecutable that compiles once and is
+    // then re-entered millions of times via this host call. perf at W=16
+    // attributes 10.7% self to executeCallImpl + 5.8% self here (16.5% of all
+    // on-CPU samples), and the holdtime micro measures 117 ns per
+    // lock.hold(()=>x++) vs 12.6 ns for an FTL-inlined pure-JS callFn — the
+    // ~104 ns is the CallData→JSC::call→executeCallImpl→VMEntryScope/
+    // DeferTraps/prepareForExecution/ProtoCallFrame/vmEntryToJavaScript
+    // round-trip plus two extra ThrowScopes and a MarkedArgumentBuffer. For a
+    // non-host JSFunction we (a) skip getCallData entirely (it is callable by
+    // construction) and (b) after the lock is acquired, dispatch the body
+    // through vmEntryToJavaScriptWith0Arguments against the executable's
+    // already-installed codeBlockForCall — exactly the CachedCall /
+    // MicrotaskCall::tryCallWithArguments fast shape (InterpreterInlines.h /
+    // MicrotaskCallInlines.h), keyed on the FunctionExecutable instead of a
+    // separate cache. Flag-off this whole block is dead (gilOff false):
+    // fastFunction stays null and execution falls through byte-for-byte to the
+    // pre-existing getCallData / JSC::call path below.
+    JSFunction* fastFunction = nullptr;
+#if (CPU(ARM64) || CPU(X86_64)) && CPU(ADDRESS64) && !ENABLE(C_LOOP)
+    if (gilOff) {
+        fastFunction = dynamicDowncast<JSFunction>(functionValue);
+        if (fastFunction && fastFunction->isHostFunction()) [[unlikely]]
+            fastFunction = nullptr;
+    }
+#endif
+    CallData callData;
+    if (!fastFunction) {
+        callData = JSC::getCallData(functionValue);
+        if (callData.type == CallData::Type::None)
+            return throwVMTypeError(globalObject, scope, "Lock.prototype.hold requires a callable argument"_s);
+    }
 
     NativeLockState& state = lockObject->lockState();
     // Recursion guard: a sync hold (m_holder) OR a live asyncHold(fn) grant
     // being delivered on this very thread (m_asyncGrantRunner, D10 — the
     // sync-in-async self-deadlock; see LockObject.h) both mean "held by the
-    // current thread" for 4.2 purposes.
-    if (state.heldByCurrentThread() || state.asyncGrantRunByCurrentThread())
+    // current thread" for 4.2 purposes. Thread::currentSingleton() is hoisted
+    // and reused for the m_holder store and the epilogue holder check — pure
+    // refactor (the TLS lookup is idempotent), so flag-off observable
+    // behaviour is identical; it just stops paying four TLS reads per hold.
+    Thread* currentThread = &Thread::currentSingleton();
+    if (state.m_holder.load(std::memory_order_relaxed) == currentThread
+        || (state.m_asyncGrantRunner.load(std::memory_order_relaxed) == currentThread
+            && state.m_asyncHeld.load(std::memory_order_acquire))) [[unlikely]]
         return throwVMError(globalObject, scope, createError(globalObject, "Lock is not recursive"_s));
 
     const bool logContention = Options::logJSLockContention();
     bool needsSlowPath = !state.m_lock.tryLock();
-    if (needsSlowPath && vm.gilOff()) {
+    if (needsSlowPath && gilOff) {
         // T5-jslock-adaptive-spin: textbook thin-lock briefly-contended fast
         // path. The uncontended tryLock above is the existing fast path; this
         // covers the next case down — the holder's critical section is shorter
@@ -864,7 +905,7 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         // GILDroppedSection + ParkingLot work that follows. gilOff-only (the
         // spin block this feeds is gilOff-gated; flag-off never reads the
         // cache, so flag-off behavior is byte-identical regardless).
-        if (vm.gilOff())
+        if (gilOff)
             jsLockRefreshAdaptiveSpinLimit(vm);
         if (!jsThreadsCanBlockOnCurrentThread(vm))
             return throwVMTypeError(globalObject, scope, "Lock.prototype.hold cannot block the current thread"_s);
@@ -917,7 +958,6 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
             // re-release episode (terminating only on a terminate verdict)
             // instead of failing the park. GIL-on: byte-equivalent to the
             // landed jsThreadParkTerminationRequested loop.
-            const bool gilOff = vm.gilOff();
             const bool isSpawnedParker = gilOff && ThreadManager::isJSThreadCurrent();
             VMLite* parkLite = nullptr;
             if (gilOff)
@@ -990,16 +1030,61 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
             return { };
         }
     }
-    state.m_holder.store(&Thread::currentSingleton(), std::memory_order_relaxed);
+    state.m_holder.store(currentThread, std::memory_order_relaxed);
     if (logContention) [[unlikely]]
         state.m_statAcquires.fetch_add(1, std::memory_order_relaxed);
+
+#if (CPU(ARM64) || CPU(X86_64)) && CPU(ADDRESS64) && !ENABLE(C_LOOP)
+    // hold-vmEntry-trampoline fast dispatch (gilOff only — see the prologue
+    // comment): when the closure's FunctionExecutable already has a compiled
+    // call CodeBlock and declares no formal parameters (numParameters == 1
+    // for the implicit |this|; the 0-arg entry thunk does no arity fixup),
+    // call straight through vmEntryToJavaScriptWith0Arguments. This is the
+    // CachedCall / MicrotaskCall::tryCallWithArguments shape minus the cache
+    // object: codeBlockForCall() is itself the warm-state cache (one
+    // FunctionExecutable per closure literal, written once by installCode and
+    // re-read here every iteration). We are inside a host call from JS, so
+    // vm.entryScope is already set (no VMEntryScope needed) and the thunk's
+    // own soft-stack check covers recursion — exactly the invariants the
+    // CachedCall path relies on. ANNEX CBI item 3: gilOff derives the entry
+    // address THROUGH the one codeBlock snapshot so the (entry, codeBlock)
+    // pair is matched by construction against a concurrent installCode/tier-up;
+    // the snapshot is conservatively-live on this stack and its JITCode is
+    // pinned by the codeBlock, so no DeferTraps is needed for the
+    // already-compiled fast path.
+    //
+    // The epilogue (releaseSyncHold/releasePump) is exception-agnostic C++
+    // (WTF::Lock, ParkingLot, an m_queueLock-guarded Deque::isEmpty), so it
+    // runs identically with a pending VM exception; we surface the exception
+    // to the caller after the lock is released, matching the slow path's
+    // release-then-propagate ordering.
+    //
+    // Cold misses (first call before LLInt install, or a closure that declares
+    // parameters) fall through to the unchanged JSC::call path with callData
+    // populated lazily.
+    if (fastFunction) {
+        FunctionCodeBlock* codeBlock = fastFunction->jsExecutable()->codeBlockForCall();
+        if (codeBlock && codeBlock->numParameters() <= 1) [[likely]] {
+            void* entry = codeBlock->jitCode()->addressForCall();
+            EncodedJSValue encodedResult = vmEntryToJavaScriptWith0Arguments(entry, &vm, codeBlock, fastFunction, jsUndefined(), nullptr);
+            // Epilogue guard: cond.asyncWait may have consumed the hold (4.3(a)).
+            if (state.m_holder.load(std::memory_order_relaxed) == currentThread) {
+                state.releaseSyncHold();
+                state.releasePump(vm);
+            }
+            RETURN_IF_EXCEPTION(scope, { });
+            return encodedResult;
+        }
+        callData = JSC::getCallData(functionValue);
+    }
+#endif
 
     MarkedArgumentBuffer args;
     NakedPtr<Exception> exception;
     JSValue result = JSC::call(globalObject, functionValue, callData, jsUndefined(), args, exception);
 
     // Epilogue guard: cond.asyncWait may have consumed the hold (4.3(a)).
-    if (state.heldByCurrentThread()) {
+    if (state.m_holder.load(std::memory_order_relaxed) == currentThread) {
         state.releaseSyncHold();
         state.releasePump(vm);
     }

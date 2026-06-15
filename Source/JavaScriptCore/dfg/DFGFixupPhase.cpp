@@ -5105,7 +5105,24 @@ private:
         // Currently, the DFG won't take advantage of this speculation. But, we want to do it in
         // the DFG anyway because if such a speculation would be wrong, we want to know before
         // we do an expensive compile.
-        
+
+        // THREADS perf (forof-tdz-osr-loop): this Check is purely a fail-fast hint —
+        // neither DFG nor FTL codegen exploit it. For PutClosureVar fed by the
+        // per-iteration for-of scope copy (BytecodeGenerator::
+        // prepareLexicalScopeForNextForLoopIteration), iteration 0 of every call
+        // reads the TDZ empty sentinel from the freshly-created prior activation.
+        // ValueProfile structurally cannot record SpecEmpty (encoded as 0 == "no
+        // sample"), so the GetClosureVar prediction stays pure (e.g. Int32Only)
+        // across every recompile and the inserted Check<Int32Use> BadType-exits
+        // once per invocation forever, exponentially backing the FTL threshold off
+        // past reachability. Honor the exit profile and drop the optional hint on
+        // recompile — same backoff idiom used throughout this file. Gated on
+        // useJSThreads() to keep flag-off codegen byte-identical (LAW); the
+        // underlying recompile loop is generic (reproduces with all shared-heap
+        // flags off).
+        if (Options::useJSThreads() && m_graph.hasExitSite(m_currentNode->origin.semantic, BadType)) [[unlikely]]
+            return;
+
         if (value->shouldSpeculateInt32()) {
             insertCheck<Int32Use>(value.node());
             return;

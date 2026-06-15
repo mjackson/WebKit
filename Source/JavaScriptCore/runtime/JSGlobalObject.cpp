@@ -4186,6 +4186,36 @@ inline std::unique_ptr<ObjectPropertyChangeAdaptiveWatchpoint<InlineWatchpointSe
 void JSGlobalObject::tryInstallTypedArraySpeciesWatchpoint(TypedArrayType type)
 {
     VM& vm = this->vm();
+    // THREADS lazy-species-install-race (SCALEBENCH §35 flat-gap, found by
+    // Int32Array.prototype.slice on W=16 worker threads): the call site
+    // (speciesWatchpointIsValid, JSGenericTypedArrayViewPrototypeFunctions.h)
+    // gates entry on `state() == ClearWatchpoint`, but under GIL-off N
+    // mutators can all observe Clear and re-enter; the second entrant trips
+    // tryInstallSpeciesWatchpoint's RELEASE_ASSERT(!constructorWatchpoint) /
+    // RELEASE_ASSERT(!isBeingWatched()) / the IsWatched ctor assert (50%
+    // SIGABRT at W=16, scalebench flat arm). Route the once-per-type install
+    // through the §A.3 thread-granular stop, exactly as haveABadTime() does
+    // (same JSThreadsSafepoint::stopTheWorldAndRun pattern, same in-window
+    // re-check for the arbitration loser). The body is non-allocating except
+    // for two makeUnique<Watchpoint> (WTF heap, not GC), startWatching writes,
+    // and a dictionary flatten; the conductor's Class-4 access is reacquired
+    // in-window so that is licensed. One-shot per typed-array type per global;
+    // STW cost is irrelevant. Flag-off / GIL-on: gilOff() is false, falls
+    // through to the unchanged inline body — byte-identical.
+    if (vm.gilOff()) [[unlikely]] {
+        JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            if (typedArraySpeciesWatchpointSet(type).state() != ClearWatchpoint)
+                return; // arbitration loser: a sibling already installed/invalidated.
+            tryInstallTypedArraySpeciesWatchpointImpl(type);
+        }));
+        return;
+    }
+    tryInstallTypedArraySpeciesWatchpointImpl(type);
+}
+
+void JSGlobalObject::tryInstallTypedArraySpeciesWatchpointImpl(TypedArrayType type)
+{
+    VM& vm = this->vm();
     auto* prototype = typedArrayPrototype(type);
     auto* constructor = typedArrayConstructor(type);
     auto& watchpointSet = typedArraySpeciesWatchpointSet(type);
