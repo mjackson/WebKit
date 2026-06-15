@@ -4060,9 +4060,13 @@ void InlineCacheCompiler::generateAccessCase(unsigned index, AccessCase& accessC
             // unchanged; flag-off never reaches this block.
 #if CPU(ARM64)
             jit.load32(CCallHelpers::Address(baseGPR, JSCell::structureIDOffset()), scratchGPR);
-            jit.xor64(scratchGPR, scratchGPR, scratchGPR);
-            jit.addPtr(baseGPR, scratchGPR);
-            jit.loadPtr(CCallHelpers::Address(scratchGPR, JSObject::butterflyOffset()), scratchGPR);
+            // Dest reg MUST differ from src: EOR Xn,Xn,Xn is a recognized
+            // zeroing idiom on ARM64 and breaks the address dependency this
+            // sequence exists to establish. Mirrors the canonical
+            // SpeculativeJIT::emitButterflyLoadWithStructureDependency.
+            jit.xor64(scratchGPR, scratchGPR, scratch2GPR);
+            jit.addPtr(baseGPR, scratch2GPR);
+            jit.loadPtr(CCallHelpers::Address(scratch2GPR, JSObject::butterflyOffset()), scratchGPR);
 #else
             jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), scratchGPR);
 #endif
