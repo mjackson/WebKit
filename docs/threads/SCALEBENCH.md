@@ -2098,3 +2098,166 @@ remains the second open thread: the §32(a) +519 ms W=16 phaseA loss is
 still present in v38 (phaseA 6342 ≈ v37's t4crit 6296) and is NOT the
 T4 cap (cap=0 is neutral) — re-examine the T5 publish/clear bracket
 overhead per parallel-phase iteration, or the MarkedBlock §32 delta.
+
+## §34 Run 3.9 / scalebench matrix v4
+
+Full cross-language matrix on `jsc-v39` (sha `9152bed9…`, congc
+default-on via `3be6a06a7a65`): Go / Java / JS-BigInt / JS-intcs at
+W∈{1,2,4,8,16,32}, 3-rep medians, one process at a time, `/usr/bin/time
+-v`. Toolchains: go 1.24.13, OpenJDK 21.0.10 (Corretto). Go/Java
+binaries reused from `out/` (sources unchanged since Jun 12; W=2 smoke
+re-verified the cross-language reference tuple). Driver `v4_matrix.sh`;
+raw `results-v4-raw.jsonl` (113 records, 0 nonzero rc). Debug sha
+`fc7b47c3…`. Loadavg 1.6–13.5 across the matrix; characterization runs
+3.5–8.4.
+
+### Full matrix (3-rep medians, speedup-vs-self per language)
+
+| lang | W | wall ms | sv-self | cpu% | RSS MB | phaseA | phaseB | phaseC | pc1+2 |
+|---|---|---|---|---|---|---|---|---|---|
+| **go** | 1 | 1835.8 | 1.000× | 145 | 176 | 1315 | 408 | 17 | — |
+| go | 2 | 1090.9 | 1.683× | 261 | 177 | 789 | 208 | 12 | — |
+| go | 4 | 725.5 | 2.530× | 434 | 179 | 509 | 119 | 12 | — |
+| go | 8 | 535.4 | 3.429× | 662 | 180 | 361 | 72 | 12 | — |
+| go | 16 | 422.0 | 4.350× | 956 | 191 | 272 | 50 | 12 | — |
+| go | 32 | 378.1 | 4.855× | 1305 | 198 | 227 | 51 | 12 | — |
+| **java** | 1 | 1973.5 | 1.000× | 199 | 757 | 1319 | 507 | 30 | — |
+| java | 2 | 1353.7 | 1.458× | 329 | 769 | 875 | 326 | 46 | — |
+| java | 4 | 1085.4 | 1.818× | 516 | 790 | 628 | 281 | 69 | — |
+| java | 8 | 939.1 | **2.101×** | 809 | 792 | 533 | 255 | 63 | — |
+| java | 16 | 976.4 | **2.021×** | 1395 | 873 | 496 | 264 | 106 | — |
+| java | 32 | 1022.0 | **1.931×** | 2575 | 744 | 514 | 264 | 138 | — |
+| **js-BigInt** | 1 | 20101.8 | 1.000× | 104 | 422 | 13177 | 2547 | 109 | 4161 |
+| js-BigInt | 2 | 20988.1 | 0.958× | 196 | 1783 | 12015 | 2058 | 267 | 6528 |
+| js-BigInt | 4 | 15767.3 | 1.275× | 329 | 1407 | 8334 | 1431 | 187 | 5732 |
+| js-BigInt | 8 | 13786.3 | 1.458× | 527 | 1407 | 6727 | 1089 | 180 | 5736 |
+| js-BigInt | 16 | 13145.9 | 1.529× | 824 | 1386 | 6015 | 1042 | 174 | 5885 |
+| js-BigInt | 32 | 14356.3 | 1.400× | 1258 | 1371 | 6120 | 1718 | 196 | 6286 |
+| **js-intcs** | 1 | 16711.9 | 1.000× | 104 | 398 | 12829 | 2504 | 117 | 1191 |
+| js-intcs | 2 | 16199.2 | 1.032× | 204 | 1533 | 11938 | 1973 | 264 | 1935 |
+| js-intcs | 4 | 11909.2 | 1.403× | 374 | 1258 | 8313 | 1444 | 212 | 1904 |
+| js-intcs | 8 | 10114.7 | **1.652×** | 653 | 1274 | 6811 | 1134 | 194 | 1869 |
+| js-intcs | 16 | 9236.3 | **1.809×** | 1079 | 1274 | 5912 | 1119 | 175 | 1926 |
+| js-intcs | 32 | 9795.1 | **1.706×** | 1671 | 1270 | 5990 | 1757 | 182 | 1882 |
+
+All 72 matrix reps rc=0. Every Go/Java/JS-BigInt rep matches the
+reference tuple `b3e65a6855b9bdeb|4158957|39c33392b2a4c5b2|
+c4bdd580f85ee058|af028188d7a56a96`; every JS-intcs rep matches
+`8021f000|4158957|1fc7d941|c4bdd580f85ee058|af028188d7a56a96`
+(checksumA=`8021f000`, checksumC=spec `af028188d7a56a96`). GIL-on W=1
+(5 reps interleaved with GIL-off): med **13909.0** ms
+[13426,13522,13909,13942,14402]; GIL-off/on W=1 ratio **1.445×**.
+
+### Honest verdict: JS-intcs vs fresh Java
+
+The §31–§33 Java bar {1.99, 1.99, 1.75} was stale (Jun 10, run 1). Fresh
+Java on the same host this run: **{2.101, 2.021, 1.931}** at W={8,16,32}
+— Java is *slightly better* than the stale bar at W=8/32 and ~flat at
+W=16. JS-intcs vs fresh Java:
+
+| W | JS-intcs sv-self | Java sv-self | ratio | abs (JS/Java wall) |
+|---|---|---|---|---|
+| 8 | 1.652× | 2.101× | 0.79 | 10.77× |
+| 16 | 1.809× | 2.021× | **0.90** | 9.46× |
+| 32 | 1.706× | 1.931× | 0.88 | 9.58× |
+
+**All three Java bars MISSED** on the intcs arm too, but W=16 is at 90%
+of Java's curve (vs BigInt's 1.529/2.021 = 76%). Go at W=16 is 4.35× —
+neither JS nor Java approach it. Absolute wall: JS-intcs is ~9.5–10.8×
+Java and ~22–25× Go; the W=1 single-thread gap (JS-intcs 16712 / Java
+1974 = 8.47×; / Go 1836 = 9.10×) is the dominant factor — scaling shape
+alone would close <1.2× of that. Parallelizable-section speedup W=16
+(wall − pc1+2, vs W=1): **JS-BigInt 2.20×, JS-intcs 2.12×** — the §33
+1.98× regression is recovered and slightly past §31's 2.27× ceiling on
+the BigInt arm (the difference is W=16 phaseA 6342→6015, −5%, with congc
+default-on).
+
+### BigInt-fairness note (intcs arm, §29 amendment)
+
+The intcs arm replaces only the §1.8 postings-checksum loop with
+allocation-free 32-bit Number arithmetic; phaseA/B/C workload, locking,
+and Map/array shapes are byte-identical (phaseA medians match BigInt
+within 0–3% at every W). The BigInt allocation tax is entirely in
+pc1+2: W=1 4161→1191 ms (−71%), W=16 5885→1926 (−67%). W=1 wall
+20102→16712 (−17%); W=16 13146→9236 (−30%, because pc1+2 is a larger
+share at high W). The fairness reading is: **JS shared-memory threading
+scales to 1.81× at W=16 on a workload with native-int checksums** (the
+spec-exact BigInt path measures BigInt allocation under the shared GC
+as much as it measures threading).
+
+### congc-correction note
+
+Per the `3be6a06a7a65` commit comment: the earlier −26% A/B
+(intcs W=16 ~7550 vs ~10200) was the documented W=16 fast-mode
+bimodality coinciding with congc=1 reps, not a congc effect. v39
+(congc default-on) vs §33 v38 BigInt medians: W=1 +2.3%, W=4 −3.0%,
+W=8 −3.7%, W=16 −3.6%, W=32 −0.5% — **neutral-to-slightly-faster**, no
+−26%. W=32 30-rep spread tightened 19%→14%.
+
+### (C) W=16 fast-mode characterization
+
+15 consecutive JS-intcs W=16 reps with `JSC_logGC=1`: **0/15 fast-mode**
+(phaseA 5940–6232 ms, all normal); GC counts uniform at **51 Eden / 35–36
+Full**, sys 4.2–5.7 s, cpu 1082–1110%. Control 15 reps without logGC:
+**6/15 fast-mode (40%)**; +6-rep `largeHeapGrowthFactor=2` probe: 2/6
+(unchanged rate).
+
+| mode | phaseA med | total med | sys_s med | cpu% med | GC Eden/Full |
+|---|---|---|---|---|---|
+| fast (control, n=6) | 3854 | 7175 | 3.69 | 904 | (unobservable) |
+| normal (control, n=9) | 6024 | 9398 | 4.68 | 1094 | — |
+| normal (logGC=1, n=15) | 6118 | 9389 | 4.85 | 1095 | 51 / 35–36 |
+
+**Discriminant:** fast-mode is −37% phaseA, −24% wall, −21% sys_s, −17%
+cpu_pct vs normal. The lower cpu-seconds + sys_s are consistent with
+*fewer GC cycles* in fast-mode (less marking work, fewer STW
+handshakes). **The §32 hypothesis (T1 distinct-allocator gate) cannot be
+confirmed via direct GC-count instrumentation:** `JSC_logGC=1` itself
+suppresses fast-mode (0/15 vs 6/15, P(0/15 | p=0.40) ≈ 0.0005), so GC
+counts are only observable in normal-mode. The per-cycle `dataLog()`
+adds enough latency at the collection-start path to deterministically
+resolve the early-phaseA timing race toward normal. **JIT tier is not
+the discriminant** (one `JSC_verboseOSR=1` rep shows ~29k FTL OSR
+entries either way; verboseOSR is +47% phaseA, far too perturbing for
+mode discrimination). `largeHeapGrowthFactor=2` does not change the
+rate. **Named knob:** `JSC_logGC=1` makes mode *deterministically
+NORMAL* (0/15) — **not a perf lever** (it forces the slower mode). No
+single env knob found that forces *fast* deterministically. Fast-mode is
+a real ~24% wall lever *if* its trigger were controllable; the next
+discriminating experiment needs an out-of-band GC counter (e.g. a
+`$vm.gcCount()` probe in `bench.js` that the shell prints, not the
+Heap-side `dataLog`) to read Eden/Full counts on a fast rep without
+perturbing the start-of-collection timing.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| **W=32 stability 30 reps (P0)** | **30/30 exit 0, 0 SIGSEGV** (re-verified `results-v39ab-raw.jsonl`: 1 unique cs tuple = ref, med 14003.5 ms, **14% spread** ≤25%, 0/30 slow-mode, 2/30 fast-mode, sys_s 7.5–11.4, loadavg 5.8–16.0) |
+| **Corpus GIL-off full** (`run-tests.sh`, pinned env, Debug `fc7b47c3…`) | **41 passed, 53 failed, 4 skipped — FAIL.** All 53 failures are `ASSERTION FAILED: isMarked(cell)` at `Heap.cpp:1658 addToRememberedSet` (exit 134). Reproduces on every GIL-off corpus test that spawns ≥1 Thread. `JSC_useConcurrentSharedGCMarking=0` does **not** mitigate: the v39 `Options.cpp` block force-sets it after env parsing under `!useThreadGIL && useSharedGCHeap`. |
+| Corpus GIL-on full (`JSC_useJSThreads=1`, Debug) | **95 passed, 0 failed, 3 skipped** (identical to §32/§33) |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release v39) | **0 mismatches** |
+| All checksums match references (Go/Java/JS-BigInt = spec tuple; JS-intcs = `8021f000` + spec-C) | **PASS** (113/113 reps) |
+| No crash anywhere in matrix/characterization (Release) | **PASS** (113/113 rc=0) |
+| Speedup-vs-self beats fresh Java at W=8/16/32 (intcs arm) | **FAIL** (1.652/1.809/1.706 vs 2.101/2.021/1.931) |
+
+### Acceptance verdict
+
+**Release-side correctness GREEN; Debug GIL-off corpus RED.** Matrix
+113/113 rc=0 with all checksums matching; W=32 stability 30/30 holds and
+spread tightened 19%→14% under congc-default-on; identity 0 mismatches;
+GIL-on corpus 95/0/3. **But the Debug GIL-off corpus regresses
+94/0/4 → 41/53/4** on a single signature: the `addToRememberedSet`
+write-barrier `ASSERT(isMarked(cell))` fires under concurrent shared-GC
+marking. This was never covered by the prior §32/§33 congc gate (which
+was Release-only `bench.js -- 4` × 5); v39 making congc the GIL-off
+default exposes it on every threaded Debug run. **The v39 default-flip
+cannot land as-is** — either the assertion is a stale invariant under
+the SPEC-congc N-mutator barrier protocol (in which case it should be
+relaxed to the `mutatorShouldBeFenced()` branch's tolerant form for the
+shared-heap `routedClient` path), or it is a real lost-mark race that
+Release masks (in which case the W=32 30/30 + checksum-match is
+necessary but not sufficient evidence). **Campaign-9 named target
+(amended):** before any further scalability work, resolve the
+`Heap.cpp:1658` Debug assertion under congc — the §33 named pc-sibling
+target stands second.

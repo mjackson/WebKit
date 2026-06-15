@@ -1033,11 +1033,21 @@ void Options::notifyOptionsChanged()
         // upstream guarantees !useThreadGIL => useSharedGCHeap, so the
         // sharedGCHeap conjunct is belt-and-suspenders for the §13.2
         // invariant. OptionsList.h default stays false; flag-off path never
-        // enters this block — byte-identical. W=32 stability under congc is
-        // UNVERIFIED (5/5 gate was W=4 only); a W=32 5/5 run is owed before
-        // the v38 W=32 baseline row is reported with this default.
-        if (!Options::useThreadGIL() && Options::useSharedGCHeap())
-            Options::useConcurrentSharedGCMarking() = true;
+        // enters this block — byte-identical.
+        //
+        // §34 Run 3.9: REVERTED back to opt-in. Release W=32 30/30 + checksum
+        // match held (spread tightened 19%->14%), but Debug GIL-off corpus
+        // regressed 94/0 -> 41/53 on ASSERT(isMarked(cell)) at
+        // Heap::addToRememberedSet — the SPEC-congc rev-12 open
+        // remembered-set/barrier-vs-concurrent-mark item, never previously
+        // covered (prior congc gates were Release-only). Either the assert is
+        // a stale invariant under N-mutator concurrent marking (relax to the
+        // mutatorShouldBeFenced tolerant form on the routedClient path) OR a
+        // real lost-mark race Release masks. Net perf was only ~-3% W>=8
+        // anyway (the earlier -26% was bimodality artifact). Stays opt-in
+        // until the assert is resolved; the §34 fast-mode lead is the larger
+        // open lever.
+        // (intentionally no default-force here)
 
         // D8 / Task-8 item 6: flag-on requires 64-bit pointers and a JIT-visible TLS
         // mechanism for the R5 tag (ELF initial-exec TLS on Linux x86-64/arm64, or
