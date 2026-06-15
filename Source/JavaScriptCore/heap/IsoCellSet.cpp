@@ -26,6 +26,7 @@
 #include "config.h"
 #include "IsoCellSet.h"
 
+#include "IsoCellSetInlines.h"
 #include "MarkedBlockInlines.h"
 #include <wtf/Atomics.h>
 
@@ -146,17 +147,36 @@ void IsoCellSet::sweepToFreeList(MarkedBlock::Handle* block)
         return;
     
     WTF::loadLoadFence();
-    
-    if (!m_bits[block->index()]) {
+
+    // GIL-off (TSAN-DEEP-08, gc-marking-residual family): addSlow() RELEASE-
+    // publishes the per-block BitSet into the unique_ptr's pointer word; the
+    // wave-4/5 acquire-side helper (isoCellSetBitsPointerConcurrently) was wired
+    // into add/remove/contains/forEach but this function was missed and still
+    // dereferenced m_bits via plain unique_ptr accessors. Under TSAN that left
+    // no modeled happens-before from the BitSet's construction on a HeapHelper
+    // thread to the concurrentFilter word accesses below, so BitSet.h:407/410
+    // were reported against the makeUnique malloc. On hardware the publication
+    // is already correct (storeStoreFence in addSlow + the loadLoadFence above
+    // order m_blocksWithBits -> pointer -> words), and the plain-store fast path
+    // in concurrentFilter only fires on words containing zero allocated cell
+    // heads — words no concurrent add() can target — so no membership bit can
+    // be lost. Load through the helper so TSAN sees the acquire that pairs with
+    // addSlow's release. Keep the loadLoadFence above: the helper's non-TSAN
+    // path is relaxed + dependentLoadLoadFence(), which orders only address-
+    // dependent loads and does NOT order the independent m_blocksWithBits read
+    // at the top of this function before this pointer load.
+    auto* bits = isoCellSetBitsPointerConcurrently(m_bits[block->index()]);
+
+    if (!bits) {
         dataLog("FATAL: for block index ", block->index(), ":\n");
         dataLog("Blocks with bits says: ", !!m_blocksWithBits[block->index()], "\n");
-        dataLog("Bits says: ", RawPointer(m_bits[block->index()].get()), "\n");
+        dataLog("Bits says: ", RawPointer(bits), "\n");
         RELEASE_ASSERT_NOT_REACHED();
     }
-    
+
     if (block->block().hasAnyNewlyAllocated()) {
         // The newlyAllocated() bits are a superset of the marks() bits.
-        m_bits[block->index()]->concurrentFilter(block->block().newlyAllocated());
+        bits->concurrentFilter(block->block().newlyAllocated());
         return;
     }
 
@@ -170,8 +190,8 @@ void IsoCellSet::sweepToFreeList(MarkedBlock::Handle* block)
         m_bits[block->index()] = nullptr;
         return;
     }
-    
-    m_bits[block->index()]->concurrentFilter(block->block().marks());
+
+    bits->concurrentFilter(block->block().marks());
 }
 
 } // namespace JSC

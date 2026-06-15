@@ -178,13 +178,15 @@ void MarkedBlock::Handle::specializedSweep(FreeList* freeList, MarkedBlock::Hand
     RELEASE_ASSERT(static_cast<size_t>(payloadEnd - payloadBegin) <= payloadSize, payloadBegin, payloadEnd, &block, cellSize, m_startAtom);
 
     // SharedGC (T9): conductor-context OK / any-sweeper OK — vm is the main
-    // VM (server-owned block); heapRandom() is read-only here and destroyFunc
-    // takes the VM as the conventional destroy argument (cell destructors are
-    // VM-global, not calling-thread-coupled). Sweep contexts are serialized
-    // per I5b/I8 (MSPL in-lock sweeps, conductor, or suspended sweeper).
+    // VM (server-owned block); destroyFunc takes the VM as the conventional
+    // destroy argument (cell destructors are VM-global, not calling-thread-
+    // coupled). TSAN-DEEP-02: after T7-mspl-per-directory, mutator sweeps in
+    // different directories run CONCURRENTLY under per-directory stripe locks,
+    // and WeakRandom::getUint64() MUTATES two-word xorshift state — use the
+    // lock-guarded accessor (slow path: once per block sweep).
     VM& vm = this->vm();
     bool isMarking = space()->isMarking();
-    uint64_t secret = vm.heapRandom().getUint64();
+    uint64_t secret = vm.heapRandomUint64Concurrent();
 
     auto destroy = [&] (void* cell) {
         JSCell* jsCell = static_cast<JSCell*>(cell);

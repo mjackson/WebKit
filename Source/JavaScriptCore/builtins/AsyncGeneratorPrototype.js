@@ -108,11 +108,59 @@ function asyncGeneratorResumeNext(generator, resumeMode)
     }
 }
 
+@linkTimeConstant
+function asyncGeneratorEnqueueAndDrive(generator, value, mode, promise)
+{
+    "use strict";
+
+    // SPEC-ungil §N.5 async resume-head claim (annex N7 row R7; MC-TEAR S6b /
+    // MC-PRIM P5-async — CVE-AUDIT-RESULTS.md A4). GIL-off ONLY (every caller
+    // is behind the @gilOffProcess constant branch, so flag-off bytecode is
+    // the landed inline path verbatim — next/return/throw keep their inline
+    // @asyncGeneratorQueueEnqueue + @asyncGeneratorResumeNext sequence).
+    //
+    // AMENDED SHAPE (see the JSMicrotask.cpp block comment for the full
+    // ruling): the previous landing held the rank-10a cellLock across the
+    // body call — a frozen O2/I20 violation (allocates, polls safepoints,
+    // self-re-locks via JSObject indexed/dictionary paths, GC-visit re-lock
+    // deadlocks). The amended @claimAsyncGeneratorResume host hook does the
+    // ENTIRE GIL-off path in C++: a SHORT cellLock span {DeferGC; lock;
+    // wasEmpty; enqueue; unlock} (the §N default bounded shape, O1/O2-
+    // compliant) and, iff wasEmpty, drives via the C++ asyncGeneratorResume-
+    // Next so EVERY GIL-off dequeue is the locked nowEmpty edge in that TU.
+    // The wasEmpty/nowEmpty queue-occupancy edges are mutually serialized by
+    // the cell lock, giving at-most-one driver chain WITHOUT any claim word
+    // the body's mid-drive State store can clobber, and WITHOUT any lock held
+    // across the body.
+    //
+    // LOSER (wasEmpty=false — cross-thread OR same-thread re-entrant from
+    // inside the body) ENQUEUES and returns the pending promise WITHOUT
+    // driving and WITHOUT a TypeError: ECMA-262 AsyncGeneratorEnqueue, and
+    // exactly the GIL-on observable behaviour. The previous landing's
+    // tryLock-loser TypeError was a single-threaded semantic fork (sync
+    // §N.5's TypeError licence is ECMA-262 GeneratorValidate; async
+    // generators have no such step). No claim word means no claim-leak
+    // hazard, so no try/catch / publish guard is needed; an exception inside
+    // the C++ drive surfaces with the queue head still present and the next
+    // continuation / enqueuer's wasEmpty edge picks up the chain.
+    if (!@isAsyncGenerator(generator)) {
+        // Match @asyncGeneratorQueueEnqueue's non-generator rejection so the
+        // gilOff arm's observable behaviour is identical to GIL-on for a
+        // wrong-|this| (the host hook unchecked-downcasts).
+        @rejectPromiseWithFirstResolvingFunctionCallCheck(promise, @makeTypeError("|this| should be an async generator"));
+        return promise;
+    }
+    @claimAsyncGeneratorResume(generator, value, mode, promise);
+    return promise;
+}
+
 function next(value)
 {
     "use strict";
 
     var promise = @newPromise();
+    if (@gilOffProcess)
+        return @asyncGeneratorEnqueueAndDrive(this, value, @GeneratorResumeModeNormal, promise);
     var resumeMode = @asyncGeneratorQueueEnqueue(this, value, @GeneratorResumeModeNormal, promise);
     if (resumeMode !== @AsyncGeneratorResumeModeEmpty)
         @asyncGeneratorResumeNext(this, resumeMode);
@@ -125,6 +173,8 @@ function return(value)
     "use strict";
 
     var promise = @newPromise();
+    if (@gilOffProcess)
+        return @asyncGeneratorEnqueueAndDrive(this, value, @GeneratorResumeModeReturn, promise);
     var resumeMode = @asyncGeneratorQueueEnqueue(this, value, @GeneratorResumeModeReturn, promise);
     if (resumeMode !== @AsyncGeneratorResumeModeEmpty)
         @asyncGeneratorResumeNext(this, resumeMode);
@@ -137,6 +187,8 @@ function throw(value)
     "use strict";
 
     var promise = @newPromise();
+    if (@gilOffProcess)
+        return @asyncGeneratorEnqueueAndDrive(this, value, @GeneratorResumeModeThrow, promise);
     var resumeMode = @asyncGeneratorQueueEnqueue(this, value, @GeneratorResumeModeThrow, promise);
     if (resumeMode !== @AsyncGeneratorResumeModeEmpty)
         @asyncGeneratorResumeNext(this, resumeMode);

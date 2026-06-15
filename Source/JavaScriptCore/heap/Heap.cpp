@@ -3427,6 +3427,29 @@ void Heap::pruneStaleEntriesFromWeakGCHashTables()
 {
     if (!m_collectionScope || m_collectionScope.value() != CollectionScope::Full)
         return;
+    // SharedGC (CVE-AUDIT A3 / map-MC-GC S12b): End phase, world stopped —
+    // but under gilOff take the registry leaf lock anyway so (a) TSAN sees
+    // one consistent guard for the set (same discipline as
+    // m_possiblyAccessedStringsFromConcurrentThreadsLock above), and (b) the
+    // walk is defended against the K4.VIII.9 secondary signature
+    // (.stw-variant.txt — a non-quiescent lite still inside register() while
+    // a Class-A stop is wedged; that wedge is a SEPARATE filed bug, FIX-2
+    // family). Snapshot under the lock, walk outside it: pruneStaleEntries()
+    // overrides do real work (WeakGCMap removeIf) and the lock is leaf-rank,
+    // so we don't hold it across callouts. Flag-off: byte-identical (no
+    // lock, no snapshot).
+    if (vm().gilOff()) [[unlikely]] {
+        Vector<WeakGCHashTable*, 16> snapshot;
+        {
+            Locker locker { m_weakGCHashTablesLock };
+            snapshot.reserveInitialCapacity(m_weakGCHashTables.size());
+            for (auto* weakGCHashTable : m_weakGCHashTables)
+                snapshot.append(weakGCHashTable);
+        }
+        for (auto* weakGCHashTable : snapshot)
+            weakGCHashTable->pruneStaleEntries();
+        return;
+    }
     for (auto* weakGCHashTable : m_weakGCHashTables)
         weakGCHashTable->pruneStaleEntries();
 }
@@ -4421,11 +4444,31 @@ void Heap::decrementDeferralDepthAndGCIfNeededSlow()
 
 void Heap::registerWeakGCHashTable(WeakGCHashTable* weakGCHashTable)
 {
+    // SharedGC (CVE-AUDIT A3 / map-MC-GC S12b / K4.VIII.9): the registry is a
+    // bare HashSet on the SHARED server heap; under GIL-off two lites running
+    // JSGlobalObject::JSGlobalObject concurrently (each registers several
+    // WeakGCMaps — StructureCache, transition tables, …) tear the rehash and
+    // either SEGV (HashTable::removeIterator at 0x8, .crash.txt) or quietly
+    // LOSE a registration so the conductor's prune never visits that table
+    // (identity loss for liveness-keyed caches; map-MC-GC S12b). Leaf lock,
+    // construction-/destruction-rate, gilOff-gated so flag-off stays
+    // byte-identical.
+    if (vm().gilOff()) [[unlikely]] {
+        Locker locker { m_weakGCHashTablesLock };
+        m_weakGCHashTables.add(weakGCHashTable);
+        return;
+    }
     m_weakGCHashTables.add(weakGCHashTable);
 }
 
 void Heap::unregisterWeakGCHashTable(WeakGCHashTable* weakGCHashTable)
 {
+    // SharedGC (CVE-AUDIT A3 / map-MC-GC S12b): see registerWeakGCHashTable.
+    if (vm().gilOff()) [[unlikely]] {
+        Locker locker { m_weakGCHashTablesLock };
+        m_weakGCHashTables.remove(weakGCHashTable);
+        return;
+    }
     m_weakGCHashTables.remove(weakGCHashTable);
 }
 
@@ -4860,7 +4903,17 @@ void Heap::addCoreConstraints()
                 UNUSED_PARAM(visitor);
             }
         })),
-        ConstraintVolatility::GreyedByExecution);
+        ConstraintVolatility::GreyedByExecution,
+        // TSAN-DEEP-01: Wlr reads m_objectSpace.preciseAllocations() while the
+        // Concurrent "Cs" constraint std::sorts that same storage in place
+        // (MarkedSpace::prepareForConservativeScan), so a parallel pass can
+        // skip entries mid-sort and leave a window-allocated precise cell
+        // un-retained. The visitWindowBlock leg likewise touches per-block /
+        // per-directory state that other Concurrent constraints touch. Wlr's
+        // own L1/L2 soundness comment above already assumes "one constraint
+        // executor at a time"; Sequential makes that premise true (matches the
+        // Pbc precedent below).
+        ConstraintConcurrency::Sequential);
 
     m_constraintSet->add(
         "Msr", "Misc Small Roots",

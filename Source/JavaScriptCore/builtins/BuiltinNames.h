@@ -82,6 +82,7 @@ namespace JSC {
     macro(isPromiseStatePending) \
     macro(claimGeneratorResume) \
     macro(publishGeneratorResume) \
+    macro(claimAsyncGeneratorResume) \
     macro(resolvePromiseWithFirstResolvingFunctionCallCheck) \
     macro(rejectPromiseWithFirstResolvingFunctionCallCheck) \
     macro(fulfillPromiseWithFirstResolvingFunctionCallCheck) \

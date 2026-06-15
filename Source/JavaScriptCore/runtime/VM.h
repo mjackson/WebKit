@@ -394,6 +394,14 @@ public:
 
     WeakRandom& random() LIFETIME_BOUND { return m_random; }
     WeakRandom& heapRandom() LIFETIME_BOUND { return m_heapRandom; }
+    // SharedGC (TSAN-DEEP-02): specializedSweep runs concurrently across
+    // per-directory stripes (T7-mspl-per-directory); advance() mutates two
+    // words. Slow path only (once per block sweep), so a leaf lock is fine.
+    uint64_t heapRandomUint64Concurrent()
+    {
+        Locker locker { m_heapRandomLock };
+        return m_heapRandom.getUint64();
+    }
     Integrity::Random& integrityRandom() LIFETIME_BOUND { return m_integrityRandom; }
 
     template<typename Type, typename Functor>
@@ -901,6 +909,7 @@ private:
 
     WeakRandom m_random;
     WeakRandom m_heapRandom;
+    Lock m_heapRandomLock;
     Integrity::Random m_integrityRandom;
 
     // UNGIL §A.1.5: GIL-off, a thread services/clears the bits on ITS lite

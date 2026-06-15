@@ -29,6 +29,7 @@
 #include "AggregateError.h"
 #include "BuiltinNames.h"
 #include "Debugger.h"
+#include "DeferGC.h"
 #include "DeferTermination.h"
 #include "FunctionCodeBlock.h"
 #include "FunctionExecutable.h"
@@ -40,6 +41,7 @@
 #include "JSArray.h"
 #include "JSAsyncFunctionGenerator.h"
 #include "JSAsyncGenerator.h"
+#include "JSCellInlines.h"
 #include "JSFunction.h"
 #include "JSGenerator.h"
 #include "JSGlobalObject.h"
@@ -486,38 +488,212 @@ static bool NODELETE isSuspendYieldState(int32_t state)
     return state > 0 && (state & JSAsyncGenerator::reasonMask) == static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorSuspendReason::Yield);
 }
 
+// ============================================================================
+// SPEC-ungil §N.5 async resume-head claim (annex N7 row R7; MC-TEAR S6b /
+// MC-PRIM P5-async closure — CVE-AUDIT-RESULTS.md A4). AMENDED SHAPE: the
+// previous landing held the rank-10a cellLock across the body call + epilogue
+// (the "§N.5 cell lock for named multi-word cases" reading). That is a
+// frozen-spec violation by name — SPEC-objectmodel O2/I20 forbid a 10a/10b
+// holder polling a safepoint or allocating outside a pre-lock DeferGC, and
+// the body call is unbounded user JS (allocates, polls, may itself take
+// thisObject->cellLock() on the generator via every JSObject indexed/sparse/
+// dictionary/transition path -> same-thread non-recursive bitlock self-hang;
+// the holder parking at a safepoint with the lock held lets the visitor's
+// JSObject.cpp:454 AS cellLock re-take deadlock the collector; a contending
+// continuation's ParkingLot lock() never acks STW -> the B16 watchdog). §LK
+// row 5 incorporates heap ranks 2-10b verbatim and carves out exactly ONE
+// long-hold (NLS::m_lock); cellLock is not it.
+//
+// The amended scheme keeps cellLock to the §N DEFAULT short-span shape (per
+// the N7 census: bounded, straight-line, allocation only under a PRE-LOCK
+// DeferGC — O1's sanctioned back-edge, O2-compliant) and never holds it
+// across the body call, any allocation outside DeferGC, or any safepoint:
+//
+//   ENQUEUE  (host hook below): {DeferGC; cellLock; wasEmpty = isQueueEmpty();
+//             generator->enqueue(...); unlock}. enqueue() may allocate ONE
+//             JSFullPromiseReaction — the DeferGC opened BEFORE the lock makes
+//             that O1-legal. The span is a handful of internal-field stores.
+//   DEQUEUE  (asyncGeneratorDequeueAndIsEmpty below): {cellLock;
+//             generator->dequeue(); nowEmpty = isQueueEmpty(); unlock}. No
+//             allocation; bounded.
+//
+// The DRIVER predicate is purely the queue-occupancy edge, decided UNDER THE
+// SAME LOCK as the queue mutation that produced it:
+//
+//   - The enqueuer DRIVES iff `wasEmpty` (queue empty -> non-empty).
+//   - The driver chain RETIRES iff `nowEmpty` (queue non-empty -> empty).
+//
+// Those two transitions are the only writers of "queue empty?" and are
+// mutually serialized by the cell lock, so at most one driver chain exists at
+// any instant. The chain is {host hook -> asyncGeneratorResumeNext -> body ->
+// epilogue}, possibly handed across microtask boundaries to the
+// InternalMicrotask continuations below: every continuation is scheduled with
+// the queue HEAD still present (the awaited request is dequeued only at
+// asyncGeneratorResolve/Reject), so a concurrent enqueue ALWAYS observes
+// non-empty and never co-drives. The State field is therefore IRRELEVANT to
+// the cross-thread drive decision — the body's mid-drive yield-side State
+// store (the r15 F1 release-ordered write that defeats a State-word CAS) is
+// invisible to the wasEmpty/nowEmpty edge.
+//
+// While the driver chain is active (queue non-empty), a concurrent
+// JSAsyncGenerator::enqueue() takes its non-empty branch (JSAsyncGenerator.cpp
+// :88-116) and writes ONLY the Queue tail-list field; the head triple
+// {ResumeValue, ResumeMode, ResumePromise} is touched solely by the
+// empty->non-empty enqueue and by dequeue(), BOTH of which the driver chain
+// owns. The driver's UNLOCKED reads of the head triple (asyncGeneratorResume-
+// Next :resumeValue()/resumeMode() and asyncGeneratorBodyCall) are therefore
+// data-race-free against any concurrent enqueue. State writes (Executing,
+// SuspendedX|reason, Completed, AwaitingReturn) stay plain and tier-inlined
+// — the "interior stores WHILE claimed stay PLAIN" half of §N.5 — since only
+// the driver chain reaches them.
+//
+// LOSER SEMANTICS (ECMA-262 AsyncGeneratorEnqueue): a wasEmpty=false caller —
+// cross-thread OR same-thread re-entrant from inside the body — ENQUEUES and
+// returns the pending promise WITHOUT driving and WITHOUT a TypeError. The
+// active driver (or its scheduled continuation) drains it. This is the
+// flag-off / GIL-on observable behaviour verbatim; the previous landing's
+// tryLock-loser TypeError was a single-threaded semantic fork (sync §N.5's
+// TypeError licence comes from ECMA-262 GeneratorValidate, which async
+// generators do NOT have).
+//
+// The body call and every promise resolve/reject + microtask schedule run
+// with NO lock held; `g[i]=x` from inside the body, GC at any allocation,
+// and STW polls all see the generator's cellLock free. The InternalMicrotask
+// continuations need NO outer claim: they are the driver chain by
+// construction (sole continuation scheduled by the previous link with the
+// queue head intact), so the AsyncGeneratorDriverClaim long-hold is removed.
+//
+// Host hook @claimAsyncGeneratorResume(generator, value, mode, promise) is
+// defined here — not JSGlobalObject.cpp — because every other writer of the
+// queue cluster (the continuations + asyncGeneratorDequeueAndIsEmpty) lives
+// in this TU; the link-time-constant registration (BuiltinNames.h,
+// LinkTimeConstant.h, JSGlobalObject.cpp initLater) for BOTH hook names
+// remains the recorded cross-file integration dependency for this landing.
+// @publishAsyncGeneratorResume is retained as a no-op so that dependency's
+// hook-name set is unchanged. GIL-off, ALL driving — initial AND continuation
+// — runs through the C++ asyncGeneratorResumeNext below (the JS-side
+// @asyncGeneratorResumeNext + @asyncGeneratorQueueDequeue* helpers are the
+// flag-off path only), so every dequeue is a locked
+// asyncGeneratorDequeueAndIsEmpty.
+//
+// Flag-off byte-identical: every call site is behind the @gilOffProcess
+// bytecode constant (JS) / vm.gilOff() (C++); flag-off and GIL-on keep the
+// landed bytecode (next/return/throw inline @asyncGeneratorQueueEnqueue +
+// @asyncGeneratorResumeNext) and the landed plain dequeue path verbatim.
+// ============================================================================
+
 static void asyncGeneratorResumeNext(JSGlobalObject*, JSAsyncGenerator*);
 
+JSC_DECLARE_HOST_FUNCTION(claimAsyncGeneratorResume);
+JSC_DECLARE_HOST_FUNCTION(publishAsyncGeneratorResume);
+
+JSC_DEFINE_HOST_FUNCTION(claimAsyncGeneratorResume, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    // The builtin caller gates on @isAsyncGenerator before calling.
+    auto* generator = uncheckedDowncast<JSAsyncGenerator>(asObject(callFrame->uncheckedArgument(0)));
+    JSValue value = callFrame->uncheckedArgument(1);
+    int32_t mode = callFrame->uncheckedArgument(2).asInt32();
+    auto* promise = uncheckedDowncast<JSPromise>(callFrame->uncheckedArgument(3));
+
+    bool shouldDrive;
+    {
+        // O1's sanctioned pre-lock back-edge: enqueue() may allocate one
+        // JSFullPromiseReaction node under the lock; DeferGC opened BEFORE
+        // the lock makes that legal and keeps the span safepoint-free (O2).
+        DeferGC deferGC(vm);
+        Locker locker { generator->cellLock() };
+        // wasEmpty decided under the SAME lock as the enqueue that follows:
+        // this is the queue empty -> non-empty edge that confers driver-ship.
+        shouldDrive = generator->isQueueEmpty();
+        generator->enqueue(vm, value, mode, promise);
+        // The Locker dtor's unlock is the release that publishes the head
+        // triple (if wasEmpty) / tail link (otherwise) to the driver chain's
+        // next locked dequeue acquire.
+    }
+    if (shouldDrive) {
+        // We are the (sole) driver chain. Queue is non-empty (our request at
+        // head); every concurrent enqueue from here until our chain's
+        // nowEmpty-retire sees non-empty and will NOT co-drive. The body
+        // call inside is unbounded user JS — runs with NO lock held.
+        asyncGeneratorResumeNext(globalObject, generator);
+    }
+    // !shouldDrive: ECMA-262 AsyncGeneratorEnqueue — request enqueued, pending
+    // promise returned, NO TypeError; the active driver chain drains it.
+    return encodedJSUndefined();
+}
+
+JSC_DEFINE_HOST_FUNCTION(publishAsyncGeneratorResume, (JSGlobalObject*, CallFrame*))
+{
+    // Retained as a no-op for the recorded cross-file link-time-constant
+    // registration dependency (BOTH hook names registered as a pair). The
+    // wasEmpty/nowEmpty scheme has no separate publish step: driver-ship
+    // retires inside asyncGeneratorDequeueAndIsEmpty's locked nowEmpty edge.
+    return encodedJSUndefined();
+}
+
+// The driver chain's queue non-empty -> empty edge, decided under the SAME
+// short cellLock span as the dequeue that produced it. dequeue() is bounded
+// straight-line internal-field stores (JSAsyncGenerator.cpp:120-151) with NO
+// allocation, so no DeferGC. Flag-off / GIL-on: plain dequeue + plain check
+// (single-threaded; identical to the previous behaviour at every call site).
+static ALWAYS_INLINE std::tuple<JSValue, int32_t, JSPromise*, bool> asyncGeneratorDequeueAndIsEmpty(VM& vm, JSAsyncGenerator* generator)
+{
+    if (vm.gilOff()) [[unlikely]] {
+        Locker locker { generator->cellLock() };
+        auto [value, mode, promise] = generator->dequeue(vm);
+        bool nowEmpty = generator->isQueueEmpty();
+        return { value, mode, promise, nowEmpty };
+    }
+    auto [value, mode, promise] = generator->dequeue(vm);
+    return { value, mode, promise, generator->isQueueEmpty() };
+}
+
 template<IterationStatus status>
-static void asyncGeneratorReject(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue error)
+static bool asyncGeneratorReject(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue error)
 {
     VM& vm = globalObject->vm();
 
-    auto [value, resumeMode, promise] = generator->dequeue(vm);
+    // §N.5 A4: locked dequeue + nowEmpty (the driver-chain retire edge); the
+    // promise reject runs with NO lock held.
+    auto [value, resumeMode, promise, nowEmpty] = asyncGeneratorDequeueAndIsEmpty(vm, generator);
     ASSERT(promise);
 
     promise->reject(vm, error);
 
-    if constexpr (status == IterationStatus::Continue)
-        asyncGeneratorResumeNext(globalObject, generator);
+    if constexpr (status == IterationStatus::Continue) {
+        // GIL-off: re-enter resumeNext only if the SAME-LOCK nowEmpty says the
+        // queue still has a head; on nowEmpty the next enqueuer's wasEmpty
+        // edge owns the next drive. GIL-on this is the previous behaviour
+        // (resumeNext's own isQueueEmpty() early-return) folded one frame up.
+        if (!nowEmpty)
+            asyncGeneratorResumeNext(globalObject, generator);
+    }
+    return nowEmpty;
 }
 
 template<IterationStatus status>
-static void asyncGeneratorResolve(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue value, bool done)
+static bool asyncGeneratorResolve(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue value, bool done)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto [itemValue, itemResumeMode, promise] = generator->dequeue(vm);
+    // §N.5 A4: locked dequeue + nowEmpty — see asyncGeneratorReject.
+    auto [itemValue, itemResumeMode, promise, nowEmpty] = asyncGeneratorDequeueAndIsEmpty(vm, generator);
     ASSERT(promise);
 
     auto* iteratorResult = createIteratorResultObject(globalObject, value, done);
 
     promise->resolve(globalObject, vm, iteratorResult);
-    RETURN_IF_EXCEPTION(scope, void());
+    RETURN_IF_EXCEPTION(scope, nowEmpty);
 
-    if constexpr (status == IterationStatus::Continue)
-        RELEASE_AND_RETURN(scope, asyncGeneratorResumeNext(globalObject, generator));
+    if constexpr (status == IterationStatus::Continue) {
+        if (!nowEmpty) {
+            scope.release();
+            asyncGeneratorResumeNext(globalObject, generator);
+        }
+    }
+    return nowEmpty;
 }
 
 template<IterationStatus status>
@@ -554,8 +730,10 @@ static bool asyncGeneratorBodyCall(JSGlobalObject* globalObject, JSAsyncGenerato
 
     if (error) [[unlikely]] {
         generator->setState(static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorState::Completed));
-        asyncGeneratorReject<status>(globalObject, generator, error);
-        return true;
+        // §N.5 A4: continue the resumeNext loop only if the locked nowEmpty
+        // edge says a head remains; on nowEmpty the driver chain retires here.
+        bool nowEmpty = asyncGeneratorReject<status>(globalObject, generator, error);
+        return !nowEmpty;
     }
 
     state = generator->state();
@@ -577,8 +755,9 @@ static bool asyncGeneratorBodyCall(JSGlobalObject* globalObject, JSAsyncGenerato
     }
 
     if (state == static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorState::Completed)) {
-        asyncGeneratorResolve<status>(globalObject, generator, value, true);
-        return true;
+        // §N.5 A4: see the error arm above.
+        bool nowEmpty = asyncGeneratorResolve<status>(globalObject, generator, value, true);
+        return !nowEmpty;
     }
 
     return false;
@@ -597,6 +776,14 @@ static void asyncGeneratorResumeNext(JSGlobalObject* globalObject, JSAsyncGenera
         if (state == static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorState::AwaitingReturn))
             return;
 
+        // §N.5 A4: GIL-off this is always false — every caller (the host hook
+        // after a wasEmpty enqueue; Resolve/Reject<Continue> after a !nowEmpty
+        // dequeue; every `continue` below after a !nowEmpty dequeue) reaches
+        // here with the queue head present, and a concurrent enqueue when
+        // non-empty writes only the Queue tail link, never ResumeMode. Kept
+        // for flag-off / GIL-on behaviour identity (where it was the loop's
+        // sole retire point); the locked nowEmpty edges below are the GIL-off
+        // retire points.
         if (generator->isQueueEmpty())
             return;
 
@@ -616,12 +803,20 @@ static void asyncGeneratorResumeNext(JSGlobalObject* globalObject, JSAsyncGenera
                 }
 
                 ASSERT(resumeMode == static_cast<int32_t>(JSGenerator::ResumeMode::ThrowMode));
-                asyncGeneratorReject<IterationStatus::Done>(globalObject, generator, nextValue);
+                // §N.5 A4: retire the driver chain on the locked nowEmpty
+                // edge instead of looping back to the unlocked isQueueEmpty()
+                // — closes the dequeue->loop-top window vs a concurrent
+                // wasEmpty enqueuer (which would otherwise co-drive).
+                if (asyncGeneratorReject<IterationStatus::Done>(globalObject, generator, nextValue))
+                    return;
                 continue;
             }
         } else if (state == static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorState::Completed)) {
-            asyncGeneratorResolve<IterationStatus::Done>(globalObject, generator, jsUndefined(), true);
+            // §N.5 A4: see the ThrowMode arm above.
+            bool nowEmpty = asyncGeneratorResolve<IterationStatus::Done>(globalObject, generator, jsUndefined(), true);
             RETURN_IF_EXCEPTION(scope, void());
+            if (nowEmpty)
+                return;
             continue;
         }
 
@@ -635,6 +830,12 @@ static void asyncGeneratorResumeNext(JSGlobalObject* globalObject, JSAsyncGenera
 
 static void asyncGeneratorYieldAwaited(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue result, JSPromise::Status status)
 {
+    // §N.5 A4 (amended): this continuation IS the driver chain (sole
+    // microtask scheduled by the previous link with the queue head still
+    // present), so every State / head-triple touch below is an interior plain
+    // store; the dequeue in asyncGeneratorResolve/Reject is the next locked
+    // span. NO long-hold cellLock — the body call inside is unbounded user
+    // JS (O2/I20) and may itself take this object's cellLock.
     switch (status) {
     case JSPromise::Status::Pending:
         RELEASE_ASSERT_NOT_REACHED();
@@ -654,6 +855,8 @@ static void asyncGeneratorYieldAwaited(JSGlobalObject* globalObject, JSAsyncGene
 
 static void asyncGeneratorBodyCallNormal(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue result, JSPromise::Status status)
 {
+    // §N.5 A4 (amended): driver chain by construction — see
+    // asyncGeneratorYieldAwaited.
     switch (status) {
     case JSPromise::Status::Pending:
         RELEASE_ASSERT_NOT_REACHED();
@@ -669,6 +872,8 @@ static void asyncGeneratorBodyCallNormal(JSGlobalObject* globalObject, JSAsyncGe
 
 static void asyncGeneratorBodyCallReturn(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue result, JSPromise::Status status)
 {
+    // §N.5 A4 (amended): driver chain by construction — see
+    // asyncGeneratorYieldAwaited.
     switch (status) {
     case JSPromise::Status::Pending:
         RELEASE_ASSERT_NOT_REACHED();
@@ -684,6 +889,8 @@ static void asyncGeneratorBodyCallReturn(JSGlobalObject* globalObject, JSAsyncGe
 
 static void asyncGeneratorResumeNextReturn(JSGlobalObject* globalObject, JSAsyncGenerator* generator, JSValue result, JSPromise::Status status)
 {
+    // §N.5 A4 (amended): driver chain by construction — see
+    // asyncGeneratorYieldAwaited.
     generator->setState(static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorState::Completed));
 
     switch (status) {

@@ -960,7 +960,25 @@ template<typename Adaptor> inline auto JSGenericTypedArrayView<Adaptor>::sort() 
 
     auto originalSpan = typedSpan();
     auto array = originalSpan.data();
-    if (isShared()) {
+    // CVE-AUDIT A2 / MC-DF S9 (mc-df-ta-sort-inplace.CRASH.log): r269531's
+    // isShared() gate is SAB-only. Under useJSThreads GIL-off a non-SAB
+    // ArrayBuffer is reachable from another mutator, so a racing lane writer
+    // breaks std::sort's strict-weak-ordering / element-stability assumptions
+    // and libstdc++ __unguarded_linear_insert walks past the front of the
+    // allocation (ASAN heap-buffer-overflow READ -4). Widen the r269531 gate
+    // to take the copy-out/sort/copy-back path whenever the backing may be
+    // raced — i.e. unconditionally under gilOffProcess (we cannot prove
+    // thread-locality here). Flag-off/GIL-on (gilOffProcess == 0) keeps the
+    // byte-identical in-place std::sort on the likely path — one
+    // predicted-false Config-page test; isShared() is immutable so hoisting
+    // it into the local preserves the original two-check semantics exactly.
+    // The copy-out/back reuse the existing SAB WTF::copyElements path; lane
+    // races there are the blessed §4.7 value-race shape (TSAN-TRIAGE §3.24
+    // already covers the SAB arm).
+    bool mustCopyOut = isShared();
+    if (VM::isGILOffProcess()) [[unlikely]]
+        mustCopyOut = true;
+    if (mustCopyOut) {
         if (!forShared.tryGrow(length)) [[unlikely]]
             return SortResult::OutOfMemory;
         WTF::copyElements(forShared.mutableSpan(), spanConstCast<const typename Adaptor::Type>(originalSpan.first(length)));
@@ -982,7 +1000,7 @@ template<typename Adaptor> inline auto JSGenericTypedArrayView<Adaptor>::sort() 
         break;
     }
 
-    if (isShared())
+    if (mustCopyOut)
         WTF::copyElements(originalSpan, forShared.span().first(length));
 
     return SortResult::Success;

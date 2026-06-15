@@ -706,6 +706,52 @@ PropertyTable* Structure::materializePropertyTable(VM& vm, bool setPropertyTable
     if (setPropertyTable && !deferPublicationUntilExact)
         this->setPropertyTable(vm, table);
 
+    // CVE A5 (MC-DF S4 / MC-INIT 4-adj; SPEC-objectmodel §6 I18/D1/I34/L6):
+    // the flag-off replay below RE-DERIVES every PropertyAddition link's
+    // offset via nextOffset() and asserts it equals the link's recorded
+    // transitionOffset(). Flag-off that derivation is a pure function of the
+    // chain (m_deletedOffsets is a plain LIFO), so the assert is sound.
+    // Flag-on it is NOT: nextOffset() draws from Reusable, which is fed
+    // SOLELY by §6 quarantine-epoch promotion — at ORIGINAL transition time
+    // a deleted offset may or may not have been promoted depending on whether
+    // a collection stop fell between the delete and the re-add, and that
+    // timing is unrecoverable here (the original table carrying the stamps is
+    // gone — stolen by a racing transition or swept by GC). The recorded
+    // transitionOffset() is therefore the ONLY authoritative replay source;
+    // re-derivation produces an internally-inconsistent table whose deleted-
+    // offset bookkeeping has drifted from its entries (the :717 assert in
+    // mc-jit-delete-reuse-stale-offset.CRASH{,.nojit}.log; downstream the
+    // drifted table hands out an already-live or past-maxOffset slot to the
+    // next add → cross-slot aliasing / slack read, the cellHeaderConcurrentLoad
+    // SEGV in mc-df-delete-reuse.CRASH.log).
+    //
+    // Flag-on discipline: keep the table's §6 deleted-offset lists EMPTY for
+    // the duration of the replay (so PropertyTable::add()'s I18 asserts hold
+    // for every recorded offset), track the deleted-offset SET locally, and
+    // for each PropertyAddition link CONSUME the recorded offset from that
+    // local set. After the loop, re-quarantine the residual set at the
+    // CURRENT epoch via addDeletedOffset(): a conservative re-stamp (the
+    // original deletion stamps are gone) that strictly upholds I18 — at worst
+    // the next add takes one fresh slot instead of a reusable one until the
+    // next stop. The residual's |size| + table->size() equals this
+    // structure's numberOfSlotsForMaxOffset, so propertyStorageSize() and
+    // checkOffsetConsistency below are exact.
+    //
+    // Flag-off: today's nextOffset()/addDeletedOffset() replay, unchanged
+    // (I22 — replayFromRecord is the latched single predicted-false branch;
+    // the local Vector is the same I22-noise class as `structures` above).
+    const bool replayFromRecord = Options::useJSThreads();
+    Vector<PropertyOffset, 8> replayDeletedOffsets;
+    if (replayFromRecord) [[unlikely]] {
+        // Drain the COPIED source table's combined Quarantined+Reusable into
+        // the local set: max-epoch promotion flushes Quarantined→Reusable
+        // (every real stamp is < max), then takeDeletedOffset() empties
+        // Reusable. After this both table lists are empty for the loop.
+        table->releaseQuarantinedSlots(std::numeric_limits<uint64_t>::max());
+        while (table->hasDeletedOffset())
+            replayDeletedOffsets.append(table->takeDeletedOffset());
+    }
+
     for (size_t i = structures.size(); i--;) {
         structure = structures[i];
         if (!structure->m_transitionPropertyName)
@@ -713,6 +759,21 @@ PropertyTable* Structure::materializePropertyTable(VM& vm, bool setPropertyTable
         switch (structure->transitionKind()) {
         case TransitionKind::PropertyAddition: {
             PropertyTableEntry entry(structure->m_transitionPropertyName.get(), structure->transitionOffset(), structure->transitionPropertyAttributes());
+            if (replayFromRecord) [[unlikely]] {
+                // Recorded offset is authoritative (CVE A5). Consume it from
+                // the local deleted set if it was a reused slot; otherwise it
+                // must be the fresh past-end slot (size + |deleted|) — the
+                // epoch-INDEPENDENT consistency check that replaces the
+                // unsound nextOffset()==transitionOffset() assert flag-on.
+                PropertyOffset recorded = structure->transitionOffset();
+                bool wasDeleted = replayDeletedOffsets.removeLast(recorded);
+                ASSERT_UNUSED(wasDeleted, wasDeleted || recorded == offsetForPropertyNumber(table->size() + static_cast<unsigned>(replayDeletedOffsets.size()), structure->inlineCapacity()));
+                auto [offset, attribute, result] = table->add(vm, entry);
+                ASSERT_UNUSED(result, result);
+                ASSERT_UNUSED(offset, offset == recorded);
+                UNUSED_VARIABLE(attribute);
+                break;
+            }
             auto nextOffset = table->nextOffset(structure->inlineCapacity());
             ASSERT_UNUSED(nextOffset, nextOffset == structure->transitionOffset());
             auto [offset, attribute, result] = table->add(vm, entry);
@@ -725,6 +786,14 @@ PropertyTable* Structure::materializePropertyTable(VM& vm, bool setPropertyTable
             auto [offset, attributes] = table->take(vm, structure->m_transitionPropertyName.get());
             ASSERT_UNUSED(offset, offset != invalidOffset);
             UNUSED_VARIABLE(attributes);
+            if (replayFromRecord) [[unlikely]] {
+                // Track locally; do NOT touch the table's §6 lists mid-replay
+                // (an addDeletedOffset() here would stamp at NOW and the next
+                // PropertyAddition link could not draw it — exactly the bug).
+                ASSERT(offset == structure->transitionOffset());
+                replayDeletedOffsets.append(structure->transitionOffset());
+                break;
+            }
             table->addDeletedOffset(structure->transitionOffset());
             break;
         }
@@ -740,6 +809,15 @@ PropertyTable* Structure::materializePropertyTable(VM& vm, bool setPropertyTable
             ASSERT_NOT_REACHED();
             break;
         }
+    }
+
+    if (replayFromRecord) [[unlikely]] {
+        // Re-quarantine the residual deleted-offset set at the current epoch
+        // (conservative; I18-safe — see the block comment above). After this,
+        // propertyStorageSize() == size() + |residual| == this structure's
+        // numberOfSlotsForMaxOffset, so checkOffsetConsistency below holds.
+        for (PropertyOffset deleted : replayDeletedOffsets)
+            table->addDeletedOffset(deleted);
     }
 
     if (deferPublicationUntilExact)
@@ -1854,10 +1932,14 @@ void Structure::fireThreadLocalSetsWithChainUnderStop(VM& vm, const char* reason
     // (F2/F3) chains both (it implies writeThreadLocal, §5).
     //
     // The walk allocates only malloc memory (worklist) - never GC heap (O1/O4;
-    // heap §10A exemption covers metadata writes inside stop windows). DeferGC
-    // satisfies WeakGCMap::forEach's isDeferred() contract during the
-    // transition-table iteration.
-    DeferGC deferGC(vm);
+    // heap §10A exemption covers metadata writes inside stop windows).
+    // DeferGCForAWhile satisfies WeakGCMap::forEach's isDeferred() contract
+    // during the transition-table iteration WITHOUT polling GC at scope exit:
+    // callers reach this under a §10.6 stop (asserted above) and may also be
+    // inside an ObjectInitializationScope (AssertNoGC), so ~DeferGC's
+    // collectIfNecessaryOrDefer would assert (JSCVAL-002) and would otherwise
+    // poll a collection mid-STW with the SW publication not yet landed.
+    DeferGCForAWhile deferGC(vm);
 
     for (Structure* ancestor = previousID(); ancestor; ancestor = ancestor->previousID())
         fireOne(ancestor);

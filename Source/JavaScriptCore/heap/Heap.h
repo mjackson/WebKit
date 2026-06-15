@@ -1702,6 +1702,17 @@ private:
 #endif
     unsigned m_deferralDepth { 0 };
 
+    // SharedGC (CVE-AUDIT A3 / map-MC-GC S12b / K4.VIII.9): leaf; guards
+    // m_weakGCHashTables — N gilOff mutators register/unregister concurrently
+    // (every JSGlobalObject ctor registers several WeakGCMaps via
+    // WeakGCMapInlines.h:40 / WeakGCSetInlines.h:38; reproduced as ASAN SEGV
+    // in HashTable removeIterator, JSTests/threads/cve/
+    // mc-gc-weakgcmap-registry-vs-prune.crash.txt) vs the conductor's
+    // world-stopped prune walk. Taken gilOff-only so flag-off
+    // register/unregister/prune stay byte-identical. NOT WTF_GUARDED_BY_LOCK:
+    // the flag-off path deliberately accesses the set unlocked and the
+    // single-mutator invariant makes that sound.
+    Lock m_weakGCHashTablesLock;
     UncheckedKeyHashSet<WeakGCHashTable*> m_weakGCHashTables;
     
 #if ENABLE(WEBASSEMBLY)

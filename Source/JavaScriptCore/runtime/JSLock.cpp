@@ -1778,7 +1778,7 @@ JSLock::DropAllLocks::DropAllLocks(VM* vm)
     // If the VM is in the middle of being destroyed then we don't want to resurrect it
     // by allowing DropAllLocks to ref it. By this point the JSLock has already been
     // released anyways, so it doesn't matter that DropAllLocks is a no-op.
-    , m_vm(vm->heap.isShuttingDown() ? nullptr : vm)
+    , m_vm((vm && !vm->heap.isShuttingDown()) ? vm : nullptr)
 {
     if (!m_vm)
         return;

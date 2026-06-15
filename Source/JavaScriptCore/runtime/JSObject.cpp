@@ -565,7 +565,11 @@ const WriteBarrierBase<Unknown>* JSObject::locationForOutOfLineOffsetConcurrent(
 
 static ALWAYS_INLINE size_t typedArrayLengthRawConcurrent(const JSArrayBufferView* view)
 {
-    return std::bit_cast<const WTF::Atomic<size_t>*>(std::bit_cast<const uint8_t*>(view) + JSArrayBufferView::offsetOfLength())->loadRelaxed();
+    // Annex-N6: length is the SECOND word of the {vector, length} snapshot pair
+    // and is loaded with acquire so a release-published larger length (arm 4
+    // grow) pairs. On x86-64 this is still a plain MOV; flag-off never reaches
+    // here (callers assert Options::useJSThreads()).
+    return std::bit_cast<const WTF::Atomic<size_t>*>(std::bit_cast<const uint8_t*>(view) + JSArrayBufferView::offsetOfLength())->load(std::memory_order_acquire);
 }
 
 // Sized integer alias so the element access compiles to a single relaxed
@@ -576,14 +580,42 @@ using TypedArrayElementRawWord = std::conditional_t<sizeof(Type) == 1, uint8_t,
     std::conditional_t<sizeof(Type) == 2, uint16_t,
     std::conditional_t<sizeof(Type) == 4, uint32_t, uint64_t>>>;
 
+// CVE-AUDIT A1 (MC-GROW S4/S8) / annex-N6 single-snapshot read protocol for
+// the concurrent TA fast paths. JSArrayBufferView::detachFromArrayBuffer()
+// (JSArrayBufferView.cpp:263-270) publishes m_length=0 then m_vector=nullptr
+// under cellLock; the previous shape here bounds-checked against a freshly
+// loaded length THEN re-loaded typedVector(), so a racing detach interleaved
+// {old length, null vector} -> SEGV at *(null + i) (ASAN evidence:
+// JSTests/threads/cve/mc-grow-buffer-storm.CRASH-{19,37,s4-nullvec}.log,
+// repro mc-grow-s4-detach-nullvec-repro.js). Annex-N6 PRINCIPLE: a racing
+// reader must NEVER pair a passing length with an unmapped-or-short base.
+// Reader discipline: load the vector word FIRST (single relaxed caged-word
+// load via vectorCagedConcurrently()); bail to the slow path on null; THEN
+// load length (acquire) and bounds-check; dereference the SNAPSHOTTED vector
+// only — never a re-load. Any non-null vector word ever observed names backing
+// storage that stays mapped through the next heap §10 stop (annex-N6 arm-1/2/3
+// quarantine), so {old vector, old length} is stale-but-safe and {*, 0}
+// bounds-fails. Reachable only via the *Concurrent accessors (assert
+// Options::useJSThreads()): flag-off codegen untouched.
+template<typename Adaptor>
+static ALWAYS_INLINE const typename Adaptor::Type* snapshotTypedVectorAndBoundsCheckConcurrent(const JSGenericTypedArrayView<Adaptor>* view, unsigned i)
+{
+    if (!view->canUseRawFieldsDirectly()) [[unlikely]]
+        return nullptr;
+    const typename Adaptor::Type* vector = view->typedVector(); // relaxed atomic m_vector load
+    if (!vector) [[unlikely]]
+        return nullptr; // annex-N6 null-vector bail: detached/torn pair
+    if (i >= typedArrayLengthRawConcurrent(view))
+        return nullptr;
+    return vector;
+}
+
 template<typename Adaptor>
 static ALWAYS_INLINE bool canGetIndexQuicklyForTypedArrayViewConcurrent(const JSGenericTypedArrayView<Adaptor>* view, unsigned i)
 {
     if (!Adaptor::canConvertToJSQuickly)
         return false;
-    if (!view->canUseRawFieldsDirectly()) [[unlikely]]
-        return false;
-    return i < typedArrayLengthRawConcurrent(view);
+    return !!snapshotTypedVectorAndBoundsCheckConcurrent(view, i);
 }
 
 template<typename Adaptor>
@@ -592,9 +624,12 @@ static ALWAYS_INLINE JSValue tryGetIndexQuicklyForTypedArrayViewConcurrent(const
     using Type = typename Adaptor::Type;
     using RawWord = TypedArrayElementRawWord<Type>;
     static_assert(sizeof(RawWord) == sizeof(Type));
-    if (!canGetIndexQuicklyForTypedArrayViewConcurrent(view, i))
+    if (!Adaptor::canConvertToJSQuickly)
         return JSValue();
-    RawWord raw = std::bit_cast<const WTF::Atomic<RawWord>*>(view->typedVector() + i)->loadRelaxed();
+    const Type* vector = snapshotTypedVectorAndBoundsCheckConcurrent(view, i);
+    if (!vector)
+        return JSValue();
+    RawWord raw = std::bit_cast<const WTF::Atomic<RawWord>*>(vector + i)->loadRelaxed();
     return Adaptor::toJSValue(nullptr, std::bit_cast<Type>(raw));
 }
 
@@ -607,11 +642,14 @@ static ALWAYS_INLINE bool trySetIndexQuicklyForTypedArrayViewConcurrent(JSGeneri
     if (!value.isNumber())
         return false;
     // canSetIndexQuickly == canGetIndexQuickly + isNumber for the quickly family.
-    if (!canGetIndexQuicklyForTypedArrayViewConcurrent(view, i))
+    if (!Adaptor::canConvertToJSQuickly)
+        return false;
+    const Type* vector = snapshotTypedVectorAndBoundsCheckConcurrent(view, i);
+    if (!vector)
         return false;
     // toNativeFromValue on a number is pure (no JS, no allocation).
     Type native = toNativeFromValue<Adaptor>(value);
-    std::bit_cast<WTF::Atomic<RawWord>*>(view->typedVector() + i)->storeRelaxed(std::bit_cast<RawWord>(native));
+    std::bit_cast<WTF::Atomic<RawWord>*>(const_cast<Type*>(vector) + i)->storeRelaxed(std::bit_cast<RawWord>(native));
     return true;
 }
 

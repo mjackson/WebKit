@@ -2074,14 +2074,28 @@ ALWAYS_INLINE bool JSObject::getOwnNonIndexPropertySlot(VM& vm, Structure* struc
     // dead, behavior byte-identical.
     if (Options::useJSThreads()) [[unlikely]] {
         for (;;) {
-            bool valueIsGetterSetter = !!value && value.isCell() && value.asCell()->type() == GetterSetterType;
-            bool valueIsCustomGetterSetter = !!value && value.isCell() && value.asCell()->type() == CustomGetterSetterType;
-            bool consistent = !!value
-                && (valueIsGetterSetter == !!(attributes & PropertyAttribute::Accessor))
-                && (!valueIsCustomGetterSetter || (attributes & PropertyAttribute::CustomAccessorOrValue));
-            if (consistent) {
-                WTF::loadLoadFence(); // M7(c): order the structureID re-load after the value load.
-                if (structureID().decode() == structure)
+            // CVE-AUDIT A5 (MC-DF S4, mc-df-delete-reuse.CRASH.log) — I34/L6
+            // ordering for the M7(c) probe itself: structure->get() above can
+            // allocate / poll (PropertyTable materialize), so by the time we
+            // getDirect(offset) the writer may be MANY transitions ahead and
+            // the slot at `offset` in the CURRENT butterfly may be a freshly
+            // grown, never-written auxiliary word (heap scribble bits — NOT a
+            // JSValue). Dereferencing such a word as a cell SEGVs (the
+            // 0xbadbeef0 type() read). Re-verify structureID BEFORE
+            // inspecting `value` as a cell: writer order is {butterfly,
+            // value} -> storeStoreFence -> structureID, so structureStable
+            // proves `value` is a published JSValue and the cell deref is
+            // sound. structureID moved -> re-sample WITHOUT touching value.
+            // The post-stable consistency clause (the original M7(c) torn-
+            // attribute check) is preserved verbatim below.
+            WTF::loadLoadFence(); // M7(c)/I34: order the value load -> structureID re-load.
+            if (structureID().decode() == structure) {
+                bool valueIsGetterSetter = !!value && value.isCell() && value.asCell()->type() == GetterSetterType;
+                bool valueIsCustomGetterSetter = !!value && value.isCell() && value.asCell()->type() == CustomGetterSetterType;
+                bool consistent = !!value
+                    && (valueIsGetterSetter == !!(attributes & PropertyAttribute::Accessor))
+                    && (!valueIsCustomGetterSetter || (attributes & PropertyAttribute::CustomAccessorOrValue));
+                if (consistent)
                     break;
             }
             // Park-capability (W1/D9): the in-flight writer may be parked by

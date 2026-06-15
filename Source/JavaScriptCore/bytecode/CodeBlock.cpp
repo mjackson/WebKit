@@ -1561,8 +1561,13 @@ void CodeBlock::propagateTransitions(const ConcurrentJSLocker&, Visitor& visitor
     if (jitType() == JITType::InterpreterThunk) {
         if (m_metadata) {
             m_metadata->forEach<OpPutById>([&] (auto& metadata) {
-                StructureID oldStructureID = metadata.m_oldStructureID;
-                StructureID newStructureID = metadata.m_newStructureID;
+                // V7 / TSAN-DEEP-04: flag-on, llint_slow_path_put_by_id publishes
+                // {m_oldStructureID, m_offset} as ONE relaxed u64 (SPEC-jit §4.3);
+                // read each half with a relaxed atomic so the marker's read is
+                // defined. m_newStructureID is permanently null flag-on, so the
+                // !newStructureID early-out makes the rest unreachable anyway.
+                StructureID oldStructureID = icConcurrentRelaxedLoad(metadata.m_oldStructureID);
+                StructureID newStructureID = icConcurrentRelaxedLoad(metadata.m_newStructureID);
                 if (!oldStructureID || !newStructureID)
                     return;
 

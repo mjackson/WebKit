@@ -41,6 +41,31 @@
 #include <wtf/Lock.h>
 #include <wtf/TZoneMalloc.h>
 
+namespace JSC {
+
+// icConcurrentRelaxed{Load,Store}: generic relaxed-atomic accessors over plain
+// storage. Declared UNCONDITIONALLY (outside the ENABLE(JIT) guard below) so
+// the InterpreterThunk arm of CodeBlock::propagateTransitions — interpreter
+// code that compiles in the ENABLE_JIT=OFF / ENABLE_C_LOOP=ON TSAN config —
+// can use them. The full rationale comment lives at the (now-removed)
+// original definition site below; mirrors Structure.h §9.1.
+template<typename T>
+ALWAYS_INLINE T icConcurrentRelaxedLoad(const T& field)
+{
+    static_assert(std::is_trivially_copyable_v<T>);
+    T result;
+    __atomic_load(const_cast<T*>(&field), &result, __ATOMIC_RELAXED);
+    return result;
+}
+
+template<typename T>
+ALWAYS_INLINE void icConcurrentRelaxedStore(T& field, std::type_identity_t<T> value)
+{
+    static_assert(std::is_trivially_copyable_v<T>);
+    __atomic_store(&field, &value, __ATOMIC_RELAXED);
+}
+
+} // namespace JSC
 
 #if ENABLE(JIT)
 
@@ -160,21 +185,8 @@ enum class PropertyInlineCacheType : uint8_t { Handler, Repatching };
 // store, which TSAN pairs against concurrent relaxed readers when an IC is
 // (re)initialized in recycled memory or published without a synchronizing
 // edge (the "DataOnly IC ctor publication" reports at the countdown bytes).
-template<typename T>
-ALWAYS_INLINE T icConcurrentRelaxedLoad(const T& field)
-{
-    static_assert(std::is_trivially_copyable_v<T>);
-    T result;
-    __atomic_load(const_cast<T*>(&field), &result, __ATOMIC_RELAXED);
-    return result;
-}
-
-template<typename T>
-ALWAYS_INLINE void icConcurrentRelaxedStore(T& field, std::type_identity_t<T> value)
-{
-    static_assert(std::is_trivially_copyable_v<T>);
-    __atomic_store(&field, &value, __ATOMIC_RELAXED);
-}
+// (Definitions of icConcurrentRelaxed{Load,Store} moved above the ENABLE(JIT)
+// guard so the JIT=OFF TSAN config can call them from CodeBlock.cpp.)
 
 // Racy advisory IC state cell (SPEC-jit §5.7.7): every access — including the
 // constructor's initialization — is a relaxed atomic on plain storage, so

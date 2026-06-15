@@ -1,5 +1,6 @@
 //@ requireOptions("--useJSThreads=1")
-//@ threadsExpectFail("gilOff")
+// (was //@ threadsExpectFail("gilOff") — flipped 2026-06-15: §N.5 async
+// resume-head claim landed, CVE-AUDIT-RESULTS.md A4 / Tier-A closure.)
 // MC-PRIM / MC-TEAR susceptibility test — ASYNC clone of
 // mc-prim-generator-resume-claim.js (docs/threads/cve/map-MC-PRIM.md P5,
 // map-MC-TEAR.md S6; annex N7 row R7 names JSAsyncGenerator as §N.5-covered).

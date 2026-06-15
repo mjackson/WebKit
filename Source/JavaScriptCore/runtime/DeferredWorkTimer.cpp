@@ -360,8 +360,18 @@ void DeferredWorkTimer::runRunLoop()
         return;
     }
 
-    m_shouldStopRunLoopWhenAllTicketsFinish = true;
-    if (!m_pendingTickets.isEmpty())
+    // GIL-on threads: we do NOT hold the API lock here (asserted above), so a
+    // spawned thread holding the GIL can be in addPendingWork concurrently.
+    // m_taskLock is the only common lock for m_pendingTickets — take it for
+    // the flag write and the emptiness probe even when gilOff() is false.
+    // Flag-off: uncontended; this path is cold (one acquire per shell run).
+    bool hasLiveTickets;
+    {
+        Locker locker { m_taskLock };
+        m_shouldStopRunLoopWhenAllTicketsFinish = true;
+        hasLiveTickets = !m_pendingTickets.isEmpty();
+    }
+    if (hasLiveTickets)
         RunLoop::run();
 }
 
@@ -400,7 +410,10 @@ DeferredWorkTimer::Ticket DeferredWorkTimer::addPendingWork(WorkType type, VM& v
             RELEASE_ASSERT(result.isNewEntry);
         } else
             onAddPendingWork(WTF::move(ticketData), type);
-    } else if (vm.gilOff()) [[unlikely]] {
+    } else if (Options::useJSThreads()) [[unlikely]] {
+        // GIL-on threads too: the carrier may be in runRunLoop() WITHOUT the
+        // API lock (asserted there), so the GIL does not serialize this add
+        // against its emptiness probe. m_taskLock is the only common lock.
         Locker locker { m_taskLock };
         auto result = m_pendingTickets.add(WTF::move(ticketData));
         RELEASE_ASSERT(result.isNewEntry);
