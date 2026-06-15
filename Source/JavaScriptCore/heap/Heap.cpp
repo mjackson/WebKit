@@ -1129,7 +1129,56 @@ void Heap::gatherStackRoots(ConservativeRoots& roots)
         });
     }
 #endif
-    m_machineThreads->gatherConservativeRoots(roots, *m_jitStubRoutines, *m_codeBlocks, m_currentThreadState, m_currentThread);
+    // T5-rootscan-skip-coop-parked-suspend (SCALEBENCH §31, offcpu16 row #4):
+    // build the Thread* -> coop-parked-snapshot lookup the suspend loop will
+    // consult to skip the SIGUSR2 round-trip for siblings that already
+    // published a register/stack snapshot at their park site. The Thread* ->
+    // GCClient::Heap* mapping IS the existing HeapClientSet (maintained
+    // under its rank-6 registry lock and FROZEN inside this stop window by
+    // I13's add/remove deferral) keyed on each client's
+    // m_parkedRootSnapshotThread, so a transient HashMap built here under
+    // forEach()'s registry-lock hold is exactly that map specialised to the
+    // clients that have a live snapshot — no separate persistent map state on
+    // the server. The seq_cst snapshot load pairs against the publishing
+    // thread's seq_cst store (after its seq_cst RHA) and the conductor's own
+    // GSP/stop-word seq_cst stores: any sibling that released-then-published
+    // before the §10.4 barrier converged is visible here, and any sibling
+    // that has since cleared (about to re-acquire) reads null and falls back
+    // to suspend. Gated on isSharedServer() so flag-off passes nullptr and
+    // tryCopyOtherThreadStacks runs its original suspend-everything path
+    // byte-for-byte; W=1 IMPACT ZERO — every publish call site requires the
+    // calling thread to NOT be the §A.3 conductor / Mode-stop
+    // representative, which is impossible with one thread, so the table is
+    // empty and every registered thread (just the conductor, excluded
+    // anyway) goes through the unchanged path.
+    // LIFETIME (T5-amend, review-major): cache GCClient::Heap* (stable for
+    // the stop window; registry frozen by I13), NOT the CurrentThreadState*
+    // itself, and re-load parkedRootSnapshot() seq_cst in the lookup lambda
+    // at USE time inside tryCopyOtherThreadStacks. Site (b)'s publish
+    // (VMManager notifyVMStop sibling bounded-poll) wraps a 1ms waitFor that
+    // can expire and clear() BETWEEN this forEach and the copy, and again
+    // between growBuffer retry iterations that re-invoke the lambda over the
+    // SAME table; a cached snapshot pointer would dangle into a dead block
+    // scope (or, worse, a sibling since admitted into HelperDrain whose
+    // cleared snapshot must per the gcClientPublishParkedRootSnapshot
+    // contract fall back to suspend). The re-load returns null in both cases
+    // and the suspend path runs. The residual seq_cst-load->dereference
+    // window is closed on the publish side: site (b) declares its
+    // CurrentThreadState at the gilOff sibling-loop's enclosing scope so the
+    // struct memory stays live (last-spilled, valid) for every iteration.
+    UncheckedKeyHashMap<Thread*, GCClient::Heap*> coopParkedClients;
+    if (isSharedServer()) [[unlikely]] {
+        clientSet().forEach([&](GCClient::Heap& client) {
+            if (client.parkedRootSnapshot())
+                coopParkedClients.add(client.parkedRootSnapshotThread(), &client);
+        });
+    }
+    auto coopParkedSnapshotLookup = scopedLambda<CurrentThreadState*(Thread&)>([&](Thread& thread) -> CurrentThreadState* {
+        if (GCClient::Heap* client = coopParkedClients.get(&thread))
+            return client->parkedRootSnapshot(); // seq_cst re-load AT USE TIME: cleared sibling falls back to suspend (incl. across growBuffer retries).
+        return nullptr;
+    });
+    m_machineThreads->gatherConservativeRoots(roots, *m_jitStubRoutines, *m_codeBlocks, m_currentThreadState, m_currentThread, coopParkedClients.isEmpty() ? nullptr : &coopParkedSnapshotLookup);
 #if ENABLE(C_LOOP)
     // SharedGC (I12, T6): the CLoop stack is per-VM, not per-thread. Phase 1
     // the shared server is the main VM's heap (deviation 3) and JS execution
@@ -3700,11 +3749,10 @@ void Heap::updateAllocationLimits()
         // m_sizeAfterLastFullCollect * sharedGCEdenSurvivalFullTriggerRatio
         // (default 3.0), force the next collection Full so the floating
         // cohort is reclaimed. Gated on isSharedServer() &&
-        // clientSet().size() >= 2 so flag-off and single-client GIL-off
-        // (W=1) are byte-identical: the predicate is tested only after the
-        // cheap isSharedServer() relaxed load, and size() takes its own
-        // internal lock (world is stopped here, so no add/remove can be in
-        // flight; the lock is uncontended). m_sizeAfterLastFullCollect == 0
+        // m_distinctAllocatingClientsThisCycle >= 2 (T1-sibint, §31; was
+        // clientSet().size()) so flag-off and single-client GIL-off (W=1)
+        // are byte-identical: the predicate is tested only after the cheap
+        // isSharedServer() relaxed load. m_sizeAfterLastFullCollect == 0
         // (no Full yet this process) skips the whole arm — the very first
         // collection is Full anyway.
         //
@@ -3741,20 +3789,37 @@ void Heap::updateAllocationLimits()
         // adaptive floor, and 0 still disables the whole arm. Cost at W=2:
         // Full cadence rises toward ~50%, but gcwall measured total STW at
         // 5.4% of W=2 wall, so the marginal Fulls cost <1% wall against the
-        // ~158 MB RSS recovery. clientSet().size() is read once into a
-        // local (it takes its own lock; world stopped -> uncontended) and
-        // the >=2 test moves inside the body so the size() call stays
-        // behind the cheap isSharedServer() relaxed-load gate — flag-off
-        // and W=1 GIL-off remain byte-identical.
+        // ~158 MB RSS recovery.
+        //
+        // T1-sibint (SCALEBENCH §31): the gate now reads
+        // m_distinctAllocatingClientsThisCycle (count of clients that
+        // actually called didAllocate() since the last reset below) instead
+        // of clientSet().size() (registered clients). sibint proved the
+        // entire 1.55-1.57x serial-section slowdown at W=16 IS this trigger:
+        // during the pc-loop only thread-0 allocates while 15 siblings sit
+        // parked at a JS barrier, but clientSet().size()==16, so after the
+        // first post-phaseA Full (sizeAfterLastFullCollect=33MB) the lone
+        // mutator's ~494MB post-eden heap blows past 33*3.0=99MB and forces
+        // alternating Eden/Full (32/32 vs W=1's 99/0). Reading the
+        // distinct-allocator count makes the serial pc-loop see
+        // numClients==1 -> trigger never fires -> all-Eden, exactly the W=1
+        // schedule. The same value feeds the W-adaptive effectiveRatio so a
+        // genuinely-parallel phase with k<W active allocators uses the
+        // k-appropriate floor. Relaxed load is exact here (world stopped,
+        // I7). The >=2 test stays inside the body so the counter load stays
+        // behind the cheap isSharedServer() relaxed-load gate — flag-off and
+        // W=1 GIL-off remain byte-identical (isSharedServer() is false at
+        // W=1; the counter is never written on the !isSharedServer()
+        // didAllocate leg).
         if (isSharedServer() && m_sizeAfterLastFullCollect && Options::sharedGCEdenSurvivalFullTriggerRatio()) [[unlikely]] {
-            unsigned numClients = clientSet().size();
+            unsigned numClients = m_distinctAllocatingClientsThisCycle.load(std::memory_order_relaxed);
             if (numClients >= 2) {
                 double optionRatio = Options::sharedGCEdenSurvivalFullTriggerRatio();
                 double effectiveRatio = std::min(optionRatio, 2.0 + 0.5 * static_cast<double>(numClients - 2));
                 size_t oldGenGrowthBound = static_cast<size_t>(static_cast<double>(m_sizeAfterLastFullCollect) * effectiveRatio);
                 if (currentHeapSize > oldGenGrowthBound) {
                     m_shouldDoFullCollection = true;
-                    dataLogLnIf(verbose, "Eden: shared N-mutator floating-garbage Full trigger (currentHeapSize ", currentHeapSize, " > sizeAfterLastFull ", m_sizeAfterLastFullCollect, " * ", effectiveRatio, " [clients=", numClients, ", option=", optionRatio, "])");
+                    dataLogLnIf(verbose, "Eden: shared N-mutator floating-garbage Full trigger (currentHeapSize ", currentHeapSize, " > sizeAfterLastFull ", m_sizeAfterLastFullCollect, " * ", effectiveRatio, " [allocatingClients=", numClients, ", option=", optionRatio, "])");
                 }
             }
         }
@@ -3783,6 +3848,19 @@ void Heap::updateAllocationLimits()
     m_nonOversizedBytesAllocatedThisCycle.store(0, std::memory_order_relaxed);
     m_oversizedBytesAllocatedThisCycle.store(0, std::memory_order_relaxed);
     m_lastOversidedAllocationThisCycle.store(0, std::memory_order_relaxed);
+    // T1-sibint (SCALEBENCH §31): reset the distinct-allocator count and the
+    // per-client first-allocation flags alongside the byte counters. World is
+    // stopped (I7): the per-client bool has no concurrent reader/writer (each
+    // is otherwise touched only by its own access-holding thread in
+    // didAllocate's isSharedServer() leg), and clientSet() iteration is safe
+    // (no attach/detach in flight). Gated on isSharedServer() so flag-off and
+    // W=1 GIL-off never reach the forEach — byte-identical.
+    if (isSharedServer()) [[unlikely]] {
+        m_distinctAllocatingClientsThisCycle.store(0, std::memory_order_relaxed);
+        clientSet().forEach([](GCClient::Heap& client) {
+            client.m_allocatedThisServerCycle = false;
+        });
+    }
 
     dataLogIf(Options::logGC(), "=> ", currentHeapSize / 1024, "kb, ");
 }
@@ -3885,11 +3963,31 @@ void Heap::didAllocate(size_t bytes)
             m_lastOversidedAllocationThisCycle.store(bytes, std::memory_order_relaxed);
         } else
             m_nonOversizedBytesAllocatedThisCycle.store(m_nonOversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed) + bytes, std::memory_order_relaxed);
-    } else if (bytes >= oversizedAllocationThreshold) {
-        m_oversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
-        m_lastOversidedAllocationThisCycle.store(bytes, std::memory_order_relaxed);
-    } else
-        m_nonOversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
+    } else {
+        // T1-sibint (SCALEBENCH §31): on each client's FIRST didAllocate of
+        // the GC cycle, bump the server's distinct-allocator count. The
+        // per-client bool is plain (this client's own access-holding thread
+        // is the only mutator-side writer; the world-stopped reset in
+        // updateAllocationLimits is the only other writer — same regime as
+        // the byte counters' (a)/(b) argument above). currentThreadClient()
+        // is an initial-exec TLS read; the [[unlikely]] first-time arm is
+        // taken at most once per client per cycle. Null-check is defensive
+        // for world-stopped collector-thread allocations (no client bound);
+        // those contribute to byte counters but not the distinct-client
+        // count, which is the conservative direction for the Full trigger.
+        // W>=2-only: this whole leg is reached iff isSharedServer(); the
+        // !isSharedServer() arm above (W=1 / flag-off) is unchanged.
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        if (client && !client->m_allocatedThisServerCycle) [[unlikely]] {
+            client->m_allocatedThisServerCycle = true;
+            m_distinctAllocatingClientsThisCycle.fetch_add(1, std::memory_order_relaxed);
+        }
+        if (bytes >= oversizedAllocationThreshold) {
+            m_oversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
+            m_lastOversidedAllocationThisCycle.store(bytes, std::memory_order_relaxed);
+        } else
+            m_nonOversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
+    }
     performIncrement(bytes);
 }
 
@@ -8066,6 +8164,37 @@ bool Heap::gilOffSiblingAssistMarking() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         Locker locker { m_markingMutex };
         if (!m_siblingMarkingAssistEnabled)
             return false;
+        // T4-sibling-assist-admission-cap (SCALEBENCH sec 31 / offcpu16 row #3):
+        // 16 siblings + ~7 heapHelperPool threads >> the parallelizable marking
+        // — over-admitted siblings immediately park at drainFromShared's isReady
+        // wait (m_markingMutex / m_markingConditionVariable churn) for the WHOLE
+        // marking phase, and additionally become on-CPU-then-parked suspend
+        // victims for tryCopyOtherThreadStacks (offcpu16 row #4: 17/52 victims
+        // were inside drainFromShared). Cap admitted siblings at the slack
+        // between numberOfGCMarkers (the configured drain parallelism) and the
+        // pool helpers already serving it; over-cap siblings return false and
+        // the caller (gcSiblingAssistMarkingIfEnabled) falls back to its
+        // bounded poll — i.e. they stay cheaply parked at the
+        // jsThreadsParkForStopWindow stripe condvar instead of entering the
+        // marker wait. Re-evaluated under m_markingMutex on every bounded-poll
+        // tick, so a sibling that was capped re-tries each tick and can be
+        // admitted later in the same marking phase if an earlier assist
+        // finishes (--m_numberOfSiblingMarkingAssists below). runEndPhase's
+        // drain-wait is unaffected: capped siblings never increment the count.
+        // W=1 IMPACT ZERO: this function is reached only via the [[unlikely]]
+        // vm.gilOff() sibling-park branch when isSharedServer() — W=1 has no
+        // siblings to park. Flag-off byte-identical (call site unreachable).
+        unsigned cap = Options::sharedGCMaxSiblingMarkingAssists();
+        if (!cap) {
+            // 0 = auto: fill up to numberOfGCMarkers TOTAL drainers and no
+            // more. heapHelperPool().numberOfThreads() == numberOfGCMarkers-1
+            // in the default config, so auto admits ONE sibling — it stands in
+            // for the conductor's own MainDrain visitor, which is busy running
+            // the constraint solver / runTaskInParallel rather than draining.
+            cap = static_cast<unsigned>(std::max<int>(0, static_cast<int>(Options::numberOfGCMarkers()) - static_cast<int>(heapHelperPool().numberOfThreads())));
+        }
+        if (m_numberOfSiblingMarkingAssists >= cap)
+            return false;
         // Count this sibling IN before dropping the mutex: runEndPhase's
         // close (under this mutex) lowers enabled + raises shouldExit, then
         // waits this count to zero — so an entered sibling is always
@@ -8157,12 +8286,55 @@ void gcClientWillParkForThreadGranularStop()
     t_releasedByThreadGranularPark = true;
 }
 
+// T5-rootscan-skip-coop-parked-suspend: per-park-episode publish/clear of
+// the cooperative root snapshot (see GCClient::Heap::publishParkedRootSnapshot
+// in Heap.h for the full protocol). Kept SEPARATE from the willPark/didResume
+// access-pairing above because the snapshot's validity window is STRICTLY
+// the pure-park span (libc futex/condvar machinery, no JSCell* below the
+// captured stackTop), which is a SUBSET of the access-released span: a
+// sibling that released access via willPark but then enters the
+// gcSiblingAssistMarkingIfEnabled() HelperDrain assist is RUNNING marking
+// code with live JSCell* on its stack — its snapshot MUST be cleared (or
+// never published) for that span so the conductor's root scan falls back to
+// suspend() for it. Call sites therefore bracket each individual
+// jsThreadsParkForStopWindow / m_worldConditionVariable.waitFor /
+// F8-blocked acquireHeapAccess with publish-then-clear, with the
+// DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE spill captured in the SAME stack
+// frame so the pointed-to RegisterState and stackTop stay live across the
+// park. didResume below clears too (idempotent) so an early-exit path can
+// never leave a stale snapshot live across the seq_cst access re-acquire.
+// Flag-off / W=1: every call site is inside an [[unlikely]] vm.gilOff()
+// branch that additionally requires the caller to NOT be the §A.3 conductor
+// or the Mode-stop representative (or to have a pending GSP set by another
+// conductor) — unreachable with a single thread; the helpers themselves are
+// no-ops without an attached client.
+void gcClientPublishParkedRootSnapshot(CurrentThreadState* snapshot)
+{
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    if (!client)
+        return;
+    client->publishParkedRootSnapshot(Thread::currentSingleton(), snapshot);
+}
+
+void gcClientClearParkedRootSnapshot()
+{
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    if (!client)
+        return;
+    client->clearParkedRootSnapshot();
+}
+
 void gcClientDidResumeFromThreadGranularStop()
 {
     if (!t_releasedByThreadGranularPark)
         return; // Idempotent: nothing was released by the matching willPark.
     GCClient::Heap* client = GCClient::Heap::currentThreadClient();
     RELEASE_ASSERT(client); // The releasing thread cannot lose its client while parked (teardown re-acquires first, EXIT1.3).
+    // T5-rootscan-skip: the snapshot's validity ends BEFORE re-acquisition
+    // (the F8/§A.3.2b gates inside acquireHeapAccess can themselves run
+    // non-park code paths). seq_cst clear; idempotent vs the call-site
+    // gcClientClearParkedRootSnapshot() that already ran in the common case.
+    client->clearParkedRootSnapshot();
     client->acquireHeapAccess(); // F8 + the §A.3.2b stop-word gate: blocks across any pending stop.
     t_releasedByThreadGranularPark = false;
 }
@@ -8193,7 +8365,18 @@ bool gcClientReleaseAccessAndBlockForPendingSharedGCStop()
     if (!client->hasHeapAccess())
         return false;
     client->releaseHeapAccess(); // Signals the §10.4 barrier (GSP is set).
+    // T5-rootscan-skip: the F8 wait below is a pure-park span (condvar under
+    // the GBL); publish a coop root snapshot captured in THIS frame so the
+    // conductor's root scan can skip the SIGUSR2 suspend for this thread
+    // (offcpu16 row #4: 3/52 victims were inside acquireHeapAccess's F8
+    // wait). Spilled AFTER the GSP slow-path checks above so the hot poll
+    // pays nothing; the frame stays live across acquireHeapAccess() so the
+    // RegisterState and stackTop remain valid. Cleared seq_cst before
+    // returning (the caller resumes JS immediately).
+    DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE(parkedRootSnapshot);
+    client->publishParkedRootSnapshot(Thread::currentSingleton(), &parkedRootSnapshot);
     client->acquireHeapAccess(); // F8: blocks until the conductor clears GSP.
+    client->clearParkedRootSnapshot();
     return true;
 }
 

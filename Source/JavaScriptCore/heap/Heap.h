@@ -481,11 +481,16 @@ public:
         void lock() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         {
             Locker locker { m_stateLock };
-            m_exclusiveWaiting++;
-            while (m_stripeDepth.load(std::memory_order_relaxed) || m_exclusiveHeld.load(std::memory_order_relaxed))
+            // Publish WAITING first so enterStripe()'s lock-free fast path
+            // starts deferring immediately (writer-preferring drain).
+            m_state.fetch_add(exclusiveWaitingOne, std::memory_order_relaxed);
+            while (m_state.load(std::memory_order_relaxed) & (stripeDepthMask | exclusiveHeldBit))
                 m_cond.wait(m_stateLock);
-            m_exclusiveWaiting--;
-            m_exclusiveHeld.store(true, std::memory_order_relaxed);
+            // Order matters: set HELD before dropping our WAITING count so the
+            // lock-free enterStripe()/tryLock() CAS never observes a
+            // fully-clear gate between the two RMWs.
+            m_state.fetch_or(exclusiveHeldBit, std::memory_order_acquire);
+            m_state.fetch_sub(exclusiveWaitingOne, std::memory_order_relaxed);
         }
 
         // M2-alloc-tax-residual (c): non-blocking exclusive acquire. Fails if
@@ -494,60 +499,110 @@ public:
         // shared-server steal-before-fresh leg in LocalAllocator::
         // allocateSlowCase: at W=1 the sole mutator just dropped its own
         // stripe → succeeds; at high W a sibling refill is almost always in a
-        // stripe → fails fast (one m_stateLock hop) and the caller goes
-        // straight to its re-striped fresh-mint. Never called flag-off /
-        // !isSharedServer().
-        bool tryLock() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+        // stripe → fails fast (one uncontended CAS, no m_stateLock) and the
+        // caller goes straight to its re-striped fresh-mint. Never called
+        // flag-off / !isSharedServer().
+        bool tryLock()
         {
-            Locker locker { m_stateLock };
-            if (m_stripeDepth.load(std::memory_order_relaxed) || m_exclusiveHeld.load(std::memory_order_relaxed) || m_exclusiveWaiting)
-                return false;
-            m_exclusiveHeld.store(true, std::memory_order_relaxed);
-            return true;
+            // Single CAS against the packed word: succeeds iff depth==0 &&
+            // !held && waiting==0; on success atomically sets HELD so no
+            // concurrent enterStripe() fast-path CAS can slip a stripe in.
+            uint32_t expected = 0;
+            return m_state.compare_exchange_strong(expected, exclusiveHeldBit, std::memory_order_acquire, std::memory_order_relaxed);
         }
 
         void unlock() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         {
             Locker locker { m_stateLock };
-            ASSERT(m_exclusiveHeld.load(std::memory_order_relaxed));
-            m_exclusiveHeld.store(false, std::memory_order_relaxed);
+            ASSERT(m_state.load(std::memory_order_relaxed) & exclusiveHeldBit);
+            m_state.fetch_and(~exclusiveHeldBit, std::memory_order_release);
             m_cond.notifyAll();
         }
 
+        // T3-mspl-facade-lockfree-stripe: lock-free fast path. The common
+        // case (no exclusive section in flight — exclusive is only
+        // sweepSynchronously / IncrementalSweeper, ~never during the
+        // scalebench parallel phases) is one acquire-CAS; m_stateLock is
+        // never touched. Writer-preferring semantics are preserved: the CAS
+        // gate tests HELD | WAITING, both packed into m_state, so a queued
+        // lock() drains stripes exactly as before.
         void enterStripe() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         {
-            Locker locker { m_stateLock };
-            // Writer-preferring: a waiting exclusive section drains stripes
-            // first (sweepSynchronously / IncrementalSweeper must make
-            // progress; stripes are the high-rate side).
-            while (m_exclusiveHeld.load(std::memory_order_relaxed) || m_exclusiveWaiting)
-                m_cond.wait(m_stateLock);
-            m_stripeDepth.fetch_add(1, std::memory_order_relaxed);
+            uint32_t state = m_state.load(std::memory_order_relaxed);
+            do {
+                if (state & exclusiveGateMask) [[unlikely]]
+                    return enterStripeSlow();
+                ASSERT((state >> stripeDepthShift) < stripeDepthLimit);
+            } while (!m_state.compare_exchange_weak(state, state + stripeDepthOne, std::memory_order_acquire, std::memory_order_relaxed));
         }
 
         void exitStripe() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
         {
-            Locker locker { m_stateLock };
-            ASSERT(m_stripeDepth.load(std::memory_order_relaxed));
-            if (m_stripeDepth.fetch_sub(1, std::memory_order_relaxed) == 1 && m_exclusiveWaiting)
+            uint32_t prev = m_state.fetch_sub(stripeDepthOne, std::memory_order_release);
+            ASSERT(prev & stripeDepthMask);
+            // Drain wake: we were the last stripe AND an exclusive waiter is
+            // queued. Both fields come from the same atomic RMW result, so
+            // this is totally ordered against lock()'s fetch_add(WAITING) —
+            // either we observe the waiter here and notify, or lock()'s
+            // subsequent load observes depth==0 and never waits.
+            if ((prev & stripeDepthMask) == stripeDepthOne && (prev & exclusiveWaitingMask)) [[unlikely]] {
+                Locker locker { m_stateLock };
                 m_cond.notifyAll();
+            }
         }
 
         // Debug-assert helper only (relaxed; no synchronization implied —
         // identical contract to WTF::Lock::isHeld).
         bool isHeld() const
         {
-            return m_exclusiveHeld.load(std::memory_order_relaxed) || m_stripeDepth.load(std::memory_order_relaxed);
+            return m_state.load(std::memory_order_relaxed) & (exclusiveHeldBit | stripeDepthMask);
         }
 
     private:
+        NEVER_INLINE void enterStripeSlow() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+        {
+            // Exclusive in flight or queued: block under m_stateLock so
+            // unlock()/exitStripe()'s notifyAll can reach us. CAS (not
+            // fetch_add) because a lock-free tryLock() may race the gate
+            // clearing — if it wins HELD, our CAS fails and we re-wait.
+            Locker locker { m_stateLock };
+            for (;;) {
+                uint32_t state = m_state.load(std::memory_order_relaxed);
+                if (state & exclusiveGateMask) {
+                    m_cond.wait(m_stateLock);
+                    continue;
+                }
+                if (m_state.compare_exchange_weak(state, state + stripeDepthOne, std::memory_order_acquire, std::memory_order_relaxed))
+                    return;
+            }
+        }
+
+        // T3-mspl-facade-lockfree-stripe: {stripeDepth, exclusiveWaiting,
+        // exclusiveHeld} packed into one atomic word so the high-rate stripe
+        // enter/exit path is a single CAS / fetch_sub with no WTF::Lock hop.
+        //   bit  0      : exclusiveHeld
+        //   bits 1..15  : exclusiveWaiting count (sweep callers; <=2 in practice)
+        //   bits 16..31 : stripeDepth count (<= client count)
+        static constexpr uint32_t exclusiveHeldBit = 1u << 0;
+        static constexpr unsigned exclusiveWaitingShift = 1;
+        static constexpr uint32_t exclusiveWaitingOne = 1u << exclusiveWaitingShift;
+        static constexpr uint32_t exclusiveWaitingMask = ((1u << 15) - 1u) << exclusiveWaitingShift;
+        static constexpr unsigned stripeDepthShift = 16;
+        static constexpr uint32_t stripeDepthOne = 1u << stripeDepthShift;
+        static constexpr uint32_t stripeDepthMask = ~uint32_t { 0 } << stripeDepthShift;
+        static constexpr uint32_t stripeDepthLimit = (1u << (32 - stripeDepthShift)) - 1u;
+        // enterStripe()'s writer-preferring gate: held OR any waiter.
+        static constexpr uint32_t exclusiveGateMask = exclusiveHeldBit | exclusiveWaitingMask;
+        static_assert(!(exclusiveGateMask & stripeDepthMask));
+        static_assert((exclusiveGateMask | stripeDepthMask) == ~uint32_t { 0 });
+
+        std::atomic<uint32_t> m_state { 0 };
+        // Slow-path blocking/wake protocol ONLY (exclusive acquire/release,
+        // and the rare stripe-drains-for-exclusive handoff). Never touched on
+        // the stripe fast path. Reachable only when isSharedServer()
+        // (clients >= 2); W=1 / flag-off never enters the facade at all.
         Lock m_stateLock;
         Condition m_cond;
-        // Atomic ONLY so isHeld()'s lock-free hint reads are well-defined
-        // (TSAN); all RMW happens under m_stateLock.
-        std::atomic<unsigned> m_stripeDepth { 0 };
-        unsigned m_exclusiveWaiting { 0 };
-        std::atomic<bool> m_exclusiveHeld { false };
     };
 
     // MSPL, rank 7 (SPEC-heap.md §6): serializes block handout, steals,
@@ -1515,6 +1570,15 @@ private:
     std::atomic<size_t> m_lastOversidedAllocationThisCycle { 0 };
 
     std::atomic<size_t> m_nonOversizedBytesAllocatedThisCycle { 0 };
+    // T1-sibint (SCALEBENCH §31): count of DISTINCT clients that have called
+    // didAllocate() since the last updateAllocationLimits reset. Feeds the
+    // §25/T5-rss N-mutator floating-garbage Full trigger in place of
+    // clientSet().size() so that a serial section with W-1 siblings parked at
+    // a JS barrier (registered but not allocating) does not force the
+    // alternating Eden/Full train. Relaxed fetch_add from the isSharedServer()
+    // leg of didAllocate (W>=2-only); store(0) world-stopped at the byte-
+    // counter reset site below. Flag-off / W=1: never written, never read.
+    std::atomic<unsigned> m_distinctAllocatingClientsThisCycle { 0 };
     std::atomic<size_t> m_bytesAbandonedSinceLastFullCollect { 0 };
     size_t m_maxEdenSize;
     size_t m_maxEdenSizeWhenCritical;
@@ -2256,6 +2320,44 @@ public:
     JS_EXPORT_PRIVATE void releaseHeapAccess();
     bool hasHeapAccess() const { return m_accessState.load(std::memory_order_relaxed) == hasAccessState; }
 
+    // T5-rootscan-skip-coop-parked-suspend (SCALEBENCH §31, offcpu16 row #4):
+    // a cooperatively-parked sibling — access-released and about to descend
+    // into pure libc futex/condvar machinery for its NVS ticket / GSP block /
+    // bounded poll — captures a CurrentThreadState (callee-saves spilled via
+    // ALLOCATE_AND_GET_REGISTER_STATE + stackTop in the parking caller's
+    // frame, which stays live across the park) and seq_cst-publishes a
+    // pointer to it here, paired with the publishing Thread*. The conductor's
+    // root scan (Heap::gatherStackRoots -> MachineThreads::
+    // tryCopyOtherThreadStacks) reads this seq_cst: a non-null snapshot lets
+    // it copy the saved registers + [stackTop, stackOrigin] directly and
+    // SKIP the SIGUSR2 suspend()/getRegisters()/resume() round-trip for that
+    // thread. Soundness: the snapshot is taken with access RELEASED and the
+    // only post-snapshot frames are park machinery with no JSCell*; the
+    // captured span is at-least-as-conservative as a suspend-captured one
+    // (spurious retention only). Dekker leg: publish/clear are seq_cst and
+    // pair against the conductor's GSP/stop-word seq_cst stores + the
+    // seq_cst snapshot load at scan time. Cleared seq_cst BEFORE the parking
+    // thread re-acquires heap access (gcClientDidResumeFromThreadGranularStop
+    // and the explicit per-park-episode clears at the call sites). gilOff
+    // clients are per-thread (U-T6), so the publishing Thread* is this
+    // client's stable owning thread; the server-side lookup is built per scan
+    // by walking clientSet() (HeapClientSet, frozen by I13 inside the stop
+    // window) and keying on m_parkedRootSnapshotThread — i.e. the Thread* ->
+    // GCClient::Heap* map is the existing registry plus this field.
+    // Flag-off / W=1: every publish/clear call site is inside a vm.gilOff()
+    // [[unlikely]] branch that additionally requires NOT being the §A.3
+    // conductor / Mode-stop representative — unreachable with a single
+    // thread; the fields stay zero-initialised and the scan-side path is
+    // gated on isSharedServer() (false flag-off).
+    void publishParkedRootSnapshot(WTF::Thread& thread, CurrentThreadState* snapshot)
+    {
+        m_parkedRootSnapshotThread = &thread;
+        m_parkedRootSnapshot.store(snapshot, std::memory_order_seq_cst);
+    }
+    void clearParkedRootSnapshot() { m_parkedRootSnapshot.store(nullptr, std::memory_order_seq_cst); }
+    CurrentThreadState* parkedRootSnapshot() const { return m_parkedRootSnapshot.load(std::memory_order_seq_cst); }
+    WTF::Thread* parkedRootSnapshotThread() const { return m_parkedRootSnapshotThread; }
+
     // §10A.1 current-client TLS slot (set by attachCurrentThread() and the
     // server's ISS access forwarding; cleared by detachCurrentThread();
     // releaseHeapAccess() does NOT clear it). Null on non-client threads.
@@ -2370,7 +2472,10 @@ private:
     GCThreadLocalCache m_threadLocalCache; // §5.3; initialized after the iso subspaces (declaration order).
     Atomic<uint8_t> m_accessState { noAccessState }; // §10A; seq_cst RMWs (F6/F8).
     Atomic<WTF::Thread*> m_accessOwner { nullptr }; // §10A; step-0 idempotency, I2 hand-off re-stamping, debug cross-checks.
+    WTF::Thread* m_parkedRootSnapshotThread { nullptr }; // T5-rootscan-skip: written BEFORE the seq_cst m_parkedRootSnapshot publish; read by the conductor only when that load returns non-null (the seq_cst pair orders it). Never cleared independently (stale value is harmless — gated by the snapshot pointer).
+    Atomic<CurrentThreadState*> m_parkedRootSnapshot { nullptr }; // T5-rootscan-skip: see the public accessor block above. seq_cst publish/clear by the owning thread; seq_cst load by the conductor at root-scan time.
     bool m_releasedByGCPark { false }; // §10A; written only inside VMManager::notifyVMStop (manifest 5a hooks, JSC::Heap::gcWillParkInStopTheWorld / gcDidResumeFromStopTheWorld; T5).
+    bool m_allocatedThisServerCycle { false }; // T1-sibint (SCALEBENCH §31): set on this client's first didAllocate() in the isSharedServer() leg each GC cycle (own access-holding thread only); cleared world-stopped by server Heap::updateAllocationLimits via clientSet().forEach. Feeds m_distinctAllocatingClientsThisCycle.
     Atomic<uint64_t> m_localEpoch { std::numeric_limits<uint64_t>::max() }; // §11; written ONLY by the conductor's stamping loop (world stopped) and detachCurrentThread (MAX) — attach deliberately does NOT stamp it (review round 2: a pre-access stamp can land stale across stop windows and regress bumpAndReclaim's min scan).
     bool m_isStandalone { false }; // §12.1; arms the vm() RELEASE_ASSERT (T9).
     Atomic<uint32_t> m_lastConservativeScanRegisteredUid { 0 }; // I4(b) cache (T6): uid of the last thread this client registered with machineThreads(); relaxed — a stale read merely re-runs the idempotent addCurrentThread().

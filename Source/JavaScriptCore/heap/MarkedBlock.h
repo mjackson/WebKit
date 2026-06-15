@@ -243,6 +243,32 @@ public:
             
         CellAttributes m_attributes;
         bool m_isFreeListed { false };
+        // T2-bimodal32-bvl-destructible-fastpath: per-Handle shadow of this
+        // block's directory destructible bit. Monotone-toward-true between
+        // destructor-running sweeps (specializedSweep's setBits re-derives the
+        // directory bit and this hint together under the BVL). Read lock-free
+        // (relaxed) by Handle::setIsDestructible's already-true fast path so N
+        // mutators resolving ropes into the same JSString-size block stop
+        // convoying on the single BlockDirectory::m_bitvectorLock once any one
+        // of them has done the locked flip — the W=32 bimodal slow mode was
+        // 6.4M lockSlow on that one address re-setting an already-true bit. A
+        // per-Handle bool sidesteps the m_bits Vector-resize hazard a
+        // lock-free m_bits.isDestructible() read would have against a
+        // concurrent same-directory addBlock (the rope-resolve caller holds
+        // neither MSPL nor BVL — see the setIsDestructible comment). Stale
+        // false -> fall through to the locked set; stale true is impossible
+        // mid-mutator-phase because the only false-writers (setBits, block
+        // removal) run under BVL with MSPL/world-stopped excluding the
+        // lock-free reader. Every touch is behind an isSharedServer() &&
+        // g_jscConfig.gilOffProcess gate: flag-off / W=1 never read or
+        // write it (byte-identical), and the gilOffProcess conjunct
+        // restricts the hint to the regime where ISS is process-lifetime
+        // sticky (Heap::pollIssRevertIfNeeded early-returns under
+        // gilOffProcess) — under !gilOffProcess a §10D ISS revert would
+        // otherwise strand a stale-true hint across an isEmpty
+        // directory-bit clear and permanently shadow a 2nd-epoch
+        // notifyNeedsDestruction (StringImpl ref leak).
+        bool m_isDestructibleHint { false };
         unsigned m_index { std::numeric_limits<unsigned>::max() };
 
         AlignedMemoryAllocator* m_alignedMemoryAllocator { nullptr };

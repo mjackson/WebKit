@@ -28,6 +28,7 @@
 
 #include "Heap.h"
 #include "HeapInlines.h"
+#include "MachineStackMarker.h" // T5-rootscan-skip: DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE at the class-(2) park.
 #include "VM.h"
 #include "VMLiteShared.h" // VMLiteRegistry: watchdog timeout participant dump.
 #include "VMManager.h"
@@ -80,6 +81,10 @@ void jsThreadsParkForStopWindow(VM&);
 void gcClientWillParkForThreadGranularStop();
 void gcClientDidResumeFromThreadGranularStop();
 bool gcClientReleaseAccessAndBlockForPendingSharedGCStop();
+// T5-rootscan-skip-coop-parked-suspend (heap/Heap.cpp): coop root snapshot
+// publish/clear bracketing the class-(2) ticket park below.
+void gcClientPublishParkedRootSnapshot(CurrentThreadState*);
+void gcClientClearParkedRootSnapshot();
 
 namespace JSThreadsSafepoint {
 
@@ -846,7 +851,20 @@ bool parkSitePollAndParkForStopTheWorld(VM& vm)
     uint64_t heapFactRewriteEpochOnEntry = conductorHeapFactRewriteEpoch();
     gcClientWillParkForThreadGranularStop();
     jsThreadsNotifyMutatorQuiesced();
-    jsThreadsParkForStopWindow(vm);
+    {
+        // T5-rootscan-skip-coop-parked-suspend: spill callee-saves + record
+        // stackTop in THIS frame and publish the coop snapshot for the
+        // conductor's root scan; jsThreadsParkForStopWindow is pure stripe
+        // condvar machinery below this frame (no JSCell*). Cleared on wake;
+        // didResume's redundant clear (idempotent) covers any future
+        // early-exit edge. W=1: the enclosing branch already required
+        // !jsThreadsCurrentThreadIsStopConductor() — unreachable with one
+        // thread.
+        DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE(parkedRootSnapshot);
+        gcClientPublishParkedRootSnapshot(&parkedRootSnapshot);
+        jsThreadsParkForStopWindow(vm);
+        gcClientClearParkedRootSnapshot();
+    }
     gcClientDidResumeFromThreadGranularStop();
     if (conductorHeapFactRewriteEpoch() != heapFactRewriteEpochOnEntry) [[unlikely]] {
         VMLite* selfLite = VMLite::currentIfExists();

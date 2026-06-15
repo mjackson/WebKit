@@ -165,6 +165,51 @@ void MachineThreads::tryCopyOtherThreadStack(const ThreadSuspendLocker& locker, 
     *size += stack.second;
 }
 
+// T5-rootscan-skip-coop-parked-suspend (SCALEBENCH §31, offcpu16 row #4):
+// same shape as tryCopyOtherThreadStack, but the registers and stackTop come
+// from a CurrentThreadState that the TARGET thread captured itself
+// (DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE in its parking caller's frame)
+// and seq_cst-published into its GCClient::Heap immediately before
+// descending into pure libc futex/condvar machinery with heap access
+// released. The caller's frame stays live across the park, so both the
+// CurrentThreadState struct and the RegisterState it points at are stable
+// memory; everything below `snapshot.stackTop` is post-snapshot park
+// plumbing with no JSCell* (and may still be mutating between publish and
+// the actual futex sleep, or across a bounded-wait timeout tick), so we
+// deliberately do NOT extend by the OS red-zone the way captureStack() does
+// for a suspend-captured SP — the captured span is already an
+// at-least-as-conservative superset of the thread's JS-relevant roots.
+// Called BEFORE any thread is suspended (no ThreadSuspendLocker needed) and
+// uses copyMemory only (no malloc/locks), so the suspend-phase deadlock
+// rules are trivially satisfied.
+SUPPRESS_ASAN
+void MachineThreads::tryCopyCooperativelyParkedThreadStack(Thread& thread, CurrentThreadState& snapshot, void* buffer, size_t capacity, size_t* size)
+{
+    void* registersBegin = snapshot.registerState;
+    size_t registersSize = 0;
+    if (registersBegin) {
+        void* registersEnd = reinterpret_cast<void*>(WTF::roundUpToMultipleOf<sizeof(CPURegister)>(reinterpret_cast<uintptr_t>(snapshot.registerState + 1)));
+        registersSize = static_cast<size_t>(static_cast<char*>(registersEnd) - static_cast<char*>(registersBegin));
+    }
+
+    char* begin = reinterpret_cast_ptr<char*>(snapshot.stackOrigin);
+    ASSERT(begin == reinterpret_cast_ptr<char*>(thread.stack().origin()));
+    UNUSED_PARAM(thread);
+    char* end = std::bit_cast<char*>(WTF::roundUpToMultipleOf<sizeof(CPURegister)>(reinterpret_cast<uintptr_t>(snapshot.stackTop)));
+    ASSERT(begin >= end);
+    size_t stackSize = static_cast<size_t>(begin - end);
+
+    bool canCopy = *size + registersSize + stackSize <= capacity;
+
+    if (canCopy && registersSize)
+        copyMemory(static_cast<char*>(buffer) + *size, registersBegin, registersSize);
+    *size += registersSize;
+
+    if (canCopy)
+        copyMemory(static_cast<char*>(buffer) + *size, end, stackSize);
+    *size += stackSize;
+}
+
 bool MachineThreads::includesCurrentThread()
 {
     auto& currentThread = Thread::currentSingleton();
@@ -176,7 +221,7 @@ bool MachineThreads::includesCurrentThread()
     return false;
 }
 
-bool MachineThreads::tryCopyOtherThreadStacks(const AbstractLocker& locker, void* buffer, size_t capacity, size_t* size, Thread& currentThreadForGC)
+bool MachineThreads::tryCopyOtherThreadStacks(const AbstractLocker& locker, void* buffer, size_t capacity, size_t* size, Thread& currentThreadForGC, const ScopedLambda<CurrentThreadState*(Thread&)>* coopParkedSnapshotLookup)
 {
     // Prevent two VMs from suspending each other's threads at the same time,
     // which can cause deadlock: <rdar://problem/20300842>.
@@ -189,13 +234,47 @@ bool MachineThreads::tryCopyOtherThreadStacks(const AbstractLocker& locker, void
     const ListHashSet<Ref<Thread>>& threads = m_threadGroup->threads(locker);
     BitVector isSuspended(threads.size());
 
+    // T5-rootscan-skip-coop-parked-suspend (SCALEBENCH §31, offcpu16 row #4):
+    // 2.07% of W=16 parallel-phase mutator-time was the SIGUSR2
+    // signalHandlerSuspendResume sem_wait, and 25/52 of those victims were
+    // ALREADY cooperatively parked (drainFromShared / notifyVMStop /
+    // acquireHeapAccess) — wasted suspend/resume round-trips on threads whose
+    // conservative roots are stable. When the shared-server Heap supplies a
+    // coop-parked snapshot lookup, copy those threads' published
+    // RegisterState + [stackTop, stackOrigin] directly here and exclude them
+    // from the suspend/resume loops below. Runs BEFORE any thread is
+    // suspended; uses copyMemory only (no malloc/locks). The lookup itself
+    // is a HashMap probe over a table built world-stopped under the (frozen,
+    // I13) HeapClientSet — no locks taken inside the lambda.
+    // Flag-off / non-shared (`coopParkedSnapshotLookup == nullptr`): the
+    // [[unlikely]] block is skipped, `usedCoopSnapshot` stays an empty
+    // inline BitVector that is never read (the exclusion clause below
+    // short-circuits on the same nullptr test), and the suspend path is
+    // byte-for-byte the original.
+    BitVector usedCoopSnapshot;
+    if (coopParkedSnapshotLookup) [[unlikely]] {
+        usedCoopSnapshot.ensureSize(threads.size());
+        unsigned index = 0;
+        for (const Ref<Thread>& thread : threads) {
+            if (thread.ptr() != &currentThread
+                && thread.ptr() != &currentThreadForGC) {
+                if (CurrentThreadState* snapshot = (*coopParkedSnapshotLookup)(thread.get())) {
+                    tryCopyCooperativelyParkedThreadStack(thread.get(), *snapshot, buffer, capacity, size);
+                    usedCoopSnapshot.set(index);
+                }
+            }
+            ++index;
+        }
+    }
+
     {
         ThreadSuspendLocker threadSuspendLocker;
         {
             unsigned index = 0;
             for (const Ref<Thread>& thread : threads) {
                 if (thread.ptr() != &currentThread
-                    && thread.ptr() != &currentThreadForGC) {
+                    && thread.ptr() != &currentThreadForGC
+                    && !(coopParkedSnapshotLookup && usedCoopSnapshot.get(index))) {
                     auto result = thread->suspend(threadSuspendLocker);
                     if (result)
                         isSuspended.set(index);
@@ -259,7 +338,7 @@ static void growBuffer(size_t size, void** buffer, size_t* capacity)
 // runs on a parallel marking helper (the helper itself is excluded via
 // Thread::currentSingleton(); helpers are never registered). This satisfies
 // I12's stack ∪ registers clause for all registered threads.
-void MachineThreads::gatherConservativeRoots(ConservativeRoots& conservativeRoots, JITStubRoutineSet& jitStubRoutines, CodeBlockSet& codeBlocks, CurrentThreadState* currentThreadState, Thread* currentThread)
+void MachineThreads::gatherConservativeRoots(ConservativeRoots& conservativeRoots, JITStubRoutineSet& jitStubRoutines, CodeBlockSet& codeBlocks, CurrentThreadState* currentThreadState, Thread* currentThread, const ScopedLambda<CurrentThreadState*(Thread&)>* coopParkedSnapshotLookup)
 {
     if (currentThreadState)
         gatherFromCurrentThread(conservativeRoots, jitStubRoutines, codeBlocks, *currentThreadState);
@@ -268,7 +347,7 @@ void MachineThreads::gatherConservativeRoots(ConservativeRoots& conservativeRoot
     size_t capacity = 0;
     void* buffer = nullptr;
     Locker locker { m_threadGroup->getLock() };
-    while (!tryCopyOtherThreadStacks(locker, buffer, capacity, &size, *currentThread))
+    while (!tryCopyOtherThreadStacks(locker, buffer, capacity, &size, *currentThread, coopParkedSnapshotLookup))
         growBuffer(size, &buffer, &capacity);
 
     if (!buffer)

@@ -46,7 +46,19 @@ class MachineThreads {
 public:
     MachineThreads();
 
-    void gatherConservativeRoots(ConservativeRoots&, JITStubRoutineSet&, CodeBlockSet&, CurrentThreadState*, Thread*);
+    // T5-rootscan-skip-coop-parked-suspend: the optional
+    // `coopParkedSnapshotLookup` lets the shared-server Heap hand in a
+    // Thread* -> CurrentThreadState* lookup for siblings that are
+    // cooperatively parked with a published register/stack snapshot
+    // (GCClient::Heap::m_parkedRootSnapshot). For each registered thread the
+    // suspend-and-copy loop first consults the lookup; on a hit it copies the
+    // saved snapshot directly (tryCopyCooperativelyParkedThreadStack) and
+    // SKIPS the SIGUSR2 suspend()/getRegisters()/resume() round-trip.
+    // Passing nullptr (the default — every flag-off / non-shared call site)
+    // leaves the original suspend-everything path byte-for-byte: the lookup
+    // branch is gated [[unlikely]] on the pointer and the per-thread
+    // exclusion clause short-circuits on the same nullptr test.
+    void gatherConservativeRoots(ConservativeRoots&, JITStubRoutineSet&, CodeBlockSet&, CurrentThreadState*, Thread*, const ScopedLambda<CurrentThreadState*(Thread&)>* coopParkedSnapshotLookup = nullptr);
 
     // Only needs to be called by clients that can use the same heap from multiple threads.
     bool addCurrentThread() { return Ref { m_threadGroup }->addCurrentThread() == ThreadGroupAddResult::NewlyAdded; }
@@ -64,7 +76,8 @@ private:
     void gatherFromCurrentThread(ConservativeRoots&, JITStubRoutineSet&, CodeBlockSet&, CurrentThreadState&);
 
     void tryCopyOtherThreadStack(const ThreadSuspendLocker&, Thread&, void*, size_t capacity, size_t*);
-    bool tryCopyOtherThreadStacks(const AbstractLocker&, void*, size_t capacity, size_t*, Thread&);
+    void tryCopyCooperativelyParkedThreadStack(Thread&, CurrentThreadState&, void*, size_t capacity, size_t*);
+    bool tryCopyOtherThreadStacks(const AbstractLocker&, void*, size_t capacity, size_t*, Thread&, const ScopedLambda<CurrentThreadState*(Thread&)>*);
 
     Ref<ThreadGroup> m_threadGroup;
 };

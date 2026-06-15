@@ -30,6 +30,7 @@
 #include "JSCConfig.h"
 #include "JSLock.h"
 #include "JSThreadsSafepoint.h" // UNGIL §A.3 (U-T5): stop watchdog (annex App. 5.6(d)).
+#include "MachineStackMarker.h" // T5-rootscan-skip: DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE at the sibling park sites.
 #include "VM.h"
 #include "VMEntryScopeInlines.h"
 #include "VMLite.h" // UNGIL §A.3.1/EXIT1 (U-T5): the entered-thread set IS the lite registry.
@@ -252,6 +253,10 @@ void gcClientDidResumeFromThreadGranularStop();
 // Defined in heap/Heap.cpp (T1-gc-siblings-mark): sibling parallel-marking
 // assist; true iff a marking phase was open and the sibling drained it.
 bool gcSiblingAssistMarkingIfEnabled();
+// Defined in heap/Heap.cpp (T5-rootscan-skip-coop-parked-suspend): publish /
+// clear the cooperative root snapshot bracketing each pure-park span.
+void gcClientPublishParkedRootSnapshot(CurrentThreadState*);
+void gcClientClearParkedRootSnapshot();
 // Defined in runtime/VMLite.cpp (U-T5): ANNEX ISB1.
 void jsThreadsBumpStopGeneration();
 void jsThreadsNVSExitInstructionSync();
@@ -1152,12 +1157,42 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
     // ========================================================================
     bool isGilOffRepresentative = false;
     if (vm.gilOff()) [[unlikely]] {
+        // T5-rootscan-skip (T5-amend, review-major lifetime): site (b)'s
+        // publish below wraps a BOUNDED 1ms waitFor; the conductor's root
+        // scan re-loads the snapshot pointer seq_cst at use time (Heap.cpp
+        // gatherStackRoots T5-amend), but the seq_cst-load->dereference
+        // window can still race a sibling that has cleared and looped if the
+        // struct were block-scoped to the wait. Declare it HERE so the
+        // CurrentThreadState + RegisterState storage stays live for the
+        // entire sibling tenure (every for(;;) iteration): a stale read sees
+        // last-spilled, valid stackTop/stackOrigin/registerState in a live
+        // frame (conservative-safe; spurious retention only). stackTop =
+        // &siblingPollRootSnapshot is at THIS scope (above the for-body's
+        // Locker / assist machinery), so [stackTop, stackOrigin] is a strict
+        // superset of the in-block capture; callee-saves spilled once here
+        // are by definition stable across every call below. Site (a) keeps
+        // its own in-block capture (its untimed park already pins the struct
+        // for the conductor's full root scan). W=1: this scope is entered
+        // (one register spill, ~tens of ns, off any hot path) but site (b)
+        // is unreachable (sole thread is always the representative);
+        // flag-off never reaches this block.
+        DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE(siblingPollRootSnapshot);
         for (;;) {
             // (a) §A.3 ticket: an open thread-granular window parks us first.
             if (jsThreadsStopPendingFor(vm) && !jsThreadsCurrentThreadIsStopConductor()) {
                 gcClientWillParkForThreadGranularStop();
                 jsThreadsNotifyMutatorQuiesced();
+                // T5-rootscan-skip-coop-parked-suspend: spill callee-saves +
+                // record stackTop in THIS frame and publish the snapshot for
+                // the conductor's root scan, then ticket-park (pure condvar
+                // machinery below this frame, no JSCell*). Cleared on wake;
+                // the frame stays live across jsThreadsParkForStopWindow so
+                // the snapshot stays valid. W=1: this branch requires NOT
+                // being the §A.3 conductor — unreachable with one thread.
+                DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE(parkedRootSnapshot);
+                gcClientPublishParkedRootSnapshot(&parkedRootSnapshot);
                 jsThreadsParkForStopWindow(vm);
+                gcClientClearParkedRootSnapshot();
                 continue; // Re-evaluate: a Mode-machine stop may have arrived meanwhile.
             }
             // (b) Mode-machine stop: representative election under m_worldLock.
@@ -1218,12 +1253,35 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
             if (gcSiblingAssistMarkingIfEnabled())
                 continue;
             {
-                Locker lock { m_worldLock };
-                // Bounded wait: resume paths notify this condition; the
-                // timeout keeps the §A.3-word/representative re-evaluation
-                // live (the §A.3 conductor and the representative cannot
-                // reach every parked sibling's condition deterministically).
-                m_worldConditionVariable.waitFor(m_worldLock, Seconds::fromMilliseconds(1));
+                // T5-rootscan-skip-coop-parked-suspend (offcpu16 row #4,
+                // 5/52 notifyVMStop victims + the T4-admission-capped
+                // siblings that fall through here instead of into
+                // drainFromShared): the bounded condvar wait below is a
+                // pure-park span. Spill callee-saves + record stackTop in
+                // THIS frame, publish, wait, clear — all in one block so the
+                // RegisterState/stackTop locals outlive the publish. NOT
+                // hoisted above gcSiblingAssistMarkingIfEnabled(): an
+                // admitted assist RUNS HelperDrain marking with live JSCell*
+                // on its stack and MUST stay a suspend() target (no snapshot
+                // published). W=1: this whole sibling branch requires NOT
+                // being the elected representative — unreachable with one
+                // thread. LIFETIME (T5-amend): the published struct is the
+                // siblingPollRootSnapshot declared at the enclosing gilOff
+                // scope above the for(;;), so its storage outlives the 1ms
+                // bounded wait AND every subsequent loop iteration; the
+                // conductor's seq_cst re-load at use time (Heap.cpp
+                // gatherStackRoots) sees either the still-valid struct or
+                // the post-clear null (falls back to suspend).
+                gcClientPublishParkedRootSnapshot(&siblingPollRootSnapshot);
+                {
+                    Locker lock { m_worldLock };
+                    // Bounded wait: resume paths notify this condition; the
+                    // timeout keeps the §A.3-word/representative re-evaluation
+                    // live (the §A.3 conductor and the representative cannot
+                    // reach every parked sibling's condition deterministically).
+                    m_worldConditionVariable.waitFor(m_worldLock, Seconds::fromMilliseconds(1));
+                }
+                gcClientClearParkedRootSnapshot();
             }
         }
         if (!isGilOffRepresentative) {

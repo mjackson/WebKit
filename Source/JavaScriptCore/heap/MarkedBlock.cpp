@@ -663,7 +663,19 @@ void MarkedBlock::Handle::didRemoveFromDirectory()
 {
     ASSERT(m_index != std::numeric_limits<unsigned>::max());
     ASSERT(m_directory);
-    
+
+    // T2-bimodal32: drop the destructible hint when the block leaves its
+    // directory (steal/shrink) so a later didAddToDirectory into a fresh slot
+    // — whose directory bits start cleared — never sees a stale-true hint.
+    // removeBlock runs under BVL + MSPL-exclusive/world-stopped, so no
+    // lock-free hint reader is concurrent; gated isSharedServer() &&
+    // gilOffProcess (matching every other hint touch — see the
+    // Handle::setIsDestructible comment) to keep flag-off / W=1 codegen
+    // unchanged and the hint inert wherever ISS is not process-lifetime
+    // sticky.
+    if (m_directory->heap().isSharedServer() && g_jscConfig.gilOffProcess) [[unlikely]]
+        WTF::atomicStore(&m_isDestructibleHint, false, std::memory_order_relaxed);
+
     m_index = std::numeric_limits<unsigned>::max();
     m_directory = nullptr;
     blockHeader().m_subspace = nullptr;
