@@ -447,10 +447,13 @@ struct ButterflySpine {
     // with another thread's view of the same words. Identical codegen to the
     // plain reads; debug ASSERTs use them too in case the TSAN rig builds
     // with ASSERT_ENABLED (review amendment E).
-    uint32_t outOfLineFragmentCountConcurrent() const { return butterflyConcurrentLoad(&outOfLineFragmentCount); }
-    uint32_t indexedFragmentCountConcurrent() const { return butterflyConcurrentLoad(&indexedFragmentCount); }
-    uint32_t vectorLengthConcurrent() const { return butterflyConcurrentLoad(&vectorLength); }
-    uint32_t totalFragmentCountConcurrent() const { return outOfLineFragmentCountConcurrent() + indexedFragmentCountConcurrent(); }
+    // T2-segmented-accessors-inline: ALWAYS_INLINE — these and the slot
+    // resolvers below are the hot spine→fragment→slot arithmetic; perf
+    // showed them behind out-of-line frames at W>=2.
+    ALWAYS_INLINE uint32_t outOfLineFragmentCountConcurrent() const { return butterflyConcurrentLoad(&outOfLineFragmentCount); }
+    ALWAYS_INLINE uint32_t indexedFragmentCountConcurrent() const { return butterflyConcurrentLoad(&indexedFragmentCount); }
+    ALWAYS_INLINE uint32_t vectorLengthConcurrent() const { return butterflyConcurrentLoad(&vectorLength); }
+    ALWAYS_INLINE uint32_t totalFragmentCountConcurrent() const { return outOfLineFragmentCountConcurrent() + indexedFragmentCountConcurrent(); }
 
     // V7 (TSAN): the publish/consume happens-before pair. The constructing
     // thread calls tsanPublish() after the LAST pre-publication store to the
@@ -460,19 +463,19 @@ struct ButterflySpine {
     // clock, so TSAN sees a happens-before edge covering ALL plain
     // pre-publication initialization reached through the spine — not just
     // the individually annotated words. No-ops outside TSAN.
-    void tsanPublish() const { TSAN_ANNOTATE_HAPPENS_BEFORE(this); }
-    void tsanConsume() const { TSAN_ANNOTATE_HAPPENS_AFTER(this); }
+    ALWAYS_INLINE void tsanPublish() const { TSAN_ANNOTATE_HAPPENS_BEFORE(this); }
+    ALWAYS_INLINE void tsanConsume() const { TSAN_ANNOTATE_HAPPENS_AFTER(this); }
 
-    ButterflyFragment** fragments() { return reinterpret_cast<ButterflyFragment**>(this + 1); }
-    ButterflyFragment* const* fragments() const { return reinterpret_cast<ButterflyFragment* const*>(this + 1); }
+    ALWAYS_INLINE ButterflyFragment** fragments() { return reinterpret_cast<ButterflyFragment**>(this + 1); }
+    ALWAYS_INLINE ButterflyFragment* const* fragments() const { return reinterpret_cast<ButterflyFragment* const*>(this + 1); }
 
-    ButterflyFragment* outOfLineFragment(unsigned fragmentIndex) const
+    ALWAYS_INLINE ButterflyFragment* outOfLineFragment(unsigned fragmentIndex) const
     {
         ASSERT(fragmentIndex < outOfLineFragmentCountConcurrent());
         return butterflyConcurrentLoad(&fragments()[fragmentIndex]);
     }
 
-    ButterflyFragment* indexedFragment(unsigned fragmentIndex) const
+    ALWAYS_INLINE ButterflyFragment* indexedFragment(unsigned fragmentIndex) const
     {
         ASSERT(fragmentIndex < indexedFragmentCountConcurrent());
         return butterflyConcurrentLoad(&fragments()[outOfLineFragmentCountConcurrent() + fragmentIndex]);
@@ -483,7 +486,7 @@ struct ButterflySpine {
     // caller loaded a stale spine and must acquire-re-load the tagged word and
     // re-dispatch; the nullptr-returning wrappers in ConcurrentButterfly.h
     // (segmentedOutOfLineSlotIfWithinBounds) encode that protocol.
-    WriteBarrierBase<Unknown>* outOfLineSlot(unsigned outOfLineIndex) const
+    ALWAYS_INLINE WriteBarrierBase<Unknown>* outOfLineSlot(unsigned outOfLineIndex) const
     {
         ASSERT(static_cast<uint64_t>(outOfLineIndex) < static_cast<uint64_t>(butterflyFragmentSlots) * outOfLineFragmentCountConcurrent()); // I33
         return &outOfLineFragment(butterflyOutOfLineIndexToFragment(outOfLineIndex))->slots[butterflyOutOfLineIndexToSlot(outOfLineIndex)];
@@ -495,7 +498,7 @@ struct ButterflySpine {
     // min(publicLength, vectorLength) of the SAME loaded spine (I33) and
     // re-dispatch beyond it. Never resolves to fragment 0 slot 0 (the frozen
     // IndexingHeader) by construction of the +1 mapping.
-    WriteBarrierBase<Unknown>* indexedSlot(unsigned index) const
+    ALWAYS_INLINE WriteBarrierBase<Unknown>* indexedSlot(unsigned index) const
     {
         ASSERT(index < vectorLengthConcurrent()); // C4
         unsigned fragmentIndex = butterflyIndexedIndexToFragment(index);
@@ -510,13 +513,13 @@ struct ButterflySpine {
     // frozen flat-era vectorLength (I9b). Header-less spines have no header
     // fragment, so these RELEASE_ASSERT (C2). Plain 32-bit atomicity is all
     // C4 requires (SAB-granularity staleness is legal).
-    uint32_t publicLength() const
+    ALWAYS_INLINE uint32_t publicLength() const
     {
         RELEASE_ASSERT(indexedFragmentCountConcurrent()); // C2
         return WTF::atomicLoad(headerSlotWord(0), std::memory_order_relaxed);
     }
 
-    void setPublicLength(uint32_t value)
+    ALWAYS_INLINE void setPublicLength(uint32_t value)
     {
         RELEASE_ASSERT(indexedFragmentCountConcurrent()); // C2
         WTF::atomicStore(headerSlotWord(0), value, std::memory_order_relaxed);
@@ -531,7 +534,7 @@ struct ButterflySpine {
     // is published with the length — see Butterfly::bumpPublicLengthToAtLeast
     // for the full I21 publication rationale and the recorded reader-side
     // (ARM64 acquire) KNOWN RESIDUAL.
-    void bumpPublicLengthToAtLeast(uint32_t newLength)
+    ALWAYS_INLINE void bumpPublicLengthToAtLeast(uint32_t newLength)
     {
         RELEASE_ASSERT(indexedFragmentCountConcurrent()); // C2
         uint32_t* location = headerSlotWord(0);
@@ -568,7 +571,7 @@ struct ButterflySpine {
     }
 
 private:
-    uint32_t* headerSlotWord(unsigned halfIndex) const
+    ALWAYS_INLINE uint32_t* headerSlotWord(unsigned halfIndex) const
     {
         return reinterpret_cast<uint32_t*>(indexedFragment(0)->slots) + halfIndex;
     }

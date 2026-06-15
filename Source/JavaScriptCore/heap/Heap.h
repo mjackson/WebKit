@@ -1539,25 +1539,12 @@ private:
     // them at the end.
     Vector<std::unique_ptr<SlotVisitor>> m_parallelSlotVisitors;
     Vector<SlotVisitor*> m_availableParallelSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
-
-    // T1-gc-siblings-mark: per-sibling parallel SlotVisitor pool. The W-1
-    // gilOff Mode-machine SIBLINGS (parked access-released at
-    // VMManager::notifyVMStop while the elected representative runs
-    // conductSharedCollection) join marking exactly as the heapHelperPool
-    // helpers do — drainFromShared(HelperDrain) on a visitor from THIS pool
-    // (lazily grown; a fresh visitor gets didStartMarking() at creation so
-    // its m_markingVersion is current). Kept SEPARATE from
-    // m_availableParallelSlotVisitors so the pool helpers' apriori-count
-    // RELEASE_ASSERT stays sound. Growth and forEachSlotVisitor's iteration
-    // of this vector both serialize on m_parallelSlotVisitorLock; the
-    // mayGrow sticky bit gates that lock acquisition so flag-off
-    // forEachSlotVisitor is byte-identical (the bit is set ONLY by the
-    // conductor under the gilOff gate in runBeginPhase, BEFORE any sibling
-    // is enabled, so a false read can never race a growth).
-    Vector<std::unique_ptr<SlotVisitor>> m_siblingSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
-    Vector<SlotVisitor*> m_availableSiblingSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
-    Atomic<bool> m_siblingSlotVisitorPoolMayGrow { false };
-
+    // T4-heap-layout-restore: the T1-gc-siblings-mark sibling SlotVisitor
+    // pool (m_siblingSlotVisitors / m_availableSiblingSlotVisitors /
+    // m_siblingSlotVisitorPoolMayGrow) was MOVED to the campaign-2 trailer
+    // block at the end of `class Heap` so m_handleSet and every member after
+    // it keeps its pre-campaign-2 (729430dbc80c) offset. See the trailer
+    // comment for the full protocol.
     HandleSet m_handleSet;
     std::unique_ptr<CodeBlockSet> m_codeBlocks;
     // §5.8 record-named CodeBlock pins — see pinRetiredCallLinkRecordCodeBlock.
@@ -1667,19 +1654,12 @@ private:
     // m_markingMutex-protected marker counters) from the marking hot loop.
     bool m_parallelMarkersShouldPause { false };
     unsigned m_pausedParallelMarkers { 0 };
-    // T1-gc-siblings-mark: BOTH guarded by m_markingMutex. assistEnabled is
-    // raised by runBeginPhase (after forEachSlotVisitor(didStartMarking) +
-    // m_parallelMarkersShouldExit=false; gilOff-only) and lowered by
-    // runEndPhase in the SAME critical section that sets shouldExit — so a
-    // sibling that observes enabled==true under the mutex is guaranteed
-    // shouldExit==false at that instant and the cycle's didStartMarking has
-    // happened-before via the mutex. The count tracks siblings BETWEEN that
-    // observe and their post-drain decrement; runEndPhase waits it to zero
-    // after m_helperClient.finish() (the shouldExit notifyAll wakes them),
-    // restoring the active==waiting==paused==0 invariant before the ASSERT
-    // block and endMarking()'s reset() walk. Flag-off: never set/nonzero.
-    bool m_siblingMarkingAssistEnabled { false };
-    unsigned m_numberOfSiblingMarkingAssists { 0 };
+    // T4-heap-layout-restore: the T1-gc-siblings-mark assist gate
+    // (m_siblingMarkingAssistEnabled / m_numberOfSiblingMarkingAssists) was
+    // MOVED to the campaign-2 trailer block at the end of `class Heap` so
+    // m_opaqueRoots / m_helperClient / m_worldState keep their
+    // pre-campaign-2 (729430dbc80c) offsets. See the trailer comment for
+    // the full protocol.
 
     ConcurrentPtrHashSet m_opaqueRoots;
     static constexpr size_t s_blockFragmentLength = 32;
@@ -1704,8 +1684,20 @@ private:
 
     // --- Shared heap server state (SPEC-heap.md §5.1; THREADS T1) ---
     HeapClientSet m_clientSet;
-    MutatorSlowPathLockFacade m_mutatorSlowPathLock; // MSPL, rank 7 (§5.2/§5.6); T7: striped RW facade.
-    Lock m_markedSpaceRegistryLock; // T7-mspl-per-directory, rank 7r (leaf); see markedSpaceRegistryLock().
+    // T4-heap-layout-restore: pre-campaign-2 (729430dbc80c) this slot was
+    // `Lock m_mutatorSlowPathLock` — a 1-byte WTF::Lock. Campaign-2's T7
+    // replaced it in place with the ~32-byte MutatorSlowPathLockFacade and
+    // appended m_markedSpaceRegistryLock, shifting every member below
+    // (m_gcConductorLock, m_threadLock, every IsoSubspace, …) and costing
+    // +2.7% GIL-on W=1 wall purely from cache-line / inlining drift (§25).
+    // The facade and registry lock are MOVED to the campaign-2 trailer
+    // block at the end of `class Heap`; this 1-byte pad restores the exact
+    // pre-campaign-2 offset of every downstream member. NEVER referenced;
+    // `mutatorSlowPathLock()` returns the trailer facade. The static_assert
+    // pins WTF::Lock at 1 byte so a future Lock growth re-triggers this
+    // audit.
+    Lock m_unusedPadMutatorSlowPathLock;
+    static_assert(sizeof(Lock) == 1, "T4-heap-layout-restore pad assumes the pre-campaign-2 1-byte WTF::Lock");
     Lock m_gcConductorLock; // GCL, rank 2 (§10/§10C).
     Lock m_gcBarrierLock; // GBL, rank 4 (§10.4/F7).
     Condition m_gcBarrierCondition; // GBC; signaled by clients releasing access while GSP (F8).
@@ -2063,6 +2055,95 @@ public:
 #undef DEFINE_NON_ISO_SUBSPACE_MEMBER
 
     CString m_signpostMessage;
+
+private:
+    // ---------------------------------------------------------------------
+    // T4-heap-layout-restore: CAMPAIGN-2 TRAILER BLOCK.
+    //
+    // Every member that campaign-2 (729430dbc80c..d8ed7b6f5254) inserted
+    // into the MIDDLE of `class Heap` is collected here, in one contiguous
+    // block AFTER the last pre-campaign-2 member (m_signpostMessage), so
+    // every hot pre-existing field — m_objectSpace, m_handleSet,
+    // m_opaqueRoots, m_helperClient, m_worldState, m_barrierThreshold,
+    // m_mutatorState, m_threadLock, the allocation counters, every
+    // IsoSubspace — sits at its EXACT pre-campaign-2 byte offset again.
+    // SCALEBENCH §25 measured the mid-class growth at +2.7% GIL-on W=1
+    // wall (5-rep interleaved A/B, reproducible) with NO new code path
+    // running in that configuration: the regression was purely structural
+    // (cache-line shift + inlining-decision drift on the allocation slow
+    // path). The one in-place type change (Lock -> MutatorSlowPathLockFacade
+    // at the old m_mutatorSlowPathLock slot) is back-filled with the 1-byte
+    // `m_unusedPadMutatorSlowPathLock` above; the real facade lives here.
+    //
+    // Pure declaration reordering — zero behavior change in any
+    // configuration. None of these members appear in the Heap::Heap()
+    // member-init list (all in-class default-initialized), so no -Wreorder.
+    // Flag-off: every member here is dead state (never read, never
+    // written); the only flag-off observable is `sizeof(Heap)`, which grows
+    // by the trailer — harmless (Heap is a singleton-per-VM, heap-
+    // allocated). Future campaign additions: append HERE, never mid-class.
+    // ---------------------------------------------------------------------
+
+    // T7-mspl-per-directory: MSPL striped RW facade (rank 7; §5.2/§5.6) —
+    // see MutatorSlowPathLockFacade above for the full protocol. Moved from
+    // the §5.1 server-state cluster; `mutatorSlowPathLock()` returns this.
+    MutatorSlowPathLockFacade m_mutatorSlowPathLock;
+    // T7-mspl-per-directory, rank 7r (leaf); see markedSpaceRegistryLock().
+    Lock m_markedSpaceRegistryLock;
+
+    // T1-gc-siblings-mark: per-sibling parallel SlotVisitor pool. The W-1
+    // gilOff Mode-machine SIBLINGS (parked access-released at
+    // VMManager::notifyVMStop while the elected representative runs
+    // conductSharedCollection) join marking exactly as the heapHelperPool
+    // helpers do — drainFromShared(HelperDrain) on a visitor from THIS pool
+    // (lazily grown; a fresh visitor gets didStartMarking() at creation so
+    // its m_markingVersion is current). Kept SEPARATE from
+    // m_availableParallelSlotVisitors so the pool helpers' apriori-count
+    // RELEASE_ASSERT stays sound. Growth and forEachSlotVisitor's iteration
+    // of this vector both serialize on m_parallelSlotVisitorLock; the
+    // mayGrow sticky bit gates that lock acquisition so flag-off
+    // forEachSlotVisitor is byte-identical (the bit is set ONLY by the
+    // conductor under the gilOff gate in runBeginPhase, BEFORE any sibling
+    // is enabled, so a false read can never race a growth).
+    Vector<std::unique_ptr<SlotVisitor>> m_siblingSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
+    Vector<SlotVisitor*> m_availableSiblingSlotVisitors WTF_GUARDED_BY_LOCK(m_parallelSlotVisitorLock);
+    Atomic<bool> m_siblingSlotVisitorPoolMayGrow { false };
+
+    // T1-gc-siblings-mark: BOTH guarded by m_markingMutex. assistEnabled is
+    // raised by runBeginPhase (after forEachSlotVisitor(didStartMarking) +
+    // m_parallelMarkersShouldExit=false; gilOff-only) and lowered by
+    // runEndPhase in the SAME critical section that sets shouldExit — so a
+    // sibling that observes enabled==true under the mutex is guaranteed
+    // shouldExit==false at that instant and the cycle's didStartMarking has
+    // happened-before via the mutex. The count tracks siblings BETWEEN that
+    // observe and their post-drain decrement; runEndPhase waits it to zero
+    // after m_helperClient.finish() (the shouldExit notifyAll wakes them),
+    // restoring the active==waiting==paused==0 invariant before the ASSERT
+    // block and endMarking()'s reset() walk. Flag-off: never set/nonzero.
+    bool m_siblingMarkingAssistEnabled { false };
+    unsigned m_numberOfSiblingMarkingAssists { 0 };
+
+    // T4-heap-layout-restore: config-independent layout guards. These hold iff
+    // every campaign-2-added member sits in the trailer block (i.e. AFTER the
+    // hot pre-campaign-2 fields they used to displace). A future mid-class
+    // insertion that re-shifts a hot member trips one of these at compile time.
+    // Wrapped in a (never-called) static member function body so the asserts
+    // see Heap as a COMPLETE type — OBJECT_OFFSETOF (== __builtin_offsetof)
+    // rejects an incomplete type at class-member-declaration scope, and at
+    // namespace scope Clang enforces access control on the private members
+    // it names. A member-function body is a complete-class context AND has
+    // private access, satisfying both constraints.
+    static constexpr void checkCampaign2TrailerLayout()
+    {
+        static_assert(OBJECT_OFFSETOF(Heap, m_handleSet) < OBJECT_OFFSETOF(Heap, m_siblingSlotVisitors),
+            "T4-heap-layout-restore: sibling-visitor pool must be in the trailer (after m_handleSet)");
+        static_assert(OBJECT_OFFSETOF(Heap, m_opaqueRoots) < OBJECT_OFFSETOF(Heap, m_siblingMarkingAssistEnabled),
+            "T4-heap-layout-restore: sibling-assist gate must be in the trailer (after m_opaqueRoots)");
+        static_assert(OBJECT_OFFSETOF(Heap, m_worldState) < OBJECT_OFFSETOF(Heap, m_mutatorSlowPathLock),
+            "T4-heap-layout-restore: MSPL facade must be in the trailer (after m_worldState)");
+        static_assert(OBJECT_OFFSETOF(Heap, m_signpostMessage) < OBJECT_OFFSETOF(Heap, m_mutatorSlowPathLock),
+            "T4-heap-layout-restore: campaign-2 trailer must follow the last pre-campaign-2 member");
+    }
 };
 
 // SharedGC (§5.2/§5.6): RAII that takes the server's mutator-slow-path lock

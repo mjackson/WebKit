@@ -1211,6 +1211,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/ConcatKeyAtomStringCacheInlines.h
     runtime/Concurrency.h
     runtime/ConcurrentButterfly.h
+    runtime/ConcurrentButterflyInlines.h
     runtime/ConcurrentJSLock.h
     runtime/ConditionObject.h
     runtime/ConfigFile.h

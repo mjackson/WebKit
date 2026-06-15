@@ -262,6 +262,58 @@ ALWAYS_INLINE void JSArray::pushInline(JSGlobalObject* globalObject, JSValue val
     // generic putByIndex protocol.
     if (Options::useJSThreads()) [[unlikely]] {
         uint64_t word = taggedButterflyWord();
+        // T6-segmented-push-fastpath (SCALEBENCH §25 Phase A): once a posting
+        // array segments, every per-doc push(d) was falling out of the inline
+        // bump and through the out-of-line §9.5 driver (putIndexConcurrent —
+        // JS_EXPORT_PRIVATE, full mode/word re-decode, ensureSharedWriteBit
+        // probe). Add the within-vectorLength fast arm HERE for segmented
+        // Int32/Double/Contiguous: load spine → publicLength (C4), check
+        // < spine->vectorLength, resolve fragment slot via the T2-inlined
+        // segmentedIndexedSlot, store, CAS-max bumpPublicLengthToAtLeast,
+        // return. Mirrors the flat owner-exclusive bump below 1:1.
+        // Soundness: segmented words are (notTTLTID, 1) by construction (I3/
+        // I4) so no F1 ensureSharedWriteBit is needed; vectorLength is
+        // immutable per spine (§4.1) so the bound check + slot resolve on the
+        // SAME loaded spine is C4-sound; bumpPublicLengthToAtLeast is the
+        // monotone release CAS-max (I21 — racing growers / publication).
+        // Misses (shape transition, oldLength >= vectorLength i.e. spine
+        // grow) fall through to the §9.5 driver below — same residue routing
+        // as before, just no longer the hot path.
+        if (isSegmentedButterfly(word)) {
+            ButterflySpine* spine = butterflySpine(word);
+            spine->tsanConsume(); // V7
+            uint32_t oldLength = spine->publicLength();
+            if (oldLength < spine->vectorLengthConcurrent()) [[likely]] {
+                switch (indexingMode()) {
+                case ArrayWithInt32:
+                    if (value.isInt32()) [[likely]] {
+                        spine->indexedSlot(oldLength)->setWithoutWriteBarrier(value);
+                        spine->bumpPublicLengthToAtLeast(oldLength + 1);
+                        return;
+                    }
+                    break; // shape transition → §9.5 driver / §4.7 relabel.
+                case ArrayWithContiguous:
+                    spine->indexedSlot(oldLength)->set(vm, this, value);
+                    spine->bumpPublicLengthToAtLeast(oldLength + 1);
+                    return;
+                case ArrayWithDouble: {
+                    ASSERT(Options::allowDoubleShape());
+                    if (value.isNumber()) [[likely]] {
+                        double d = value.asNumber();
+                        if (d == d) [[likely]] {
+                            // §4.7 raw double lane; relaxed atomic (intentionally racy JS value word).
+                            WTF::atomicStore(std::bit_cast<double*>(spine->indexedSlot(oldLength)), d, std::memory_order_relaxed);
+                            spine->bumpPublicLengthToAtLeast(oldLength + 1);
+                            return;
+                        }
+                    }
+                    break; // NaN / non-number → §9.5 driver / §4.7 relabel.
+                }
+                default:
+                    break; // Undecided / AS / SlowPut → §9.5 driver below.
+                }
+            }
+        }
         if (isSegmentedButterfly(word)
             || ((word & butterflyPointerMask)
                 && (butterflySharedWrite(word) || butterflyWriterIsForeign(word)))) {

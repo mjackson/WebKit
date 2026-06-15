@@ -1113,8 +1113,22 @@ same instant and is the meaningful number.
 - W=16 cpu_util crosses **0.43** (median of 0.426/0.432/0.431) — the first
   time this branch has exceeded the 0.40 gate. W=32 rises to 0.29.
 - W>=2 RSS roughly halves (3.7–3.9 GB -> 1.5–1.8 GB); the residual is
-  dominated by per-thread allocator state and the steady-state segmented
-  butterfly population — the next memory target.
+  **N-mutator eden floating garbage** — with N concurrent mutators every
+  eden cycle roots N live stacks, so sibling mutators' in-flight
+  temporaries get promoted past the eden boundary and the
+  `m_maxHeapSize = std::max(m_maxHeapSize, currentHeapSize + m_maxEdenSize)`
+  ratchet (Heap.cpp updateAllocationLimits) climbs monotonically without
+  the `edenToOldGenerationRatio < 1/3` Full trigger ever firing. rss3
+  REFUTED the original attribution here ("per-thread allocator state +
+  segmented-butterfly steady-state"): `JSC_forceSegmentedButterflies=1`
+  W=1 peaks at 183MB after eden (vs W=2's 774MB), and per-thread allocator
+  state is bounded at ~6.7MB/thread ((RSS@W=32 - RSS@W=2) / 30). The
+  GC-heap peak-after-eden delta W=1->W=2 is +1001MB = 85% of the +1176MB
+  peak-RSS delta; W=2 floating dead = 774MB peak - 143MB true live =
+  631MB. Fixed by **T5-rss-eden-floating-garbage (campaign-3)** — a
+  shared-only (>=2 clients) Full-collection trigger + ratchet cap at
+  `sizeAfterLastFullCollect * sharedGCEdenSurvivalFullTriggerRatio`
+  (default 2.0) in the eden branch of `Heap::updateAllocationLimits()`.
 - W=1 GIL-off tax: 24527 / 15799 = **1.55x** (§24: 1.66x), but on a
   same-host basis 24587 / 15659 = 1.57x, vs baseline 25025 / 15659 = 1.60x.
 - Honest negatives: GIL-on W=1 wall +2.7% same-host (5-rep interleaved A/B,
@@ -1125,7 +1139,11 @@ same instant and is the meaningful number.
   below); the residual is structural — `Heap` layout grew by the
   `MutatorSlowPathLockFacade`, the registry lock, and the sibling-visitor
   pool, shifting hot members' cache lines and inlining decisions. Within the
-  5% gate; flagged for the next layout audit. GIL-off W=1 wall +2.9% vs §24
+  5% gate; **fixed by T4-heap-layout-restore (campaign-3)** — every
+  campaign-2-added member moved to a contiguous trailer block at the end of
+  `class Heap`, the old 1-byte `Lock m_mutatorSlowPathLock` slot back-filled
+  with a 1-byte pad, so every pre-campaign-2 member offset is byte-identical
+  to `729430dbc80c` (relational `static_assert`s pin this). GIL-off W=1 wall +2.9% vs §24
   but -2.0% same-host (i.e. host drift only), RSS +3.6% same-host (the
   shared-heap path's T3 alignment requesting one size class up on small
   arrays). GIL-off W=2 cpu_util -1.7% (0.871 -> 0.855) — wall improved
@@ -1151,3 +1169,154 @@ same-host). No same-host cell regresses >5% (worst: GIL-on W=1 wall +2.7%,
 GIL-off W=1 RSS +3.6%). The campaign-2 delta is the first measurement where
 W>=8 wall dips below the GIL-off W=1 wall — i.e. adding threads now makes
 the program *faster*, not just less-slow.
+
+## 26. Campaign-3 T4-heap-layout-restore — GIL-on W=1 layout regression
+
+Mandatory follow-up to the §25 honest-negative. Pure declaration reorder in
+`Source/JavaScriptCore/heap/Heap.h`: every member campaign-2 inserted
+mid-class (`MutatorSlowPathLockFacade m_mutatorSlowPathLock`,
+`m_markedSpaceRegistryLock`, `m_siblingSlotVisitors` /
+`m_availableSiblingSlotVisitors` / `m_siblingSlotVisitorPoolMayGrow`,
+`m_siblingMarkingAssistEnabled` / `m_numberOfSiblingMarkingAssists`) moved
+to one trailer block after the last pre-campaign-2 member; the old
+`Lock m_mutatorSlowPathLock` slot back-filled with the 1-byte
+`m_unusedPadMutatorSlowPathLock`. Result: every pre-campaign-2 member's
+byte offset (m_objectSpace, m_handleSet, m_opaqueRoots, m_worldState,
+m_barrierThreshold, m_threadLock, every IsoSubspace) is identical to
+`729430dbc80c`. Four relational `OBJECT_OFFSETOF` static_asserts pin the
+trailer ordering so future additions can't re-introduce the shift. No
+behavior change in any configuration; none of the moved members are in the
+`Heap::Heap()` init list (no -Wreorder); `Heap.cpp` / `HeapInlines.h`
+unchanged.
+
+**Expected**: GIL-on W=1 back to the §25 same-host base 15659 ms ± noise
+(recover +2.7%); proportional trim to the GIL-off W=1 1.55× tax (same hot
+fields on every allocation slow path). **Beat-or-explain baselines**: §25
+table row "GIL-on W=1" same-host base 15659 ms; every other §25 cell must
+not regress (pure layout — no code-path delta). Verify: 5-rep interleaved
+A/B GIL-on W=1 vs `d8ed7b6f5254`, `v5a-identity.sh`, full corpus both
+modes.
+
+## 27. Run 3.3 — campaign-3 acceptance (segmented-array DFG fastpath + relabel-STW-elide + heap layout restore + eden-survival Full trigger)
+
+Measures a 21-file working-tree delta (+1441/-166) over `d8ed7b6f5254`
+landing campaign-3: **T1-relabel-stw-elide-sound** (sound replacement for
+the withdrawn campaign-2 T4 — the relabel STW path elided when the source
+butterfly word is already segmented; `JSArray.cpp` / `JSObject.cpp`),
+**T3-jit-segmented-arraymode** (DFG fast path for segmented-butterfly
+indexed access via a side-band `ArrayProfile` bit threaded through
+`ArrayMode` into `DFGSpeculativeJIT{,64}.cpp` so DFG/FTL stop OSR-exiting
+on every segmented load — the largest line-count change),
+**T4-heap-layout-restore** (§26), and **T5-rss-eden-floating-garbage**
+(`Heap::updateAllocationLimits()` Full trigger at
+`sharedGCEdenSurvivalFullTriggerRatio=3.0`, §25 attribution). v33 binary
+sha256 `151409b1a06cd128ab47b1fbf6b82753df14bbdc980fbcfafee2fdb685d40216`
+(2026-06-15; rebuilds bit-identically; 0 sources newer than the binary).
+
+**Host-drift control.** `d8ed7b6f5254` rebuilt bit-identically
+(`jsc-v33-baseline`, sha256 `2a85f8e5…` matches §25 exactly) and measured
+back-to-back with v33 in every cell (raw in `results-v33ab-raw.jsonl`).
+The baseline binary today reproduces its own §25 numbers within ±2% (W=1
+24809 ms vs §25 24527 ms = +1.1%; W=16 20618 ms vs §25 20719 ms = -0.5%;
+GIL-on W=1 16021 ms vs §25 15799 ms = +1.4%) — host drift since 2026-06-15
+§25 is small, so vs-§25 and vs-same-host-baseline columns track closely.
+1-min loadavg at batch starts: 1.6–10.3 (W=32 first batch caught a spike
+to 8–10; re-run interleaved, see W=32 row note).
+
+### Before/after (run 3.2 §25 medians vs run 3.3 medians; same-host A/B in parentheses)
+
+| Cell | §25 wall ms | 3.3 wall ms | vs §25 | vs same-host base | speedup-vs-self | §25 cpu | 3.3 cpu | §25 RSS MB | 3.3 RSS MB | RSS vs same-host |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 24526.7 | 25063.5 | +2.2% | **+1.0%** (base 24809) | 1.00x | 1.04 | 1.04 | 421 | 422 | +0.5% (base 419) |
+| GIL-off W=2 | 28478.8 | 24503.3 | **-14.0%** | **-14.9%** (base 28784) | 1.02x | 0.86 | 0.90 | 1538 | 1701 | **+10.3%** (base 1543) |
+| GIL-off W=4 | — | 19207.0 | — | **-19.3%** (base 23813) | 1.30x | — | 0.71 | — | 1732 | -0.8% (base 1746) |
+| GIL-off W=8 | 21484.9 | 16166.3 | **-24.8%** | **-25.0%** (base 21561) | 1.55x | 0.54 | 0.56 | 1764 | 1765 | +0.3% (base 1761) |
+| GIL-off W=16 | 20718.6 | 15193.4 | **-26.7%** | **-26.3%** (base 20618) | **1.65x** | 0.43 | 0.44 | 1810 | 1789 | -1.1% (base 1809) |
+| GIL-off W=32 | 21140.4 | 15950.1 | **-24.6%** | **-25.7%** (base 21465) | 1.57x | 0.29 | 0.33 | 1739 | 1843 | +5.2% (base 1752) |
+| GIL-on W=1 | 15798.7 | 15764.7 | -0.2% | **-1.6%** (base 16021) | — | 1.03 | 1.03 | 421 | 421 | +0.1% (base 421) |
+
+- All checksums match the reference tuple at every successful rep. Per-rep
+  spread tight at W∈{1,2,4,8} (≤2%); W=16 base reps 19244/20618/20825
+  (rep1 low — loadavg 5.1 vs 5.9 for reps 2/3; median-robust); W=32 see
+  P0 below.
+- W=32 row uses the interleaved re-run (loadavg 9–10, base reps
+  21374/21465/21698, v33 surviving reps 15895/16005 plus first-batch rep1
+  16084; median 15950). The original W=32 batch (loadavg 7–10) had two
+  baseline reps with ~57s sys time (host-contention bimodality, §25
+  observed the same at W=32 rep2) and one v33 SIGSEGV — see P0.
+- **Speedup-vs-self at W=16: 25064 / 15193 = 1.65x** — short of the 1.8x
+  Java-parity bar (would need W=16 ≤ 13924 ms at this run's W=1). cpu_util
+  rises only marginally (0.43→0.44); the wall improvement is mutator
+  *throughput* (T3 keeps DFG/FTL on the hot indexed path instead of
+  OSR-exiting on segmented butterflies), not parallelism. The remaining
+  W=16 ceiling is unchanged from §25's analysis: STW collection wall
+  fraction.
+- **GIL-on W=1 -1.6% same-host (5-rep interleaved**, base
+  15691/15842/16021/16202/16361 vs v33 15623/15728/15765/15875/16187,
+  loadavg 1.7–6.3 falling). T4-heap-layout-restore recovered ~1.6 of the
+  §25 +2.7 percentage points; the other ~1pp is within the 5-rep spread on
+  this host. PASS the ≤2% gate.
+- Honest negatives: **(a)** GIL-off W=1 wall +1.0% same-host — the T3
+  `ArrayProfile` side-band bit and `ArrayMode` widening add a small amount
+  of profiling/dispatch overhead even at W=1 (every flat indexed access
+  still tests the bit). Within 5%. **(b)** GIL-off W=2 RSS **+10.3%**
+  same-host (1543→1701 MB) — T5-rss at the landed `ratio=3.0` admits ~2
+  floating live-sets before a Full, while T1/T3 keep more JIT code +
+  segmented spine reachable per cycle; the W=2 cell is now allocator-heavy
+  enough that the 3.0x bound is hit later than the §25 analysis projected
+  for 2.0x. W≥4 RSS is flat-to-down (the bound is reached earlier with
+  more concurrent allocators). **(c)** W=32 RSS +5.2% same-host — same
+  mechanism, marginal.
+
+### NEW P0 — W=32 SIGSEGV in DFG OSR-entry tier-up (campaign-3 regression)
+
+v33 W=32 GIL-off bench crashes **4/26** Release runs (rc=139 SIGSEGV);
+`jsc-v33-baseline` **0/13** under identical conditions in the same
+session. Backtrace (core `/tmp/v33cores/core.7937`):
+`operationTriggerOSREntryNow` → `DFG::tierUpCommon` →
+`failedOSREntry` lambda (`DFGOperations.cpp:6584`) →
+`DFG::JITCode::clearOSREntryBlockAndResetThresholds`
+(`DFGJITCode.cpp:415`) → `CodeBlock::jitCode()` with `this=nullptr` —
+i.e. `m_osrEntryBlock.get()` returned null past the `ASSERT(m_osrEntryBlock)`.
+None of `DFGOperations.cpp` / `DFGJITCode.cpp` are in the campaign-3
+diff; this is a **pre-existing concurrent-tier-up race** (two GIL-off
+mutators reach `failedOSREntry` for the same DFG `JITCode`; the first
+runs `m_osrEntryBlock.clear()`; the second derefs the now-null weak
+inside `clearOSREntryBlockAndResetThresholds`) that campaign-3 **exposes**
+— T3 keeps every mutator in DFG/FTL on the hot loop instead of bouncing
+through OSR-exit, so 32 mutators now plausibly hit the FTL OSR-entry
+failure path concurrently for the shared bench function. Not seen at
+W≤16 (0/14 v33). Repro:
+```
+env JSC_useJSThreads=1 JSC_useThreadGIL=0 JSC_useVMLite=1 \
+    JSC_useSharedAtomStringTable=1 JSC_useSharedGCHeap=1 \
+    JSC_useThreadGILOffUnsafe=1 \
+    WebKitBuild/Release/bin/jsc Tools/threads/scalebench/js/bench.js -- 32
+# ~15% of runs: SIGSEGV at DFGJITCode.cpp:415
+```
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off full (`run-tests.sh`, pinned env, Debug bin) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on full (`JSC_useJSThreads=1`, Debug bin) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests) | **0 mismatches** |
+| congc: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums, median 19105.9 ms (§25: 23700.9 ms, **-19.4%**) |
+| GIL-on W=1 5-rep interleaved A/B vs `d8ed7b6f5254` | **-1.6%** (≤2% gate PASS) |
+| Bench W=32 stability | **FAIL** — 4/26 SIGSEGV (baseline 0/13) |
+
+### Acceptance verdict
+
+**FAIL.** Corpus + identity green; GIL-on layout regression recovered;
+W∈{2,4,8,16,32} wall -15% to -26% same-host with no wall regression >5%
+anywhere. But: **(1)** W=16 speedup-vs-self **1.65x < 1.8x** (wall
+15193 ms > 13700 ms target); **(2)** new ~15% W=32 SIGSEGV in concurrent
+DFG OSR-entry tier-up — a pre-existing race campaign-3 makes hot, but a
+correctness regression vs `d8ed7b6f5254` regardless; **(3)** W=2 RSS
++10.3% same-host (>5%). Per the ≥20%-improvement-at-W=16 fallback this
+section is recorded honestly with the gap named; campaign-3 cannot land
+until the tier-up race is closed (a `tierUpCommon` / `m_osrEntryBlock`
+TOCTOU guard, not in any campaign-3 file) and the W=2 RSS regression is
+either fixed (`sharedGCEdenSurvivalFullTriggerRatio` tuned toward 2.0 at
+N=2) or explained as accepted.

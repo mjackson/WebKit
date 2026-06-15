@@ -210,6 +210,15 @@ enum class ArrayProfileFlag : uint32_t {
     UsesNonOriginalArrayStructures = 1 << 4,
     MayBeResizableOrGrowableSharedTypedArray = 1 << 5,
     DidPerformFirstRunPruning = 1 << 6,
+    // T3-jit-segmented-arraymode (SPEC-objectmodel §4): the observed base's
+    // butterfly word carried the segmented tag (top16 == 0xffff). Segmentation
+    // does NOT change the IndexingType, so the structure-ID feedback path
+    // (m_speculationFailureStructureID) cannot distinguish a segmented
+    // ArrayWithInt32 from a flat one — DFG needs this side-band bit to compile
+    // a segmented-aware mode instead of speculating flat-only and OSR-exiting
+    // forever once a Phase-A foreign write segments the array. Set only flag-on
+    // (Options::useJSThreads()); never set flag-off.
+    MayBeSegmentedButterfly = 1 << 7,
 };
 
 class ArrayProfile {
@@ -254,6 +263,12 @@ public:
     bool mayBeLargeTypedArray(const ConcurrentJSLocker&) const { return arrayProfileFlagsConcurrently().contains(ArrayProfileFlag::MayBeLargeTypedArray); }
 
     bool mayBeResizableOrGrowableSharedTypedArray(const ConcurrentJSLocker&) const { return arrayProfileFlagsConcurrently().contains(ArrayProfileFlag::MayBeResizableOrGrowableSharedTypedArray); }
+
+    // T3-jit-segmented-arraymode: side-band signal to DFG/FTL — see the flag's
+    // definition. Monotone OR (THREADS §5.7.5); a lost set is benign (the next
+    // BadIndexingType OSR-exit re-observes it).
+    void setMayBeSegmentedButterfly() { addArrayProfileFlagsConcurrently(ArrayProfileFlag::MayBeSegmentedButterfly); }
+    bool mayBeSegmentedButterfly(const ConcurrentJSLocker&) const { return arrayProfileFlagsConcurrently().contains(ArrayProfileFlag::MayBeSegmentedButterfly); }
 
     StructureID* addressOfSpeculationFailureStructureID() LIFETIME_BOUND { return &m_speculationFailureStructureID; }
     ArrayModes* addressOfArrayModes() LIFETIME_BOUND { return &m_observedArrayModes; }

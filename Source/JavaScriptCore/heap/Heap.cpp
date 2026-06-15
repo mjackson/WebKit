@@ -3574,6 +3574,73 @@ void Heap::updateAllocationLimits()
         // branch.
         if (isSharedServer() && m_sharedGCWindowRetainedBytesThisCycle > m_maxEdenSize / 2) [[unlikely]]
             m_shouldDoFullCollection = true;
+        // T5-rss-eden-floating-garbage — N-mutator eden-survival Full
+        // trigger. With N>=2 mutators allocating concurrently, every
+        // eden cycle conservatively roots N live stacks; mutator B's
+        // in-flight short-lived temporaries are therefore promoted past the
+        // eden boundary even though they die immediately after. rss3
+        // measured this directly: W=2 old-gen ratchets 164MB -> 774MB across
+        // 19 consecutive eden cycles after Full#61 (single-cycle eden
+        // survival 268MB vs W=1's 0.6-3MB), with NO Full in between because
+        // (a) the 1/3 edenToOldGenerationRatio gate above is computed
+        // against m_maxHeapSize, which the line below ratchets up by exactly
+        // the surviving floating garbage every cycle (so the ratio never
+        // drops), and (b) the Wlr-retention trigger just above counts only
+        // the window-witness cohort, not ordinary eden survivors. The
+        // floating dead in old-gen (774MB peak-after-eden vs 143MB true
+        // live) is 631MB at W=2 — 85% of the +1176MB W=1->W=2 peak-RSS
+        // delta — and was the residual the §25 attribution mis-assigned to
+        // per-thread allocator state / segmented butterflies (both refuted
+        // by rss3: forceSegmentedButterflies W=1 peaks at 183MB; allocator
+        // state is ~6.7MB/thread).
+        //
+        // Fix: when ISS with >=2 clients and old-gen has grown past
+        // m_sizeAfterLastFullCollect * sharedGCEdenSurvivalFullTriggerRatio
+        // (default 3.0), force the next collection Full so the floating
+        // cohort is reclaimed. Gated on isSharedServer() &&
+        // clientSet().size() >= 2 so flag-off and single-client GIL-off
+        // (W=1) are byte-identical: the predicate is tested only after the
+        // cheap isSharedServer() relaxed load, and size() takes its own
+        // internal lock (world is stopped here, so no add/remove can be in
+        // flight; the lock is uncontended). m_sizeAfterLastFullCollect == 0
+        // (no Full yet this process) skips the whole arm — the very first
+        // collection is Full anyway.
+        //
+        // NO ratchet cap. Review-round-prior had a second arm capping the
+        // m_maxHeapSize ratchet below at oldGenGrowthBound + m_maxEdenSize;
+        // that was UNSOUND: the cap is fixed for the inter-Full epoch while
+        // currentHeapSize keeps growing, and the documented sloppy-overshoot
+        // paths (the `currentHeapSize > m_maxHeapSize ? 0 :` defence above,
+        // extraMemorySize() not budgeted by bytesAllowedThisCycle, the 1/3-
+        // oversized shouldRequestGC exemption, an explicit Eden request
+        // after m_shouldDoFullCollection is already set) can drive
+        // currentHeapSize >= cap. Then m_maxHeapSize = cap <=
+        // currentHeapSize = m_sizeAfterLastCollect: the CIND
+        // ASSERT(m_maxHeapSize > m_sizeAfterLastCollect) fires in Debug and
+        // bytesAllowedThisCycle underflows to ~SIZE_MAX in Release (GC
+        // never requested again). The cap bought at most one eden-overshoot
+        // of budget reduction between the trigger and the Full; the trigger
+        // alone closes the 19-eden-no-Full gap, so the ratchet line is left
+        // byte-identical to upstream.
+        //
+        // Ratio default 3.0 (not 2.0): with the rss3-measured per-eden
+        // survival roughly equal to one true-live-set, ratio=2.0 fires after
+        // ~one eden post-Full -> ~50% Full cadence (every other collection),
+        // a plausible wall-time regression that would shuffle the RSS cost
+        // into Full-GC pause cost. ratio=3.0 admits ~2 floating-live-sets
+        // before forcing Full (~1 Full per 3 collections), still bounding
+        // old-gen at ~3x true-live (vs the unbounded 774MB / 5.4x ratchet
+        // this fixes) while keeping Full cadence in the same regime as the
+        // upstream 1/3 edenToOldGenerationRatio gate's design intent. Bench
+        // (W=2/W=16 wall beat-or-explain) is the arbiter; the option is
+        // tunable and 0 disables.
+        if (isSharedServer() && m_sizeAfterLastFullCollect && Options::sharedGCEdenSurvivalFullTriggerRatio() && clientSet().size() >= 2) [[unlikely]] {
+            size_t oldGenGrowthBound = static_cast<size_t>(static_cast<double>(m_sizeAfterLastFullCollect) * Options::sharedGCEdenSurvivalFullTriggerRatio());
+            if (currentHeapSize > oldGenGrowthBound) {
+                m_shouldDoFullCollection = true;
+                dataLogLnIf(verbose, "Eden: shared N-mutator floating-garbage Full trigger (currentHeapSize ", currentHeapSize, " > sizeAfterLastFull ", m_sizeAfterLastFullCollect, " * ", Options::sharedGCEdenSurvivalFullTriggerRatio(), ")");
+            }
+        }
         m_maxHeapSize = std::max(m_maxHeapSize, currentHeapSize + m_maxEdenSize);
         dataLogLnIf(verbose, "Eden: maxHeapSize = ", m_maxHeapSize);
         dataLogLnIf(verbose, "Eden: maxEdenSize = ", m_maxEdenSize);

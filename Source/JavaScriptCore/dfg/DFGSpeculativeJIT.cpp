@@ -2606,6 +2606,20 @@ void SpeculativeJIT::compileCheckTraps(Node* node)
 
 void SpeculativeJIT::compileContiguousPutByVal(Node* node)
 {
+#if USE(JSVALUE64)
+    // T3-jit-segmented-arraymode: storage child intentionally UNSET
+    // (FixupPhase::checkArray, gated by consumerHasSegmentedAwareCodegen);
+    // self-contained flat-vs-segmented dispatch. PutByValDirectResolved is
+    // excluded — it is only emitted for fresh owner-allocated arrays
+    // (DFGByteCodeParser inlined-construct paths) whose ArrayMode never
+    // carries the segmented bit.
+    if (node->arrayMode().needsSegmentedAwareCodegen() && Options::useJSThreads()
+        && !m_graph.varArgChild(node, 3)) [[unlikely]] {
+        ASSERT(node->op() != PutByValDirectResolved);
+        compileContiguousPutByValSegmentedAware(node);
+        return;
+    }
+#endif
     SpeculateCellOperand base(this, m_graph.varArgChild(node, 0));
     SpeculateStrictInt32Operand property(this, m_graph.varArgChild(node, 1));
     JSValueOperand value(this, m_graph.varArgChild(node, 2), ManualOperandSpeculation);
@@ -2679,6 +2693,15 @@ void SpeculativeJIT::compileContiguousPutByVal(Node* node)
 
 void SpeculativeJIT::compileDoublePutByVal(Node* node)
 {
+#if USE(JSVALUE64)
+    // T3-jit-segmented-arraymode: see compileContiguousPutByVal.
+    if (node->arrayMode().needsSegmentedAwareCodegen() && Options::useJSThreads()
+        && !m_graph.varArgChild(node, 3)) [[unlikely]] {
+        ASSERT(node->op() != PutByValDirectResolved);
+        compileDoublePutByValSegmentedAware(node);
+        return;
+    }
+#endif
     ArrayMode arrayMode = node->arrayMode();
 
     SpeculateCellOperand base(this, m_graph.varArgChild(node, 0));
@@ -8635,6 +8658,17 @@ std::optional<unsigned> SpeculativeJIT::tryGetConstantStringLength(Edge edge)
 
 void SpeculativeJIT::compileGetArrayLength(Node* node)
 {
+#if USE(JSVALUE64)
+    // T3-jit-segmented-arraymode: storage child intentionally UNSET
+    // (FixupPhase::checkArray, gated by consumerHasSegmentedAwareCodegen);
+    // self-contained flat-vs-segmented dispatch. The !child2() check makes
+    // this compose with callers that still wired a GetButterfly child.
+    if (node->arrayMode().needsSegmentedAwareCodegen() && Options::useJSThreads()
+        && !node->child2()) [[unlikely]] {
+        compileGetArrayLengthSegmentedAware(node);
+        return;
+    }
+#endif
     switch (node->arrayMode().type()) {
     case Array::Undecided:
     case Array::Int32:
@@ -10722,6 +10756,20 @@ void SpeculativeJIT::compileArrayPush(Node* node)
 {
     ASSERT(node->arrayMode().isJSArray());
 
+#if USE(JSVALUE64)
+    // T3-jit-segmented-arraymode: storage child intentionally UNSET
+    // (FixupPhase::checkArray, gated by consumerHasSegmentedAwareCodegen);
+    // self-contained flat-vs-segmented dispatch with a no-exit
+    // operationArrayPush* fallback (operationArrayPush* §2-dispatches via
+    // JSArray::push -> ensureLengthSlowConcurrent). The !storage check makes
+    // this compose with callers that still wired a GetButterfly child.
+    if (node->arrayMode().needsSegmentedAwareCodegen() && Options::useJSThreads()
+        && !m_graph.varArgChild(node, 0)) [[unlikely]] {
+        compileArrayPushSegmentedAware(node);
+        return;
+    }
+#endif
+
     Edge& storageEdge = m_graph.varArgChild(node, 0);
     Edge& arrayEdge = m_graph.varArgChild(node, 1);
     unsigned elementOffset = 2;
@@ -11578,6 +11626,423 @@ auto SpeculativeJIT::emitThreadedButterflyLoadForWrite(GPRReg baseGPR, GPRReg de
     owner.link(this);
     maskButterflyTag(destGPR); // I14(a)
     return slowCases;
+}
+
+// ===========================================================================
+// T3-jit-segmented-arraymode: spine→fragment→slot inline resolve (§4.1).
+// ===========================================================================
+
+// Frozen offsets — guard with the runtime header when present so a layout
+// drift fails to compile, not at runtime. Falls back to the frozen values
+// (mirrors the DFGConcurrentButterflyInternal pattern above) so this file
+// compiles before the OM header lands.
+namespace DFGSegmentedSpineInternal {
+#if __has_include("ConcurrentButterfly.h")
+static constexpr ptrdiff_t spineOffsetOfOutOfLineFragmentCount = OBJECT_OFFSETOF(JSC::ButterflySpine, outOfLineFragmentCount);
+static constexpr ptrdiff_t spineOffsetOfVectorLength = OBJECT_OFFSETOF(JSC::ButterflySpine, vectorLength);
+static constexpr ptrdiff_t spineOffsetOfFragments = static_cast<ptrdiff_t>(sizeof(JSC::ButterflySpine));
+static constexpr unsigned fragmentSlots = JSC::butterflyFragmentSlots;
+static_assert(spineOffsetOfOutOfLineFragmentCount == 0, "T3: emitted offsets assume frozen ButterflySpine layout");
+static_assert(spineOffsetOfVectorLength == 8, "T3: emitted offsets assume frozen ButterflySpine layout");
+static_assert(fragmentSlots == 4, "T3: (i+1)>>2 / &3 mapping assumes 4-slot fragments");
+static_assert(JSC::butterflyTagMask == DFGConcurrentButterflyInternal::segmentedFloor, "T3: segmented predicate == tag mask");
+#else
+static constexpr ptrdiff_t spineOffsetOfOutOfLineFragmentCount = 0;
+static constexpr ptrdiff_t spineOffsetOfVectorLength = 8;
+static constexpr ptrdiff_t spineOffsetOfFragments = 32;
+static constexpr unsigned fragmentSlots = 4;
+#endif
+static_assert(fragmentSlots == 4);
+} // namespace DFGSegmentedSpineInternal
+
+void SpeculativeJIT::emitLoadSegmentedPublicLength(GPRReg spineGPR, GPRReg destGPR, GPRReg scratchGPR)
+{
+    using namespace DFGSegmentedSpineInternal;
+    ASSERT(Options::useJSThreads());
+    ASSERT(spineGPR != destGPR && spineGPR != scratchGPR && destGPR != scratchGPR);
+    // indexed fragment 0 = fragments()[outOfLineFragmentCount]; low 32 bits
+    // of slot 0 = the live publicLength (C4: shared by every spine the object
+    // ever publishes — same byte position as the flat IndexingHeader's).
+    load32(Address(spineGPR, spineOffsetOfOutOfLineFragmentCount), scratchGPR);
+    loadPtr(BaseIndex(spineGPR, scratchGPR, TimesEight, spineOffsetOfFragments), destGPR);
+    load32(Address(destGPR, 0), destGPR);
+}
+
+void SpeculativeJIT::emitSegmentedSpineSlotResolve(GPRReg spineGPR, GPRReg indexGPR, GPRReg slotOutGPR, GPRReg scratchGPR, JumpList& outOfBounds)
+{
+    using namespace DFGSegmentedSpineInternal;
+    ASSERT(Options::useJSThreads());
+    ASSERT(spineGPR != indexGPR && spineGPR != slotOutGPR && spineGPR != scratchGPR);
+    ASSERT(indexGPR != slotOutGPR && indexGPR != scratchGPR && slotOutGPR != scratchGPR);
+
+    // C4: index < THIS spine's vectorLength (immutable per spine, §4.1). The
+    // caller publicLength-bounds reads itself; for writes within vectorLength
+    // the slot exists and is hole-filled.
+    outOfBounds.append(branch32(AboveOrEqual, indexGPR, Address(spineGPR, spineOffsetOfVectorLength)));
+
+    // fragmentIndex = (index + 1) >> 2; slotIndex = (index + 1) & 3 (the +1
+    // hides the IndexingHeader slot; never resolves to fragment 0 slot 0 by
+    // construction of the mapping). All arithmetic on 32-bit lanes — index is
+    // a strict int32 (Int32Use) and vectorLength <= MAX_STORAGE_VECTOR_LENGTH
+    // < 2^31 so (index + 1) cannot overflow 32 bits.
+    add32(TrustedImm32(1), indexGPR, scratchGPR);
+    move(scratchGPR, slotOutGPR);
+    urshift32(TrustedImm32(2), scratchGPR); // fragmentIndex (zero-extended)
+    and32(TrustedImm32(3), slotOutGPR); // slotIndex (zero-extended)
+
+    // indexed fragment = fragments()[outOfLineFragmentCount + fragmentIndex].
+    // Fold the OOL count into fragmentIndex (sum < 2^32 by C2 sizing —
+    // totalFragmentCount * 8 fits a single aux allocation), then a single
+    // BaseIndex load resolves the fragment pointer. spineGPR is clobbered
+    // (caller contract); indexGPR is preserved (callers slow-path with it).
+    add32(Address(spineGPR, spineOffsetOfOutOfLineFragmentCount), scratchGPR);
+    loadPtr(BaseIndex(spineGPR, scratchGPR, TimesEight, spineOffsetOfFragments), spineGPR);
+    // slot address = fragment + slotIndex*8.
+    lshiftPtr(TrustedImm32(3), slotOutGPR);
+    addPtr(spineGPR, slotOutGPR);
+}
+
+void SpeculativeJIT::compileGetArrayLengthSegmentedAware(Node* node)
+{
+    using namespace DFGConcurrentButterflyInternal;
+    ASSERT(Options::useJSThreads());
+    ASSERT(node->arrayMode().needsSegmentedAwareCodegen());
+    // FixupPhase intentionally left child2 (storage) unset; CheckArray
+    // already validated the indexing shape (segmentation does not change it).
+
+    SpeculateCellOperand base(this, node->child1());
+    GPRTemporary storage(this);
+    GPRTemporary scratch(this);
+    GPRTemporary result(this);
+
+    GPRReg baseGPR = base.gpr();
+    GPRReg storageGPR = storage.gpr();
+    GPRReg scratchGPR = scratch.gpr();
+    GPRReg resultGPR = result.gpr();
+
+    emitButterflyLoadWithStructureDependency(baseGPR, storageGPR, scratchGPR);
+    Jump segmented = branch64(AboveOrEqual, storageGPR, TrustedImm64(static_cast<int64_t>(segmentedFloor)));
+    // Flat arm: identical to today's path. The shape is Int32/Double/
+    // Contiguous (CheckArray-guaranteed), so no AS SW gating; mask + load.
+    maskButterflyTag(storageGPR);
+    load32(Address(storageGPR, Butterfly::offsetOfPublicLength()), resultGPR);
+    Jump done = jump();
+
+    segmented.link(this);
+    maskButterflyTag(storageGPR); // -> spine*
+    emitLoadSegmentedPublicLength(storageGPR, resultGPR, scratchGPR);
+    done.link(this);
+
+    strictInt32Result(resultGPR, node);
+}
+
+void SpeculativeJIT::compileContiguousPutByValSegmentedAware(Node* node)
+{
+    using namespace DFGConcurrentButterflyInternal;
+    ASSERT(Options::useJSThreads());
+    ASSERT(node->arrayMode().needsSegmentedAwareCodegen());
+    ASSERT(node->arrayMode().type() == Array::Int32 || node->arrayMode().type() == Array::Contiguous);
+
+    SpeculateCellOperand base(this, m_graph.varArgChild(node, 0));
+    SpeculateStrictInt32Operand property(this, m_graph.varArgChild(node, 1));
+    JSValueOperand value(this, m_graph.varArgChild(node, 2), ManualOperandSpeculation);
+    GPRTemporary storage(this);
+    GPRTemporary scratch(this);
+    GPRTemporary slot(this);
+
+    GPRReg baseReg = base.gpr();
+    GPRReg propertyReg = property.gpr();
+    JSValueRegs valueRegs = value.jsValueRegs();
+    GPRReg storageReg = storage.gpr();
+    GPRReg scratchReg = scratch.gpr();
+    GPRReg slotReg = slot.gpr();
+
+    if (!m_compileOkay)
+        return;
+
+    ArrayMode arrayMode = node->arrayMode();
+    // Only Array::OutOfBounds is clobberTop in Clobberize for these shapes
+    // (DFGClobberize.h Int32/Double/Contiguous PutByVal); InBounds AND ToHole
+    // are modeled as writes to IndexedXProperties + Butterfly_publicLength
+    // only, and DoesGC=false. So every miss on a non-OutOfBounds arm MUST be a
+    // speculationCheck — taking the no-exit operation call would grow the
+    // butterfly behind AI/CSE/DoesGC's back. OutOfBounds routes to the
+    // no-exit generic put.
+    JumpList slowCases;
+    auto routeMiss = [&](auto jumpOrList, ExitKind kind) {
+        if (arrayMode.isOutOfBounds())
+            slowCases.append(jumpOrList);
+        else
+            speculationCheck(kind, JSValueRegs(), nullptr, jumpOrList);
+    };
+
+    // Load tagged word + segmented dispatch. Segmented words are
+    // (notTTLTID, SW=1) by construction (§2/I3), so a fragment-slot store is
+    // always legal (the §3 F1 fire happened at segmentation time). The flat
+    // arm runs the frozen WRITE predicate (KnownNonArrayStorage) so a
+    // still-flat foreign-SW=0 first write goes slow (fires F1; one-time per
+    // object) and a flat foreign-SW=1 write stays inline (FlatShared).
+    emitButterflyLoadWithStructureDependency(baseReg, storageReg, scratchReg);
+    Jump segmented = branch64(AboveOrEqual, storageReg, TrustedImm64(static_cast<int64_t>(segmentedFloor)));
+
+    // ---- Flat arm (today's compileContiguousPutByVal under the §5.5 WRITE
+    // predicate, KnownNonArrayStorage; segmented already excluded). ----
+    loadButterflyTIDTag(scratchReg);
+    xor64(storageReg, scratchReg);
+    Jump owner = branch64(Below, scratchReg, TrustedImm64(static_cast<int64_t>(DFGConcurrentButterflyInternal::tidTagSpan)));
+    // foreign + SW=1 (sign bit set) -> inline; foreign + SW=0 -> miss (F1).
+    routeMiss(branchTest64(PositiveOrZero, storageReg, storageReg), BadIndexingType);
+    owner.link(this);
+    maskButterflyTag(storageReg);
+    if (arrayMode.isInBounds())
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, branch32(AboveOrEqual, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength())));
+    else {
+        Jump inBounds = branch32(Below, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength()));
+        // >= vectorLength: ToHole MUST OSR-exit here (Clobberize purity rule
+        // above — matches compileContiguousPutByVal's `if (!isOutOfBounds())
+        // speculationCheck(slowCase)` gate); OutOfBounds takes the operation.
+        routeMiss(branch32(AboveOrEqual, propertyReg, Address(storageReg, Butterfly::offsetOfVectorLength())), OutOfBounds);
+        add32(TrustedImm32(1), propertyReg, scratchReg);
+        store32(scratchReg, Address(storageReg, Butterfly::offsetOfPublicLength()));
+        inBounds.link(this);
+    }
+    storeValue(valueRegs, BaseIndex(storageReg, propertyReg, TimesEight));
+    Jump flatDone = jump();
+
+    // ---- Segmented arm: inline within vectorLength; the >=publicLength /
+    // stale-spine cases route per the InBounds purity rule above (the
+    // segmented length bump is a CAS loop, §4.1 bumpPublicLengthToAtLeast,
+    // and lives behind the no-exit generic put on the OutOfBounds path). ----
+    segmented.link(this);
+    maskButterflyTag(storageReg); // -> spine*
+    emitLoadSegmentedPublicLength(storageReg, slotReg, scratchReg);
+    routeMiss(branch32(AboveOrEqual, propertyReg, slotReg), OutOfBounds);
+    JumpList segOOB;
+    emitSegmentedSpineSlotResolve(storageReg, propertyReg, slotReg, scratchReg, segOOB);
+    // index < publicLength but >= THIS spine's vectorLength = stale spine
+    // (§4.4 T2 race); OutOfBounds: re-dispatch via the generic put; InBounds:
+    // the recompile re-loads a fresh spine. Rare.
+    routeMiss(segOOB, OutOfBounds);
+    storeValue(valueRegs, Address(slotReg, 0));
+    flatDone.link(this);
+
+    base.use();
+    property.use();
+    value.use();
+
+    if (!slowCases.empty()) {
+        addSlowPathGenerator(slowPathCall(
+            slowCases, this,
+            node->ecmaMode().isStrict()
+                ? (node->op() == PutByValDirect ? operationPutByValDirectBeyondArrayBoundsStrict : operationPutByValBeyondArrayBoundsStrict)
+                : (node->op() == PutByValDirect ? operationPutByValDirectBeyondArrayBoundsSloppy : operationPutByValBeyondArrayBoundsSloppy),
+            NoResult, LinkableConstant::globalObject(*this, node), baseReg, propertyReg, valueRegs));
+    }
+
+    noResult(node, UseChildrenCalledExplicitly);
+}
+
+void SpeculativeJIT::compileDoublePutByValSegmentedAware(Node* node)
+{
+    using namespace DFGConcurrentButterflyInternal;
+    ASSERT(Options::useJSThreads());
+    ASSERT(node->arrayMode().needsSegmentedAwareCodegen());
+    ASSERT(node->arrayMode().type() == Array::Double);
+
+    SpeculateCellOperand base(this, m_graph.varArgChild(node, 0));
+    SpeculateStrictInt32Operand property(this, m_graph.varArgChild(node, 1));
+    SpeculateDoubleOperand value(this, m_graph.varArgChild(node, 2));
+    GPRTemporary storage(this);
+    GPRTemporary scratch(this);
+    GPRTemporary slot(this);
+
+    GPRReg baseReg = base.gpr();
+    GPRReg propertyReg = property.gpr();
+    FPRReg valueReg = value.fpr();
+    GPRReg storageReg = storage.gpr();
+    GPRReg scratchReg = scratch.gpr();
+    GPRReg slotReg = slot.gpr();
+
+    DFG_TYPE_CHECK(JSValueRegs(), m_graph.varArgChild(node, 2), SpecFullRealNumber, branchIfNaN(valueReg));
+    if (!m_compileOkay)
+        return;
+
+    ArrayMode arrayMode = node->arrayMode();
+    JumpList slowCases;
+    auto routeMiss = [&](auto jumpOrList, ExitKind kind) {
+        if (arrayMode.isOutOfBounds())
+            slowCases.append(jumpOrList);
+        else
+            speculationCheck(kind, JSValueRegs(), nullptr, jumpOrList);
+    };
+
+    emitButterflyLoadWithStructureDependency(baseReg, storageReg, scratchReg);
+    Jump segmented = branch64(AboveOrEqual, storageReg, TrustedImm64(static_cast<int64_t>(segmentedFloor)));
+
+    // Flat arm — frozen WRITE predicate (KnownNonArrayStorage), then today's
+    // path. See compileContiguousPutByValSegmentedAware for the rationale.
+    loadButterflyTIDTag(scratchReg);
+    xor64(storageReg, scratchReg);
+    Jump owner = branch64(Below, scratchReg, TrustedImm64(static_cast<int64_t>(DFGConcurrentButterflyInternal::tidTagSpan)));
+    routeMiss(branchTest64(PositiveOrZero, storageReg, storageReg), BadIndexingType);
+    owner.link(this);
+    maskButterflyTag(storageReg);
+    if (arrayMode.isInBounds())
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, branch32(AboveOrEqual, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength())));
+    else {
+        Jump inBounds = branch32(Below, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength()));
+        // ToHole OSR-exits, OutOfBounds takes the operation — see the
+        // Contiguous variant for the Clobberize/DoesGC purity rationale.
+        routeMiss(branch32(AboveOrEqual, propertyReg, Address(storageReg, Butterfly::offsetOfVectorLength())), OutOfBounds);
+        add32(TrustedImm32(1), propertyReg, scratchReg);
+        store32(scratchReg, Address(storageReg, Butterfly::offsetOfPublicLength()));
+        inBounds.link(this);
+    }
+    storeDouble(valueReg, BaseIndex(storageReg, propertyReg, TimesEight));
+    Jump flatDone = jump();
+
+    // Segmented arm — R-DOUBLE (§4.7): shared ContiguousDouble stays Double,
+    // so a raw double lane store is exactly correct.
+    segmented.link(this);
+    maskButterflyTag(storageReg);
+    emitLoadSegmentedPublicLength(storageReg, slotReg, scratchReg);
+    routeMiss(branch32(AboveOrEqual, propertyReg, slotReg), OutOfBounds);
+    JumpList segOOB;
+    emitSegmentedSpineSlotResolve(storageReg, propertyReg, slotReg, scratchReg, segOOB);
+    routeMiss(segOOB, OutOfBounds);
+    storeDouble(valueReg, Address(slotReg, 0));
+    flatDone.link(this);
+
+    base.use();
+    property.use();
+    value.use();
+
+    if (!slowCases.empty()) {
+        addSlowPathGenerator(slowPathCall(
+            slowCases, this,
+            node->ecmaMode().isStrict()
+                ? (node->op() == PutByValDirect ? operationPutDoubleByValDirectBeyondArrayBoundsStrict : operationPutDoubleByValBeyondArrayBoundsStrict)
+                : (node->op() == PutByValDirect ? operationPutDoubleByValDirectBeyondArrayBoundsSloppy : operationPutDoubleByValBeyondArrayBoundsSloppy),
+            NoResult, LinkableConstant::globalObject(*this, node), baseReg, propertyReg, valueReg));
+    }
+
+    noResult(node, UseChildrenCalledExplicitly);
+}
+
+void SpeculativeJIT::compileArrayPushSegmentedAware(Node* node)
+{
+    using namespace DFGConcurrentButterflyInternal;
+    ASSERT(Options::useJSThreads());
+    ASSERT(node->arrayMode().needsSegmentedAwareCodegen());
+    ASSERT(node->arrayMode().isJSArray());
+
+    Edge& arrayEdge = m_graph.varArgChild(node, 1);
+    unsigned elementOffset = 2;
+    unsigned elementCount = node->numChildren() - elementOffset;
+
+    // Multi-element push on a maybe-segmented array: take the no-exit
+    // operation call unconditionally — the inline multi-slot fragment scatter
+    // is not worth the code size at this milestone, and operationArrayPush*
+    // re-dispatches the §2 regime (ensureLengthSlowConcurrent / segmented T2).
+    // Restores FTL/DFG residency for the hot single-element posting-array
+    // push (SCALEBENCH §25 Phase A) which is what the workload exercises.
+    SpeculateCellOperand base(this, arrayEdge);
+    GPRReg baseGPR = base.gpr();
+
+    if (elementCount != 1 || node->arrayMode().type() == Array::Double) {
+        // Conservative no-exit call for the cold shapes. For Double the
+        // segmented length bump (bumpPublicLengthToAtLeast CAS) plus a
+        // fragment store would need an FPR spill across the CAS; route to
+        // operationArrayPushDouble which already §2-dispatches.
+        if (node->arrayMode().type() == Array::Double && elementCount == 1) {
+            Edge& element = m_graph.varArgChild(node, elementOffset);
+            speculate(node, element);
+            SpeculateDoubleOperand dvalue(this, element);
+            FPRReg valueFPR = dvalue.fpr();
+            flushRegisters();
+            JSValueRegsFlushedCallResult result(this);
+            JSValueRegs resultRegs = result.regs();
+            callOperation(operationArrayPushDouble, resultRegs, LinkableConstant::globalObject(*this, node), valueFPR, baseGPR);
+            jsValueResult(resultRegs, node);
+            return;
+        }
+        // Multi-element: spill to a scratch buffer and call.
+        GPRTemporary buffer(this);
+        GPRReg bufferGPR = buffer.gpr();
+        size_t scratchSize = sizeof(EncodedJSValue) * (elementCount ? elementCount : 1);
+        ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
+        move(TrustedImmPtr(static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer())), bufferGPR);
+        for (unsigned i = 0; i < elementCount; ++i) {
+            Edge& element = m_graph.varArgChild(node, i + elementOffset);
+            if (node->arrayMode().type() == Array::Int32) {
+                ASSERT(element.useKind() == Int32Use);
+                speculateInt32(element);
+            }
+            if (node->arrayMode().type() == Array::Double) {
+                speculate(node, element);
+                SpeculateDoubleOperand dvalue(this, element);
+                storeDouble(dvalue.fpr(), Address(bufferGPR, sizeof(EncodedJSValue) * i));
+                dvalue.use();
+            } else {
+                JSValueOperand jvalue(this, element, ManualOperandSpeculation);
+                storeValue(jvalue.jsValueRegs(), Address(bufferGPR, sizeof(EncodedJSValue) * i));
+                jvalue.use();
+            }
+        }
+        base.use();
+        flushRegisters();
+        JSValueRegsFlushedCallResult result(this);
+        JSValueRegs resultRegs = result.regs();
+        if (node->arrayMode().type() == Array::Double)
+            callOperation(operationArrayPushDoubleMultiple, resultRegs, LinkableConstant::globalObject(*this, node), baseGPR, bufferGPR, TrustedImm32(elementCount));
+        else
+            callOperation(operationArrayPushMultiple, resultRegs, LinkableConstant::globalObject(*this, node), baseGPR, bufferGPR, TrustedImm32(elementCount));
+        jsValueResult(resultRegs, node, DataFormatJS, UseChildrenCalledExplicitly);
+        return;
+    }
+
+    // Single-element Int32/Contiguous push: inline flat owner arm; everything
+    // else (segmented, foreign flat, vectorLength grow) -> operationArrayPush
+    // (no-exit, §2-dispatching). T6-segmented-push-fastpath: operationArrayPush
+    // -> JSArray::pushInline now carries a within-vectorLength segmented fast
+    // arm (spine slot store + CAS-max bump, JSArrayInlines.h), so the
+    // segmented slow-path call is a thin operation wrapper around the same
+    // inline bump as the flat path — no host-function dispatch, no
+    // putIndexConcurrent re-decode. Emitting the fragment store + CAS-max
+    // loop INLINE here is the recorded T3 follow-up (cross-arch
+    // branchAtomicWeakCAS32 plumbing + a 5th GPR temporary); the no-exit
+    // call already eliminates the OSR storm.
+    Edge& element = m_graph.varArgChild(node, elementOffset);
+    if (node->arrayMode().type() == Array::Int32) {
+        ASSERT(element.useKind() == Int32Use);
+        speculateInt32(element);
+    }
+    JSValueOperand value(this, element, ManualOperandSpeculation);
+    JSValueRegs valueRegs = value.jsValueRegs();
+    GPRTemporary storage(this);
+    GPRTemporary storageLength(this);
+    GPRTemporary scratch(this);
+    GPRReg storageGPR = storage.gpr();
+    GPRReg storageLengthGPR = storageLength.gpr();
+    GPRReg scratchGPR = scratch.gpr();
+    JSValueRegs resultRegs { storageLengthGPR };
+    JumpList slowCases;
+
+    emitButterflyLoadWithStructureDependency(baseGPR, storageGPR, scratchGPR);
+    slowCases.append(branch64(AboveOrEqual, storageGPR, TrustedImm64(static_cast<int64_t>(segmentedFloor)))); // segmented -> no-exit op
+    loadButterflyTIDTag(scratchGPR);
+    xor64(storageGPR, scratchGPR);
+    slowCases.append(branch64(AboveOrEqual, scratchGPR, TrustedImm64(static_cast<int64_t>(DFGConcurrentButterflyInternal::tidTagSpan)))); // foreign flat -> no-exit op (F1)
+    maskButterflyTag(storageGPR);
+    load32(Address(storageGPR, Butterfly::offsetOfPublicLength()), storageLengthGPR);
+    slowCases.append(branch32(AboveOrEqual, storageLengthGPR, Address(storageGPR, Butterfly::offsetOfVectorLength())));
+    storeValue(valueRegs, BaseIndex(storageGPR, storageLengthGPR, TimesEight));
+    add32(TrustedImm32(1), storageLengthGPR);
+    store32(storageLengthGPR, Address(storageGPR, Butterfly::offsetOfPublicLength()));
+    boxInt32(storageLengthGPR, resultRegs);
+
+    addSlowPathGenerator(slowPathCall(slowCases, this, operationArrayPush, resultRegs, LinkableConstant::globalObject(*this, node), valueRegs, baseGPR));
+    jsValueResult(resultRegs, node);
 }
 
 #endif // USE(JSVALUE64)

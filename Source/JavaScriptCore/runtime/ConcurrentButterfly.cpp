@@ -122,18 +122,8 @@ WriteBarrierBase<Unknown>* segmentedOutOfLineSlot(ButterflySpine* spine, Propert
     return spine->outOfLineSlot(outOfLineButterflyIndex(offset));
 }
 
-WriteBarrierBase<Unknown>* segmentedIndexedSlot(ButterflySpine* spine, unsigned index)
-{
-    // Precondition (C4): index < spine->vectorLength; the member ASSERTs it.
-    spine->tsanConsume(); // V7
-    return spine->indexedSlot(index);
-}
-
-uint32_t segmentedPublicLength(ButterflySpine* spine)
-{
-    spine->tsanConsume(); // V7
-    return spine->publicLength(); // RELEASE_ASSERTs indexedFragmentCount (C2).
-}
+// segmentedIndexedSlot / segmentedPublicLength: ALWAYS_INLINE in
+// ConcurrentButterflyInlines.h (T2-segmented-accessors-inline).
 
 void setSegmentedPublicLength(ButterflySpine* spine, uint32_t value)
 {
@@ -141,51 +131,11 @@ void setSegmentedPublicLength(ButterflySpine* spine, uint32_t value)
     spine->setPublicLength(value); // RELEASE_ASSERTs indexedFragmentCount (C2).
 }
 
-// Bounds-checked consumer variants (Task 2 additions; nullptr = the caller
-// loaded a stale spine, or the access is out of the C4/I33 bound, and must
-// acquire-re-load the tagged word and re-dispatch).
-
-WriteBarrierBase<Unknown>* segmentedOutOfLineSlotIfWithinBounds(ButterflySpine* spine, PropertyOffset offset)
-{
-    ASSERT(isOutOfLineOffset(offset));
-    spine->tsanConsume(); // V7
-    uint64_t outOfLineIndex = outOfLineButterflyIndex(offset);
-    if (outOfLineIndex >= static_cast<uint64_t>(butterflyFragmentSlots) * spine->outOfLineFragmentCountConcurrent())
-        return nullptr; // I33: stale spine.
-    return spine->outOfLineSlot(static_cast<unsigned>(outOfLineIndex));
-}
-
-WriteBarrierBase<Unknown>* segmentedIndexedSlotIfReadable(ButterflySpine* spine, unsigned index)
-{
-    spine->tsanConsume(); // V7
-    if (!spine->indexedFragmentCountConcurrent())
-        return nullptr; // C2: header-less spine has no indexed storage.
-    // C4: bound by min(publicLength, the SAME loaded spine's vectorLength);
-    // [vectorLength, publicLength) reads as holes (SAB-granularity staleness).
-    // publicLength() is already a relaxed atomic load of the shared header
-    // slot (review amendment C: the one spine-reachable word that is mutable
-    // post-publication is annotated on both sides — setPublicLength /
-    // bumpPublicLengthToAtLeast are its paired atomic writers).
-    if (index >= std::min(spine->publicLength(), spine->vectorLengthConcurrent()))
-        return nullptr;
-    return spine->indexedSlot(index);
-}
-
-WriteBarrierBase<Unknown>* segmentedIndexedSlotIfWithinVectorLength(ButterflySpine* spine, unsigned index)
-{
-    spine->tsanConsume(); // V7
-    if (!spine->indexedFragmentCountConcurrent())
-        return nullptr; // C2
-    if (index >= spine->vectorLengthConcurrent())
-        return nullptr; // C4 precondition for writes that may bump publicLength.
-    return spine->indexedSlot(index);
-}
-
-uint32_t segmentedVectorLength(ButterflySpine* spine)
-{
-    spine->tsanConsume(); // V7
-    return spine->vectorLengthConcurrent();
-}
+// Bounds-checked consumer variants (segmentedOutOfLineSlotIfWithinBounds /
+// segmentedIndexedSlotIfReadable / segmentedIndexedSlotIfWithinVectorLength /
+// segmentedVectorLength): ALWAYS_INLINE in ConcurrentButterflyInlines.h
+// (T2-segmented-accessors-inline — these were the dominant W>=2 serial-phase
+// self% in the SCALEBENCH profile).
 
 // ===== Task 10: O3/I20 cell-lock depth witness =====
 

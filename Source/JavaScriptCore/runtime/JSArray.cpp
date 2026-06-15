@@ -2026,23 +2026,34 @@ JSArray* JSArray::fastSlice(JSGlobalObject* globalObject, JSObject* source, uint
 
 #if USE(JSVALUE64)
     // Review round 4 (blocker fix): this fast path memcpy-reads the source's
-    // flat payload with no flag-on regime dispatch. Flag-on: a SEGMENTED
-    // source word would be garbage-decoded through the flat accessors (the
-    // spine pointer read as a Butterfly*; vectorLength at spine-4), and the
-    // ArrayStorage leg below reads AS innards that are cell-locked-only (I31).
-    // Bail to the caller's generic slice path for both; for flat words, every
-    // source deref below goes through ONE loaded word (single-snapshot - a
-    // butterfly() re-load after the result allocation could decode a
-    // mid-call conversion's spine as flat), bounded by that snapshot's own
-    // vectorLength (the existing startIndex + count check). The stale
-    // snapshot stays readable across the allocation: the local pointer pins
-    // it for the conservative scan (I7), and a racing grow never mutates it
-    // in place (flat vectorLengths are immutable flag-on).
+    // flat payload with no flag-on regime dispatch. Flag-on: the ArrayStorage
+    // leg below reads AS innards that are cell-locked-only (I31) — bail to the
+    // caller's generic slice path. For flat words, every source deref below
+    // goes through ONE loaded word (single-snapshot - a butterfly() re-load
+    // after the result allocation could decode a mid-call conversion's spine
+    // as flat), bounded by that snapshot's own vectorLength (the existing
+    // startIndex + count check). The stale snapshot stays readable across the
+    // allocation: the local pointer pins it for the conservative scan (I7),
+    // and a racing grow never mutates it in place (flat vectorLengths are
+    // immutable flag-on).
+    //
+    // T1-relabel-stw-elide-sound (campaign-3): a SEGMENTED source word no
+    // longer bails. The dense leg below now has a dedicated segmented sub-leg
+    // that allocates a fresh FLAT result butterfly typed as the source's
+    // resolved indexingType and copies `count` lanes from the snapshot spine
+    // via spine->indexedSlot. The result cell is allocated in-frame and not
+    // yet stored anywhere — provably thread-local — so it is born with the
+    // right shape (zero relabels) AND born flat (downstream reads stay in JIT
+    // fast paths). This is exactly the caller-threaded non-escape route the
+    // relabelIndexingShapeConcurrent withdrawal note (JSObject.cpp) names as
+    // the only sound elision; it replaces the previous bail-to-generic-loop
+    // path whose first putDirectIndex drove ~75.9k §A.3 relabel STWs/run on
+    // SCALEBENCH Phase B.
     uint64_t sourceWord = 0;
+    bool sourceSegmented = false;
     if (Options::useJSThreads()) [[unlikely]] {
         sourceWord = source->taggedButterflyWord();
-        if (isSegmentedButterfly(sourceWord))
-            return nullptr;
+        sourceSegmented = isSegmentedButterfly(sourceWord);
         if (hasAnyArrayStorage(source->indexingType()))
             return nullptr; // I31: AS reads are cell-locked; generic path.
     }
@@ -2055,6 +2066,71 @@ JSArray* JSArray::fastSlice(JSGlobalObject* globalObject, JSObject* source, uint
     case ArrayWithContiguous: {
         if (count >= MIN_SPARSE_ARRAY_INDEX || sourceStructure->holesMustForwardToPrototype(source))
             return nullptr;
+
+#if USE(JSVALUE64)
+        if (sourceSegmented) [[unlikely]] {
+            // ---- T1 leg (A): segmented-source flat-result fast slice. ----
+            // Flag-on only (sourceSegmented is set only under useJSThreads);
+            // flag-off this block is dead and the flat leg below is
+            // byte-for-byte today's code (I22).
+            ASSERT(Options::useJSThreads());
+            ASSERT(!isCopyOnWrite(source->indexingMode())); // CoW never segments (materialized before any shared write).
+            ButterflySpine* spine = butterflySpine(sourceWord);
+            spine->tsanConsume();
+            // Single-snapshot bound (C4 / I33): the spine and its vectorLength
+            // are immutable-after-publication; the local pointer pins them for
+            // the conservative scan across the allocation below (I7).
+            uint32_t spineVectorLength = spine->vectorLengthConcurrent();
+            if (startIndex + count > spineVectorLength)
+                return nullptr;
+
+            Structure* resultStructure = globalObject->arrayStructureForIndexingTypeDuringAllocation(arrayType);
+            IndexingType indexingType = resultStructure->indexingType();
+            if (hasAnyArrayStorage(indexingType)) [[unlikely]]
+                return nullptr;
+
+            ASSERT(!globalObject->isHavingABadTime());
+            if (count > MAX_STORAGE_VECTOR_LENGTH) [[unlikely]]
+                return nullptr;
+
+            ASSERT(!resultStructure->outOfLineCapacity());
+            uint32_t initialLength = static_cast<uint32_t>(count);
+            unsigned vectorLength = Butterfly::optimalContiguousVectorLength(resultStructure, initialLength);
+            void* memory = vm.auxiliarySpace().allocate(vm, Butterfly::totalSize(0, 0, true, vectorLength * sizeof(EncodedJSValue)), nullptr, AllocationFailureMode::ReturnNull);
+            if (!memory) [[unlikely]]
+                return nullptr;
+
+            auto* butterfly = Butterfly::fromBase(memory, 0, 0);
+            butterfly->setVectorLength(vectorLength);
+            butterfly->setPublicLength(initialLength);
+            // Copy `count` raw 64-bit lanes from the snapshot spine's
+            // fragments into the fresh flat payload. Int32/Contiguous lanes
+            // are boxed EncodedJSValue; Double lanes are raw doubles — the
+            // copy is bit-for-bit either way (same-type source/result), so a
+            // single uint64 loop covers all three shapes. The result butterfly
+            // is unreachable until createWithButterfly publishes it, so plain
+            // stores are fine (no write barrier; mirrors the flat leg's
+            // memcpy). Source lanes are read through the I7 frozen-snapshot
+            // accessors; a racing T2 grow publishes a NEW spine and never
+            // mutates this one. A racing in-place relabel of the SOURCE
+            // (Int32→Double / Double→Contiguous) rewrites these same fragment
+            // lanes inside a §10.6 stop while we are parked at the allocation
+            // safepoint above — exactly the race profile the flat leg already
+            // has (SAB-granularity torn snapshot of a contended array, never a
+            // wild deref: garbage-decoded lanes are at worst reinterpreted
+            // numbers, never followed as cell pointers from an Int32/Double
+            // result).
+            uint64_t* dest = std::bit_cast<uint64_t*>(butterfly->contiguous().data());
+            unsigned base = static_cast<unsigned>(startIndex);
+            for (unsigned i = 0; i < initialLength; ++i)
+                dest[i] = *std::bit_cast<const uint64_t*>(spine->indexedSlot(base + i));
+
+            Butterfly::clearRange(indexingType, butterfly, initialLength, vectorLength);
+            // Result is born with `arrayType` (the source's resolved shape):
+            // ZERO relabels — no convertUndecidedForValue, no §A.3 STW.
+            return createWithButterfly(vm, nullptr, resultStructure, butterfly);
+        }
+#endif
 
         Butterfly* sourceButterfly;
 #if USE(JSVALUE64)

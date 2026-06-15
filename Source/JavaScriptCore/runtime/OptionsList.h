@@ -435,6 +435,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useSharedGCIncrementalSweep, false, Normal, "C3: incremental + mutator-concurrent sweeping under the shared GC (SPEC-congc sec 7.3)"_s) \
     v(Bool, useSharedGCMutatorAssist, false, Normal, "C4: incremental mutator assist under the shared GC (SPEC-congc sec 7.4)"_s) \
     v(Unsigned, sharedGCMutatorMarkStackDonationThreshold, 510, Normal, "CMS donation threshold in cells (SPEC-congc sec 5.2(ii)); default = one MarkStackArray segment, (4KB - segment header) / sizeof(const JSCell*) (GCSegmentedArray.h CapacityFromSize, release shape)"_s) \
+    v(Double, sharedGCEdenSurvivalFullTriggerRatio, 3.0, Normal, "Shared-GC N-mutator floating-garbage bound (SCALEBENCH sec 25 / T5-rss): when isSharedServer() with >=2 clients and post-eden heap size exceeds sizeAfterLastFullCollect * this ratio, force the next collection Full. 3.0 admits ~2 floating live-sets before a Full (bounds old-gen at ~3x true-live without the ~50% Full cadence 2.0 would drive). 0 disables."_s) \
     v(Bool, gcAtEnd, false, Normal, "If true, the jsc CLI will do a GC before exiting"_s) \
     v(Bool, forceGCSlowPaths, false, Normal, "If true, we will force all JIT fast allocations down their slow paths."_s) \
     v(Bool, forceDidDeferGCWork, false, Normal, "If true, we will force all DeferGC destructions to perform a GC."_s) \

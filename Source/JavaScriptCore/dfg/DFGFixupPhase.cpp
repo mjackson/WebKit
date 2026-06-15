@@ -4680,6 +4680,29 @@ private:
         emitPrimordialCheckFor(globalObject->regExpProtoExecFunction(), vm().propertyNames->exec.impl());
     }
 
+#if USE(JSVALUE64)
+    // T3-jit-segmented-arraymode: the exact set of NodeTypes whose DFG
+    // SpeculativeJIT compile path knows how to handle an UNSET storage child
+    // and dispatch flat-vs-segmented inline (DFGSpeculativeJIT*.cpp T3
+    // paths). Everything outside this set keeps a GetButterfly storage child
+    // (and today's flat-only OSR-exit-on-segmented behavior; recorded T3
+    // follow-ups: ArrayPop/ArrayShift/ArrayJoin/ArrayIndexOf/
+    // HasIndexedProperty — all cold relative to the SCALEBENCH §25 hot loops).
+    static bool consumerHasSegmentedAwareCodegen(Node* consumer)
+    {
+        switch (consumer->op()) {
+        case GetByVal:
+        case PutByVal:
+        case PutByValDirect:
+        case ArrayPush:
+        case GetArrayLength:
+            return true;
+        default:
+            return false;
+        }
+    }
+#endif
+
     Node* checkArray(ArrayMode arrayMode, const NodeOrigin& origin, Node* array, Node* index, bool (*storageCheck)(const ArrayMode&) = canCSEStorage)
     {
         ASSERT(arrayMode.isSpecific());
@@ -4719,8 +4742,37 @@ private:
         
         if (!storageCheck(arrayMode))
             return nullptr;
-        
+
         if (arrayMode.usesButterfly()) {
+#if USE(JSVALUE64)
+            // T3-jit-segmented-arraymode: when the profile (or a prior
+            // BadIndexingType OSR-exit at this origin) recorded a segmented
+            // butterfly word, a GetButterfly storage child is HARMFUL — its
+            // flat-only predicate (SPEC-jit §5.5 / Task 9) speculation-checks
+            // BadIndexingType on the segmented tag, and segmentation never
+            // changes the IndexingType so the recompile would converge to the
+            // same flat-only speculation forever (the OSR-exit storm in
+            // SCALEBENCH §25 / RUN-3.2). Instead, leave the storage child
+            // UNSET: the segmented-aware DFG codegen for GetByVal/PutByVal/
+            // ArrayPush/GetArrayLength (DFGSpeculativeJIT*.cpp T3 paths)
+            // re-loads the tagged word from the base and dispatches flat vs
+            // segmented inline, NO OSR-exit on the segmented arm.
+            //
+            // Gated to EXACTLY the ops with a segmented-aware compile path
+            // (consumerHasSegmentedAwareCodegen below); every other butterfly
+            // consumer keeps the GetButterfly child and today's behavior.
+            //
+            // FTL: not yet segmented-aware (FTLLowerDFGToB3.cpp owned by a
+            // separate workstream — THREADS-INTEGRATE(jit) T3 follow-up). Keep
+            // emitting GetButterfly so the FTL graph is structurally
+            // unchanged; FTL OSR-exits on segmented exactly as before, falls
+            // back to the now-segmented-aware DFG, and the FTL exit counter
+            // disables FTL for that CodeBlock — no worse than today, and the
+            // tier-regression tax (BigInt bit-ops in baseline) is gone.
+            if (arrayMode.needsSegmentedAwareCodegen() && Options::useJSThreads()
+                && !m_graph.m_plan.isFTL() && consumerHasSegmentedAwareCodegen(m_currentNode)) [[unlikely]]
+                return nullptr;
+#endif
             return m_insertionSet.insertNode(
                 m_indexInBlock, SpecNone, GetButterfly, origin, Edge(array, CellUse));
         }
@@ -4737,6 +4789,15 @@ private:
     {
         ArrayMode arrayMode = node->arrayMode();
         std::optional<Array::Speculation> saneChainSpeculation;
+        // T3-jit-segmented-arraymode: a maybe-segmented array is by definition
+        // shared (segmented words are (notTTLTID, SW=1)), so the sane-chain
+        // assumption is unsafe to lock in (a foreign thread could install
+        // indexed accessors on the prototype concurrently), AND the
+        // segmented-aware DFG codegen below intentionally keeps the
+        // InBounds/OutOfBounds purity model exact for Clobberize. Keep the
+        // mode at InBounds/OutOfBounds.
+        if (arrayMode.mayBeSegmentedButterfly())
+            return;
         if (arrayMode.isJSArrayWithOriginalStructure()) {
             // Check if InBoundsSaneChain will work on a per-type basis. Note that:
             //

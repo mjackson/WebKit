@@ -417,8 +417,8 @@ ALWAYS_INLINE bool concurrentButterflyAtomicsAreLockFree(void* sampleCell)
 JS_EXPORT_PRIVATE ButterflyFragment* spineOutOfLineFragment(ButterflySpine*, unsigned fragmentIndex);
 JS_EXPORT_PRIVATE ButterflyFragment* spineIndexedFragment(ButterflySpine*, unsigned fragmentIndex);
 JS_EXPORT_PRIVATE WriteBarrierBase<Unknown>* segmentedOutOfLineSlot(ButterflySpine*, PropertyOffset); // pre: I33 bound
-JS_EXPORT_PRIVATE WriteBarrierBase<Unknown>* segmentedIndexedSlot(ButterflySpine*, unsigned index); // pre: C4 (index < spine->vectorLength)
-JS_EXPORT_PRIVATE uint32_t segmentedPublicLength(ButterflySpine*); // fragment 0 slot 0, low half (C4: shared across spines)
+WriteBarrierBase<Unknown>* segmentedIndexedSlot(ButterflySpine*, unsigned index); // pre: C4 (index < spine->vectorLength); ALWAYS_INLINE in ConcurrentButterflyInlines.h (T2-segmented-accessors-inline)
+uint32_t segmentedPublicLength(ButterflySpine*); // fragment 0 slot 0, low half (C4: shared across spines); ALWAYS_INLINE in ConcurrentButterflyInlines.h
 JS_EXPORT_PRIVATE void setSegmentedPublicLength(ButterflySpine*, uint32_t);
 
 // Task-2 consumer additions (not in the frozen §9.3 list; bounds-checked
@@ -436,10 +436,16 @@ JS_EXPORT_PRIVATE void setSegmentedPublicLength(ButterflySpine*, uint32_t);
 //   the flat vectorLength bound of setIndexQuickly/trySetIndexQuickly).
 // - segmentedVectorLength: the loaded spine's authoritative, per-spine-immutable
 //   vectorLength (§4.1).
-JS_EXPORT_PRIVATE WriteBarrierBase<Unknown>* segmentedOutOfLineSlotIfWithinBounds(ButterflySpine*, PropertyOffset);
-JS_EXPORT_PRIVATE WriteBarrierBase<Unknown>* segmentedIndexedSlotIfReadable(ButterflySpine*, unsigned index);
-JS_EXPORT_PRIVATE WriteBarrierBase<Unknown>* segmentedIndexedSlotIfWithinVectorLength(ButterflySpine*, unsigned index);
-JS_EXPORT_PRIVATE uint32_t segmentedVectorLength(ButterflySpine*);
+//
+// T2-segmented-accessors-inline: the four below are ALWAYS_INLINE in
+// ConcurrentButterflyInlines.h (included from JSObject.h) — they were the
+// dominant serial-phase self% in the W>=2 SCALEBENCH profile (PLT stub +
+// frame on every segmented indexed read/write). No out-of-line copy is kept:
+// every caller reaches them through JSObject.h.
+WriteBarrierBase<Unknown>* segmentedOutOfLineSlotIfWithinBounds(ButterflySpine*, PropertyOffset);
+WriteBarrierBase<Unknown>* segmentedIndexedSlotIfReadable(ButterflySpine*, unsigned index);
+WriteBarrierBase<Unknown>* segmentedIndexedSlotIfWithinVectorLength(ButterflySpine*, unsigned index);
+uint32_t segmentedVectorLength(ButterflySpine*);
 
 class JSObject;
 class JSObjectWithButterfly;

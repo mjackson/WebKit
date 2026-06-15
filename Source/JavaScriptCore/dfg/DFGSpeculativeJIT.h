@@ -1553,6 +1553,52 @@ public:
     // every non-owner write goes slow).
     JITCompiler::JumpList emitThreadedButterflyLoadForRead(GPRReg baseGPR, GPRReg destGPR, GPRReg scratchGPR, const ThreadedButterflyPlan&);
     JITCompiler::JumpList emitThreadedButterflyLoadForWrite(GPRReg baseGPR, GPRReg destGPR, GPRReg tidScratchGPR, GPRReg indexingScratchGPR, const ThreadedButterflyPlan&);
+
+    // ===== T3-jit-segmented-arraymode (SPEC-objectmodel §4 / SCALEBENCH §25) =====
+    //
+    // Segmented-aware indexed access for the dense contiguous shapes
+    // (Int32/Double/Contiguous). These paths replace the GetButterfly +
+    // storage[index] sequence when ArrayMode::mayBeSegmentedButterfly() is
+    // set: they re-load the tagged butterfly word from the base, branch on
+    // the segmented tag (top16 == 0xffff), and inline BOTH arms — the flat
+    // arm is byte-identical to today's storage path (mask + bounds + slot),
+    // the segmented arm is the spine→fragment→slot resolve (Butterfly.h §4.1
+    // address equations). NO OSR-exit on the segmented dispatch itself; the
+    // bounds/hole semantics of the chosen Array::Speculation are preserved
+    // exactly (so Clobberize/DoesGC/AbstractInterpreter coverage is
+    // unchanged for the existing Int32/Double/Contiguous cases).
+    //
+    // Frozen layout (Butterfly.h / ConcurrentButterfly.h, asserted at
+    // emitSegmentedSpineSlotResolve):
+    //   tag mask                 = 0xffff << 48 (segmented <=> tagged >= mask)
+    //   spine.outOfLineFragmentCount @ +0 (u32)
+    //   spine.vectorLength           @ +8 (u32)
+    //   fragments[]                  @ spine + sizeof(ButterflySpine)
+    //   indexed fragment f           = fragments[outOfLineFragmentCount + f]
+    //   index i -> fragment (i+1)/4, slot (i+1)%4, byte = fragment + slot*8
+    //   publicLength                 = load32(indexedFragment(0))
+    //
+    // emitSegmentedSpineSlotResolve: spineGPR holds the MASKED spine pointer
+    // on entry; indexGPR holds the (unsigned, <2^31) index. On the success
+    // path slotOutGPR holds the slot ADDRESS (8-byte aligned). All four GPRs
+    // pairwise distinct; spineGPR/scratchGPR clobbered. Appends to
+    // outOfBounds when index >= spine.vectorLength (C4); the caller bounds
+    // by publicLength itself if needed (reads).
+    void emitSegmentedSpineSlotResolve(GPRReg spineGPR, GPRReg indexGPR, GPRReg slotOutGPR, GPRReg scratchGPR, JITCompiler::JumpList& outOfBounds);
+    // Loads the segmented publicLength (indexed fragment 0, low half) into
+    // destGPR; spineGPR holds the masked spine pointer; scratchGPR clobbered.
+    void emitLoadSegmentedPublicLength(GPRReg spineGPR, GPRReg destGPR, GPRReg scratchGPR);
+
+    // Self-contained segmented-aware compile paths (DFG only — FTL follow-up
+    // recorded in DFGFixupPhase.cpp::checkArray). These do NOT consume a
+    // StorageOperand; FixupPhase intentionally leaves the storage child unset
+    // when needsSegmentedAwareCodegen().
+    void compileGetByValSegmentedAwareContiguous(Node*, const ScopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat, bool)>& prefix);
+    void compileGetByValSegmentedAwareDouble(Node*, const ScopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat, bool)>& prefix);
+    void compileGetArrayLengthSegmentedAware(Node*);
+    void compileContiguousPutByValSegmentedAware(Node*);
+    void compileDoublePutByValSegmentedAware(Node*);
+    void compileArrayPushSegmentedAware(Node*);
 #endif
     void compileCallDOMGetter(Node*);
     void compileCallDOM(Node*);

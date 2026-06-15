@@ -2655,6 +2655,200 @@ void SpeculativeJIT::compileMapGet(Node* node)
         RELEASE_ASSERT_NOT_REACHED();
 }
 
+// ===========================================================================
+// T3-jit-segmented-arraymode: segmented-aware GetByVal for the dense
+// contiguous shapes. Self-contained (no GetButterfly storage child); both
+// the flat arm and the segmented arm are inline. Reads need NO TID/SW
+// gating (frozen READ predicate, §5.5): the shape is KnownNonArrayStorage
+// (CheckArray-guaranteed) so the only excluded tag is segmented, and that
+// is exactly what we dispatch on. Clobberize/DoesGC/AbstractInterpreter
+// are unchanged for the InBounds / *SaneChain speculations (no operation
+// call on those arms); the OutOfBounds speculation already clobberTop()s,
+// so its no-exit operation call is sound.
+// ===========================================================================
+
+void SpeculativeJIT::compileGetByValSegmentedAwareContiguous(Node* node, const ScopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat, bool)>& prefix)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(node->arrayMode().needsSegmentedAwareCodegen());
+    ASSERT(node->arrayMode().type() == Array::Int32 || node->arrayMode().type() == Array::Contiguous);
+
+    ArrayMode arrayMode = node->arrayMode();
+    SpeculateCellOperand base(this, m_graph.varArgChild(node, 0));
+    SpeculateStrictInt32Operand property(this, m_graph.varArgChild(node, 1));
+    GPRTemporary storage(this);
+    GPRTemporary scratch(this);
+    GPRTemporary slot(this);
+
+    GPRReg baseReg = base.gpr();
+    GPRReg propertyReg = property.gpr();
+    GPRReg storageReg = storage.gpr();
+    GPRReg scratchReg = scratch.gpr();
+    GPRReg slotReg = slot.gpr();
+
+    if (!m_compileOkay)
+        return;
+
+    JSValueRegs resultRegs;
+    DataFormat format;
+    constexpr bool needsFlush = false;
+    // OutOfBounds (effectful) can return anything via the proto chain, so the
+    // preferred format must be DataFormatJS there — exactly today's split.
+    DataFormat preferred = (arrayMode.type() == Array::Int32 && arrayMode.isInBounds()) ? DataFormatJSInt32 : DataFormatJS;
+    std::tie(resultRegs, format) = prefix(preferred, needsFlush);
+    GPRReg resultReg = resultRegs.gpr();
+
+    JumpList slowCases; // OutOfBounds-only no-exit operation call.
+
+    emitButterflyLoadWithStructureDependency(baseReg, storageReg, scratchReg);
+    Jump segmented = branch64(AboveOrEqual, storageReg, TrustedImm64(static_cast<int64_t>(JSC::butterflyTagMask)));
+
+    // ---- Flat arm: identical to today's path (mask + bound + load). ----
+    maskButterflyTag(storageReg);
+    JumpList flatPastLength;
+    flatPastLength.append(branch32(AboveOrEqual, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength())));
+    load64(BaseIndex(storageReg, propertyReg, TimesEight), resultReg);
+    Jump flatLoaded = jump();
+
+    // ---- Segmented arm: spine→fragment→slot inline (§4.1). ----
+    segmented.link(this);
+    maskButterflyTag(storageReg); // -> spine*
+    emitLoadSegmentedPublicLength(storageReg, slotReg, scratchReg);
+    JumpList segPastLength;
+    segPastLength.append(branch32(AboveOrEqual, propertyReg, slotReg));
+    JumpList segOOB; // index < publicLength but >= THIS spine's vectorLength (stale spine, §4.4 T2 race)
+    emitSegmentedSpineSlotResolve(storageReg, propertyReg, slotReg, scratchReg, segOOB);
+    load64(Address(slotReg, 0), resultReg);
+    flatLoaded.link(this);
+
+    // Hole / past-length convergence — same semantics as today's path.
+    if (arrayMode.isInBoundsSaneChain()) {
+        ASSERT(arrayMode.type() == Array::Contiguous);
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, flatPastLength);
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, segPastLength);
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, segOOB);
+        Jump notHole = branchIfNotEmpty(resultReg);
+        move(TrustedImm64(JSValue::encode(jsUndefined())), resultReg);
+        notHole.link(this);
+        jsValueResult(resultReg, node, format);
+        return;
+    }
+    if (arrayMode.isInBounds()) {
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, flatPastLength);
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, segPastLength);
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, segOOB);
+        speculationCheck(LoadFromHole, JSValueRegs(), nullptr, branchIfEmpty(resultReg));
+        jsValueResult(resultReg, node, format);
+        return;
+    }
+    if (arrayMode.isOutOfBoundsSaneChain()) {
+        Jump notEmpty = branchIfNotEmpty(resultReg);
+        flatPastLength.link(this);
+        segPastLength.link(this);
+        segOOB.link(this);
+        speculationCheck(NegativeIndex, JSValueRegs(), nullptr, branch32(LessThan, propertyReg, TrustedImm32(0)));
+        move(TrustedImm64(JSValue::encode(jsUndefined())), resultReg);
+        notEmpty.link(this);
+        jsValueResult(resultReg, node, format);
+        return;
+    }
+    // OutOfBounds (effectful) — already clobberTop in Clobberize.
+    slowCases.append(flatPastLength);
+    slowCases.append(segPastLength);
+    slowCases.append(segOOB);
+    slowCases.append(branchIfEmpty(resultReg));
+    addSlowPathGenerator(slowPathCall(slowCases, this, operationGetByValObjectInt, resultReg, LinkableConstant::globalObject(*this, node), baseReg, propertyReg));
+    jsValueResult(resultReg, node, format);
+}
+
+void SpeculativeJIT::compileGetByValSegmentedAwareDouble(Node* node, const ScopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat, bool)>& prefix)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(node->arrayMode().needsSegmentedAwareCodegen());
+    ASSERT(node->arrayMode().type() == Array::Double);
+
+    ArrayMode arrayMode = node->arrayMode();
+    SpeculateCellOperand base(this, m_graph.varArgChild(node, 0));
+    SpeculateStrictInt32Operand property(this, m_graph.varArgChild(node, 1));
+    GPRTemporary storage(this);
+    GPRTemporary scratch(this);
+    GPRTemporary slot(this);
+    FPRTemporary result(this);
+
+    GPRReg baseReg = base.gpr();
+    GPRReg propertyReg = property.gpr();
+    GPRReg storageReg = storage.gpr();
+    GPRReg scratchReg = scratch.gpr();
+    GPRReg slotReg = slot.gpr();
+    FPRReg resultReg = result.fpr();
+
+    if (!m_compileOkay)
+        return;
+
+    JSValueRegs resultRegs;
+    DataFormat format;
+    constexpr bool needsFlush = false;
+    std::tie(resultRegs, format) = prefix(DataFormatDouble, needsFlush);
+
+    emitButterflyLoadWithStructureDependency(baseReg, storageReg, scratchReg);
+    Jump segmented = branch64(AboveOrEqual, storageReg, TrustedImm64(static_cast<int64_t>(JSC::butterflyTagMask)));
+
+    // ---- Flat arm. ----
+    maskButterflyTag(storageReg);
+    JumpList pastLength;
+    pastLength.append(branch32(AboveOrEqual, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength())));
+    loadDouble(BaseIndex(storageReg, propertyReg, TimesEight), resultReg);
+    Jump loaded = jump();
+
+    // ---- Segmented arm (R-DOUBLE §4.7: shared Double stays Double). ----
+    segmented.link(this);
+    maskButterflyTag(storageReg);
+    emitLoadSegmentedPublicLength(storageReg, slotReg, scratchReg);
+    pastLength.append(branch32(AboveOrEqual, propertyReg, slotReg));
+    JumpList segOOB;
+    emitSegmentedSpineSlotResolve(storageReg, propertyReg, slotReg, scratchReg, segOOB);
+    loadDouble(Address(slotReg, 0), resultReg);
+    loaded.link(this);
+
+    if (arrayMode.isInBounds()) {
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, pastLength);
+        speculationCheck(OutOfBounds, JSValueRegs(), nullptr, segOOB);
+        if (!arrayMode.isInBoundsSaneChain())
+            speculationCheck(LoadFromHole, JSValueRegs(), nullptr, branchIfNaN(resultReg));
+        if (format == DataFormatJS) {
+            boxDouble(resultReg, resultRegs);
+            jsValueResult(resultRegs, node);
+        } else {
+            ASSERT(format == DataFormatDouble && !resultRegs);
+            doubleResult(resultReg, node);
+        }
+        return;
+    }
+
+    // OutOfBounds / OutOfBoundsSaneChain: route past-length, segOOB, and NaN
+    // (hole) to a no-exit boxed-result operation call. The boxed result is
+    // forced to JS format (the prefix may have requested Double but a
+    // past-length read can produce undefined; today's non-segmented Double
+    // OutOfBounds path takes the same boxed JS-result shape).
+    JumpList slowCases;
+    slowCases.append(pastLength);
+    slowCases.append(segOOB);
+    slowCases.append(branchIfNaN(resultReg));
+    if (!resultRegs) {
+        // Prefix returned no JS regs (DataFormatDouble); fall back to boxing
+        // through slotReg into a boxed JS result. The OutOfBounds Double mode
+        // is already DataFormatJS at the FixupPhase result-format level, so
+        // resultRegs is set in practice; defend anyway.
+        boxDouble(resultReg, JSValueRegs(slotReg));
+        addSlowPathGenerator(slowPathCall(slowCases, this, operationGetByValObjectInt, JSValueRegs(slotReg), LinkableConstant::globalObject(*this, node), baseReg, propertyReg));
+        jsValueResult(slotReg, node);
+        return;
+    }
+    boxDouble(resultReg, resultRegs);
+    addSlowPathGenerator(slowPathCall(slowCases, this, operationGetByValObjectInt, resultRegs, LinkableConstant::globalObject(*this, node), baseReg, propertyReg));
+    jsValueResult(resultRegs, node);
+}
+
 void SpeculativeJIT::compileGetByVal(Node* node, const ScopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat preferredFormat, bool needsFlush)>& prefix)
 {
     switch (node->arrayMode().type()) {
@@ -2765,6 +2959,22 @@ void SpeculativeJIT::compileGetByVal(Node* node, const ScopedLambda<std::tuple<J
     }
     case Array::Int32:
     case Array::Contiguous: {
+        // T3-jit-segmented-arraymode: storage child intentionally UNSET
+        // (FixupPhase::checkArray, gated by consumerHasSegmentedAwareCodegen);
+        // self-contained flat-vs-segmented dispatch — NO OSR-exit on the
+        // segmented tag, both arms inline. Restores DFG residency for the hot
+        // BigInt checksum loops once Phase-A foreign writes segment the ~131k
+        // posting arrays (SCALEBENCH §25 / RUN-3.2). The storage-edge-unset
+        // check makes this compose with callers that still wired a
+        // GetButterfly child (EnumeratorGetByVal, FTL-plan re-entry): those
+        // keep today's flat-only path, and GetButterfly's own
+        // BadIndexingType exit already excludes the segmented case before
+        // control reaches here.
+        if (node->arrayMode().needsSegmentedAwareCodegen() && Options::useJSThreads()
+            && !m_graph.varArgChild(node, 2)) [[unlikely]] {
+            compileGetByValSegmentedAwareContiguous(node, prefix);
+            break;
+        }
         if (node->arrayMode().isInBounds()) {
             SpeculateStrictInt32Operand property(this, m_graph.varArgChild(node, 1));
             StorageOperand storage(this, m_graph.varArgChild(node, 2));
@@ -2840,6 +3050,12 @@ void SpeculativeJIT::compileGetByVal(Node* node, const ScopedLambda<std::tuple<J
     }
 
     case Array::Double: {
+        // T3-jit-segmented-arraymode: see Array::Int32/Contiguous above.
+        if (node->arrayMode().needsSegmentedAwareCodegen() && Options::useJSThreads()
+            && !m_graph.varArgChild(node, 2)) [[unlikely]] {
+            compileGetByValSegmentedAwareDouble(node, prefix);
+            break;
+        }
         if (node->arrayMode().isInBounds()) {
             SpeculateStrictInt32Operand property(this, m_graph.varArgChild(node, 1));
             StorageOperand storage(this, m_graph.varArgChild(node, 2));

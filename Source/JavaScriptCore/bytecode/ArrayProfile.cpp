@@ -168,6 +168,11 @@ void ArrayProfile::observeIndexedRead(JSCell* cell, unsigned index)
     observeStructureID(cell->structureID()); // THREADS §5.7.7: relaxed word-atomic advisory store.
 
     if (JSObject* object = dynamicDowncast<JSObject>(cell)) {
+        // T3-jit-segmented-arraymode: record the segmented tag so DFG can stop
+        // speculating flat-only. mayBeSegmentedButterfly() is a constant false
+        // flag-off (I22), so this is byte-identical when !useJSThreads().
+        if (object->mayBeSegmentedButterfly()) [[unlikely]]
+            setMayBeSegmentedButterfly();
         if (hasAnyArrayStorage(object->indexingType()) && index >= object->getVectorLength())
             setOutOfBounds();
         else if (index >= object->getArrayLength())
@@ -206,6 +211,8 @@ CString ArrayProfile::briefDescriptionWithoutUpdating()
         out.print(comma, "Original"_s);
     if (!flagsSnapshot.contains(ArrayProfileFlag::MayBeResizableOrGrowableSharedTypedArray))
         out.print(comma, "Resizable"_s);
+    if (flagsSnapshot.contains(ArrayProfileFlag::MayBeSegmentedButterfly))
+        out.print(comma, "Segmented"_s);
 
     return out.toCString();
 }

@@ -1365,6 +1365,12 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case GetByValMegamorphic: {
         ArrayMode mode = node->arrayMode();
         LocationKind indexedPropertyLoc = indexedPropertyLocForResultType(node->result());
+        // T3-jit-segmented-arraymode: when the segmented bit is set, the DFG
+        // backend re-loads the tagged butterfly word directly (no GetButterfly
+        // child), so this node itself reads JSObject_butterfly. Flag-off
+        // byte-identical (the bit is never set without useJSThreads).
+        if (mode.mayBeSegmentedButterfly())
+            read(JSObject_butterfly);
         switch (mode.type()) {
         case Array::SelectUsingPredictions:
         case Array::Unprofiled:
@@ -1575,6 +1581,9 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case PutByValDirectResolved:
     case PutByValMegamorphic: {
         ArrayMode mode = node->arrayMode();
+        // T3-jit-segmented-arraymode: see GetByVal above.
+        if (mode.mayBeSegmentedButterfly())
+            read(JSObject_butterfly);
         Node* base = graph.varArgChild(node, 0).node();
         Node* index = graph.varArgChild(node, 1).node();
         Node* value = graph.varArgChild(node, 2).node();
@@ -2182,6 +2191,12 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         case Array::Contiguous:
         case Array::ArrayStorage:
         case Array::SlowPutArrayStorage:
+            // T3-jit-segmented-arraymode: when the segmented bit is set, the
+            // DFG backend re-loads the tagged butterfly word directly (no
+            // GetButterfly child), so this node itself reads JSObject_butterfly.
+            // Flag-off byte-identical (the bit is never set).
+            if (mode.mayBeSegmentedButterfly())
+                read(JSObject_butterfly);
             read(Butterfly_publicLength);
             def(HeapLocation(ArrayLengthLoc, Butterfly_publicLength, node->child1()), LazyNode(node));
             return;

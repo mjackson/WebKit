@@ -3447,16 +3447,22 @@ void JSObject::relabelIndexingShapeConcurrent(VM& vm, TransitionKind transition)
     // post-allocation re-validation; DeferGCForAWhile defers collection, not
     // §10.6 stop participation).
     //
-    // Cost of NOT taking a fast path: measured negligible. The Class-A/§A.3
-    // stop windows this loop produces are warmup-phase one-shots — ~36/run,
-    // count flat with N and scale, 1.6 ms total of a 48.8 s wall (~0.003%;
-    // STW-WATCHDOG-CLOSURE.md / SCALEBENCH §11.2). The relabel STW is not a
-    // campaign-2 top site; do NOT re-propose a dynamic "thread-local" gate
-    // here. If a future profile ever shows this loop hot, the only sound
-    // route is a CALLER-THREADED proof of non-escape (e.g. an explicit
-    // known-unshared overload invoked from inside ObjectInitializationScope
-    // for the slice/from/of result-fill path) — not a heuristic on the
-    // object's own tag/TTL state.
+    // Do NOT re-propose a dynamic "thread-local" gate here. The only sound
+    // STW-elision route is a CALLER-THREADED proof of non-escape — not a
+    // heuristic on the object's own tag/TTL state. T1-relabel-stw-elide-sound
+    // (campaign-3) lands that route as: JSArray::fastSlice's segmented-source
+    // sub-leg allocates the result FLAT and already-typed (zero relabels — the
+    // result cell is provably in-frame). The earlier "~36/run, 0.003%" claim
+    // here was FALSIFIED on the campaign-3 SCALEBENCH Phase-B profile by ~3
+    // orders of magnitude (segmented .slice() sources drove ~75.9k relabel
+    // STWs/run via arrayProtoFuncSlice's generic-loop fallback); the fastSlice
+    // leg eliminates that family at its source and accounts for the entire
+    // measured win. A second leg — an explicit known-unshared overload for
+    // slice/from/of result-fill paths still inside ObjectInitializationScope —
+    // was drafted but DROPPED unwired at amendment review: with no caller, its
+    // non-escape contract was unverifiable. Any future such overload must land
+    // together with its call site and that site's non-escape proof. This loop
+    // remains the conservative path for every possibly-shared object.
 
     while (true) {
         StructureID oldStructureID = this->structureID(); // RAW bits (M5).
