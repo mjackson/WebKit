@@ -1,6 +1,9 @@
 # MC-INT mapping — trust-boundary integer arithmetic on sizes/limits
 
-Status: surface map + verdicts, 2026-06-07. Defensive audit artifact for `jarred/threads`
+Status: surface map + verdicts, 2026-06-07; **re-verified 2026-06-15** against the
+post-ab17e/TSAN/closeout tree (line-number drift recorded inline; S10 added for the
+ANNEX-A16 per-lite scratch-buffer registry that landed after the original sweep).
+Defensive audit artifact for `jarred/threads`
 (`--useJSThreads`). Mechanism class per `docs/threads/CVE-AUDIT.md` §MC-INT:
 overflow/underflow/unit-confusion computing sizes, lengths, or limits for shared or
 growable storage. Feeder class: at a resize site it yields MC-GROW; at a length site it
@@ -26,6 +29,7 @@ Verdict summary:
 | S7 | Shared heap server: TLC indices + allocator table growth | immune-by-construction |
 | S8 | Sharded atom table | immune-by-construction |
 | S9 | TID partitions / exhaustion | immune-by-construction |
+| S10 | Per-lite scratch-buffer registry + size-class index (ANNEX A16) | immune-by-construction |
 
 Susceptibility test (S4, plus S6 belt-and-braces):
 `JSTests/threads/cve/mc-int-resizable-tail-quarantine.js` — executed at the
@@ -44,44 +48,47 @@ flagged as the skewed-arithmetic failure this phase hunts.
 
 ## S1. Segmented element growth (T2) — immune-by-construction
 
-Where: `Source/JavaScriptCore/runtime/ConcurrentButterfly.cpp:2187`
-(`tryGrowSegmentedVectorLength`); spine layout `Source/JavaScriptCore/runtime/Butterfly.h:348-475`.
+Where: `Source/JavaScriptCore/runtime/ConcurrentButterfly.cpp:2405`
+(`tryGrowSegmentedVectorLength`; was `:2187` at first sweep — file grew ~220 lines);
+spine layout `Source/JavaScriptCore/runtime/Butterfly.h:439` (`allocationSize`).
 Governing spec: SPEC-objectmodel §4.4 (T2), §4.1 (C2/C4 sizing equations), I33.
 
 Attacker input: the requested element index / length. Release-grade clamp chain:
 
 - `JSObject::ensureLength` — `RELEASE_ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH)`
-  (`runtime/JSObject.h:1657`), where `MAX_STORAGE_VECTOR_LENGTH =
+  (`runtime/JSObject.h:1756`), where `MAX_STORAGE_VECTOR_LENGTH =
   IndexingHeader::maximumLength = 0x10000000` (`runtime/IndexingHeader.h:44`), i.e.
   2^28 — the same cap as mainline.
 - The direct segmented dense-store driver re-checks in release:
   `if (i >= MIN_SPARSE_ARRAY_INDEX || i + 1 > MAX_STORAGE_VECTOR_LENGTH) return false;`
-  (`runtime/ConcurrentButterfly.cpp:2600`) before calling
+  (`runtime/ConcurrentButterfly.cpp:2877`) before calling
   `ensureLengthSlowConcurrent(vm, this, i + 1)`.
 
 Arithmetic downstream of the clamp:
 
-- `neededIndexedFragments = max(old, (uint64_t(newVectorLength) + 1 + 3) / 4)`
-  (`ConcurrentButterfly.cpp:2210-2211`) — widened to uint64 BEFORE the +1/divide; with
-  VL ≤ 2^28 the count is ≤ 2^26+1, so the subsequent uint32 products
-  (`neededIndexedFragments * butterflyFragmentSlots - 1`, `outOfLineFragments +
-  neededIndexedFragments`) cannot wrap.
+- `neededIndexedFragments` and the amortized/max variants are computed as
+  `(uint64_t(VL) + 1 + 3) / 4` (`ConcurrentButterfly.cpp:2430-2449`) — widened to
+  uint64 BEFORE the +1/divide; with VL ≤ 2^28 the count is ≤ 2^26+1, so the
+  subsequent uint32 products (`neededIndexedFragments * butterflyFragmentSlots - 1`,
+  `outOfLineFragments + neededIndexedFragments`) cannot wrap. The 2026-06 refactor
+  added an explicit `maxIndexedFragments` cap derived from
+  `MAX_STORAGE_VECTOR_LENGTH` (`:2445`) — strictly tighter than the original sweep.
 - `ButterflySpine::allocationSize(totalFragmentCount)` widens the count to `size_t`
-  before multiplying by `sizeof(ButterflyFragment*)` (`Butterfly.h:363-366`).
+  before multiplying by `sizeof(ButterflyFragment*)` (`Butterfly.h:439-442`).
 - `publishedVectorLength = min(coveredVectorLength, MAX_STORAGE_VECTOR_LENGTH)`
-  (`ConcurrentButterfly.cpp:2216-2217`).
+  (`ConcurrentButterfly.cpp:2451`).
 
 Adversarial second mutator: a racing grower cannot skew the inputs — each attempt
 re-loads the spine once, computes from that one snapshot, and publishes a REPLACEMENT
 spine via a single `casButterfly` (I6 spine immutability: a reader never sees a
 half-updated count/length pair, which is what made CVE-2024-2887's two-location update
 exploitable). The cross-thread length word (`publicLength`) is bumped only via the
-monotone CAS-max `bumpPublicLengthToAtLeast` (`Butterfly.h:434-445`), so a losing
+monotone CAS-max `bumpPublicLengthToAtLeast` (`Butterfly.h:537`), so a losing
 racer cannot regress another thread's bound; readers bound every dereference by
-`min(publicLength, SAME-loaded-spine vectorLength)` (C4;
-`ConcurrentButterfly.cpp:151-157`), so a stale-spine reader degrades to holes, never
-to an index past allocated storage. The only debug-only guard in the function
-(`ASSERT(newVectorLength <= MAX_STORAGE_VECTOR_LENGTH)`, `:2192`) sits strictly behind
+`min(publicLength, SAME-loaded-spine vectorLength)` (C4), so a stale-spine reader
+degrades to holes, never to an index past allocated storage. The only debug-only
+guard in the function
+(`ASSERT(newVectorLength <= MAX_STORAGE_VECTOR_LENGTH)`, `:2409`) sits strictly behind
 the two release clamps above.
 
 MC-JIT feeder note: with VL ≤ 2^28 and 8-byte slots, every JIT-side scaled index
@@ -92,37 +99,37 @@ segmented words slow-path to the C++ drivers (SPEC-jit §9.4 predicates; no
 
 ## S2. Conversion fragment counts (§4.2) — immune-by-construction
 
-Where: `Source/JavaScriptCore/runtime/ButterflyInlines.h:338-377`;
-consumer `Source/JavaScriptCore/runtime/ConcurrentButterfly.cpp:560-630`.
+Where: `Source/JavaScriptCore/runtime/ButterflyInlines.h:384-422`;
+consumer `Source/JavaScriptCore/runtime/ConcurrentButterfly.cpp:638-814`.
 Governing spec: SPEC-objectmodel §4.2 (steps 1/3 refit protocol), §4.1 C1-C3.
 
 - `aliasedOutOfLineFragmentCountForConversion` RELEASE_ASSERTs C1
-  (`outOfLineCapacity % 4 == 0`, `ButterflyInlines.h:340`) so flat out-of-line storage
+  (`outOfLineCapacity % 4 == 0`, `ButterflyInlines.h:386`) so flat out-of-line storage
   splits into whole fragments — no rounding remainder to confuse.
 - `aliasedIndexedFragmentCountForConversion` widens `flatVectorLength` to `size_t`
-  before `(1 + VL + 3) / 4` (`ButterflyInlines.h:353`); VL ≤ 2^28 (S1 clamp).
-- `aliasedAllocationSizeForConversion` (`ButterflyInlines.h:372-377`) delegates to
+  before `(1 + VL + 3) / 4` (`ButterflyInlines.h:399`); VL ≤ 2^28 (S1 clamp).
+- `aliasedAllocationSizeForConversion` (`ButterflyInlines.h:418-422`) delegates to
   mainline `Butterfly::totalSize` — no new arithmetic.
 - TOCTOU on the inputs (the MC-INT-under-races leg): the counts are computed from a
   pre-lock plan, but §4.2 step 3 re-reads `flatVectorLength` UNDER the cell lock and
   takes the `refit` escape when `totalOutOfLineFragments + indexedFragments >
-  allocatedTotalFragments` (`ConcurrentButterfly.cpp:609-614`) — the planning-time
+  allocatedTotalFragments` (`ConcurrentButterfly.cpp:731-733`) — the planning-time
   size is never trusted at publication time. C3 (`preCapacity == 0`) is
-  RELEASE_ASSERTed (`ButterflyInlines.h:365`), so the ArrayStorage pre-capacity unit
+  RELEASE_ASSERTed (`ButterflyInlines.h:410`), so the ArrayStorage pre-capacity unit
   confusion cannot enter the aliasing equations (AS never segments, I31).
 
 ## S3. Out-of-line dictionary growth (§6) — immune-by-construction (backstopped)
 
-Where: `Source/JavaScriptCore/runtime/ConcurrentButterfly.cpp:1911-1965`
+Where: `Source/JavaScriptCore/runtime/ConcurrentButterfly.cpp:2116-2170`
 (`ensureSegmentedOutOfLineCapacity`); caller
-`Source/JavaScriptCore/runtime/JSObjectInlines.h:259`; consumer backstop
-`Source/JavaScriptCore/runtime/JSObjectInlines.h:282`.
+`Source/JavaScriptCore/runtime/JSObjectInlines.h:202`; consumer backstop
+`Source/JavaScriptCore/runtime/JSObjectInlines.h:292`.
 Governing spec: SPEC-objectmodel §6 (coverage monotone across replacement spines), I33.
 
 The one place a size is narrowed BEFORE allocation:
 
 ```
-uint32_t needFragments = static_cast<uint32_t>((neededCapacitySlots + butterflyFragmentSlots - 1) / butterflyFragmentSlots);   // :1926
+uint32_t needFragments = static_cast<uint32_t>((neededCapacitySlots + butterflyFragmentSlots - 1) / butterflyFragmentSlots);   // :2134
 ```
 
 `neededCapacitySlots` is `size_t`; for the cast to truncate (the classic
@@ -136,7 +143,7 @@ truncated-undercount result is NOT trusted by the consumer — before the struct
 RELEASE_ASSERTs real coverage in uint64:
 
 ```
-RELEASE_ASSERT(static_cast<uint64_t>(butterflyFragmentSlots) * butterflySpine(lockedWord)->outOfLineFragmentCount >= newOutOfLineCapacity);   // JSObjectInlines.h:282
+RELEASE_ASSERT(static_cast<uint64_t>(butterflyFragmentSlots) * butterflySpine(lockedWord)->outOfLineFragmentCountConcurrent() >= newOutOfLineCapacity);   // JSObjectInlines.h:292
 ```
 
 so an undercounted spine can never be published behind a larger `maxOffset` — the
@@ -146,14 +153,14 @@ prefixes are copied verbatim by every replacement spine (§6 "coverage is MONOTO
 comment at `:1896-1903`).
 
 Hardening nit (non-blocking): widen `needFragments` to `size_t` or RELEASE_ASSERT
-`neededCapacitySlots <= MAX-representable` at `:1926` so the guard is local rather
+`neededCapacitySlots <= MAX-representable` at `:2134` so the guard is local rather
 than relying on the consumer-side assert.
 
 ## S4. GIL-off resizable ArrayBuffer resize + tail quarantine — NEEDS-TEST
 
 Where: `Source/JavaScriptCore/runtime/ArrayBuffer.cpp` —
-`resizeGILOff` (`:1166`), `deferShrinkTailGILOff` (`:503`),
-`consumeQuarantinedTailOnRegrow` (`:538`), `retireArrayBufferQuarantineEntry` (`:396`).
+`resizeGILOff` (`:1237`), `deferShrinkTailGILOff` (`:539`),
+`consumeQuarantinedTailOnRegrow` (`:574`), `retireArrayBufferQuarantineEntry` (`:432`).
 Governing spec: SPEC-ungil annex N6 arms 3/4 (binding torn-pair table; HANDOUT §6 R10).
 
 This is our direct analog of the exemplar class (resizable storage whose limit
@@ -177,9 +184,9 @@ What is provably clamped (release-grade, all under the handle lock):
 What is NOT release-checked — the suspected-hole shape, and why we believe it holds:
 
 `deferShrinkTailGILOff`'s tail-extension subtraction
-(`size_t newlyQuarantined = entry.tailOffset - desiredSize;`, `:516`) and
-`entry.tailSize = handle.size() - desiredSize` (`:518`) are protected only by debug
-ASSERTs (`:510`, `:515`). An execution that reaches `:516` with
+(`size_t newlyQuarantined = entry.tailOffset - desiredSize;`, `:552`) and
+`entry.tailSize = handle.size() - desiredSize` (`:554`/`:560`) are protected only by
+debug ASSERTs (`:541`, `:551`). An execution that reaches `:552` with
 `desiredSize > entry.tailOffset` underflows `size_t` and, at the next stop, feeds a
 ~2^64 `tailSize` to `freePhysicalBytes` + `OSAllocator::protect` (`:409-419`) — at
 minimum wild un-mapping of the reserved VA range.
@@ -258,8 +265,9 @@ disposition is traceable):**
 
 ## S5. Wasm-memory-associated resize delegation — immune (validity-checked); wart noted
 
-Where: `Source/JavaScriptCore/runtime/ArrayBuffer.cpp:1294-1313` (GIL-off leg of
-`ArrayBuffer::resize`). Governing spec: SPEC-ungil annex N6 arm 4 (wasm grow).
+Where: `Source/JavaScriptCore/runtime/ArrayBuffer.cpp:1400-1460` (GIL-off leg of
+`ArrayBuffer::resize`, wasm-memory delegation around `:1412-1417`).
+Governing spec: SPEC-ungil annex N6 arm 4 (wasm grow).
 
 The delegation decision runs OUTSIDE the handle lock (deliberately — comment `:1281-1293`),
 so `oldPageCount = PageCount::fromBytes(memoryHandle->size())` (`:1305`) and the
@@ -289,8 +297,9 @@ MC-GROW/MC-TEAR territory and is tracked by the N6 audit, not here.
 
 ## S6. Growable SAB grow — immune-by-construction
 
-Where: `Source/JavaScriptCore/runtime/ArrayBuffer.cpp:1444-1495`
-(`SharedArrayBufferContents::grow`), entry `ArrayBuffer::grow` (`:1136`).
+Where: `Source/JavaScriptCore/runtime/ArrayBuffer.cpp:1547-1595`
+(`SharedArrayBufferContents::grow`), monotone reject at `:1559`, commit-subtraction
+RELEASE_ASSERT at `:1586`.
 Governing spec: annex N6 (grow is base-immutable, commit-then-release-length).
 
 The CVE-2024-2887 underflow leg was "shrink a growable shared buffer's length via
@@ -308,9 +317,9 @@ multi-thread `grow()` storm with boundary reads as belt-and-braces.
 
 ## S7. Shared heap server: TLC indices + allocator table — immune-by-construction
 
-Where: `Source/JavaScriptCore/heap/MarkedSpace.cpp:702-711`
+Where: `Source/JavaScriptCore/heap/MarkedSpace.cpp:758-764`
 (`reserveThreadLocalCacheIndices`),
-`Source/JavaScriptCore/heap/GCThreadLocalCache.cpp:180-196` (`growTable`).
+`Source/JavaScriptCore/heap/GCThreadLocalCache.cpp:180-199` (`growTable`).
 Governing spec: SPEC-heap §5.3 (T4 index assignment, grow-only table), I2/I5b.
 
 - Index reservation is monotone under `m_directoryLock` with an EXPLICIT wrap guard:
@@ -347,8 +356,9 @@ material, mapped separately.)
 
 ## S9. TID partitions / exhaustion — immune-by-construction
 
-Where: `Source/JavaScriptCore/runtime/ThreadManager.cpp:292-330` (spawned),
-`:396-422` (carrier), `:458-474` (rebias threshold).
+Where: `Source/JavaScriptCore/runtime/ThreadManager.cpp:342-360` (spawned,
+exhaustion check `:352`), `:446-460` (carrier, `RELEASE_ASSERT(m_nextCarrierTID <
+notTTLTID)` `:456`), `:540` (`completeRebiasIfPendingLocked`).
 Governing spec: SPEC-ungil §A.3.6/ANNEX A36 (partition), §D.1 (rebias), SD9.
 
 A 16-bit TID that wrapped or got reissued without rebias would alias a live butterfly
@@ -361,15 +371,58 @@ after the D1 restamp protocol (`completeRebiasIfPendingLocked`, `:496-520`), and
 (the per-partition refinement at `:461-471` exists precisely because the naive
 75%-of-2^15 threshold was an arithmetic liveness bug; it is documented and bounded).
 
+## S10. Per-lite scratch-buffer registry + size-class index — immune-by-construction
+
+Where: `Source/JavaScriptCore/runtime/VMLite.cpp:508-558`
+(`VMLite::scratchBufferForSize`), `:644-654` (`ScratchBufferRegistry::allocateIndex`),
+`:668-696` (`VMLite::ensureScratchBufferAtIndex`); table geometry
+`Source/JavaScriptCore/runtime/VMLite.h:350-352` (`scratchSegmentSize = 64`,
+`maxScratchSegments = 256` ⇒ 16384 entries).
+Governing spec: SPEC-ungil ANNEX A16 (baked-index registry + per-lite segmented
+table; non-baked size-class arm), SPEC-vmstate §6.6 Group 5.
+
+This is the one NEW threads-introduced size/limit surface since the 2026-06-07 sweep:
+a process-wide monotonic index registry feeding a per-lite fixed-geometry segmented
+pointer table, with a power-of-two size-class dispatch on top. Three arithmetic
+boundaries:
+
+- **Size→class**: `RELEASE_ASSERT(size <= 1<<63)` (`:531`) BEFORE `std::bit_ceil(size)`
+  (which is UB above 2^63), then `sizeClass = countr_zero(classSize)` ∈ [0, 63] indexes
+  the 64-entry static `s_scratchSizeClassIndices` array — cannot exceed
+  `numScratchSizeClasses = sizeof(size_t)*8` (`:313`). No wrap, no unit confusion
+  (bytes throughout).
+- **Index allocation**: `allocateIndex` is monotone under `m_lock` and
+  `RELEASE_ASSERT(index < maxScratchSegments * scratchSegmentSize)` (`:651`) —
+  fail-stop at 16384, the table's compile-time capacity. The index is the ONLY value
+  that ever reaches the segmented table; the segment lookup
+  `scratchSegments[index >> 6]` and entry mask `index & 63` (`:677`/`:686`) therefore
+  cannot exceed the 256-segment static array. The `ensureScratchBufferAtIndex` bound
+  check at `:670` is debug-only, but every caller (size-class arm `:554`, install fan,
+  backfill `:703`) supplies a registry-minted index, so the release guard at `:651` is
+  the dominating clamp.
+- **Cross-thread skew**: index allocation and the size-class bitmap are each fully
+  serialized under their own leaf lock (`m_lock` / `s_scratchSizeClassLock`); the
+  per-lite install is single-owner (I11, asserted `:513`) under `scratchBufferLock`.
+  No second mutator can skew `index` between the `:651` clamp and the `:677` shift.
+
+Attacker influence: the `size` argument is JIT-compiler-derived (spill-slot counts,
+OSR exit scratch), not directly user-JS-controllable; even granting an adversarial
+`size`, the `:531` + `:651` RELEASE_ASSERTs close both ends. The deliberately-retired
+`sizeOfLastScratchBuffer` high-water comparison (the design note at `:282-296` calls
+out exactly the undersized-return heap-overflow this class hunts) is dead by
+construction — `scratchBuffers` is now an ownership list only, never a lookup
+structure, and `scratchBufferForSize` never consults `.last()`.
+
 ---
 
 ## Cross-cutting conclusion
 
 The threads implementation's sizing arithmetic is uniformly written in the post-CVE
-idiom the exemplars taught: widen-before-multiply (`Butterfly.h:363`,
-`ConcurrentButterfly.cpp:145,2210`), RELEASE_ASSERT at trust boundaries
-(`JSObject.h:1657`, `ButterflyInlines.h:340,365`, `MarkedSpace.cpp:708`,
-`PageCount.h:85-87`), monotone-CAS for shared length words (`Butterfly.h:434`), and
+idiom the exemplars taught: widen-before-multiply (`Butterfly.h:439`,
+`ConcurrentButterfly.cpp:2430`), RELEASE_ASSERT at trust boundaries
+(`JSObject.h:1756`, `ButterflyInlines.h:386,410`, `MarkedSpace.cpp:764`,
+`PageCount.h:85-87`, `VMLite.cpp:531,651`), monotone-CAS for shared length words
+(`Butterfly.h:537`), and
 single-snapshot immutable publication (I6) so no reader can pair sizes from two
 different computations. The one surface where soundness rests on a multi-function
 inductive invariant with only debug-grade local checks — the GIL-off resizable-buffer

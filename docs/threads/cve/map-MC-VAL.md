@@ -160,33 +160,83 @@ argument given); NEEDS-TEST = targeted susceptibility test written under
   vs a foreign-transition TTL-fire storm; value relation y==2x detects
   stale-elision consumption; amplifier-ready).
 
-### V5. Butterfly TID namespace (owner-validated lock-free transitions) — IMMUNE now, tripwire chartered
+### V5. Butterfly TID namespace (owner-validated lock-free transitions) — NEEDS-TEST (re-audit 2026-06-15: D1/D1R reissue LANDED)
 
 - Surface: `Source/JavaScriptCore/runtime/ConcurrentButterfly.h` tag encode
   (OM §2: 15-bit TID, `notTTLTID=0x7fff` reserved); consumers = E4 owner
   transitions and per-tier write predicates (SPEC-jit §5.5 fused TID
-  compare, `g_jscButterflyTIDTag`).
-- Governing spec: OM §2 ("api §5.1 allocates TIDs (over cap=>RangeError)...
-  No recycling this milestone (8c charter); tags sticky; 2^15 cap"), OM E4 /
-  I11/I15, SPEC-jit I19 (tag initialized before any JS on a thread, CS3).
-- This is the direct CVE-2024-2887 analogue: an index valid in one namespace
-  (TID allocated to thread A's lifetime) consumed against another (a later
-  thread holding the same numeric TID would pass A's instance-ownership
-  checks on objects it never owned, re-enabling lock-free transition paths
-  E4 justifies only for the true owner).
-- Why immune today: the namespaces cannot alias because TIDs are never
-  recycled — allocation is monotonic with a hard 2^15 cap surfaced as a
-  RangeError, and `notTTLTID` is structurally unreachable as a real TID
-  (decode treats it as the segmented discriminator, OM §2/I3). A dead
-  thread's tag merely strands its objects in foreign-transition paths
-  (locked/segmented), which is the safe direction.
-- Tripwire (record for the 8c charter, OM §11 Task 13 "GC-time TID
-  rebias/reissue"): the moment reissue lands, MC-VAL is the failure mode —
-  reissue is sound ONLY if every instance tagged with the dead TID is
-  retagged (or SW-flipped) under STW before the TID re-enters the allocator,
-  and the proof must cover JIT-resident `g_jscButterflyTIDTag` copies
-  (SPEC-jit R5) on code that survives the stop. This map should be re-run
-  against that design before it merges.
+  compare, `g_jscButterflyTIDTag`). NEW since the original audit:
+  `Source/JavaScriptCore/runtime/ThreadManager.h:498-585` (rebias state
+  machine, `m_freeTIDs`/`m_freeCarrierTIDs` recycle lists fed ONLY by §D.1
+  phase 3), `ThreadManager.cpp:339-493` (`maybeArmAndSealRebiasLocked`,
+  `completeRebiasIfPendingLocked`, allocation-time reissue at :346-349 /
+  :448-449), and `Source/JavaScriptCore/heap/Heap.cpp:6052-6197`
+  (`conductTIDRebiasUnderSharedStop`: world-stopped restamp + D1R fire).
+- Governing spec: SPEC-ungil §D.1 / ANNEXES D1+D1R (BINDING; UNGIL-HANDOUT
+  :1636-1705), OM E4/I11/I15, SPEC-jit I19/R5. OM §2's "No recycling this
+  milestone" is SUPERSEDED gilOffProcess (Dev 10 lifted by U-T12); GIL-on
+  Dev 10 still holds (recycle lists inert, ThreadManager.h:666 comment).
+- This is the direct CVE-2024-2887 analogue: an index valid in one
+  namespace (TID allocated to thread A's lifetime) consumed against another
+  (a fresh thread holding the SAME reissued numeric TID passes A's
+  instance-ownership checks on objects it never owned, re-enabling E4
+  lock-free transition paths E4 justifies only for the true owner).
+- The original verdict ("immune — namespaces cannot alias because TIDs are
+  never recycled") EXPIRED: reissue is live gilOffProcess. Re-audit of the
+  landed D1/D1R protocol against the recorded tripwire's two soundness
+  conditions:
+  - "every instance tagged with the dead TID is retagged under STW before
+    the TID re-enters the allocator" — DISCHARGED by phase ordering: phase
+    2 runs `conductTIDRebiasUnderSharedStop` inside the heap §10 full-GC
+    stop with `RELEASE_ASSERT(worldIsStoppedForAllClients())`
+    (Heap.cpp:6134); the `forEachLiveCell` walk restamps every live
+    JSObject's butterfly word holding a snapshotted TID to TID-0
+    (Heap.cpp:6176-6184) and every live Structure's
+    `m_transitionThreadLocalTID` (Heap.cpp:6160-6167); phase 3
+    (`completeRebiasIfPendingLocked`, the SOLE feeder of the free lists,
+    ThreadManager.h:666) is gated on `RebiasState::Restamped`
+    (ThreadManager.cpp:582-584 D1R ordering comment) which only the
+    conductor's post-fire `noteRebiasRestampComplete` release-store can
+    set. So no TID is reissuable before its restamp completed.
+  - "the proof must cover JIT-resident `g_jscButterflyTIDTag` copies on
+    code that survives the stop" — DISCHARGED by D1R items 1+4: item 1
+    fires `fireTransitionThreadLocal` on every restamped structure inside
+    the same stop (Heap.cpp:6193-6194), jettisoning every DFG/FTL/IC body
+    that baked the dead `tid<<48` immediate (E4 emission requires the TTL
+    set valid+watched; fire ⇒ jit §5.3/§5.6 jettison) BEFORE reissue is
+    possible; item 4 records that the per-tier read/write predicates load
+    BOTH sides at runtime (TLS `g_jscButterflyTIDTag` vs the instance tag
+    word) — neither is baked, so restamp-to-0 + tag uniqueness suffice.
+- Adversarial residue (why NEEDS-TEST, not IMMUNE): the design is sound but
+  immunity now rests on THREE enumeration/audit claims, none structural:
+  (a) the `forEachLiveCell` walk is the COMPLETE restamp surface — the
+  banner at Heap.cpp:6069 states this ("the D1 'precise + aux'"), and the
+  walk skips aux storage and `WebAssemblyGCObjectType` (Heap.cpp:6156,
+  6174) on the argument that neither carries a TID-bearing butterfly word;
+  any future JSObject family whose offset-8 word is not the tagged
+  butterfly, or any tagged-state holder outside `objectSpace()`, is a
+  silent miss; (b) D1R item 1's coverage is exactly the set of structures
+  whose `m_transitionThreadLocalTID` was restamped — a CodeBlock that
+  baked a dead-TID immediate via any OTHER linkage (none is known, but
+  this is the CVE-2018-4121-shaped "correct for the cases someone
+  enumerated" claim); (c) the U-T12 verification arms are a RECORDED
+  DEFERRAL (ThreadManager.h:567-585) — arm (3), the D1R item-5 amplifier
+  (E4-specialized code vs a dying thread's structure; force rebias+reissue;
+  assert I15 + assert the specialized CodeBlock was jettisoned in-stop),
+  is exactly this surface's acceptance check and is NOT YET WRITTEN.
+- Test: `JSTests/threads/cve/mc-val-tid-reissue-false-owner.js` — drives
+  the spawned-range past the 75% per-partition trigger, forces rebias to
+  completion, then has FRESH (reissued-TID) threads + main concurrently
+  write/transition the SAME slots on dead-thread keepsakes; key-encoded
+  values detect cross-slot bleed / lost transitions from a false-owner E4
+  racing the foreign locked path. GIL-OFF ONLY (premise unconstructible
+  GIL-on); heavy (≈13k spawns — no Options knob lowers the trigger);
+  amplifier-ready (the `RaceAmplifier::perturb` stall points sit pre-walk
+  / post-restamp / post-fire in `conductTIDRebiasUnderSharedStop`).
+  Companion: `mc-tdwn-tid-recycle-storm.js` (U-T12 arm 1: SD9 recovery +
+  read integrity). The fully-instrumented D1R item-5 arm (jettison
+  introspection) remains a non-corpus deferred deliverable per the
+  ThreadManager.h banner — this test is the JS-observable half.
 
 ### V6. Sharded atom table (atomization uniqueness consumed as pointer identity) — NEEDS-TEST
 
@@ -325,17 +375,26 @@ argument given); NEEDS-TEST = targeted susceptibility test written under
 | V2 | Baseline/handler IC state | immune | SPEC-jit §4.2 I6 (structural), §5.1 F1/F2, I7/I9 | — |
 | V3 | Call-link records | immune | SPEC-jit §5.8/F6/I4/I16 immutable-record publish | — |
 | V4 | Compile validation vs link | needs-test | SPEC-jit §5.5/§5.6/I12/I21 + DFGPlan reallyAdd revalidation | mc-val-fire-vs-link.js |
-| V5 | TID namespace aliasing | immune (v1); tripwire for OM 8c reissue charter | OM §2 no-recycling + cap, E4/I11/I15, jit I19 | (re-audit at 8c) |
+| V5 | TID namespace aliasing post-reissue | needs-test (D1/D1R landed gilOffProcess; immune GIL-on via Dev 10) | SPEC-ungil §D.1/D1R phase ordering + in-stop restamp+fire (Heap.cpp:6132-6197), OM E4/I11/I15 | mc-val-tid-reissue-false-owner.js |
 | V6 | Sharded atom table identity | needs-test | vmstate §4.3 A1/I5 + §4.4 no-resurrection | mc-val-atom-identity.js |
 | V7 | Wasm validate-then-consume | immune | copy-once-pre-validate (JSWebAssemblyHelpers.h:165-184) + SPEC-ungil §I refusal + §N.6 | — |
 | V8 | Multi-slot Structure consumers | needs-test | OM M7/I24/I34/D1/I7 + manifest-7b audit | mc-val-multislot-clone.js |
 | V9 | Bytecode publish/consume | immune | SPEC-ungil §N.8 release-CAS, loser-discards | — |
 
-No surface is currently verdicted susceptible-suspected. The two standing
-risks to that conclusion, both tracked above: (1) the V4 KNOWN RESIDUAL in
-DFGPlan.cpp:640-646 is only safe while I12's "guards validate" covers every
+No surface is currently verdicted susceptible-suspected. Standing risks to
+that conclusion, tracked above: (1) the V4 KNOWN RESIDUAL in
+DFGPlan.cpp:645-651 is only safe while I12's "guards validate" covers every
 profile consumer — any future unguarded profile-derived fold flips V4 to
-susceptible; (2) the V5 verdict expires the day TID reissue (OM 8c) lands.
+susceptible; (2) V5's needs-test verdict rests on the D1/D1R restamp-surface
+completeness + D1R-fire-coverage enumeration claims and the deferred U-T12
+arm (3) — any new tagged-state holder outside `forEachLiveCell`'s reach, or
+any baked dead-TID immediate not tied to a restamped structure's TTL set,
+flips V5 to susceptible.
+
+2026-06-15 re-audit delta vs the 2026-06-07 original: V5 re-verdicted
+(immune→needs-test, tripwire tripped by U-T12 landing); V1-V4, V6-V9
+unchanged (V4 KNOWN RESIDUAL comment re-verified present at
+DFGPlan.cpp:645-651; V1/V8 closure records carried).
 
 Cross-references: the racing special case of every surface here is MC-DF
 (CVE-AUDIT.md); V4 overlaps MC-JIT (check-elision side) and MC-CODE

@@ -1,15 +1,22 @@
 # MC-LIFE — Shared-backing-store lifetime accounting
 
-Mechanism class (web-derived, treated as data): refcount/ownership of a shared raw
-buffer mismanaged across agent boundaries — serialize/deserialize failure paths,
-unbalanced increments, width-limited counters, native pointers held past release.
+Mechanism class (web-derived, treated as data): refcount/ownership of a shared
+raw buffer or shared resource mismanaged across agent boundaries — serialize/
+deserialize failure paths, unbalanced increments, width-limited counters, native
+code holding pointers past release, **allocator owned by a mortal thread**.
 Exemplars: Mozilla bug 1352681 (SpiderMonkey SAB refcount leak + uint32 wrap →
-cross-thread UAF; see `jsengine-sab.md`, class L), Erlang NIF resource-destructor
-races (destructor runs on the wrong thread / past release).
+cross-thread UAF; see `jsengine-sab.md`, class L), Node.js #28777 (Worker
+terminate frees the Isolate-owned `ArrayBuffer::Allocator` while a SAB
+BackingStore created via it is still live in another agent), V8 d8
+cr/1215233004 (d8 Worker SAB transfer: externalized backing store outlives the
+creating Isolate), Erlang NIF resource-destructor races (destructor runs on the
+wrong thread / past release).
 
-Audit date: 2026-06-07. Tree: `jarred/threads` (UNGIL-HANDOUT rev 32 era; annex N6
-quarantine landed in `runtime/ArrayBuffer.cpp`, GIL removal in progress). Defensive
-audit of our own engine; read-only on `Source/**`.
+Audit date: 2026-06-15 (re-audit; first pass 2026-06-07). Tree:
+`jarred/threads` (UNGIL-HANDOUT rev 32 era; annex N6 quarantine landed in
+`runtime/ArrayBuffer.cpp`, GIL removal in progress; S6 stop conduction still
+OPEN per `ArrayBuffer.cpp:325,1401,1663`). Defensive audit of our own engine;
+read-only on `Source/**`.
 
 Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 **needs-test** = targeted susceptibility test written under `JSTests/threads/cve/`,
@@ -90,10 +97,10 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 
 ## S4. Pin/lock accounting: `m_pinCount` / `m_locked` — native pointers vs detach
 
-- Where: `ArrayBuffer.h:332` `Checked<unsigned> m_pinCount` (NON-atomic),
-  `ArrayBuffer.h:337` `bool m_locked` (plain); mutators `pin()/unpin()`
-  (`ArrayBuffer.h:381-389`), `pinAndLock()` (`:396-399`); predicate
-  `isDetachable() { return !m_pinCount && !m_locked && !isShared(); }` (`:391-394`).
+- Where: `ArrayBuffer.h:404` `Checked<unsigned> m_pinCount` (NON-atomic;
+  re-verified 2026-06-15), `bool m_locked` (plain); mutators `pin()/unpin()`
+  (`ArrayBuffer.h:453-461`), `pinAndLock()` (`:468-`); predicate
+  `isDetachable() { return !m_pinCount && !m_locked && !isShared(); }` (`:463-466`).
   Callers: `ArrayBufferView::setDetachable` (`ArrayBufferView.cpp:95-108`) and the
   C API `JSTypedArray.cpp:250,337` (`JSObjectGetTypedArrayBytesPtr` et al. —
   exactly the "API user fetched a native pointer" case the field documents).
@@ -161,18 +168,19 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 ## S6. Relocating wasm grow — old-mapping lifetime (KNOWN OPEN)
 
 - Where: `ArrayBufferContents::refreshAfterWasmMemoryGrow`
-  (`ArrayBuffer.cpp:1536-1575`) + stale-mapping keepalive
-  (`quarantineStaleWasmMappingGILOff`, `:281-320`); governing spec: annex N6 arm 4
+  (`ArrayBuffer.cpp:1647-1675`) + stale-mapping keepalive
+  (`quarantineStaleWasmMappingGILOff`, `:343-`); governing spec: annex N6 arm 4
   (GROW): relocation must run under a heap §10 stop, old mapping quarantined to
   the NEXT stop.
-- Status, per the code's own comment (`:1552-1558`): the **quarantine half is
-  landed** (replaced `BufferMemoryHandle` kept alive until a stop ⇒ torn
-  {pre-grow length, pre-grow base} never derefs an unmapped base) but the **stop
-  conduction in `Wasm::Memory::grow`'s BoundsChecking arm is NOT YET ESTABLISHED —
-  "OPEN DEPENDENCY, blocks U-T13 sign-off"**. Until it lands, a GIL-off relocating
-  grow racing a reader can pair a *post-grow length* with the *pre-grow base*:
-  the old mapping is alive but **short**, so the read runs off its end — a shared
-  raw buffer's pointer held past (the end of) its allocation, squarely MC-LIFE.
+- Status, per the code's own comments (`ArrayBuffer.cpp:325`, `:1401`,
+  `:1661-1664`): the **quarantine half is landed** (replaced `BufferMemoryHandle`
+  kept alive until a stop ⇒ torn {pre-grow length, pre-grow base} never derefs an
+  unmapped base) but the **stop conduction in `Wasm::Memory::grow`'s
+  BoundsChecking arm is NOT YET ESTABLISHED — "OPEN DEPENDENCY, blocks U-T13
+  sign-off"**. Until it lands, a GIL-off relocating grow racing a reader can pair
+  a *post-grow length* with the *pre-grow base*: the old mapping is alive but
+  **short**, so the read runs off its end — a shared raw buffer's pointer held
+  past (the end of) its allocation, squarely MC-LIFE.
 - **Verdict: suspected** (known-open, already tracked as a U-T13 blocker; this
   audit adds an executable witness). Test:
   `JSTests/threads/cve/mc-life-wasm-grow-relocate.js` — spawned TA readers hammer
@@ -235,6 +243,81 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
   dtor-unregister tie covers the waiter-list/mapping accounting; same posture as
   the empty public-CVE record for class W noted in `jsengine-sab.md`).
 
+## S10. Per-thread GC allocator (TLC) — allocator owned by a mortal thread
+
+- Where: `heap/GCThreadLocalCache.h:54,97-101,117` (`~GCThreadLocalCache`
+  → `stopAllocatingForGood()`; `Vector<unique_ptr<LocalAllocator>>
+  m_ownedAllocators`), `heap/GCThreadLocalCache.cpp:80-96,248-269`; governing
+  spec: SPEC-heap §5.3 (TLC, teardown under MSPL), I9 (post-teardown no allocator
+  in any `m_localAllocators` list, every held block `inUse == false`), I5b
+  (directory bitvector writers hold MSPL ∨ WSAC), I12 (window-witness rooting:
+  `stopAllocating` NA-stamps every non-free cell of every block).
+- Mechanism fit: this is the literal "allocator owned by a mortal thread" surface
+  for *JS heap cells*. A spawned `Thread` owns a `GCClient::Heap` whose TLC owns
+  `LocalAllocator`s; the thread allocates objects (cells live in `MarkedBlock`s
+  obtained from the server's `BlockDirectory`), shares them by reference (S1),
+  then exits.
+- Why the Node #28777 shape cannot occur: the TLC owns the **bump-pointer/
+  free-list state** (`LocalAllocator`), NOT the storage. `MarkedBlock`s belong to
+  the server-side `BlockDirectory` (SPEC-heap §3.1: "directories/blocks/bitvectors
+  stay shared server-side"); `~GCThreadLocalCache` runs `stopAllocatingForGood()`
+  under MSPL (`GCThreadLocalCache.cpp:248-269`, the I5b writer rule), which flips
+  the directory's `inUse` bit and NA-stamps every handed-out cell (I12 leg (a)) so
+  the conductor roots them at the next stop, then unlinks from
+  `m_localAllocators` (rank 8). The destructor frees only the `LocalAllocator`
+  struct (`m_ownedAllocators.clear()`, `:96`) — no cell, no block. The server heap
+  outlives every client by MC-TDWN S1's `Ref<VM>` fence. Adversarial check: a
+  partially-allocated cell (TLC died mid-allocation)? L2 ("no client releases heap
+  access mid-allocation/initialization", SPEC-heap I12 soundness clause) forbids
+  it — DCT runs only after the JSLock release (SPEC-api §5.2 teardown order,
+  `ThreadObject.cpp:391-397`).
+- **Verdict: immune** (storage server-owned; teardown is hand-back under MSPL per
+  SPEC-heap §5.3/I9/I12; native witness exists as `clientChurnVsGC` in
+  `SharedHeapTestHarness`, SPEC-heap §12.1).
+
+## S11. ArrayBuffer backing-store allocator scope — creator-thread mortality
+
+- Where: default contents destructor is the static SharedTask
+  `[] (void* p) { Gigacage::free(Gigacage::Primitive, p); }`
+  (`ArrayBuffer.cpp:114` — capture-free); growable/handle-backed paths free via
+  `BufferMemoryManager::singleton()` (`runtime/BufferMemoryHandle.cpp:199-202`,
+  `LazyNeverDestroyed<BufferMemoryManager>`); the N6 quarantine list and its
+  safepoint hook are per-**server-heap** (SPEC-heap §13.10d "PER-SERVER-HEAP
+  quarantine epoch"), not per-client; `~ArrayBuffer` unregisters via the
+  process-global side table (`ArrayBuffer.cpp:1536-1545`).
+- Mechanism fit: this is the **direct Node.js #28777 / V8 d8 analog** — a buffer
+  allocated on agent A, referenced by agent B, A dies, B's last deref must free
+  via an allocator that no longer exists (Node) or whose externalization
+  bookkeeping was per-Isolate (d8). In our model, A = a spawned `Thread`; B =
+  main or a sibling.
+- Why the trigger does not exist in-engine: every allocator a JSC-created
+  ArrayBuffer's destructor reaches is **process-immortal** — Gigacage is
+  process-global, `BufferMemoryManager` is `LazyNeverDestroyed`, and the
+  destructor closure captures *nothing* (no `vm`, no `VMLite*`, no
+  `GCClient::Heap*`). Heap extra-memory accounting on the quarantine drain
+  (`:489-497`) targets the shared server `Heap`, which the Ref<VM> fence keeps
+  alive past every client (MC-TDWN S1). Adversarial check: a spawned thread can
+  *enqueue* a quarantine entry (it called `transfer()`) and then die before the
+  retiring stop — the entry lives in the server-heap list, the closure carries
+  only `{ArrayBuffer*, generation}` (process-scoped table lookup), so creator
+  death is irrelevant; covered by S5's generation/ABA arm.
+- Residual exposure: an *embedder*-supplied `ArrayBufferDestructorFunction` that
+  closes over per-creator-thread state (e.g. a Bun napi finalizer capturing a
+  `napi_env` bound to the spawning thread). That is S7's contract gap restated
+  for the mortality direction; same recommendation applies.
+- **Verdict: needs-test** (the construction is immune for in-engine buffers;
+  the test exists to (a) lock the "creator dies first" direction into the corpus
+  — every existing MC-LIFE arm creates on main and shares *to* spawned, never the
+  reverse — and (b) exercise the quarantine/extra-memory accounting when the
+  enqueueing client is gone). Test:
+  `JSTests/threads/cve/mc-life-creator-thread-dies.js` — spawned threads create
+  SAB / growable-SAB / non-shared ArrayBuffer / resizable ArrayBuffer, stamp
+  sentinels, return them to main, and **exit**; main then churns views, detaches/
+  resizes the survivors, applies GC pressure across multiple stops, and verifies
+  sentinel integrity. A per-creator-thread allocator/destructor dependency would
+  surface as UAF/crash under ASAN once the creator's `GCClient::Heap`/`VMLite`
+  are gone.
+
 ---
 
 ## Summary table
@@ -250,6 +333,8 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 | S7 | Embedder destructor thread-affinity | suspected (contract, Bun-side; doc fix) | — |
 | S8 | jsc shell $.agent transfer | immune (RAII Message ownership) | — |
 | S9 | NLS/NCS/WaiterList lifetime | immune (SPEC-api 5.3/5.4 RAII; dtor-unregister tie) | — |
+| S10 | Per-thread TLC/LocalAllocator teardown | immune (SPEC-heap §5.3/I9/I12; blocks server-owned) | `clientChurnVsGC` (native) |
+| S11 | Backing-store allocator scope (creator dies) | needs-test (process-immortal allocators; reverse-direction corpus gap) | `mc-life-creator-thread-dies.js` |
 
 Tests live under `JSTests/threads/cve/` and are written to be EXECUTED LATER
 post-ungil (do not run against the mid-bring-up tree). Each is self-checking

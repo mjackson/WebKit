@@ -1,21 +1,26 @@
 # MC-INIT mapping — Publication-before-initialization / half-built metadata observable
 
 Status: surface map for mechanism class MC-INIT (CVE-AUDIT.md catalog entry, merged
-JVM-9 + RG-9). Compiled 2026-06-07 against jarred/threads (UNGIL-HANDOUT rev 32 era).
-Defensive audit artifact. Tests live in `JSTests/threads/cve/mc-init-*.js`; they are
-written to be EXECUTED POST-UNGIL (do not run against the mid-bring-up tree).
+JVM-9 + RG-9 + jvm.md §3.12 swap-vs-use). Compiled 2026-06-07; **revised 2026-06-15**
+against jarred/threads to (i) record §K.3, §N.2, and AUD1.N3 rulings as LANDED in tree
+and (ii) extend the audit with sub-shape (d) *metadata swap-vs-use* per the 2026-06-15
+catalog refresh. Defensive audit artifact. Tests live in `JSTests/threads/cve/mc-init-*.js`.
 
 Mechanism (from the catalog): an object, table, or result is made reachable to a
 concurrent reader before its contents are initialized — missing release ordering,
-error-path init skip, or a sanctioned "being-initialized" state leaking default
-values. Disclosure twin: uninitialized memory copied out.
+error-path init skip, a sanctioned "being-initialized" state leaking default values,
+**or a metadata swap-vs-use** (Structure/Method/class replaced while another thread
+holds a raw pointer into the old version). Disclosure twin: uninitialized memory
+copied out.
 
-Three concrete sub-shapes audited per surface:
+Four concrete sub-shapes audited per surface:
 - (a) missing release ordering between contents-init and the publishing store;
 - (b) error/abandonment path leaves a "being-initialized" state observable forever
   or re-publishes partial work;
 - (c) uninitialized backing memory (alloc slack) reachable through a published
-  pointer + length/flag (disclosure twin).
+  pointer + length/flag (disclosure twin);
+- (d) **swap-vs-use**: a metadata holder's raw pointer outlives a replacement of the
+  metadata it points at (JDK-8022887 / JDK-8291830 RedefineClasses shape).
 
 Audit rule applied (CVE-AUDIT.md cross-cutting rule 1): no surface is downgraded on
 "window too small" grounds — only on "no concurrent reader/writer can exist" grounds.
@@ -27,22 +32,22 @@ Audit rule applied (CVE-AUDIT.md cross-cutting rule 1): no surface is downgraded
 | # | Surface | Verdict |
 |---|---------|---------|
 | 1 | General new-cell publication (M8 fence discipline) | immune-by-construction |
-| 2 | Butterfly/spine publication + allocation slack | immune-by-construction (T5 removal closed the one hole); regression test added |
+| 2 | Butterfly/spine publication + allocation slack | immune-by-construction (T5 removal closed the one hole); regression test retained |
 | 3 | Sharded atom-string table fill / migrate-then-latch | immune-by-construction; one documented embedder-contract residual |
 | 4 | Structure / PropertyTable publication (L6/I37) | immune-by-construction (existing i03 test) |
 | 5 | VM / VMLite construction + registration | immune-by-construction |
-| 6 | StructureRareData runtime caches (AUD1.N4) | immune-by-construction (ruling landed for the JS-reachable words); amplifier owed by U28 |
-| 7 | LazyProperty/LazyClassStructure first-touch (§K.3/LZ1) | **needs-test** — BINDING ruling NOT yet landed |
-| 8 | Rope resolution / atomization (ungil §N.2) | **needs-test** — BINDING ruling NOT yet landed |
-| 9 | ClonedArguments::materializeSpecials (AUD1.N3) | **needs-test** — BINDING ruling NOT yet landed |
-| 10 | DirectArguments lazy override storage (AUD1.N3) | **needs-test** — BINDING ruling NOT yet landed |
+| 6 | StructureRareData runtime caches (AUD1.N4) | immune-by-construction (ruling landed); amplifier owed by U28 |
+| 7 | LazyProperty/LazyClassStructure first-touch (§K.3/LZ1) | **immune-by-construction — §K.3 CORE LANDED 2026-06-10**; regression test retained; U26 arms owed |
+| 8 | Rope resolution / atomization (ungil §N.2) | **immune-by-construction — §N.2 LANDED**; regression test retained |
+| 9 | ClonedArguments::materializeSpecials (AUD1.N3) | **immune-by-construction — RESOLVED-4 LANDED**; regression test retained |
+| 10 | DirectArguments lazy override storage (AUD1.N3) | **immune-by-construction — RESOLVED-3 LANDED**; regression test retained |
+| 11 | Metadata swap-vs-use (Structure / PropertyTable / butterfly / spine) | immune-by-construction |
 
-Surfaces 7–10 are *pre-located holes with frozen rulings*: today's in-tree code is the
-pre-threads shape, sound under the phase-1 GIL, and becomes the textbook MC-INIT
-mechanism the moment the GIL comes off if the corresponding SPEC-ungil ruling has not
-landed. The tests are written as landing gates: they fail (or crash under
-TSAN/amplifier) on a tree that flips GIL-off without the ruling, and pass on a
-conforming tree.
+Surfaces 7–10 were *needs-test* at the 2026-06-07 cut (pre-threads in-tree shape, sound
+under the phase-1 GIL, textbook MC-INIT the moment GIL came off). All four governing
+rulings have since landed; the tests written then are RETAINED as regression gates and
+the per-surface entries below cite the in-tree implementation. Any future regression of
+a ruling re-opens the surface to MC-INIT.
 
 ---
 
@@ -71,7 +76,8 @@ Producer side — every init store is ordered before every possible escaping sto
     (e.g. `dfg/DFGSpeculativeJIT.cpp:470, 8811, 9117, 9278, 9562, 9662, 10133`).
   Any store that publishes the cell pointer is, by program order, *after* the fence, so
   the storeStore barrier orders all init stores before the publishing store on arm64;
-  x86-64 is TSO.
+  x86-64 is TSO. **Direct JDK-8233839 analog** (aarch64 alloc stub publishes oop before
+  `dmb`): the M8 force closes exactly that hole at every JIT alloc stub.
 
 Consumer side — B's loads of the cell's innards (header, butterfly word, inline slots)
 are address-dependent on the pointer load (OM M1/M7; `Dependency` use at
@@ -147,6 +153,8 @@ In tree:
   Insertion and the reader's lookup synchronize on the same shard lock, so a half-built
   StringImpl is never observable through the table — the spec's required "creation under
   lock, publish fully-built" shape, where the lock release IS the release fence.
+  **Direct JDK-6507007 analog** (StringTable publish before fence): closed by the shard
+  lock standing in for the missing fence.
 - Latch ordering: `Source/WTF/wtf/text/SharedAtomStringTable.cpp:64-105` — singleton
   forced, pre-latch atoms migrated into shards (each under its shard lock), *then* the
   latch is release-stored (`:101`), then the source table cleared. The in-code comment
@@ -224,43 +232,28 @@ Verdict: **immune-by-construction** per the landed ruling. The U28 amplifier arm
 for-in/toString caching on a shared Structure is owed by the ungil workstream (not
 duplicated here).
 
-## 7. LazyProperty / LazyClassStructure — NEEDS-TEST (ruling not landed)
+## 7. LazyProperty / LazyClassStructure — immune-by-construction (§K.3 CORE LANDED)
 
 The exact JVM `<clinit>` analog: first touch of a lazily-materialized global
 (error-subclass structures, Intl structures, `VM::ensure*`) runs an initializer and
 publishes the result; a sanctioned "being-initialized" tag state exists
 (`initializingTag`).
 
-Governing ruling (BINDING, not yet in tree): SPEC-ungil §K.3 + annex LZ1
-(UNGIL-HANDOUT:2497-2540) — load-acquire fast path; initializing CAS records the owner;
-winner initializes lock-free and *release-stores the result (the release-store IS the
-publication)*; foreign threads park-capably wait; LZ1 item 3: ANY non-normal initializer
-exit (exception, termination poll, thread death) CASes `initializing → empty` and erases
-the side-table entry BEFORE propagating — the error-path-init-skip sub-shape (b) is
-explicitly closed by abandonment, and "initializers publish only on success; partial
-work is garbage".
+Governing ruling (BINDING): SPEC-ungil §K.3 + annex LZ1 (UNGIL-HANDOUT:2497-2540) —
+load-acquire fast path; initializing CAS records the owner; winner initializes lock-free
+and *release-stores the result (the release-store IS the publication)*; foreign threads
+park-capably wait; LZ1 item 3: ANY non-normal initializer exit (exception, termination
+poll, thread death) CASes `initializing → empty` and erases the side-table entry BEFORE
+propagating — the error-path-init-skip sub-shape (b) is explicitly closed by abandonment,
+and "initializers publish only on success; partial work is garbage".
 
-In tree TODAY: `Source/JavaScriptCore/runtime/LazyPropertyInlines.h:88-106` /
-`LazyProperty.h:97,115` are the pre-threads plain-word implementation: non-atomic
-`m_pointer` read/`|= initializingTag` (:103), plain result store, and
-`RELEASE_ASSERT(!(m_pointer & initializingTag))` (:106) — i.e. a *crash*, not a wait, if
-a second thread is mid-init, and no ordering on the publishing store. Sound under the
-phase-1 GIL (initializers never yield the GIL across the window); textbook MC-INIT
-(sub-shapes (a) AND (b)) the moment two mutators can first-touch concurrently.
-
-Verdict: **needs-test**. `JSTests/threads/cve/mc-init-lazy-global-first-touch.js` —
-N threads rendezvous and simultaneously first-touch a battery of lazily-initialized
-globals on the shared JSGlobalObject (error subclasses, Intl classes); asserts every
-thread gets a working, *identical* materialization (one winner, no default/null leak,
-no crash on the initializing state).
-
-**§K.3 CORE LANDED 2026-06-10 (CVE close-out round).** The MC-SAFE S4 liveness
-fixes (shared GCs now actually complete instead of wedging) stretched the
-init window across GC pauses and made the foreign-null hole fire at ~27% in
+**§K.3 CORE LANDED 2026-06-10 (CVE close-out round).** The MC-SAFE S4 liveness fixes
+(shared GCs now actually complete instead of wedging) stretched the init window across
+GC pauses and made the foreign-null hole fire at ~27% in
 `mc-init-cloned-arguments-specials.js` (SEGV: `constructObjectFromPropertyDescriptor`
-consumed a null `accessorPropertyDescriptorObjectStructure()` — a foreign
-first-toucher landing on the initializingTag got the recursion-null). Landed
-in `runtime/LazyPropertyInlines.h::callFunc` per §K.3 + LZ1:
+consumed a null `accessorPropertyDescriptorObjectStructure()` — a foreign first-toucher
+landing on the initializingTag got the recursion-null). Landed in
+`runtime/LazyPropertyInlines.h::callFunc` per §K.3 + LZ1:
 - claim = acquire CAS on the tag word; OWNER recorded in a leaf-locked side
   table (r16 F2 side-table option);
 - OWNER re-entry returns null (landed recursion contract), extended to LZ1.2
@@ -272,66 +265,184 @@ in `runtime/LazyPropertyInlines.h::callFunc` per §K.3 + LZ1:
 - LZ1.3 abandonment: scope-exit restores the pre-claim word if the
   initializer did not publish, erases the owner record, notifyAll.
 GIL-on / flag-off reduce to the landed recursion-null contract (foreign arms
-unreachable). The U26 arms (deliberate recursion, crossed cycles, owner
-termination, forced-GC-during-winner) remain owed to the ungil workstream.
+unreachable). The U26 arms (deliberate recursion, crossed cycles, owner termination,
+forced-GC-during-winner) remain owed to the ungil workstream.
 
-## 8. Rope resolution / atomization — NEEDS-TEST (ruling not landed)
+Pre-landing in-tree record (kept for the audit trail):
+`Source/JavaScriptCore/runtime/LazyPropertyInlines.h:88-106` / `LazyProperty.h:97,115`
+were the pre-threads plain-word implementation: non-atomic `m_pointer` read /
+`|= initializingTag` (:103), plain result store, and
+`RELEASE_ASSERT(!(m_pointer & initializingTag))` (:106) — sound under the phase-1 GIL,
+textbook MC-INIT (sub-shapes (a) AND (b)) once two mutators could first-touch
+concurrently.
+
+Verdict: **immune-by-construction** (core landed). Regression gate
+`JSTests/threads/cve/mc-init-lazy-global-first-touch.js` retained — N threads
+rendezvous and simultaneously first-touch a battery of lazily-initialized globals on
+the shared JSGlobalObject; asserts every thread gets a working, *identical*
+materialization (one winner, no default/null leak, no crash on the initializing state).
+
+## 8. Rope resolution / atomization — immune-by-construction (§N.2 LANDED)
 
 A JSRopeString resolves by writing the flat `String` and flipping the fiber0/flags
 word; the resolved buffer + flag is a multi-word publication readable by any thread
 holding the (shared) JSString.
 
-Governing ruling (BINDING, not yet in tree): SPEC-ungil §N.2 (UNGIL-HANDOUT annex N7
-row R4) — lock-FREE: resolver computes into a *fresh* buffer, publishes by ONE
-release-CAS of the fiber0/flags word; losers discard and re-read; readers load-acquire;
-`resolveRopeToAtomString` same shape vs the shared table; JIT rope slow calls land here.
+Governing ruling (BINDING): SPEC-ungil §N.2 (UNGIL-HANDOUT annex N7 row R4) — resolver
+computes into a *fresh* buffer, publishes by ONE release of the fiber0/flags word;
+losers discard and re-read; readers load-acquire; `resolveRopeToAtomString` same shape
+vs the shared table; JIT rope slow calls land here.
 
-In tree TODAY: `Source/JavaScriptCore/runtime/JSString.h:637-684` + `JSString.cpp`
-(`resolveRopeWithFunction`, `swapToAtomString` at JSString.h:875-912) mutate the fiber
-words and `valueInternal()` in place with plain stores — no CAS, no release, and an
-intermediate state in which fibers are being swapped out (`useJSThreads`/release-CAS
-absent from JSString.cpp). Two threads resolving the same shared rope, or a reader
-racing a resolver, observe half-published {flags, fiber0, length} — sub-shape (a) plus
-a sanctioned intermediate state, on one of the hottest objects in the heap.
+**§N.2 LANDED** (post-2026-06-07). In tree:
+- `Source/JavaScriptCore/runtime/JSStringInlines.h:386-425` `convertToNonRope` —
+  GIL-off arm takes the cell lock, re-checks `isRopeInPointer` under the lock (loser
+  returns: idempotent), and release-stores the resolved impl into `m_fiber`; trailing
+  fibers/length deliberately NOT cleared (concurrent-length readers); GIL-on arm is the
+  same one-pointer release store. The release ordering replaces the pre-threads
+  `storeStoreFence` and is the publication: the resolved StringImpl's contents
+  happen-before any reader observing the flipped bit.
+- `Source/JavaScriptCore/runtime/JSString.h:974-1008` `swapToAtomString` — GIL-off arm
+  is a release `atomicExchange` of `m_fiber` (transfers ownership of exactly one prior
+  impl to exactly one exchanger; closes the double-adopt/over-deref UAF that two plain
+  swaps would create); GIL-on arm = relaxed-load + release-store. Old impl appended to
+  `Heap::m_possiblyAccessedStringsFromConcurrentThreads` (sub-shape (d) liveness, see
+  surface 11).
+- Reader arm: `JSString.h:346-354` `fiberConcurrently()` is the §N.2 acquire load
+  (`memory_order_acquire` flag-on); every rope-decision site snapshots `m_fiber` ONCE
+  through it (`JSString.cpp:160-230, 286-310`; `JSString.h:898-901, 1231-1294`) and
+  re-dispatches on a lost publish race ("recover through the non-rope toAtomString
+  path").
 
-Verdict: **needs-test**. `JSTests/threads/cve/mc-init-rope-resolve-race.js` — many fresh
-shared ropes, N threads concurrently force resolution (===, charCodeAt, length) and
-atomization (property-key use); asserts every observation equals the independently-built
-flat expectation, never empty/torn/partial.
+Adversarial check (sub-shape (a)): the design landed as cell-lock-mediated idempotency
+rather than the spec's literal release-CAS — equivalent for MC-INIT: the
+isRope→resolved transition is monotone, the under-lock re-check makes it once-only, and
+the release-store on the publishing path orders the buffer fill (done outside the lock
+into a fresh impl) before any acquirer observing the flipped bit. Sub-shape (b) error
+path: on OOM/exception the resolver returns BEFORE `convertToNonRope` (e.g.
+`JSString.cpp` `RETURN_IF_EXCEPTION` before publish sites); `m_fiber` keeps
+`isRopeInPointer` and the cell stays a valid rope — no half-state leaks.
 
-## 9. ClonedArguments::materializeSpecials — NEEDS-TEST (ruling not landed)
+Verdict: **immune-by-construction** (§N.2 landed). Regression gate
+`JSTests/threads/cve/mc-init-rope-resolve-race.js` retained — many fresh shared ropes,
+N threads concurrently force resolution (===, charCodeAt, length) and atomization
+(property-key use); asserts every observation equals the independently-built flat
+expectation, never empty/torn/partial.
 
-Governing ruling (BINDING, not yet in tree): AUD1.N3 second half (UNGIL-HANDOUT
-RESOLVED-4): the `m_callee` flag word (doubles as not-yet-materialized flag,
+## 9. ClonedArguments::materializeSpecials — immune-by-construction (RESOLVED-4 LANDED)
+
+Governing ruling (BINDING): AUD1.N3 second half (UNGIL-HANDOUT RESOLVED-4): the
+`m_callee` flag word (doubles as not-yet-materialized flag,
 `runtime/ClonedArguments.h:100-104`, JIT offset :78) must be release-stored AFTER the
 OM puts; foreign slow-path readers acquire; tier-inlined fast paths re-pointed/fenced.
 
-In tree TODAY: `Source/JavaScriptCore/runtime/ClonedArguments.cpp:283-299` —
-`materializeSpecials` does `putDirect(callee)`, `putDirect(@@iterator)`, then plain
-`m_callee.clear()`. With no ordering, a foreign reader can observe the cleared flag
-(specials "materialized") before the puts are visible → `callee`/`@@iterator` lookups
-miss entirely — the "sanctioned being-initialized state leaking defaults" sub-shape,
-manifesting as a *lost property* (violates OM I21 / THREAD.md "no lost properties").
+**RESOLVED-4 LANDED.** In tree, `Source/JavaScriptCore/runtime/ClonedArguments.cpp`:
+- `materializeSpecials` (:306-351) — snapshots `m_callee` once; GIL-off null snapshot
+  = lost-to-a-completed-racer (`loadLoadFence()` then return, :319-323); both racers may
+  run the puts concurrently and that is *deliberate*: every racer computes IDENTICAL
+  values (per-realm singletons eagerly initialized under `useJSThreads()`, comment
+  :328-338) and same-key concurrent adds are serialized by the OM transition/put
+  protocol (no lost properties, I21), so the racing stores are idempotent. Then
+  `WTF::storeStoreFence()` (:348-349) BEFORE `m_callee.clear()` — the release half.
+- `materializeSpecialsIfNecessary` (:353-364) — the reader-acquire half:
+  `WTF::loadLoadFence()` after observing the cleared flag, before the caller falls
+  through to `Base::` reads of the materialized properties.
 
-Verdict: **needs-test**. `JSTests/threads/cve/mc-init-cloned-arguments-specials.js`.
+Sub-shape (b) error path: `putDirect`/`putDirectAccessor` here are the never-throwing
+`JSObject::putDirect` (no allocation under the per-realm-singleton case beyond the OM
+put, which RESTARTs internally on race); on the strict-mode arm `putDirectAccessor`
+allocates the GetterSetter eagerly at realm init — neither path leaves the flag cleared
+with puts unwritten, because the fence+clear is unconditional last.
 
-## 10. DirectArguments lazy override storage — NEEDS-TEST (ruling not landed)
+Verdict: **immune-by-construction** (RESOLVED-4 landed). Regression gate
+`JSTests/threads/cve/mc-init-cloned-arguments-specials.js` retained.
 
-Governing ruling (BINDING, not yet in tree): AUD1.N3 first half (UNGIL-HANDOUT
-RESOLVED-3): `m_mappedArguments` (+ modified-arguments descriptor bitmap) becomes
-CAS-PUBLISH — allocate+fill complete, release-CAS the pointer, losers discard, readers
-load-acquire; the tier-inlined null-check stays (address-dependent load).
+## 10. DirectArguments lazy override storage — immune-by-construction (RESOLVED-3 LANDED)
 
-In tree TODAY: `Source/JavaScriptCore/runtime/DirectArguments.cpp:133-145` —
-`overrideThings` allocates the override bitmap, fills it, then publishes via plain
-`m_mappedArguments.set(...)`; `overrideArgument` then flips bytes in it (:164). The
-bitmap-alloc + flag-flip + property-materialization sequence is a multi-word
-publication with no ordering; DFG `GetFromArguments`/inlined
-`offsetOfMappedArguments` null-checks (offsets baked at `DirectArguments.h:153-154`)
-read it from any thread. A foreign reader can pair the published bitmap pointer with
-unfilled contents, or the old null with post-override property state.
+Governing ruling (BINDING): AUD1.N3 first half (UNGIL-HANDOUT RESOLVED-3):
+`m_mappedArguments` (+ modified-arguments descriptor bitmap) becomes CAS-PUBLISH —
+allocate+fill complete, release-CAS the pointer, losers discard, readers load-acquire;
+the tier-inlined null-check stays (address-dependent load).
 
-Verdict: **needs-test**. `JSTests/threads/cve/mc-init-direct-arguments-override.js`.
+**RESOLVED-3 LANDED.** In tree, `Source/JavaScriptCore/runtime/DirectArguments.cpp`:
+- `overrideThings` (:133-192) — allocates the bitmap, fills every byte with relaxed
+  atomic stores (:172-175, "recycled-address races" annotation), then GIL-off
+  `WTF::atomicCompareExchangeStrong(&m_mappedArguments, nullptr, overrides)` (:185)
+  with loser-discard ("RESOLVED-3 CAS-PUBLISH: allocate + fill complete (above), CAS
+  the pointer"); GIL-on plain `set` (:191). The CAS is the release-publish.
+- Constructor stores `m_length`/`m_minCapacity` via relaxed atomics (:58-61) so the
+  GC visit's relaxed loads (:119) pair (recycled-address discipline).
+- Readers go through `overrodeThings()` (not a raw `m_mappedArguments` test) — comment
+  at :44, :196, :216 — and the tier-inlined null-check is address-dependent on the
+  loaded pointer (offsets at `DirectArguments.h:153-154`).
+- `overrideArgument` flips bytes in the published bitmap with relaxed atomic stores
+  (:211, "SAB-grade per-bit store") — post-publication mutation of bitmap *contents*
+  is sub-shape MC-DF (program-level staleness), not MC-INIT.
+
+Sub-shape (c) check: the bitmap is fully `false`-filled before the CAS; a foreign
+reader pairing the published pointer with its contents is address-dependent on the CAS
+result — no slack reachable.
+
+Verdict: **immune-by-construction** (RESOLVED-3 landed). Regression gate
+`JSTests/threads/cve/mc-init-direct-arguments-override.js` retained.
+
+## 11. Metadata swap-vs-use (sub-shape (d)) — immune-by-construction
+
+The JDK-8022887 / JDK-8291830 shape: thread B holds a raw pointer into metadata (a
+Method*, vtable slot, class) while thread A *replaces* the metadata in place or swaps
+in a fresh version, and the old version is freed/mutated under B. JSC analogs and the
+governing invariant for each:
+
+- **Structure replacement.** Transitions never mutate a published Structure in place;
+  they create a *fresh* Structure cell and CAS/DCAS its ID into the holder
+  (SPEC-objectmodel §3/§4.3, I5). A foreign reader holding an old `Structure*` (or
+  StructureID) holds a still-live, immutable, GC-rooted cell: Structures are JSCells in
+  the structure subspace, kept live by the holder's header AND by the conservative scan
+  of the reader's stack (I7). The one in-place exception — `flattenDictionaryStructure`
+  rearranging storage — is per-event STW (F3, SPEC-objectmodel §5: "flatten rearranges
+  storage in place => per-event STW on shared objects"); no concurrent holder exists
+  across the swap.
+
+- **PropertyTable steal/clone.** `takePropertyTableOrCloneIfPinned`
+  (`Structure.cpp:912-924`) removes the table from the source while a walker might hold
+  a raw `PropertyTable*`. L6(ii)+(iii) (SPEC-objectmodel §6): steal/clone/materialize
+  runs under the SOURCE's `m_lock`; mutator uncached table WALKS hold `m_lock` across
+  the walk. Walker and stealer serialize on the same lock — no holder can be mid-walk
+  during the steal. Compiler-thread `Concurrently` readers are the pre-existing
+  pre-threads concurrent-Structure machinery (locked their side).
+
+- **Butterfly / spine replacement.** T1/T2/§4.3 republish a fresh butterfly word; a
+  foreign reader can hold the OLD payload pointer in a register across the republish.
+  I7: "Nothing reachable freed/reused: stale stacks = conservative scan; aliased flat
+  allocation = spine-recorded base, marked each visit (§4.5)". I6: "Published spines
+  never mutated; growth = new spine". §4.6 AS-COPY: "superseded storage never written
+  again (stale readers frozen; conservative scan, I7)". The old payload stays live AND
+  immutable for the holder's lifetime; the reader sees a stale-but-consistent snapshot
+  (SAB staleness), never a half-reused allocation. I27b ("a locked transition never
+  republishes an older butterfly payload") closes the reverse direction.
+
+- **Replaced StringImpl (rope re-publish / atom swap).** `swapToAtomString`
+  (`JSString.h:974-1008`) republishes `m_fiber` while compiler/GC threads (and now
+  foreign mutators) can hold the OLD `StringImpl*`. The old impl is appended to
+  `Heap::m_possiblyAccessedStringsFromConcurrentThreads` and freed only at end-of-GC
+  with all concurrent holders stopped (in-code comment :976-980). A holder of the old
+  pointer dereferences a still-live, content-immutable StringImpl.
+
+Adversarial check: the common shape across all four is *new cell + retire old, never
+mutate-in-place under a possible holder*; the one designed in-place mutation (flatten,
+Double-shape relabel §4.7) is forced through per-event STW (I28/I34: "no reader holds
+the old shape across a stop"). I34 ("no path polls/allocates/parks between obtaining a
+PropertyOffset/slot pointer and the access, unless it re-validates structureID after")
+is the discharge that no holder can outlive a swap by yielding to one mid-use.
+Sub-shape (d) therefore reduces to liveness (I7/conservative scan +
+m_possiblyAccessedStrings) + post-swap immutability (I6/AS-COPY) + STW gating of the
+in-place exceptions (F3/I28) — every leg cited in a frozen invariant.
+
+Verdict: **immune-by-construction** (I6 + I7 + I27b + I34 + L6 + AS-COPY + F3/I28 STW
+gating; `m_possiblyAccessedStringsFromConcurrentThreads` for StringImpl). No new test:
+the holder-side liveness is already exercised by `mc-init-butterfly-grow-slack.js`
+(surface 2) and `i03-i37-same-shape-add-storm.js` (surface 4); the StringImpl arm by
+`mc-init-rope-resolve-race.js` (surface 8); and per-event-STW gating by the existing
+`JSTests/threads/objectmodel/i28-*` corpus.
 
 ---
 
@@ -339,13 +450,12 @@ Verdict: **needs-test**. `JSTests/threads/cve/mc-init-direct-arguments-override.
 
 | Test | Surface | Mode |
 |------|---------|------|
-| `mc-init-lazy-global-first-touch.js` | 7 | deterministic rendezvous + race; crash/lost-default detector |
-| `mc-init-rope-resolve-race.js` | 8 | amplifier-ready race; torn/partial-resolution detector |
-| `mc-init-cloned-arguments-specials.js` | 9 | amplifier-ready race; lost-property detector |
-| `mc-init-direct-arguments-override.js` | 10 | amplifier-ready race; default-leak/garbage detector |
+| `mc-init-lazy-global-first-touch.js` | 7 | deterministic rendezvous + race; crash/lost-default detector — **regression gate** (§K.3 landed) |
+| `mc-init-rope-resolve-race.js` | 8 | amplifier-ready race; torn/partial-resolution detector — **regression gate** (§N.2 landed) |
+| `mc-init-cloned-arguments-specials.js` | 9 | amplifier-ready race; lost-property detector — **regression gate** (RESOLVED-4 landed) |
+| `mc-init-direct-arguments-override.js` | 10 | amplifier-ready race; default-leak/garbage detector — **regression gate** (RESOLVED-3 landed) |
 | `mc-init-butterfly-grow-slack.js` | 2 (regression) | amplifier-ready race; uninit-slack disclosure detector |
 
 All carry `//@ requireOptions("--useJSThreads=1")` (plus stress flags where noted) and
-bound every blocking operation (annex T2). They are landing gates for the §K.3/LZ1,
-§N.2, and AUD1.N3 rulings: run post-ungil, ideally under TSAN no-JIT and
+bound every blocking operation (annex T2). Run post-ungil under TSAN no-JIT and
 `Tools/threads/amplify.sh`, then with default JIT tiers.

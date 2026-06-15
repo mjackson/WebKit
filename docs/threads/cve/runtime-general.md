@@ -34,10 +34,17 @@ and local IPC.
 | **[no CVE] P/Invoke pinned-buffer double-fetch** (classic technique; cf. Bochspwn class) | Native code called via P/Invoke reads a length/offset from a managed (or shared) buffer twice — validate then use — while another thread mutates it between fetches → OOB in the native half of the runtime. Same shape as kernel double-fetch but at the managed/native boundary. | **Double-fetch of shared metadata** |
 | **[no CVE, historical] `Thread.Abort` asynchronous interruption** (deprecation rationale, dotnet docs; partial-trust escape literature) | Asynchronous abort could fire between a check and the action it guarded (e.g., inside `finally`-less CER gaps, mid-lock-acquisition), leaving runtime invariants broken; a recurring partial-trust sandbox-escape vector until aborts were removed in .NET Core (throws `PlatformNotSupportedException`). | **Asynchronous interruption at unsafe point** |
 | **[no CVE] CLR thread-pool lock convoy / thread-injection feedback loop** (dotnet/runtime #7657) | Not directly exploitable, but documents that the runtime's own scheduler had lock-state feedback races (spinning waiters counted as busy → more injection); relevant as a DoS-amplification class. | **Lock-state transition race** (liveness, not safety) |
+| **CVE-2024-38229** (MSRC; herodevs vuln dir) | ASP.NET HTTP/3: closing a stream while application code is *writing to the response body* (the write-side twin of CVE-2024-35264) → race → UAF → RCE. Two distinct CVEs from the same "stream lifecycle vs in-flight I/O" surface within months — strong signal that one fix on a lifetime race rarely closes the whole class. | **Object-lifetime vs in-flight-operation race** |
+| **CVE-2011-0990** (NVD; mono-project.com/vulnerabilities) | Mono `Array.Copy` fast-path race: the optimized native copy raced with concurrent mutation of the source array, letting untrusted code corrupt internal runtime structures (incl. Moonlight's security-manager state) → sandbox escape. A managed-runtime intrinsic that *assumed single mutator*. | **JIT/intrinsic assumes single mutator** |
+| **[no CVE] CoreCLR thread-static init race** (dotnet/runtime #23887) | Segfault on Linux from a race initializing thread-static storage: two threads first-touching the same thread-static slot raced the lazy slot-array allocation → null deref / torn pointer in the TLS map. | **Publication-before-initialization** (lazy-init race) |
+| **[no CVE] CoreCLR background-GC thread-field race** (dotnet/runtime #13238) | `bgc_thread` field not set in time after a threading refactor → concurrent GC reads it as null and falls back to blocking GC (or asserts). A GC-internal handoff race; benign outcome (perf) but the *shape* is "GC reads mutator-published field without acquire". | **GC vs mutator publication race** |
+| **[no CVE] Mono SGen SIMD-register root scan gap** (mono 5.x release notes) | Object references held only in SIMD registers during vectorized memmove were not scanned by the conservative root scanner → premature free if GC ran in that window. A reachability-model gap, not a lock bug — exactly the class our "conservative-scan windows" item in §5.5 names. | **GC vs mutator reclamation race** (root-set gap) |
+| **[no CVE] Mono `mono_thread_detach` GC-unregister gap** (mono/mono #20290) | Detaching a thread did not unregister it from SGen's suspend set → next stop-the-world tries to suspend a thread that no longer cooperates → whole-process hang. Relevant to our safepoint roster maintenance under thread teardown. | **Lock-state/state-machine transition race** (safepoint roster) |
+| **[no CVE] CoreCLR "GC hole" class** (dotnet/runtime docs/design/coreclr/jit/investigate-stress.md) | Not a single bug but the CLR team's name for the recurring class: JIT-emitted code holds a raw object ref across a point where GC can move/free it because liveness/safepoint info is wrong. `DOTNET_GCStress` exists to flush these. We should treat this as the canonical prior art for "JIT assumes object pinned/stable across N-mutator GC". | **JIT assumes single mutator / GC vs mutator** |
 
-Honest gap: searches did not surface additional *memory-safety* race CVEs inside CoreCLR proper
-(GC, JIT) with public root-cause detail; MSRC RCE advisories for the runtime are typically
-opaque. The two CVEs above are the well-documented concurrency ones.
+Honest gap: MSRC advisories for CoreCLR-proper RCEs remain root-cause-opaque; the GC/JIT races
+that *are* public live in the dotnet/runtime issue tracker without CVEs (GC-hole stress findings,
+thread-static init, bgc_thread). Mono/SGen is the richer public corpus for CLR-family GC races.
 
 ---
 
@@ -58,6 +65,10 @@ TID/SW-tagged structure IDs and segmented butterflies are designed to close.
 | **[no CVE] Slice-header tearing** (same write-ups; qouteall gist "fat pointer tearing") | Slice = (ptr, len, cap) published non-atomically; racing reader pairs old ptr with new len/cap → out-of-bounds read/write at chosen extent. Direct analog of "double-fetch of shared length" against array storage. | **Torn multi-word publication / shared-length confusion** |
 | **[no CVE] Concurrent map write** (runtime `fatal: concurrent map writes`) | Pre-detection Go corrupted hashmap internals under racing writers; the modern runtime *deliberately crashes* on detected concurrent map mutation rather than risk corruption — an example of "detect-and-die" as a containment policy for an unsynchronized structure. | **Unsynchronized structural mutation** (mitigated by fail-stop) |
 | **[no CVE] `sync.Pool`/buffer-reuse leaks** (recurring class across Go ecosystem, e.g. multiple `net/http2` fixes) | Object returned to a pool while a racing reader retains it → cross-request data disclosure; the GC keeps it memory-safe but not *information-safe*. | **Object-lifetime vs in-flight-operation race** (logical UAF) |
+| **[no CVE] Universal Go exploit, no `unsafe`/no imports** (StalkR 2022) | Refinement of the 2015 interface-tear: combine interface race (addrOf primitive via type+ptr leak) with slice-header race (arbitrary R/W via forged ptr/len/cap) to get full RCE from *zero* imports — i.e., the language's own multi-word values are sufficient. The strongest published argument that torn fat pointers alone = game over. | **Torn multi-word publication → type confusion + OOB** |
+| **golang/go #9796 [no CVE]** | `encoding/xml` `getTypeInfo`: shared reflection-metadata slice mutated without sync while readers iterate it → torn slice header / corrupted type-info cache. A *runtime-adjacent metadata cache* race — same shape as our sharded atom table / Structure cache. | **Unsynchronized structural mutation** (metadata cache) |
+| **GO-2025-4098 / `net` cgo resolver double-free** (pkg.go.dev/vuln) | Very long CNAME response under the cgo DNS path triggers a double-free of C-allocated memory → crash. Race-adjacent (depends on resolver concurrency to surface reliably); included as the rare *native-heap* corruption reachable from Go stdlib. | **Object-lifetime vs in-flight-operation race** (native side) |
+| **[no CVE] cmd/compile overlapping-memmove miscompile** (Go vuln DB entry, 2023) | Compiler failed to unwrap a no-op interface conversion when deciding whether a memmove's src/dst overlap → emitted forward copy over overlapping ranges → silent data corruption at runtime. Not a *runtime* race, but a "JIT/compiler reasons about identity, gets it wrong, corrupts memory" precedent — the closest Go analog to a JIT-assumption bug. | **JIT/intrinsic assumes invariant that doesn't hold** |
 
 Key takeaway for us: a GC'd runtime converts UAF into *information-flow* bugs but tearing of
 multi-word cells converts straight back into full memory-unsafety. Every multi-word "value"
@@ -83,6 +94,11 @@ the one headline OTP CVE (SSH RCE) is *not* a race and is listed only for comple
 | **ERL-90 / erlang/otp #3471 [no CVE]** | `inet:tcp_controlling_process` race: socket ownership handoff raced with incoming data → messages delivered to the wrong process or lost. Ownership-transfer races = our thread-affinity handoff for natives. | **Ownership-handoff race** (sub-class of cancellation/handoff) |
 | **[no CVE] ETS `update_counter/4`/`update_element/4` keypos bug** (ERTS notes) | Accepted a default tuple smaller than keypos → internally inconsistent table → crash on later access by any process. Not a race per se, but a shared-structure invariant violation observed concurrently. | **Unsynchronized structural-invariant violation** |
 | **[no CVE] NIF resource lifetime races** (enif_release_resource discipline, erl_nif docs) | Standing class: NIF resource destructors run on a scheduler thread when refcount hits zero; native code that stashes raw pointers past `enif_release_resource` races the destructor → UAF in the VM process. | **GC vs mutator reclamation race** (refcount edition) |
+| **[no CVE] ETS `insert`/`insert_new` list vs concurrent delete/rename** (ERTS notes; "bugs exist since OTP 23.0") | Inserting a *list* of tuples while another process deletes or renames the table (or the owner dies) → VM crash or "strange incorrect behavior"; window grows with list length. A multi-step bulk op that holds no continuous lock across the table-identity it depends on. | **TOCTOU between check and use under threads** (table identity) |
+| **OTP-18398 / erlang/otp #5984 [no CVE]** | Tracing a process while it executes on a *dirty scheduler* races GC/scheduling-event tracing → segfault in `erl_trace.c` (`lookup_tracer_nif`). Dirty schedulers run native code outside normal safepoint discipline — exact analog of our NativeExecutable concurrency-bit problem (SPEC-nativeaffinity). | **Asynchronous interruption at unsafe point** (trace/inspect vs non-cooperative thread) |
+| **erlang/otp #8561 [no CVE]** | kTLS + `inet_driver` race: kernel-TLS offload and the driver's own state machine disagreed on socket state under concurrent I/O → crash/data loss. Ownership split across two state machines without a single serialization point. | **Ownership-handoff race** |
+| **erlang/otp #8682 / PR #8683 [no CVE]** | ETS `compressed` + `ordered_set` traversal segfault (OTP 27): compression converted `ErlSubBits`→`ErlHeapBits` violating an internal-representation invariant the traversal code assumed; any concurrent reader observes corruption. Shared-structure invariant broken by an "optimization that changed shape behind the reader's back." | **Heap-shape race / structural-invariant violation** |
+| **[no CVE] ETS map-key match drift** (ERTS notes) | ETS lookup/match on keys containing maps "sometimes matched too many or too few objects" — hash/equality computed non-deterministically across the key's internal-representation variants under concurrent insertion. Identity-vs-representation mismatch in a shared table. | **Unsynchronized structural-invariant violation** |
 
 ---
 
@@ -104,6 +120,11 @@ patterns and because several are *attacker tooling for making tiny windows winna
 | **Go interface-tear exploit** (StalkR 2015; see §2) | The reference *user-level managed-runtime* race exploit: torn fat pointer → type confusion → PC control without `unsafe`. | **Torn multi-word publication** |
 | **Shared-memory heap-shape races** (generic; detailed per-engine entries in the JS-engine companion doc) | One thread flips an object's shape/length/backing store between another thread's check and access (the SAB/worker pattern); in any shared-heap VM this is the composite of double-fetch-of-length + TOCTOU-of-type. Our butterfly segmentation + SW-tag exist precisely to make the check and the use cover one atomically-published snapshot. | **Heap-shape race** (composite: double-fetch + TOCTOU) |
 | **Asynchronous interruption** (Thread.Abort lineage, POSIX signal-in-VM bugs) | Interrupt delivery between invariant-breaking and invariant-restoring instructions; any VM with safepoint-less interruption re-derives this bug. | **Asynchronous interruption at unsafe point** |
+| **CVE-2021-0920** (Project Zero, "The quantum state of Linux kernel garbage collection") | Linux `AF_UNIX` in-kernel GC: `MSG_PEEK` increments a file refcount concurrently with the unix-socket garbage collector deciding the inflight socket is unreachable → GC frees it while peek path holds a live ref → UAF, exploited in the wild. The cleanest published "GC's reachability snapshot is stale vs a concurrent mutator" exploit outside a language VM. | **GC vs mutator reclamation race** |
+| **V8 ArrayShift concurrent-GC race** (Exodus Intelligence 2023; CVE-2023-* family) | `Array.prototype.shift` mutates backing-store pointer/length while concurrent marking is walking the same object → marker reads torn (old ptr, new len) → OOB / RCE. Listed here (not in the JS-engine doc) as the *generic* "concurrent GC marker vs mutator structural mutation" technique — directly relevant to SPEC-congc with N mutators. | **GC vs mutator publication race** (marker reads torn shape) |
+| **Wang et al., USENIX Sec'17 "How Double-Fetch Situations turn into Double-Fetch Vulnerabilities"** | Static-pattern study across the Linux kernel; taxonomy of *which* double fetches are exploitable (size/ptr re-fetch, switch-variable re-fetch — gcc may emit two loads for a `switch`, one for bounds, one for jump-table index). The switch-variable case maps directly onto any C++ runtime helper that switches on a shared discriminant. | **Double-fetch of shared metadata** |
+| **NCC Group, "Double Fetch Vulnerabilities in C and C++" (2022 whitepaper)** | Practitioner catalogue of double-fetch shapes in user-mode C/C++ (not just kernel): shared-memory IPC, mmap'd ring buffers, and — most relevant — *compiler-introduced* re-loads when a pointer is not marked `volatile`/not proven thread-local. Audit rule: a single C++ source-level load is *not* a single machine load unless we make it one. | **Double-fetch of shared metadata** (compiler-introduced) |
+| **DECAF (Schwarz et al., arXiv:1711.01254)** | Cache-side-channel-guided fuzzer that *detects* double fetches by observing two cache accesses to the same syscall arg, then *exploits* them by flipping the value on the cache-timing trigger. Tooling existence-proof: attackers can find our double-fetches without source. | Technique: **automated double-fetch discovery + exploitation** |
 
 ---
 
@@ -155,10 +176,19 @@ lands in the threads design (SPEC-objectmodel / SPEC-heap / SPEC-vmstate / UNGIL
 10. **Asynchronous interruption at unsafe point** — abort/signal lands between breaking and
     restoring an invariant. *Instances:* Thread.Abort; signal handling in VMs. *Our surface:*
     thread termination requests must be safepoint-polled, never delivered asynchronously.
-11. **Unsynchronized structural mutation (fail-stop as containment)** — Go's concurrent-map
+11. **JIT/intrinsic assumes single mutator** — compiled fast path or runtime intrinsic encodes
+    an invariant ("this array's element type won't change mid-copy", "this object is pinned for
+    the duration of this loop", "liveness info says no GC here") that is true with one mutator
+    and false with N. *Instances:* CVE-2011-0990 (Mono Array.Copy); CoreCLR "GC hole" class; Go
+    cmd/compile memmove identity bug; V8 ArrayShift vs concurrent marker. *Our surface:* every
+    DFG/FTL optimization that hoists or caches a structure/length/butterfly across a point where
+    another thread could legally mutate it; every hand-written C++ intrinsic in `runtime/` that
+    iterates a butterfly without the cell lock. This is the highest-expected-yield class for our
+    audit because it is *created* by removing the GIL rather than pre-existing.
+12. **Unsynchronized structural mutation (fail-stop as containment)** — Go's concurrent-map
     fatal error shows "detect and crash" is a legitimate last-line policy for structures we
     cannot afford to lock; candidate posture for any JSC structure we declare non-shareable.
-12. **Race-window amplification (attacker technique, not a bug class)** — cache-miss shaping,
+13. **Race-window amplification (attacker technique, not a bug class)** — cache-miss shaping,
     IRQ/timerfd injection, waitqueue churn, userfaultfd/section trapping make 3-instruction
     windows reliably winnable (j00ru 2013; Horn 2022; Forshaw 2021). *Audit rule:* no finding
     may be downgraded on "window too small" grounds; only on "no writer can exist" grounds.
@@ -186,3 +216,11 @@ lands in the threads design (SPEC-objectmodel / SPEC-heap / SPEC-vmstate / UNGIL
 - github.com/googleprojectzero/bochspwn; j00ru.vexillium.org (double-fetch exploitation, Bochspwn Reloaded)
 - projectzero.google 2022-03 "Racing against the clock"; 2021-01 "Trapping Virtual Memory Access"
 - Watson, WOOT'07, "Exploiting Concurrency Vulnerabilities in System Call Wrappers"
+- NVD: CVE-2024-38229, CVE-2011-0990, CVE-2021-0920
+- mono-project.com/docs/about-mono/vulnerabilities/; mono/mono #20290; mono 5.x release notes (SIMD root scan)
+- dotnet/runtime #23887, #13238; docs/design/coreclr/jit/investigate-stress.md (GC hole / GCStress)
+- blog.stalkr.net/2022/01/universal-go-exploit-using-data-races.html; golang/go #9796; pkg.go.dev/vuln/GO-2025-4098
+- erlang/otp #5984 (OTP-18398), #8561, #8682 + PR #8683; ERTS 25/26/27 release notes (ets:insert list race, map-key match)
+- projectzero.google 2022-08 "The quantum state of Linux kernel garbage collection" (CVE-2021-0920)
+- blog.exodusintel.com/2023/05/16 "Google Chrome V8 ArrayShift Race Condition Remote Code Execution"
+- Wang et al., USENIX Security '17 (double-fetch study); NCC Group 2022 double-fetch whitepaper; Schwarz et al., DECAF (arXiv:1711.01254)

@@ -8,6 +8,11 @@ the runtime is about to claim). Exemplars: CVE-2026-22003 (HotSpot),
 CVE-2023-33127 (CLR diagnostic-pipe squatting, the folded subclass).
 
 Audit date: 2026-06-07. Tree: `jarred/threads` (UNGIL-HANDOUT rev 32).
+Re-verified 2026-06-15 against the current tree: every verdict stands
+unchanged; S7 leakRef stubs still present (RetiredJITArtifacts.cpp:226,249),
+S6 retire path still has no reportExtraMemory bridge, S3 no per-client
+quota/attribution landed. Table line refs below are 06-15 current; prose-body
+line refs are as-of original audit date.
 Scope: both GIL-on phase 1 and GIL-off (`--useJSThreads=1 --useThreadGIL=0`)
 — unlike the race classes, MC-DOS does not need parallelism; a single
 spawned thread (or the main thread) can drive every arm below. Catalog
@@ -30,14 +35,14 @@ SPEC-heap §11/I10/I11 (epoch retire/reclaim), SPEC-jit §2/§4.4 + N6
 
 | # | Surface | Where | Verdict |
 |---|---------|-------|---------|
-| S1 | Live-Thread count | runtime/ThreadManager.cpp:303; OptionsList.h:693 | immune-by-construction |
-| S2 | Spawned-TID space squatting (spawn-die churn) | ThreadManager.cpp:292-334; ThreadManager.h:423-444,649 | immune-by-construction (rebias; already tested) |
+| S1 | Live-Thread count | runtime/ThreadManager.cpp:343; OptionsList.h:701 | immune-by-construction |
+| S2 | Spawned-TID space squatting (spawn-die churn) | ThreadManager.cpp:337-371,500; ThreadManager.h:455,666 | immune-by-construction (rebias; already tested) |
 | S3 | Shared GC heap growth — no per-thread quota or attribution | heap server (SPEC-heap §5.3/§10A); GCClient allocators | susceptible-suspected (availability-only, design gap) |
-| S4 | Property-waiter table: per-(cell,uid) lists, deques, Strong roots | runtime/ThreadAtomics.cpp:776-960 | needs-test → mc-dos-waiter-table-storm.js |
-| S5 | AsyncTicket inboxes + lock/condition async-waiter queues | ThreadManager.h:83-200, 356-387; SPEC-api 5.5/5.5a | immune-by-construction |
-| S6 | Epoch-deferred retire backlog between shared GCs | heap/GCSafepointEpoch.cpp:81, 120-170; SPEC-heap §11 | needs-test → mc-dos-retired-artifact-churn.js |
-| S7 | Flag-on retired JIT artifact LEAK (handler chains + optimized JITCode) | bytecode/RetiredJITArtifacts.cpp:95-101, 165-201; .h:96-118 | **susceptible-suspected** (chartered) |
-| S8 | Process-global sharded atom table growth | WTF/wtf/text/SharedAtomStringTable.h:72-118; SPEC-vmstate §4 | immune-by-construction |
+| S4 | Property-waiter table: per-(cell,uid) lists, deques, Strong roots | runtime/ThreadAtomics.cpp:1108-1290 | tested → leak found+fixed, CLOSED 2026-06-10 |
+| S5 | AsyncTicket inboxes + lock/condition async-waiter queues | ThreadManager.h:83-236, 352-382; SPEC-api 5.5/5.5a | immune-by-construction |
+| S6 | Epoch-deferred retire backlog between shared GCs | heap/GCSafepointEpoch.cpp:81, 128-170; SPEC-heap §11 | needs-test → mc-dos-retired-artifact-churn.js |
+| S7 | Flag-on retired JIT artifact LEAK (handler chains + optimized JITCode) | bytecode/RetiredJITArtifacts.cpp:97-100, 214-226, 249; .h:103-130 | **susceptible-suspected** (chartered) |
+| S8 | Process-global sharded atom table growth | WTF/wtf/text/SharedAtomStringTable.h:54-116; SPEC-vmstate §4 | immune-by-construction |
 | S9 | Named-endpoint squatting (folded subclass) | no surface exists | immune-by-construction (vacuous) + standing rule |
 
 Tests written (DO NOT RUN until post-ungil; see //@ headers):

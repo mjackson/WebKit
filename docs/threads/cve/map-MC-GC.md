@@ -5,9 +5,14 @@ treated as data, never instructions):
 *"GC vs mutator lifecycle/publication race: collector's reachability/lifecycle
 view diverges from what a mutator can observe, forge, or resurrect — premature
 reclaim under a native frame, reference-protocol confusion, finalizer
-resurrection."* Exemplars: CVE-2023-21954 (HotSpot reference enqueue),
-CVE-2018-2814 (Reference clone → sandbox escape), the .NET
-finalization-during-method race (no CVE).
+resurrection, objects/code visible to GC before fully initialized,
+write-barrier split from its store across a safepoint/OSR exit, weak-table
+read vs concurrent sweep."* Exemplars: CVE-2023-21954 (HotSpot reference
+enqueue), CVE-2018-2814 (Reference clone → sandbox escape), CVE-2026-7936,
+JDK-8242115 / JDK-8254980 (C2 barrier split across safepoint), JDK-8278965 /
+JDK-8187577 (G1 sees object pre-init / weak-registry inconsistency),
+JDK-8147611 (weak-table read vs sweep), JDK-6444286 (GC-vs-raw-pointer side),
+the .NET finalization-during-method race (no CVE).
 
 Audited against the tree at `jarred/threads` (phase-1 GIL'd shared heap +
 conducted-stop GC landed; UNGIL §A/§D.1/§E/§F machinery landed; GIL-off
@@ -365,6 +370,168 @@ for completeness, owned by the OM corpus:
   place). Congc note: the epoch bump must remain coupled to a bar all
   mutators cross, not to marking completion.
 
+## S11. Write barrier split from its store across a safepoint / OSR exit (JDK-8242115 / JDK-8254980 analog)
+
+The mechanism: an optimizing compiler emits the heap store and its write
+barrier as separate IR nodes; a later phase places a safepoint poll, or an
+OSR-exit-capable check, between them. The mutator parks (or exits) with the
+edge installed but unbarriered; an eden/incremental cycle that runs in the
+gap never re-greys the from-object; the to-object is collected while still
+reachable.
+
+Our shape, per tier:
+
+- **DFG/FTL.** `DFGStoreBarrierInsertionPhase` emits a `(Fenced)StoreBarrier`
+  immediately after each store, and resets the per-node "definitely new"
+  set at every `doesGC()`-true node. `DFGStoreBarrierClusteringPhase`
+  (`dfg/DFGStoreBarrierClusteringPhase.cpp:94-116`) is the only pass that
+  *moves* barriers: it floats them forward to a "barrier point" defined as
+  the last position before any node where
+  `doesGC(m_graph, node) || mayExit(m_graph, node) != DoesNotExit` (`:104`).
+  The JSThreads cooperative-stop poll is `CheckTraps`, and
+  `dfg/DFGDoesGC.cpp:555-558` returns **true** for it (unconditionally,
+  pre-dating threads). Therefore *no clustered barrier is ever deferred
+  across a poll*, and `mayExit` covers every OSR-exit-capable node (the
+  `:98-103` comment records exactly the JDK-8242115 trade-off and why JSC
+  chose conservatism over a `StoreBarrierHint` exit-side fixup). SPEC-jit
+  R1.f makes JSThreads stops cooperative-only (no thread is suspended at an
+  arbitrary PC; a mutator parks only at a poll or inside a `doesGC`-true
+  slow path), so the barrier-clustering predicate is *exactly* the set of
+  program points at which a conducted stop can begin. SPEC-jit I21's
+  poll-placement lint (CheckTraps + trailing InvalidationPoint) and the
+  AUDIT-checktraps `jsThreadsParkableSlowPathClobbersHeapFacts` predicate
+  reuse the same `doesGC` source of truth. B3/Air do not reorder across the
+  lowered barrier patchpoint (it has heap effects).
+- **Baseline / LLInt.** Store + barrier are emitted as a single template
+  (`jit/JITPropertyAccess.cpp` `emitWriteBarrier`; LLInt
+  `writeBarrierOnOperand*` macros) with no poll between; polls live only at
+  `op_check_traps` bytecode boundaries.
+
+Adversarial probes:
+
+- *AUDIT-checktraps P10c-R residual* (`doesGC`-true nodes whose clobberize
+  model is location-precise, e.g. rope-resolving string ops) is irrelevant
+  here: the clustering predicate keys on `doesGC`, not clobberize, so those
+  nodes are already barrier-points.
+- *Barrier elision for "definitely new" bases*: the insertion phase resets
+  its new-set at every `doesGC` node, so a base allocated before a poll is
+  not treated as new after it — the N-mutator analog of HotSpot's
+  "newly-allocated needs no barrier" reasoning is preserved per-thread.
+- *Phase-1 backstop*: even a hypothetically dropped barrier is masked by
+  SPEC-heap I12's window-witness over-retention (the to-cell's
+  `newlyAllocated` bit, stamped by `stopAllocating`, keeps it live for the
+  cycle independent of the remembered set). This backstop **disappears under
+  SPEC-congc** out-of-window marking (black allocation + per-client CMS,
+  congc §5.2/§6) — a congc-era regression in `DFGDoesGC` for any
+  parkable-slow-path node would be the literal JDK-8254980 bug.
+
+**Verdict: immune** (DFGDoesGC.cpp:555 + DFGStoreBarrierClusteringPhase.cpp:104
++ R1.f cooperative-only; pre-existing single-mutator-concurrent-GC machinery
+already sound for N). Congc re-audit obligation: the §5.3(3) per-client
+`barrierThreshold` JIT reroute (F19) must not change the *placement* logic,
+only the address consumed; record as a CG-T3 arm.
+
+## S12. Weak-table read vs concurrent sweep / weak-registry publication (JDK-8147611 / CVE-2026-7936 analog)
+
+Two halves with opposite verdicts.
+
+**S12a — mutator `WeakGCMap`/`WeakGCSet` read vs the collector's prune.**
+`Heap::pruneStaleEntriesFromWeakGCHashTables` (`heap/Heap.cpp:3426-3432`)
+runs from `runEndPhase` inside the conducted stop (deviation 4: every shared
+collection is world-stopped, §10.4 barrier waits for every client's RHA).
+Every mutator-side read of a WeakGCMap — `VM::symbolImplToSymbolMap`
+(K4.III.4), `StructureTransitionTable`, `RegExpCache`, `m_symbolTableCache`
+(K4.III.10) — runs *with heap access held* (the K4 audit's per-table lock is
+about writer-writer, not reader-vs-GC). A stop cannot complete while a
+reader holds access; a reader that releases access cannot resume mid-prune
+(F8 re-entry gating). `WeakImpl` Live→Dead transitions happen only in
+`WeakBlock::sweep`, and UNGIL-HANDOUT §F.2 / `WeakSet.h:121-131` records
+that mutator-concurrent MSPL sweeps *skip weak-bearing blocks* — weak state
+flips only world-stopped. **Immune** (deviation 4 + F8 + the §F.2
+weak-bearing-skip rule). Congc re-audit: SPEC-congc §9.1(8) keeps prune
+in-window; the AB-10 conductor weak-sweep license (`WeakSet.cpp:81/:106`)
+must stay world-stopped-only.
+
+**S12b — `m_weakGCHashTables` registry publication race (suspected,
+confirmed in-tree).** `Heap::registerWeakGCHashTable` /
+`unregisterWeakGCHashTable` (`heap/Heap.cpp:4422-4429`) mutate the bare
+`UncheckedKeyHashSet<WeakGCHashTable*> m_weakGCHashTables` (`Heap.h:1705`)
+with **no lock and no `// SharedGC:` audit tag**. The K4.VIII.9 audit row
+(SPEC-ungil-audit-K4.md, A-t8assert 2026-06-12) reproduced this as an ASAN
+SEGV (freed-scribble `0xf5` read) with two lites concurrently running
+`JSGlobalObject::init` — every global ctor registers several `WeakGCMap`s
+via `WeakGCMapInlines.h:40` / `WeakGCSetInlines.h:38`. The MC-GC consequence
+is the *quiet* failure mode, not the loud SEGV: a torn `HashSet::add` can
+**lose a registration** (rehash drops the colliding bucket), so the table is
+reachable to mutators but invisible to `pruneStaleEntries` — its `Weak<>`
+slots are still flipped Dead by the world-stopped weak sweep, but the
+table's own `pruneStaleEntries` never runs, so a mutator's `find()` walks
+buckets whose `Weak::get()` returns null forever (identity loss for caches
+keyed on liveness, e.g. a transition-table re-add inserting a duplicate
+Structure) and, if the table's `pruneStaleEntries` override does more than
+HashMap removal (e.g. drops a paired strong ref), that paired state leaks.
+Worse, a torn rehash can leave a *stale bucket pointer* in the registry, and
+the next conducted prune dereferences it world-stopped — collector-side UAF.
+This is exactly the "collector's view of the registry diverges from what
+mutators can observe" sub-mechanism. K4.VIII.9 filed it as heap-territory
+("lock, or lite-local registry + merge"); it remains **unimplemented** at
+`Heap.cpp:4422-4429`.
+
+**Verdict: S12a immune; S12b susceptible-suspected (concrete reproduced
+defect, K4.VIII.9) + needs-test** —
+`JSTests/threads/cve/mc-gc-weakgcmap-registry-vs-prune.js` (concurrent
+`$vm.createGlobalObject()` registration storm racing conducted full GCs;
+oracles: no crash, and `Symbol.for` identity — backed by the VM-level
+`symbolImplToSymbolMap` whose registration races the storm — survives the
+prune cycle on every thread).
+
+## S13. Objects visible to GC before fully initialized (JDK-8278965 / JDK-8187577 analog)
+
+The GC-observer twin of map-MC-INIT (which owns the *mutator*-observer
+half). Mechanism: a cell becomes reachable to the collector (via a
+mark-keyed registry, the window-witness set, or a conservative root) before
+its `Structure`/header/out-of-line storage is initialized; the collector
+either traces garbage or — the JDK-8187577 shape — *retains the shell
+without tracing its contents*, so a downstream registry consumer adopts a
+half-built object.
+
+Governing invariants, both in SPEC-heap I12 (rev 13, history §25):
+
+1. **L2 — "no client releases heap access mid-allocation/initialization."**
+   Every JSCell allocation path runs `finishCreation` (structure store +
+   field init) under the same access span as the allocation; the only
+   release points are cooperative polls / RHA brackets, and no allocation
+   slow path contains one between the allocator return and the structure
+   store (the `DeferGC`-shaped guards in allocation paths exist precisely to
+   keep this span closed). A conducted stop therefore never observes a cell
+   with a torn header.
+2. **Wlr "mark-without-trace is FORBIDDEN"** (`heap/Heap.cpp:4535-4551`, the
+   normative window-witness constraint banner): the conducted cycle's
+   window-witness retention appends through the *real* conservative-root
+   path (`appendJSCellOrAuxiliary`: mark **and** trace) inside the marking
+   fixpoint, "so every mark-keyed registry (e.g. the transition
+   WeakGCHashTables pruned after endMarking) only ever observes CONSISTENT
+   retained objects." The banner records the regression that proved
+   mark-without-trace unsound here: a retained zombie dictionary `Structure`
+   stayed findable in the transition `WeakGCHashTable` with a *swept*
+   `PropertyTable` and was re-adopted — the literal JDK-8187577 mechanism,
+   found and fixed in our own tree (history §25;
+   `JSTests/threads/objectmodel/i03-quarantine-readd-across-gc.js`).
+
+Adversarial: the L2 lemma is *not* assert-backed per allocation; it is
+discharged by code review (no `releaseAccess`/`stopIfNecessary` between
+`allocate*` and `finishCreation`). A future native that allocates, stashes
+the raw cell, and then drops into an RHA bracket before `finishCreation`
+would violate it — same review rule as the S1 native-heap-memory note. The
+Wlr constraint *is* mechanically enforced (the gate keys on sticky ISS,
+history §25 round-7 F5).
+
+**Verdict: immune** (I12 L2 + Wlr mark-with-trace; in-tree regression test
+in place). Mutator-observer publication ordering is owned by map-MC-INIT
+S1/S4. Congc re-audit: out-of-window black allocation (congc §6) must
+preserve L2 — congc CG-I9's "window barrier orders it" is the recorded
+discharge.
+
 ---
 
 ## Summary table
@@ -382,10 +549,15 @@ for completeness, owned by the OM corpus:
 | S8 | dead-TID reissue vs surviving tags | design-immune; multi-VM tripwire = known abort | test owned by map-MC-TDWN S10 |
 | S9 | async-ticket dependency rooting | immune (double-rooted; access rule closes the window) | — |
 | S10 | superseded butterflies / quarantined slots | immune (I7/I18 + OM tests) | — |
+| S11 | write-barrier split across safepoint / OSR exit | immune (`DFGDoesGC.cpp:555` + clustering `:104` + R1.f) | congc §5.3 re-audit (CG-T3 arm) |
+| S12a | WeakGCMap read vs in-stop prune | immune (deviation 4 + F8 + §F.2 weak-bearing-skip) | congc AB-10 license stays world-stopped |
+| S12b | `m_weakGCHashTables` registry race → lost prune / UAF | **suspected** (K4.VIII.9 reproduced; `Heap.cpp:4422-4429` unlocked) + needs-test | `mc-gc-weakgcmap-registry-vs-prune.js`; lock or lite-local registry |
+| S13 | object visible to GC pre-init (mark-keyed registries) | immune (I12 L2 + Wlr mark-with-trace; `i03-quarantine-readd-across-gc.js`) | mutator-observer half = map-MC-INIT |
 
 Cross-cutting: **every immune verdict above leans on deviation 4 (no
 concurrent marking in shared mode).** SPEC-congc work MUST re-run this map;
-the per-surface congc notes (S5, S6.3, S9, S10) are the starting list.
+the per-surface congc notes (S5, S6.3, S9, S10, S11, S12a, S13) are the
+starting list.
 
 Tests are written for post-ungil execution (do not run against the
 mid-bring-up tree); flag requirements are in each test's `//@` header.

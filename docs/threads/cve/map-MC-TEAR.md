@@ -1,19 +1,22 @@
 # MC-TEAR — Torn multi-word publication: surface map for the JSC threads work
 
-Status: defensive audit artifact, 2026-06-07. Class definition: CVE-AUDIT.md "MC-TEAR".
+Status: defensive audit artifact, 2026-06-07; **re-audited 2026-06-15** against the
+post-§N.2/§N.3/§N.5-landing tree. Class definition: CVE-AUDIT.md "MC-TEAR".
 Mechanism (web-derived, treated as data): a logically-atomic multi-word value
 (type ptr + data ptr; base + length; StructureID + butterfly) written as multiple plain
 stores; a racing reader pairs halves of different writes, yielding type confusion or OOB
 at chosen extent. Exemplars: StalkR 2015 Go interface-tear PC-control exploit, Go
 slice-header tearing, ECMA-335 §I.12.6.6 torn longs/structs.
 
-Tree state at audit time: branch `jarred/threads`; SPEC-objectmodel rev 14 +
-SPEC-ungil/UNGIL-HANDOUT rev 32 implementation in progress. ConcurrentButterfly and the
-annex-N6 ArrayBuffer quarantine are LANDED; handout §N.2 (rope release-CAS), §N.5
-(generator claim CAS), §N.3 (date-cache bypass) are NOT yet in tree. Verdicts below are
-split GIL-on (phase 1, JSLock serializes all JS) vs GIL-off (post-ungil). Under the
-phase-1 GIL every surface is trivially immune (one mutator at a time); all verdicts are
-for GIL-off unless stated.
+Tree state at re-audit (2026-06-15): branch `jarred/threads`; SPEC-objectmodel rev 14.
+ConcurrentButterfly and the annex-N6 ArrayBuffer quarantine are LANDED. Since the
+2026-06-07 pass: §N.2 rope publication LANDED (cell-lock + release-store loser arm,
+diverges from the spec's lock-free CAS but tear-equivalent); §N.3 date-cache GIL-off
+bypass LANDED (thread_local scratch); §N.5 sync-generator/iterator-helper resume-claim
++ r15 F1 release fence LANDED, async-generator resume-head arm STILL OPEN
+(SPEC-ungil-history.md:8753-8763). Verdicts below are split GIL-on (phase 1, JSLock
+serializes all JS) vs GIL-off (post-ungil). Under the phase-1 GIL every surface is
+trivially immune (one mutator at a time); all verdicts are for GIL-off unless stated.
 
 Method: for each surface, the logically-atomic tuple, the writer's publication protocol
 (file:line), the reader's pairing discipline, the governing SPEC invariant, and an
@@ -29,9 +32,10 @@ Verdict key: **immune** = immune-by-construction (cite why the mechanism cannot 
 | S2 | Flat butterfly | {base ptr, vectorLength/publicLength} | immune |
 | S3 | Segmented spine | {spine ptr, publicLength, vectorLength} | immune |
 | S4 | TypedArray/ArrayBuffer | {base ptr, byteLength} | needs-test |
-| S5 | JSRopeString resolution | {flags/fiber0 word, length, fiber1/2, StringImpl ref} | suspected (unlanded §N.2) + needs-test |
-| S6 | Generator/async internal fields | {state word, frame/field words} | suspected (unlanded §N.5) + needs-test |
-| S7 | DateInstance GregorianDateTime cache | {RefPtr m_data; cachedForMS key + >8B struct} | suspected (unlanded §N.3) + needs-test |
+| S5 | JSRopeString resolution | {flags/fiber0 word, length, fiber1/2, StringImpl ref} | immune (§N.2 landed); test retained |
+| S6a | Sync generator / iterator-helper internal fields | {state word, frame/field words} | immune (§N.5 sync arm landed); test retained |
+| S6b | Async-generator internal fields | {state word, queue/frame words} | suspected (async resume-head arm unlanded) + needs-test |
+| S7 | DateInstance GregorianDateTime cache | {RefPtr m_data; cachedForMS key + >8B struct} | immune (§N.3 landed); test retained |
 | S8 | Property/element value slots | one EncodedJSValue / raw double | immune |
 | S9 | Structure transition/property tables | table internals | immune |
 | S10 | JIT-emitted {structure check, butterfly load} pairs | same as S1, compiled | immune (conditional, per-tier) |
@@ -184,21 +188,41 @@ PA races, b2 stay-flat vs SW flip), `JSTests/threads/races/transition-vs-read.js
   never cleared post-publication
   (`Source/JavaScriptCore/runtime/JSStringInlines.h:390`), so a stale isRope=true
   reader still walks valid fibers; (c) length is immutable from construction.
-- Suspected hole (precise): §N.2 is NOT landed. Current
-  `JSRopeString::convertToNonRope` (`JSStringInlines.h:382-393`) is a storeStoreFence +
-  plain placement-new of the String into the fiber0 word — no CAS, no loser arm. Two
-  GIL-off threads resolving the same rope concurrently both run
-  `new (&uninitializedValueInternal()) String(...)` on the SAME word: a double
-  ref-adopting store. One StringImpl ref is silently overwritten (leak) and — worse —
-  both threads then run `vm.heap.reportExtraMemoryAllocated` / destruction accounting
-  against it; if either path ever releases the clobbered ref (e.g. via
-  `notifyNeedsDestruction` teardown of the loser's impl), the published string is a
-  use-after-free reachable from JS. Readers also load the word plain (no acquire)
-  while only a storeStoreFence orders the impl's contents — dependency-ordered loads
-  make this safe in practice on arm64, but the spec's load-acquire is also unlanded.
-- **Verdict: susceptible-suspected (unlanded §N.2) + needs-test** ->
-  `JSTests/threads/cve/mc-tear-rope-resolve-race.js`. Re-run after §N.2 lands; the
-  test is the acceptance check.
+- Landed shape (2026-06-15, diverges from the spec's lock-free release-CAS but
+  MC-TEAR-equivalent): `JSRopeString::convertToNonRope`
+  (`Source/JavaScriptCore/runtime/JSStringInlines.h:386-434`) — GIL-off branch takes
+  the cell lock, re-checks `fiberConcurrently() & isRopeInPointer` under the lock
+  (loser observes winner's publish, returns; its `String&&` argument destructs
+  normally, dropping the loser's StringImpl ref — no double-adopt), winner publishes
+  via ONE 8B `WTF::atomicStore(&m_fiber, ..., release)` (:419). Reader side:
+  `fiberConcurrently()` is `atomicLoad(&m_fiber, acquire)` under TSAN / relaxed +
+  address-dependency otherwise (`JSString.h:341-354`). `notifyNeedsDestruction` is
+  hoisted out of the lock and is monotone-true, so the lock span is bounded
+  straight-line (O2-conforming).
+- Adversarial pairing analysis (both directions, post-landing):
+  1. *Torn fiber0 word*: impossible — single aligned 8B atomic store; isRope flag
+     bits and StringImpl pointer share that one word (`JSString.h`:
+     offsetOfFlags == offsetOfFiber0 == offsetOfValue), so the Go-interface-style
+     "type bit + data ptr" pair publishes atomically.
+  2. *Reader pairs OLD fiber0 (isRope=true) with mutated fiber1/2/length*: fiber1/2
+     and length are construction-time-immutable and explicitly NEVER cleared on
+     resolution (:421 comment); the only post-construction write to the cell is the
+     one fiber0 store. A stale isRope=true reader walks the same valid fibers it
+     would have pre-race. The split-word fiber1/2 representation
+     (`JSString.h:446,462` — two relaxed 32/16-bit loads) is written exactly once at
+     construction before the cell pointer is published, so there is no second write
+     for a torn read to pair against.
+  3. *Reader pairs NEW fiber0 (resolved) with stale StringImpl contents*: the
+     release-store / acquire-load (or address-dependency) pairing orders the
+     StringImpl's buffer/length/hash before any reader that observes the new bits
+     (the comment block at :392-401 records this as the storeStoreFence
+     replacement).
+  4. *Two writers double-publish*: serialized on the cell lock; the loser arm is the
+     re-check at :417-418. No window for both to leak a ref into the word.
+- **Verdict: immune-by-construction (landed §N.2 variant).** Test
+  `JSTests/threads/cve/mc-tear-rope-resolve-race.js` retained as the acceptance /
+  regression check (N racing resolvers all observe the exact concatenation; no
+  crash).
 
 ## S6. Generator/async-function internal fields {state, frame}
 
@@ -208,43 +232,66 @@ PA races, b2 stay-flat vs SW flip), `JSTests/threads/races/transition-vs-read.js
   MC-TEAR hazard: without the release/acquire pairing a second resumer pairs the new
   state word with stale frame words (a torn {state, frame} multi-word publication) and
   resumes into a half-written frame.
-- Suspected hole (precise): the twin intrinsics @atomicInternalFieldClaim/Publish are
-  NOT in tree (`Source/JavaScriptCore/builtins/GeneratorPrototype.js` still does the
-  landed plain check-then-store around :36/:60/:77/:91). GIL-off today, two threads
-  alternating `gen.next()` can both pass the state check and both write frame state;
-  resumption can observe a frame whose words come from two different suspensions —
-  type confusion on the recovered IR values.
-- **Verdict: susceptible-suspected (unlanded §N.5) + needs-test** ->
-  `JSTests/threads/cve/mc-tear-generator-resume.js` (the spec's own amplifier shape:
-  ping-pong next() round-tripping a counter through frame state).
-- **STATUS UPDATE (post-landing review round): §N.5 PARTIAL.** Landed: sync-generator
-  + iterator-helper resume-claim (owner-token CAS host hooks), the yield-side unclaim
-  relocation (now fail-closed, and extended to async-function/async-generator/module
-  bodies via the generatorRegister()-based validation), AND the r15 F1 release half —
-  gilOffProcess, `op_put_internal_field` is store-RELEASE in ALL tiers (store-store
-  fence before the field store: LLInt64/Baseline/DFG/FTL), so the relocated unclaim
-  actually publishes the frame saves on arm64. OPEN (recorded deferral, history
-  "§N.5 LANDED SHAPE" entry): the ASYNC GENERATOR resume-head claim —
-  `AsyncGeneratorPrototype.js` still does the plain check-then-store + plain queue
-  mutations; owed an async clone of mc-prim-generator-resume-claim before that arm
-  can close. arm64/TSAN verification of the fence pairing also still owed
-  (SPEC-ungil-audit-N7.md:239).
+- **S6a — sync generator / iterator helpers, LANDED (2026-06-15 tree):** the
+  resume-head is ONE atomic claim — `@claimGeneratorResume` CASes the state word
+  SuspendedX->Running (`Source/JavaScriptCore/builtins/GeneratorPrototype.js:77-86,
+  125,154`; `JSIteratorHelperPrototype.js:40,74`); a losing thread observes Running
+  and takes the serial-TypeError path, never touching frame words. Unclaim
+  (Running->SuspendedX/Completed) is the relocated yield-side store, and r15 F1 makes
+  `op_put_internal_field` store-RELEASE in ALL tiers GIL-off (LLInt64/Baseline/DFG/
+  FTL: store-store fence before the field store), so the frame-word saves
+  happen-before the state publication on arm64. The claim-leak fail-safe try/catch
+  around `@generatorResume` (SPEC-ungil-history.md:8783-8798) closes the
+  exception-between-claim-and-body window. Adversarial pairing: a reader that
+  observes state==SuspendedX via the claim CAS's implicit acquire sees the
+  predecessor's complete frame-word set (release/acquire pair); a reader that loses
+  the CAS never reads frame words. The {state, frame} tuple cannot tear.
+  **Verdict S6a: immune-by-construction.** Test
+  `JSTests/threads/cve/mc-tear-generator-resume.js` retained as regression.
+- **S6b — async generator, suspected hole (precise, STILL OPEN):** the async
+  resume-head is NOT claimed.
+  `Source/JavaScriptCore/builtins/AsyncGeneratorPrototype.js:35,78` does a plain
+  `@getAsyncGeneratorInternalField(..., @generatorFieldState)` check then plain
+  `@putAsyncGeneratorInternalField(..., @AsyncGeneratorStateExecuting)` — no CAS, no
+  loser arm — and the surrounding queue mutations (`@asyncGeneratorFieldResumeValue`
+  read at :45, queue-head/state writes at :49,55,61,84,88,98) are plain
+  `@put`/`@get` of separate internal-field words. Two GIL-off threads draining the
+  same async generator can both pass the state check and both enter the body call at
+  :81 with frame words from different suspensions; or one thread can pair the new
+  Executing state with the OTHER thread's stale `resumeValue`/frame — a torn
+  {state, queue, frame} multi-word publication yielding resumption into a
+  half-written frame (type confusion on recovered IR values). The yield-side release
+  fence is landed for the BODY, but the prototype-side resume-head remains the
+  unguarded multi-store. This is the recorded deferral at
+  SPEC-ungil-history.md:8753-8763.
+  **Verdict S6b: susceptible-suspected (unlanded async §N.5 arm) + needs-test** ->
+  `JSTests/threads/cve/mc-prim-async-generator-resume-claim.js` (delivered per
+  SPEC-ungil-history.md:8772-8774; gating artifact for the async arm). arm64/TSAN
+  verification of the fence pairing also still owed (SPEC-ungil-audit-N7.md:239).
 
 ## S7. DateInstance GregorianDateTime cache
 
 - Ruled protocol (handout §N.3): cache BYPASSED GIL-off — "the cached pair is >8 bytes,
   not CASable"; m_data lazy alloc CAS-published.
-- Suspected hole (precise): not landed.
-  `Source/JavaScriptCore/runtime/DateInstance.cpp:44-73` still does
-  `m_data = cache.cachedDateInstanceData(milli)` (plain RefPtr store — racing stores
-  tear the refcount discipline: the overwritten RefPtr's deref and the winner's ref
-  race => over-release/UAF of DateInstanceData) and then fills the >8B
-  {m_gregorianDateTimeCachedForMS, m_cachedGregorianDateTime} pair with plain stores —
-  a reader on `DateInstance.h:64-65` can pair a matching cachedForMS key from write A
-  with date components from write B (wrong-value tear; the m_data RefPtr race is the
-  memory-unsafe part).
-- **Verdict: susceptible-suspected (unlanded §N.3) + needs-test** ->
-  `JSTests/threads/cve/mc-tear-date-cache.js`.
+- Landed shape (2026-06-15): `Source/JavaScriptCore/runtime/DateInstance.cpp:31-50,
+  72-77,93-98` — when `g_jscConfig.gilOffProcess`, BOTH calculate paths divert to a
+  `static thread_local GregorianDateTime` scratch (one per TimeType, :48-49) and
+  return its address; `m_data` and the DateInstanceData fields are NEVER written on
+  these paths GIL-off (the comment block at :31-44 records the invariant: a GIL-off
+  process can never observe a non-null `m_data` written by these functions, and
+  `gilOffProcess` is process-lifetime so there is no GIL-on->off transition with a
+  populated cache). The `DateInstance.h` inline fast-path reads `m_data` first and
+  short-circuits on null, falling through to the bypass.
+- Adversarial pairing analysis: (1) the >8B {cachedForMS, GregorianDateTime} pair is
+  never written by any thread GIL-off, so there are no two writes for a reader to
+  pair halves of — the mechanism's precondition (multiple plain stores of a
+  logically-atomic value) does not occur; (2) the `m_data` RefPtr race is eliminated
+  for the same reason; (3) the thread_local scratch is per-thread by construction —
+  the caller (DatePrototype getters) reads its own thread's scratch synchronously
+  with no interleaving; the scratch is reused across calls but never across threads.
+- **Verdict: immune-by-construction (landed §N.3).** Test
+  `JSTests/threads/cve/mc-tear-date-cache.js` retained as regression (every component
+  read belongs to one of the two written timestamps; no crash).
 
 ## S8. Property/element value slots
 
@@ -296,12 +343,13 @@ PA races, b2 stay-flat vs SW flip), `JSTests/threads/races/transition-vs-read.js
 All under `JSTests/threads/cve/`, written now, EXECUTED post-ungil (tree is
 mid-bring-up; do not run):
 
-| Test | Surface | Oracle |
-|------|---------|--------|
-| `mc-tear-typedarray-detach-grow-shrink.js` | S4 | value-membership + no crash under detach/transfer/resize storm |
-| `mc-tear-rope-resolve-race.js` | S5 | N racing resolvers all observe the exact concatenation; no crash |
-| `mc-tear-generator-resume.js` | S6 | ping-pong resume observes only predecessor-published frame values or the serial TypeError |
-| `mc-tear-date-cache.js` | S7 | every component read belongs to one of the two written timestamps; no crash |
+| Test | Surface | Oracle | Role (2026-06-15) |
+|------|---------|--------|------|
+| `mc-tear-typedarray-detach-grow-shrink.js` | S4 | value-membership + no crash under detach/transfer/resize storm | needs-test (read-side global invariant) |
+| `mc-tear-rope-resolve-race.js` | S5 | N racing resolvers all observe the exact concatenation; no crash | regression (immune, §N.2 landed) |
+| `mc-tear-generator-resume.js` | S6a | ping-pong resume observes only predecessor-published frame values or the serial TypeError | regression (immune, sync §N.5 landed) |
+| `mc-prim-async-generator-resume-claim.js` | S6b | concurrent drain of one async generator: every body entry sees a frame consistent with one suspension; loser gets the serial error | gating (suspected, async §N.5 arm open) |
+| `mc-tear-date-cache.js` | S7 | every component read belongs to one of the two written timestamps; no crash | regression (immune, §N.3 landed) |
 
 Pre-existing suites already covering immune surfaces: S1-S3/S8/S9 ->
 `JSTests/threads/objectmodel/i03-*.js`, `JSTests/threads/races/transition-vs-*.js`.

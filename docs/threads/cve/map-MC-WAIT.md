@@ -10,24 +10,27 @@ not-equal ordering bug (value re-check not serialized against the notifier
 => lost wakeup; no CVE), ERTS signal-queue inconsistency race. No public
 JS-engine memory-safety CVE in this class — under-audited, not absent.
 
-Date: 2026-06-07. Tree: jarred/threads (phase 1 GIL'd complete, ungil in
-progress; AB-17 landed, AB-17b open). Specs consulted: SPEC-api (5.3, 5.4,
-5.5, 5.6, 5.9, 5.10, F3/F4/F5, G11), SPEC-ungil (§A.2.6/D9, §A.3.2, §C.3,
-§C.6/SD6/SD8, §E.4, §G, annex W W1, r15 F2), UNGIL-HANDOUT rev 32,
-INTEGRATE-api.md (D5, D9, D11), INTEGRATE-ungil.md (U-T11 OPEN list).
-Read-only audit; the test under JSTests/threads/cve/ is written but NOT
-executed (the bring-up loop owns the build); it runs post-ungil via
-thread-cve-audit.
+Date: 2026-06-07. Re-audited 2026-06-15 (S6 verdict superseded by the FIX-2
+banner correction; S7 added for the SPEC-nativeaffinity NL1 protocol). Tree:
+jarred/threads (ungil bring-up; AB-17b/c/d/e family landed). Specs consulted:
+SPEC-api (5.3, 5.4, 5.5, 5.6, 5.9, 5.10, F3/F4/F5, G11), SPEC-ungil
+(§A.2.6/D9, §A.3.2, §C.3, §C.6/SD6/SD8, §E.4, §G, annex W W1, r15 F2),
+SPEC-nativeaffinity (§3, ANNEX NL1, NA-I10/I12/I13, NA-T4), UNGIL-HANDOUT
+rev 32+, INTEGRATE-api.md (D5, D9, D11), INTEGRATE-ungil.md.
+Read-only audit; tests under JSTests/threads/cve/ are written; the existing
+S3a regression test is the suite member.
 
 Why this class matters more for us than for SAB-era engines: a SAB engine
 has exactly one engine-level wait protocol (Atomics.wait on shared bytes).
-We have five: TA SAB waits (per-wait nodes, SD6), property-keyed waits
-(SPEC-api 5.6), JS Lock/Condition parks (5.3/5.4), thread join (F5), and the
-thread-granular stop-the-world NVS park tickets (§A.3.2). Every one parks
-with the GIL dropped, polls termination in D9 quanta, and GIL-off interacts
-with the W1 parked-carrier watchdog-service episode — i.e. every one is a
-waiter-list whose node lifetime, wake arbitration, and fast-path ordering
-must be argued individually.
+We have five live + one chartered: TA SAB waits (per-wait nodes, SD6),
+property-keyed waits (SPEC-api 5.6), JS Lock/Condition parks (5.3/5.4),
+thread join (F5), the thread-granular stop-the-world NVS park tickets
+(§A.3.2), and — chartered, not yet in Source/ — the per-VM NativeSerialLock
+(SPEC-nativeaffinity §3). Every one parks with the GIL dropped, polls
+termination in D9 quanta, and GIL-off interacts with the W1 parked-carrier
+watchdog-service episode — i.e. every one is a waiter-list whose node
+lifetime, wake arbitration, and fast-path ordering must be argued
+individually.
 
 ---
 
@@ -308,41 +311,136 @@ death is the PROTOCOL, so it was designed against this class directly:
 - A joiner parked when the JOINER's VM is terminated exits via the D9 poll
   (:451-454) — same TERM1 rule-4 shape as every other park.
 
-## S6. Thread-granular stop-the-world vs D9 park sites — **susceptible-suspected** (known open; AB-17b)
+## S6. Thread-granular stop-the-world vs D9 park sites — **CLOSED 2026-06-15** (was susceptible-suspected; verdict superseded by the FIX-2 banner correction)
 
-**Surface.** `parkSitePollAndParkForStopTheWorld` + FIX-2 banner,
-Source/JavaScriptCore/bytecode/JSThreadsSafepoint.cpp:415-460, and the stop
-watchdog `watchdogAssertStopProgress` :375-412. Governed by SPEC-ungil
+**Surface.** `parkSitePollAndParkForStopTheWorld` + the FIX-2 banner,
+Source/JavaScriptCore/bytecode/JSThreadsSafepoint.cpp:741-830, and the stop
+watchdog `watchdogAssertStopProgress` :673-735. Governed by SPEC-ungil
 §A.3.2 (NVS park tickets; "parked implies access-released" conductor
 predicate) and UNGIL-HANDOUT §A.3.2.
 
-**Suspected hole, precisely:** the §A.3.2 conductor predicate converges only
-if every entered thread either reaches a poll site or is parked with heap
-access released. The FIX-2 banner (:416-429) records that the W1/D9
-park-site split left the D9 quantum loops (TA per-wait nodes, property wait,
-Lock/Condition/Thread parks) neither polling the §A.3 stop word nor (on the
-affected paths) releasing heap access — so a waiter parked across a
-thread-granular stop request stalls the conductor while the waiter's
-NOTIFIER is itself ticket-parked by the same stop fan: a true deadlock that
-`watchdogAssertStopProgress` converts into a deliberate 30s fail-stop crash
-(:401-412). The remedy helper exists in-tree but is **not wired**: grep
-confirms `parkSitePollAndParkForStopTheWorld` has zero call sites outside
-its own TU — none of the five D9 loops audited in S1-S5 calls it.
+**Re-audit verdict: immune-by-construction.** The original 06-07 verdict
+("five D9 loops neither poll the §A.3 stop word nor release heap access")
+mis-read the FIX-2 mechanism split. The corrected FIX-2 banner (:741-768)
+defines TWO classes of unbounded-wait sites; the §A.3 conductor predicate
+converges if EVERY entered thread is in one of them:
 
-Classification: availability-only (deterministic fail-stop, no silent
-corruption — the watchdog exists precisely to keep this class from becoming
-a wedge), and it is the exact second signature the thread-ab17b charter
-already owns ("STW watchdog timeout on jettison-requested stops,
-JSThreadsSafepoint.cpp:412"). No separate susceptibility test is filed: the
-AB-17b pinned GIL-off verification ladder is the binding reproducer/verify,
-and a JS test today would only re-document the known watchdog crash on a
-mid-bring-up tree. MC-WAIT obligation on the fix, recorded for that review:
-wiring the poll into each D9 loop must (a) run with NO rank-3 lock held
-(FIX-2 already states this, :424-429) and (b) route the post-wake path
-through the W1 disposition rules (re-validate the wait predicate before
-re-sleeping) so the stop-park cannot strand a consumed notify — i.e. the fix
-must not reintroduce S1/S3's solved races while closing the convergence
-hole.
+- **Mechanism (1): GILDroppedSection-class brackets.** All five JS-level
+  D9 park loops audited in S1-S5 enter their park inside a
+  `GILDroppedSection` RAII (LockObject.h:329; LockObject.cpp:338-403 spawned
+  arm), which `releaseHeapAccess()`s on the way in (LockObject.cpp:391-403).
+  Verified in-tree: WaiterListManager.cpp:187-221 (banner: "GILDroppedSection
+  (m_lock + token + carrier heap access released, §J.3)"),
+  ThreadAtomics.cpp:1512-1517, ConditionObject.cpp:146, ThreadObject.cpp:498,
+  LockObject.cpp (the bracket's home TU). An access-released thread satisfies
+  the conductor predicate by definition (§A.3.1 "parked OR access-released")
+  — the conductor never waits on a mechanism-(1) parker, so no helper call is
+  needed and the original "neither polling nor releasing" claim is FALSE for
+  these loops.
+- **Mechanism (2): access-HOLDING unbounded waits.** Compile-side waits that
+  cannot release access (they hold heap facts mid-compilation). These — and
+  ONLY these — call `parkSitePollAndParkForStopTheWorld` once per quantum.
+  Verified wired: BytecodeGenerator.cpp:103, UnlinkedFunctionExecutable.cpp
+  :120, CodeCache.cpp:100, DFGPlan.cpp:132, DFGOSRExit.cpp:221,
+  CodeBlock.cpp:2855, FunctionRareData.cpp:174 (the FIX-2 banner's named
+  "GILOffCompilationLocker tryLock spin" callers + neighbors). The original
+  06-07 grep that found "zero call sites outside its own TU" was run against
+  the pre-AB-17b tree.
+
+The helper additionally discharges the **counter-lock contgc wedge**
+(JSThreadsSafepoint.cpp:790-808 banner): the GSP/F8 leg releases for a
+pending SHARED-GC stop even before the §A.3 stop word is published, breaking
+the GCL -> client-access -> gilOffCompilationLock -> GCL cycle. That arm is
+outside MC-WAIT scope (it's the MC-SAFE S4 gcwait-vs-classa family,
+mc-safe-gcwait-vs-classa-stop.js 240/240); recorded here because it is the
+residual the CVE-AUDIT-STATUS rollup row points at.
+
+MC-WAIT obligation on the wiring, **discharged**: (a) the helper's contract
+"called once per wait quantum with NO rank-3 (waiter-list/queue) lock held"
+is stated in the banner (:779) and holds at the seven call sites (none sits
+inside a rank-3 lock; mechanism-(1) loops never call it at all); (b) the
+post-park return-true contract ("treat as a fresh acquisition episode —
+re-validate the wait predicate / re-enqueue per W1 disposition", :780-783)
+is the same W1 rule S1/S3 already discharge, and the mechanism-(2) callers
+re-run their tryLock/compile predicate after every `true` return (each call
+site sits inside its own retry loop). The watchdog (:673-735) remains the
+fail-stop tripwire for any FUTURE escaped class-(2) wait — the
+mc-jit-delete-reuse-stale-offset.js ~1/6 flake is the live witness that the
+tripwire fires (a separate stop-progress triage item, not a waiter-list
+hole).
+
+## S7. NativeSerialLock (NL) wait protocol — **DESIGN AUDIT** (chartered, not yet in Source/)
+
+**Surface.** SPEC-nativeaffinity §3 + ANNEX NL1 (BINDING; full pseudocode at
+docs/threads/SPEC-nativeaffinity-history.md:60-193). No in-tree
+implementation as of this re-audit (`grep NativeSerialLock Source/` empty;
+adoption gates §9.1/§9.7 OPEN). Governed by NA-I10 (conductors never acquire
+NL), NA-I12 (termination-only trap never aborts the acquire — completion
+guaranteed), NA-I13 (NL never held across voluntary access transitions),
+NA-T4 (conductor-liveness + multi-waiter handoff test charter).
+
+**Verdict: immune-by-construction (DESIGN; conditional on the
+implementation matching ANNEX NL1 verbatim).** The frozen spec already
+adversarially closed every MC-WAIT sub-mechanism in review rounds R1.2,
+R1.8, R1.9, R2.3; recording the closure here so the NL1 implementation
+review has an MC-WAIT checklist:
+
+- *Lost wakeup / fast-path memory ordering (R1.8; the JDK-8028073 shape).*
+  NL1 rev 1 kept a SEPARATE relaxed `m_waiters` count: on arm64 the
+  releaser's relaxed load had no happens-before to the waiter's relaxed
+  increment, so a release could read stale 0 and skip `unparkOne` — a lost
+  wakeup costing up to a full quantum. CLOSED in rev 2: the parked
+  indication lives IN the owner word (`hasParkedBit`), every transition
+  (acquire CAS, parked-bit CAS, release exchange) is a seq_cst RMW on
+  `m_word`, and ParkingLot's bucket lock orders the parked-bit set +
+  validation against the releaser's exchange — the WTF::Lock
+  `LockAlgorithm` shape (history.md:133-147). The `m_word` RMW chain IS the
+  synchronization edge between successive critical sections.
+- *Timeout-vs-notify / multi-waiter handoff (R2.3).* NL1 rev 2's
+  `release()` was `exchange(0)` + plain `unparkOne(addr)`, which DISCARDS
+  `UnparkResult::mayHaveMoreThreads`: the woken waiter's acquire CAS
+  re-installed `tid | (w & hasParkedBit)` over `w==0`, dropping
+  `hasParkedBit` for every waiter beyond the first — a 10ms-stepped convoy
+  falsifying NA-T4's unpark-bounded handoff arm. CLOSED in rev 3: release
+  uses the `unparkOne(addr, callback)` form whose callback (run holding the
+  ParkingLot bucket lock) republishes `result.mayHaveMoreThreads ?
+  hasParkedBit : 0` (history.md:103-131). The plain `unparkOne(address)`
+  form is BANNED in the annex.
+- *Node lifetime / freed-while-parked (JDK-8153224 shape).* NL is a per-VM
+  member; the address key `&m_word` is VM-lifetime. Teardown closure
+  (history.md:189-193): `~VM` blocks until VM-empty (SPEC-ungil EXIT1.9); an
+  empty VM has no entered lites, hence `m_word == 0` — destructor asserts
+  it; `close` (§E.2) asserts per-lite `m_nativeLockDepth == 0`. The
+  ParkingLot queue node is thread-owned (WTF invariant), so no NL-side node
+  can be freed under a parker. There is no deflation/recycling of NL — one
+  per VM, never detached.
+- *Conductor-visibility / quantum bound (R1.9).* A waiter parked in NL1
+  step (c) is on the NL ParkingLot bucket, NOT its NVS ticket, and is
+  CONDUCTOR-INVISIBLE for at most one quantum: the bounded
+  `parkConditionally` deadline (10ms, normatively `<<` the 30s
+  `stopTheWorldWatchdogTimeout`) fires, the waiter re-runs step (a),
+  observes the stop bit, and NVS-parks compliantly (history.md:149-168).
+  This is the same mechanism-(1) shape as S6: the quantum is LOAD-BEARING —
+  NL1 mandates `parkConditionally` (NOT `compareAndPark`, which hard-codes
+  `Time::infinity()`, wtf/ParkingLot.h:91-102) for exactly this reason.
+- *Termination-vs-acquire (NA-I12; rev 6 R5.6).* A TERMINATION-ONLY trap
+  observed mid-acquire NEVER parks the loop and NEVER aborts — acquisition
+  COMPLETES, delivery happens at the §4 bracket / next JS poll. Throwing out
+  of `acquire()` would bypass the depth/word bookkeeping and IS the "monitor
+  state corrupted by async exception in the slow path" exemplar; the spec
+  forbids it explicitly (history.md:64-73).
+
+**No separate test filed.** NA-T4 (SPEC-nativeaffinity §8, ANNEX TC1) is the
+chartered test charter for this surface — multi-waiter unpark-bounded
+handoff, conductor-liveness vs NL holder/waiters within the watchdog,
+wake-mid-stop/lost-wakeup/GC-stop-with-NL arms — and is owed before the §9
+adoption gates close. An MC-WAIT susceptibility test against an unbuilt
+surface would be premature; this entry is the review checklist the NA-T4
+implementation must discharge. **Tripwire for that review:** any deviation
+from ANNEX NL1 in the eventual `runtime/NativeSerialLock.{h,cpp}` —
+specifically using plain `unparkOne(address)`, a separate waiter counter, an
+unbounded park primitive, or making `acquire()` a JS-level termination
+delivery point — REOPENS this surface as susceptible-suspected.
 
 ---
 
@@ -357,4 +455,5 @@ hole.
 | S3c | Property-wait cell/list/timer lifetime (ThreadAtomics.cpp:804-958, :1156-1167) | SPEC-api 5.10, D5 | immune-by-construction |
 | S4 | Lock/Condition freed-while-parked (LockObject.h:39-137, LockObject.cpp:542-615, ConditionObject.cpp:100-275) | SPEC-api 5.3/5.4/5.9, F3/I9 | immune-by-construction |
 | S5 | join/asyncJoin across joinee death (ThreadObject.cpp:123-143, :286-295, :404-475) | SPEC-api F5/5.5/5.10 | immune-by-construction |
-| S6 | Thread-granular STW vs D9 parks (JSThreadsSafepoint.cpp:415-460) | SPEC-ungil §A.3.2; FIX-2 | **susceptible-suspected** — known open, owned by AB-17b (fail-stop, not corruption) |
+| S6 | Thread-granular STW vs D9 parks (JSThreadsSafepoint.cpp:741-830) | SPEC-ungil §A.3.2; FIX-2 mechanisms (1)/(2) | **CLOSED 2026-06-15** — D9 loops are mechanism-(1) GILDroppedSection access-release; helper wired at the seven mechanism-(2) compile-side sites; residual = MC-SAFE gcwait-vs-classa |
+| S7 | NativeSerialLock NL1 wait protocol (SPEC-nativeaffinity ANNEX NL1; not yet in Source/) | NA-I10/I12/I13, NL1 R1.8/R1.9/R2.3, NA-T4 | immune-by-construction (DESIGN AUDIT — conditional on impl matching ANNEX NL1; NA-T4 is the owed test) |

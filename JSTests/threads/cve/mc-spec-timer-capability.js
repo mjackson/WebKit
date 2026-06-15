@@ -7,8 +7,8 @@
 //
 //   (S2, deterministic) With useJSThreads=1 and useSharedArrayBuffer=0 the
 //   Thread API is present and the SharedArrayBuffer constructor is ABSENT
-//   (OptionsList.h:683 vs :703 are independent gates; JSGlobalObject.cpp:
-//   2004 vs 2007). Note the jsc shell force-enables SAB in its defaults
+//   (OptionsList.h:691 vs :712 are independent gates; JSGlobalObject.cpp:
+//   2139 vs 2142). Note the jsc shell force-enables SAB in its defaults
 //   (jsc.cpp:4147); the explicit =0 above must win — if SAB shows up here,
 //   the gate split regressed or the shell default leaked past runtime flags.
 //

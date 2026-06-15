@@ -1,6 +1,6 @@
 # map-MC-SPEC — Speculative side channel enabled by shared memory
 
-Status: surface map, 2026-06-07. Defensive audit artifact for `--useJSThreads`
+Status: surface map, 2026-06-07; line citations re-verified 2026-06-15. Defensive audit artifact for `--useJSThreads`
 (jarred/threads). Class definition: docs/threads/CVE-AUDIT.md "MC-SPEC" (merged from
 JS-SP; exemplars Spectre v1/v2, CVE-2017-5753 / CVE-2017-5715; industry response = SAB
 disabled Jan 2018, re-enabled only under cross-origin isolation).
@@ -43,13 +43,13 @@ Verdict key: **immune-by-construction** (protocol cited, adversarial argument gi
 
 ## S1 — The timer grant: Atomics-on-properties + Thread spawn
 
-**Where:** `Source/JavaScriptCore/runtime/AtomicsObject.cpp:215-224` (RMW/load family
+**Where:** `Source/JavaScriptCore/runtime/AtomicsObject.cpp:239` (RMW/load family
 routes non-view objects to the property-atomics path under `useJSThreadsEnabled()`),
-`:416-420` (store), `:536/:603/:657/:748` (remaining entry points);
-`Source/JavaScriptCore/runtime/ThreadAtomics.cpp:369-370/:491-493` (dispatch into the
-OM §9.5 lock-free slot accessors, `ConcurrentButterfly.cpp:2786` loop);
-`Source/JavaScriptCore/runtime/JSGlobalObject.cpp:2007-2010` (`Thread`/`Lock` globals
-under `Options::useJSThreads()`, `OptionsList.h:683`).
+`:438` (store), `:558/:625/:679/:770` (wait/waitAsync/notify/isLockFree entry points);
+`Source/JavaScriptCore/runtime/ThreadAtomics.cpp:403-404/:793-795` (dispatch into the
+OM §9.5 lock-free slot accessors, `ConcurrentButterfly.cpp:3063` `atomicSlotLockFreeLoop`);
+`Source/JavaScriptCore/runtime/JSGlobalObject.cpp:2142` (`Thread`/`Lock` globals
+under `Options::useJSThreads()`, `OptionsList.h:691`).
 
 **Governing spec:** SPEC-api §4.5 (Atomics-on-props semantics) and §2 (gating).
 Neither section — nor any other SPEC — records that §4.5 constitutes a timing
@@ -81,10 +81,10 @@ SPEC conversation. The structural susceptibility itself is acknowledged here, no
 
 ## S2 — Capability gating: `useJSThreads` vs `useSharedArrayBuffer`
 
-**Where:** `Source/JavaScriptCore/runtime/OptionsList.h:683` (`useJSThreads`,
-default false) vs `:703` (`useSharedArrayBuffer`, default false);
-`JSGlobalObject.cpp:2004-2005` (SAB constructor exposed ONLY under
-`Options::useSharedArrayBuffer()`) vs `:2007` (Thread API exposed ONLY under
+**Where:** `Source/JavaScriptCore/runtime/OptionsList.h:691` (`useJSThreads`,
+default false) vs `:712` (`useSharedArrayBuffer`, default false);
+`JSGlobalObject.cpp:2139` (SAB constructor exposed ONLY under
+`Options::useSharedArrayBuffer()`) vs `:2142` (Thread API exposed ONLY under
 `Options::useJSThreads()`). Caveat site: `Source/JavaScriptCore/jsc.cpp:4147` — the
 SHELL force-enables `useSharedArrayBuffer` in its `Options::initialize` default
 block, so every shell/test run has SAB unless a later `--useSharedArrayBuffer=0`
@@ -110,17 +110,18 @@ answer) and keeping the S1 witness test deterministic.
 ## S3 — Spectre v1: speculative bounds bypass on shared-heap loads
 
 **Where (representative, not exhaustive — that is the point of a structural class):**
-- DFG bounds checks: `Source/JavaScriptCore/dfg/DFGSpeculativeJIT.cpp:2612/:2693/:2806`
+- DFG bounds checks: `Source/JavaScriptCore/dfg/DFGSpeculativeJIT.cpp:2667/:2757/:2870`
   (`speculationCheck(OutOfBounds, ...)` = conditional branch to OSR exit, then the
   load; no index masking between branch and load).
-- FTL: `Source/JavaScriptCore/ftl/FTLLowerDFGToB3.cpp:6904` (`compileCheckInBounds` —
+- FTL: `Source/JavaScriptCore/ftl/FTLLowerDFGToB3.cpp:6919-6927` (`compileCheckInBounds` —
   `speculate(OutOfBounds, ..., m_out.aboveOrEqual(index, bound))`; the comment "users
   of this node just need to maintain that we dominate them" is an *architectural*
   dominance claim; transient execution does not respect dominance).
-- C++/runtime segmented-butterfly clamp: `runtime/ConcurrentButterfly.cpp:154-156`
-  (`if (index >= std::min(spine->publicLength(), spine->vectorLength))` — the
-  `std::min` is data-flow, fine; the `if` is a predictable branch) and `:2443`;
-  flat fast paths `runtime/JSObject.h:407` (`canGetIndexQuickly`).
+- C++/runtime segmented-butterfly clamp: `runtime/ConcurrentButterfly.cpp:2720/:2750`
+  (`bound = std::min(publicLength, vectorLength)` — the `std::min` is data-flow, fine;
+  the loop compare against `bound` is a predictable branch) and `:3410`
+  (`if (index >= vectorLength || index >= publicLength)`);
+  flat fast paths `runtime/JSObject.h:420` (`canGetIndexQuickly`).
 - Engine-wide mitigation inventory: **empty.** `grep -ri spectre Source/` finds
   nothing; upstream WebKit removed JSValue poisoning and butterfly index masking
   years ago, and this fork inherits that posture. There is no
@@ -161,10 +162,10 @@ this project newly added.
 
 ## S4 — Cage coverage under one shared heap
 
-**Where:** `Source/bmalloc/bmalloc/BPlatform.h:476-481` (`GIGACAGE_ENABLED` only on
+**Where:** `Source/bmalloc/bmalloc/BPlatform.h:476-482` (`GIGACAGE_ENABLED` only on
 Darwin/Linux, x86_64/arm64-LP64, and `!BUSE(MIMALLOC)` — Windows builds and
-mimalloc-based musl builds have NO cage); `Source/bmalloc/bmalloc/Gigacage.h:48-50`
-(the only kind is `Primitive`); `Source/JavaScriptCore/runtime/ArrayBuffer.cpp:622-624`
+mimalloc-based musl builds have NO cage); `Source/bmalloc/bmalloc/Gigacage.h:48-49`
+(the only kind is `Primitive`); `Source/JavaScriptCore/runtime/ArrayBuffer.cpp:660-662`
 (ArrayBuffer/typed-array payloads allocate from `Gigacage::Primitive`).
 
 **Governing spec:** SPEC-heap §4-5 (heap server; per-thread allocators all carve from

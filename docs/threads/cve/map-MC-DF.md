@@ -271,10 +271,187 @@ JSTests/threads/atomics corpus + S4's test (same accessor family).
 | S6 | compiler compile-time fetch vs run-time truth | jit §5.6 sites; watchpoint sets | I13/I14/M6 (fire-only-in-STW) + jit E1-E4 | immune-by-construction |
 | S7 | Atomics probe-then-RMW | ThreadAtomics.cpp:67-90, :233-240, :346 | I34 validate-at-act under cell lock | immune-by-construction |
 
-No surface earned **susceptible-suspected**: the two places the design
-leans on audits rather than construction (S3 unowned-caller bound
-derivation, S4 I34 windows / Reusable-feeder exclusivity) are exactly where
-the tests aim.
+No surface in the first pass earned **susceptible-suspected**: the two
+places the design leans on audits rather than construction (S3
+unowned-caller bound derivation, S4 I34 windows / Reusable-feeder
+exclusivity) are exactly where the tests aim.
+
+---
+
+## Second-pass addendum (2026-06-15)
+
+The 2026-06-15 catalog revision folds CVE-2014-0456 (HotSpot
+System.arraycopy element-type race), CVE-2020-14803 (NIO Buffer
+check/use), JSC r269531 / bug 218944 (TypedArray.sort on SAB), and
+CVE-2025-8880 into MC-DF, and adds *sort* and *structured clone* to the
+trusted-consumer list. CVE-2020-14803 maps to S2 (already covered).
+CVE-2025-8880 is provisional with no public detail; treated as generic
+validate-then-act and discharged by S2-S4. The remaining exemplars open
+three new surfaces and one non-surface:
+
+### S8. Array.prototype.sort over a shared JSArray
+
+**Surface.** `sortCompact` (runtime/ArrayPrototype.cpp:821-910) reads the
+input once into a private `SortJSValueVector`, then sorts/commits the copy
+— the r269531 fix shape applied to JSArrays. The flag-on gate at :830 is
+the §10.7 manifest entry: `!thisObject->mayBeSegmentedButterfly()` keeps
+segmented words on the generic `getIfPropertyExists` loop (:894).
+
+**Suspected hole.** The §10.7 gate is *check-then-reload*, not
+single-snapshot: :830 loads the tagged word (check), :834
+`*thisObject->butterfly()` loads it AGAIN (act). The round-4 sweep that
+introduced `jsThreadsFlatSnapshot` (runtime/JSArray.cpp:618-656) and the
+explicit TOCTOU note at JSArray.cpp:1752-1762 establish that **once a
+shape family's TTL sets are fired, a foreign §4.2 flat→segmented
+conversion needs only the cell lock + DCAS — NO stop** — so it can land
+between :830 and :834 with no intervening safepoint. :834's flat-only
+decode then reads the ButterflySpine* payload as a Butterfly*; :835/:836
+derive `publicLength`/`data` from spine innards (per :1756, "publicLength
+at spine-8"). The garbage `butterflyLength` then sizes the
+`compactedRoot.fill` allocation AND bounds the read loop at :839 → heap
+read at attacker-influenced extent into a JS-visible sorted array. The
+debug ASSERT / `verifyConcurrentButterfly` RELEASE_ASSERT at
+JSObject.h:918-920 would catch this; release without verify would not.
+
+The round-4 sweep converted every JSArray.cpp fast path to single-snapshot
+for exactly this reason but did NOT touch ArrayPrototype.cpp (different
+file, owned by the §10.7 manifest's pre-round-4 audit). Contrast
+`appendMemcpy` (:1444-1478) and `fastSlice` (:2027-2147), which were
+re-swept.
+
+**Verdict: susceptible-suspected** — the §10.7 contract at
+JSObject.h:910-915 ("a §10.7 mayBeSegmentedButterfly() guard" suffices) is
+contradicted by the round-4 finding at JSArray.cpp:1752; this site was not
+in the round-4 sweep. Fix shape: replace the :830 gate + :834 re-load with
+a single `jsThreadsFlatSnapshot(thisObject, Read, butterfly)` and bound the
+loop by the snapshot's `vectorLength` (mirroring fastSlice's flat leg).
+Confirmation test: `JSTests/threads/cve/mc-df-arraycopy-relabel.js` (shared
+with S10; both exercise the same §10.7-gate-vs-§4.2 window).
+
+### S9. TypedArray.prototype.sort, no-comparator, non-SAB backing (r269531 re-opened)
+
+**Surface.** `JSGenericTypedArrayView<Adaptor>::sort()`
+(runtime/JSGenericTypedArrayViewInlines.h:950-988) is the literal r269531
+fix site: when `isShared()` (:963) it copies into a private `Vector`,
+sorts the copy, copies back; otherwise it `std::sort`s the backing bytes
+IN PLACE (:981). The comparator path
+(JSGenericTypedArrayViewPrototypeFunctions.h:1758-1828) always copies
+first and is immune.
+
+**Suspected hole.** `isShared()`
+(runtime/JSArrayBufferViewInlinesLight.h:34-52) is the SAB-era predicate:
+it returns true only for SAB-mode views and **false for FastTypedArray /
+non-SAB Wasteful** (default arm). Under `--useJSThreads` the whole heap is
+shared — a non-SAB TA stored on any reachable object is concurrently
+writable by foreign threads via the ordinary TA element store path (no
+per-element gate; annex N6 governs only the {base,length} pair, not byte
+stability). So a foreign thread writes `ta[i]` while main runs `std::sort`
+on `[array, array+length)`: introsort's partition loops assume the pivot
+is a sentinel; concurrent mutation breaks the strict-weak-ordering
+contract and the inner `while (a[i] < pivot) ++i` can run past `length`
+(libc++/libstdc++ both — exactly the r269531 rationale). Result: OOB read
+AND OOB write (the swap) into adjacent heap, from pure user JS.
+
+Adversarial self-check: is there any threads-mode rule that routes non-SAB
+TA element stores through serialization? None found — annex N6 / R10/R11
+rows in UNGIL-HANDOUT cover detach/resize/mode-transition only;
+SPEC-objectmodel does not own TA bytes (they are not butterfly storage);
+no `useJSThreads` reference anywhere in JSGenericTypedArrayView*.{h,cpp}
+except the :481 §10.7 gate.
+
+**Verdict: susceptible-suspected** — the r269531 gate is necessary but no
+longer sufficient under shared-everything. Fix shape: `if (isShared() ||
+Options::useJSThreads())` at :963 (always copy-out under the flag), or a
+TA-level "ever escaped to a foreign thread" bit if the copy is
+bench-visible. Confirmation test:
+`JSTests/threads/cve/mc-df-ta-sort-inplace.js` — index-valued sentinel
+oracle (any post-sort element ∉ [0,N) = OOB evidence) under a foreign
+write storm; ASAN build is the sharp detector.
+
+### S10. Bulk element-copy fast paths (CVE-2014-0456 analog)
+
+**Surface.** The System.arraycopy mechanism — type-check the source's
+element kind once, then raw-memcpy elements trusting that kind — maps to
+two families:
+
+(a) **JSArray.cpp round-4-swept family**: `appendMemcpy(otherArray)`
+(:1377-1503), `fastSlice` (:2009-2180), `fastCopyWithin` (:1030),
+`fastFill` (:659), `fastToReversed` / `fastWith` / `fastIncludes` /
+`shiftCount*` / `unshiftCount*`. All gated by `jsThreadsFlatSnapshot`
+(:639) or hand-rolled equivalent: ONE tagged-word load, segmented/AS bail,
+exclusive-owner check for in-place writes, snapshot-`vectorLength` bound,
+NO `butterfly()` re-load. The CVE-2014-0456 element-type race
+(Int32→Contiguous relabel under a raw reader → cell-pointer bits read as
+int32) is closed by SPEC-objectmodel R-DOUBLE: shape relabels touching
+Double on an SW=1/segmented object are per-event STW (§10.6), and the
+fastSlice comment at :2115-2122 spells out the residual ("garbage-decoded
+lanes are at worst reinterpreted numbers, never followed as cell
+pointers"). **Immune-by-construction** — single-snapshot + STW relabel +
+I7 frozen-snapshot reachability is the canonical MC-DF fix triple.
+
+(b) **`setFromArrayLike` → `copyFrom{Int32,Double}ShapeArray`**
+(runtime/JSGenericTypedArrayViewInlines.h:458-509, :405-455): the §10.7
+manifest's own named example (annex §15 line 71: "typedArray.set(shared
+SegmentedArray) would deref a spine as flat: OOB"). Gate at :481 is
+`!array->mayBeSegmentedButterfly()` — check-then-reload, same defect as
+S8 — and `copyFromInt32ShapeArray` then calls `array->butterfly()` FRESH
+at :417/:421/:425/:429 (and the per-element loop at :429 re-loads it every
+iteration). A foreign cell-lock-only §4.2 between :481 and :417 yields a
+spine-as-flat deref whose `contiguous().data()` is the source span for
+`WTF::copyElements` straight into the destination TypedArray —
+attacker-observable heap bytes. This site is OUTSIDE JSArray.cpp and was
+not in the round-4 sweep (only `useJSThreads`/`mayBeSegmented` reference
+in the entire JSGenericTypedArrayView* file family is :481).
+
+**Verdict: (a) immune-by-construction; (b) susceptible-suspected** — same
+root cause as S8 (the §10.7 check-then-reload contract is unsound
+post-round-4). Fix shape: hoist a single `taggedButterflyWord()` load at
+:481, bail on segmented OR null, derive `data` from `untaggedButterfly` of
+THAT word, bound by THAT snapshot's `vectorLength`, and pass the snapshot
+span into `copyFrom*ShapeArray` instead of re-loading. Confirmation test:
+`JSTests/threads/cve/mc-df-arraycopy-relabel.js` — fresh Int32 JSArray per
+round, foreign thread forces SW=1 then triggers §4.2 (push past capacity);
+main races `ta.set(arr)`; oracle = sentinel-set membership +
+`--verifyConcurrentButterfly=1` RELEASE_ASSERT as the crisp detector.
+
+### S11. Structured clone (catalog consumer addition)
+
+**Non-surface.** `SerializedScriptValue` / `CloneSerializer` live in
+WebCore, not this tree (only JSC reference: `validateSerializedValue`
+test option, OptionsList.h:264). SPEC-api passes Thread arguments and
+results BY REFERENCE through the shared heap — there is no
+serialize/clone step at the thread boundary, so the "clone walks a graph
+a second agent mutates" mechanism has no JSC-side instance. Any embedder
+that adds `structuredClone` over a `--useJSThreads` heap inherits S3/S4's
+invariants for its property/element walk (it bottoms out in
+`getDirect`/`getIfPropertyExists`, which are §Q regime-safe). Recorded
+here as out-of-scope for the engine audit; flagged for the embedder
+integration note.
+
+---
+
+## Summary table (revised 2026-06-15)
+
+| # | Surface | Anchor | Governing invariant | Verdict |
+|---|---------|--------|---------------------|---------|
+| S1 | wasm bytes validate-vs-compile | JSWebAssemblyHelpers.h:165; WebAssemblyModuleConstructor.cpp:301; JSWebAssembly.cpp:155/281/422 | copy-once snapshot; annex N6 for the snapshot's own torn pair | immune-by-construction + tripwire test |
+| S2 | TA/DataView length-then-base vs detach/resize | ArrayBuffer.cpp:151/:184 (+ :498/:525/:628 writer arms); per-tier TA fast paths | SPEC-ungil annex N6 (BINDING) | needs-test → mc-df-ta-detach-resize.js |
+| S3 | segmented bounds: shared publicLength vs per-spine VL | ConcurrentButterfly.h:405-421; ConcurrentButterfly.cpp:113-157; JSObject.cpp:437-477 | SPEC-objectmodel C4/I33/I6/I7 | needs-test → mc-df-segmented-length.js |
+| S4 | IC structure-check-then-offset-load; deleted-offset reuse | JSObject.cpp:515-527; ThreadAtomics.cpp:233-240; PropertyTable quarantine (SPEC-om §6) | M5/M7/I9/I18/D1/I24/I34/L6 | needs-test → mc-df-delete-reuse.js |
+| S5 | parser/JSON over shared strings; rope resolve | JSString.h:637-682 | UNGIL-HANDOUT §N.2 (single release-CAS publication; immutability) | immune-by-construction |
+| S6 | compiler compile-time fetch vs run-time truth | jit §5.6 sites; watchpoint sets | I13/I14/M6 (fire-only-in-STW) + jit E1-E4 | immune-by-construction |
+| S7 | Atomics probe-then-RMW | ThreadAtomics.cpp:67-90, :233-240, :346 | I34 validate-at-act under cell lock | immune-by-construction |
+| S8 | Array.prototype.sort compact-phase fast path | ArrayPrototype.cpp:830-887 vs JSArray.cpp:1752 round-4 finding | §10.7 gate (check-then-reload) vs cell-lock-only §4.2 | **susceptible-suspected** |
+| S9 | TA.prototype.sort() no-comparator in-place std::sort | JSGenericTypedArrayViewInlines.h:950-988; JSArrayBufferViewInlinesLight.h:34 | r269531 `isShared()` gate is SAB-only; no annex covers byte stability | **susceptible-suspected** → mc-df-ta-sort-inplace.js |
+| S10a | JSArray bulk-copy fast paths (appendMemcpy/fastSlice/…) | JSArray.cpp:639-656, :1377-1503, :2009-2180 | round-4 single-snapshot + R-DOUBLE STW relabel + I7 | immune-by-construction |
+| S10b | setFromArrayLike → copyFrom{Int32,Double}ShapeArray | JSGenericTypedArrayViewInlines.h:481, :417-454 | §10.7 gate (check-then-reload) — NOT round-4-swept | **susceptible-suspected** → mc-df-arraycopy-relabel.js |
+| S11 | structured clone over shared graph | (WebCore, not this tree) | SPEC-api by-reference passing; §Q for embedder walks | out-of-scope / not-applicable |
+
+S8/S9/S10b share a single root cause class: **a SAB-era or pre-round-4
+sufficiency predicate (`isShared()`, `mayBeSegmentedButterfly()`
+check-then-reload) that the shared-everything model has widened past.**
+The round-4 sweep fixed the JSArray.cpp instances; ArrayPrototype.cpp and
+JSGenericTypedArrayViewInlines.h were outside that sweep's file set.
 
 ## Test manifest (EXECUTED LATER, post-ungil — do not run during bring-up)
 
@@ -282,8 +459,10 @@ the tests aim.
 - JSTests/threads/cve/mc-df-segmented-length.js — `--useJSThreads=1 --forceButterflySWBit=1`
 - JSTests/threads/cve/mc-df-wasm-compile-race.js — `--useJSThreads=1 --useWebAssembly=1`
 - JSTests/threads/cve/mc-df-delete-reuse.js — `--useJSThreads=1`
+- JSTests/threads/cve/mc-df-ta-sort-inplace.js — `--useJSThreads=1` (ASAN strongly recommended)
+- JSTests/threads/cve/mc-df-arraycopy-relabel.js — `--useJSThreads=1 --verifyConcurrentButterfly=1`
 
-All four are deterministic-oracle / nondeterministic-interleaving:
-trivially green under the phase-1 GIL, signal-bearing GIL-off, and
-amplifier-ready (Tools/threads/amplify.sh, TSAN no-JIT target). None spawn
-unbounded work; all join every thread (annex T2 conventions).
+All are deterministic-oracle / nondeterministic-interleaving: trivially
+green under the phase-1 GIL, signal-bearing GIL-off, and amplifier-ready
+(Tools/threads/amplify.sh, TSAN no-JIT target). None spawn unbounded
+work; all join every thread (annex T2 conventions).

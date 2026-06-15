@@ -42,6 +42,9 @@ Verdict summary:
 | S7 | IC handler chains / call-link records | immune-by-construction |
 | S8 | LLInt/Baseline single-word metadata caches | immune-by-construction |
 | S9 | Racy-profile-driven speculation | immune-by-construction |
+| S10 | Compiler thread reads mutable heap state (V8 ArrayShift analog) | immune-by-construction |
+| S11 | GC write-barrier elision vs N-mutator collection advance | immune-by-construction |
+| S12 | Lock-pairing elision (HotSpot lock-coarsening analog) | immune-by-construction (no surface) |
 
 ---
 
@@ -383,6 +386,123 @@ elision — is explicitly watchpoint-gated instead (S1).
   effectful nodes); MC-JIT is exclusively about the second mutator, whose
   writes correspond to **no node at all** in the victim graph — which is why
   the poll-clobber rule in S2 is the only general fix shape.
+
+---
+
+## Addendum (2026-06-15): round-2 exemplars — barrier/lock-pairing elision + concurrent-compiler-as-agent
+
+The round-2 mechanism-class wording widens "another agent" to include the
+engine's own concurrent compile/mark thread, and adds "barrier" and
+"lock-pairing invariant" to the list of facts a JIT may prove-once-then-reuse.
+New exemplars: V8 ArrayShift × concurrent-TurboFan race (no CVE),
+CVE-2011-0990, JDK-8268347, JDK-8007898, RAB/GSAB length-tracking.
+
+| # | Surface | Verdict |
+|---|---|---|
+| S10 | DFG/FTL **compiler thread** reads mutable heap state (butterfly base/slot/shape) during `compileInThread` while N mutators run | immune-by-construction |
+| S11 | GC **write-barrier elision** (StoreBarrierInsertionPhase epoch proof) vs a poll where another mutator can advance the collector | immune-by-construction |
+| S12 | **Lock-pairing** elision (HotSpot lock-coarsening / biased-lock analog) | immune-by-construction (no surface) |
+| — | CVE-2011-0990 (Array.FastCopy element-type race) | folds into S2(b) |
+| — | JDK-8268347 (unswitched skeleton predicate misses a path) | folds into S3 (single-thread BCE; second-mutator arm is S2(a)) |
+| — | RAB/GSAB length-tracking | already S4 |
+
+### S10. Concurrent compiler thread reads mutable heap state (V8 ArrayShift analog)
+
+The V8 bug: TurboFan's compiler thread reads `elements()` while the main
+thread executes `Array.prototype.shift`, which moves the backing-store base
+in place — the compiler dereferences a relocated pointer. The "second agent"
+falsifying the proof is the *mutator*, and the proof-holder is the *compiler
+thread*; the inverse of S5.
+
+Our surface: every compiler-thread heap read that dereferences a butterfly or
+captures a shape/value as a frozen compile-time fact —
+`Graph::tryGetConstantProperty` (`dfg/DFGGraph.cpp:1329-1406`, the cellLock
+bracket at `:1377-1382`), `Graph::freezeWithValidatedStructure`
+(`:1667-1689`, the M5/M7 TOCTOU comment), `JSObject::getDirectConcurrently`
+(`runtime/JSObject.h:2033-2042`), and the AS shift/unshift in-place relayout
+that is V8's literal trigger (`runtime/JSArray.cpp:2223-2303,2551-2631`).
+
+Verdict: **immune-by-construction.** Three independent closures:
+
+1. **cellLock serializes against every base-relocating mutation.** The
+   compiler thread takes `object->cellLock()` (`DFGGraph.cpp:1377`) before
+   dereferencing. Every flag-on mutation that relocates or relabels named
+   storage holds the same lock: §4.2 conversion step 2, §4.3 locked
+   transition step 2, §4.6 AS-COPY (`JSArray.cpp:2240` `Locker locker {
+   cellLock() }`), flatten (the upstream invariant the `:2016-2019` comment
+   names). The lock-free mutations that *don't* take it — §4.4 64-bit
+   `casButterfly` and the §3 lock-free SW DCAS — never rewrite the old
+   storage (OM §4.6 AS-COPY "superseded storage never rewritten"; OM I7
+   conservative scan keeps the old allocation live), so a stale pointer the
+   compiler captured before its cellLock dereferences a frozen snapshot.
+2. **The dereference itself is regime-safe.** `getDirect` →
+   `locationForOffset` dispatches on the tagged word flag-on
+   (`runtime/JSObject.h:980-999` →
+   `locationForOutOfLineOffsetConcurrent`): a segmented word is decoded as a
+   spine, never type-confused as a flat IndexingHeader. The structure
+   re-check under the lock (`DFGGraph.cpp:1378-1380`) bounds the offset
+   against the live shape.
+3. **The captured value is watchpoint-funneled.** The constant is only
+   used if `propertyReplacementWatchpointSet(offset)` is valid+watched
+   (`:1343-1350`), and S5's `reallyAdd` revalidation closes the
+   read→install window. `freezeWithValidatedStructure` (`:1667-1689`)
+   carries the caller's validated `{value, structure}` snapshot precisely
+   so the freeze re-decode cannot TOCTOU against an N-mutator transition
+   (the in-tree comment is the closure record).
+
+Adversarial residue: closure (1) assumes the compiler thread can *acquire*
+the cellLock without participating in safepoints. It can: cellLock is the
+2-bit IndexingType spinlock (rank 10, leaf; jit §7), the compiler thread is
+not an entered mutator, and STW is cooperative (jit R1.f) — a Class-A stop
+waits on entered mutators only, so the compiler holding a cellLock cannot
+deadlock the stop. The compiler thread *is* enumerated by `JITWorklist`
+safepoints (`DFGPlan::isInSafepoint`, asserted at `:1678`), which serialize
+against GC, not against mutator transitions.
+
+### S11. GC write-barrier elision vs N-mutator collection advance (JDK-8007898 analog)
+
+JDK-8007898: C2 eliminates a memory barrier it proved redundant; an
+uncovered path makes the proof unsound. Our barrier-elision surface is
+`DFGStoreBarrierInsertionPhase`: it proves "base was allocated/barriered at
+epoch *e*; no GC point since *e*; therefore elide the StoreBarrier"
+(`dfg/DFGStoreBarrierInsertionPhase.cpp:65,403-406`). Under N mutators, the
+falsifier would be: another mutator triggers a collection (or the concurrent
+marker advances `m_barrierThreshold`) at a poll *between* the proof and the
+elided store, ageing the base past the threshold — the elided barrier then
+drops an old→new edge.
+
+Verdict: **immune-by-construction.** The phase resets its epoch at every
+node for which `doesGC` is true (`:403` `m_currentEpoch.bump()`); `CheckTraps`
+— the *only* point at which compiled code can yield to a JSThreads or
+GC-conducted stop (jit I21 / R1.f cooperative-only) — has `doesGC = true`
+(`dfg/DFGDoesGC.cpp:555-558`). So no barrier is ever elided across a poll;
+the proof's lifetime is exactly one poll-free window, inside which no other
+mutator can advance the collector against this thread (heap §10.4 barrier:
+collection windows open/close only with all clients NoAccess). The
+concurrent-mark side (SPEC-congc §5.3 F19): GIL-off C1+ pins the server
+master `mutatorShouldBeFenced` always-true until the per-client A16 reroute
+lands, so the elision-vs-threshold race is moot — every emitted barrier is
+the fenced form. `InvalidationPoint` is `doesGC = false`
+(`DFGDoesGC.cpp:181`), but invalidation points are not GC entry points
+(§5.3: jettison runs world-stopped; resume reaches the next `CheckTraps`
+before any GC-visible store).
+
+### S12. Lock-pairing elision
+
+HotSpot proves a `monitorenter`/`monitorexit` pair balanced and elides or
+coarsens it; a second thread (or an uncovered path) breaks the pairing.
+
+Verdict: **immune-by-construction — no surface exists.** The JIT never emits
+a lock acquire/release pair as IR it could prove on: cell-lock,
+Structure-lock, and the §4.6 AS-COPY bracket are runtime C++ only (jit §5.5:
+"the JIT never implements transition semantics"; AS-rule (b) "SW=1 → R3
+locked ops" tail-calls `operationSharedArrayStorage*`, an opaque C call).
+There is no DFG/B3 node representing "I hold lock L", so no pass can
+strength-reduce one. The closest analog — D9's "never elide the fused TID
+compare on writes" — is the *refusal* to let the compiler prove away the
+sole F1 detection point, recorded in S1 link 5.
+
+---
 
 ## Test inventory (all under `JSTests/threads/cve/`, EXECUTE POST-UNGIL)
 

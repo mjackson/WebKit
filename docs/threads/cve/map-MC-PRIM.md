@@ -1,10 +1,19 @@
 # map-MC-PRIM — Trusted-primitive invariant bypass
 
-Status: surface map, 2026-06-07. Defensive audit artifact for `--useJSThreads`
-(jarred/threads). Class definition: docs/threads/CVE-AUDIT.md "MC-PRIM" (merged from
-JVM-10 / CVE-2016-3587 note / RG Unsafe pattern; exemplars CVE-2012-0507
-AtomicReferenceArray covariant store, sun.misc.Unsafe exposure, CVE-2016-3587
-MethodHandle.invokeBasic).
+Status: surface map, 2026-06-07; re-audited 2026-06-15 (exemplar set widened to
+the full jvm.md row 10, P9 added, test index synced). Defensive audit artifact for
+`--useJSThreads` (jarred/threads). Class definition: docs/threads/CVE-AUDIT.md
+"MC-PRIM" (merged from JVM-10 / CVE-2016-3587 note / RG Unsafe pattern). Exemplars
+and the surface they map to here:
+
+| Exemplar | Anatomy | Our surface |
+|---|---|---|
+| CVE-2012-0507 AtomicReferenceArray | raw store trusting "backing array is Object[]" set at construction; deserialization swaps in a covariant `T[]` | P1 (probe-time {offset, structureID} provenance), P6 (entry-checked raw buffer ptr) |
+| CVE-2017-3272 Atomic*FieldUpdater | updater binds {tclass, field, vclass} once; CAS path is `Unsafe`-backed and skips the per-store type check | P1 (the per-ITERATION `structureID() != expected` re-check IS the "guard on the store side, not at updater construction" lesson) |
+| CVE-2018-3169 field-link-resolution | one resolution path skips an access check; the result is CACHED and reused from N threads | P7 (tier-inlined / IC cached resolution — owned by map-MC-JIT; MC-PRIM residue = the body the cache lands on) |
+| CVE-2022-21541 MH intrinsic guards | interpreter/method-handle intrinsic with an insufficient receiver guard | P9 (link-time-constant host hooks with `uncheckedDowncast` receivers) |
+| sun.misc.Unsafe exposure | the privileged raw-store class itself reachable from untrusted code | P9 (lexer gate on `@`-prefixed privileged identifiers) |
+| CVE-2016-3587 MethodHandle.invokeBasic | privileged dispatch entry point reachable past its guard | P9 |
 
 Mechanism, restated for our engine: a privileged or "atomic" primitive performs raw
 loads/stores trusting a construction-time (or probe-time) invariant that OTHER machinery
@@ -241,6 +250,70 @@ MC-JIT's map); MC-PRIM's residue here is exactly the rows whose tier action is
 Cross-reference: map-MC-JIT (when written) owns check-placement; this file owns "the
 body the JIT lands on is one of the audited primitives".
 
+## P9 — Privileged internal entry points (link-time constants + bytecode intrinsics)
+
+**Where:** the threads-added link-time constants `claimGeneratorResume` /
+`publishGeneratorResume` (`Source/JavaScriptCore/runtime/JSGlobalObject.cpp:1021`,
+`:1055`; registered `:2593-2597`, `LinkTimeConstant.h:63-64`); the pre-existing
+bytecode intrinsics that emit raw internal-field/slot ops from builtins
+(`@putInternalField` / `@getInternalField` / `@putByIdDirectPrivate` /
+`@putByValDirect`, `bytecompiler/NodesCodegen.cpp:1680/:1983/:1999/:2013`); the
+reachability gate `Source/JavaScriptCore/parser/Lexer.cpp:506`
+(`m_parsingBuiltinFunction`) and its escape hatch
+`Options::exposePrivateIdentifiers` (`runtime/OptionsList.h:569`).
+
+**Why this is MC-PRIM:** these are the literal `Unsafe` analog. `claimGeneratorResume`
+does `uncheckedDowncast<JSGenerator>(asObject(uncheckedArgument(0)))` and CASes a raw
+int32 token into the State internal-field word at a fixed offset — no JSType check, no
+arg-count check, no cell check (`JSGlobalObject.cpp:1025-1042`). Passed a non-generator
+`JSInternalFieldObjectImpl` (e.g. a `JSPromise`), the CAS overwrites whatever 64-bit
+word lives at `JSGenerator::Field::State`'s offset on that object — a cell-pointer
+field becomes a tag-shifted int32 (type confusion + GC corruption). This is exactly
+CVE-2022-21541 / CVE-2016-3587's shape: a privileged dispatch primitive whose receiver
+guard lives in the CALLER, not the primitive.
+
+**Verdict: immune-by-construction.** The trusted invariant is "argument 0 is a
+JSGenerator", established by the builtin caller's type gate; the adversarial cases:
+
+1. *Untrusted JS names the primitive directly.* `@`-prefixed identifiers tokenize as
+   private only when `m_parsingBuiltinFunction` is set (`Lexer.cpp:506`); user source
+   compiles with `JSParserBuiltinMode::NotBuiltin`, so `@claimGeneratorResume` parses
+   as the ordinary identifier "@claimGeneratorResume" → ReferenceError. Link-time
+   constants are not installed as global properties (they live only in
+   `m_linkTimeConstants[]`, fetched by builtin bytecode via `op_get_constant`). The
+   `exposePrivateIdentifiers` option is the documented Unsafe-exposure escape hatch —
+   it is `Normal` availability (not `Restricted`), but setting JSC options is outside
+   the untrusted-JS threat model by the same standing as `useDollarVM` / `$vm`; threads
+   adds two entries to the privileged set but does NOT widen the gate. **Residual
+   hardening recommendation (not a hole):** demote `exposePrivateIdentifiers` to
+   `Restricted` now that the privileged set includes a raw cross-thread CAS; recorded
+   for the thread-scanners pass alongside P1's clang-tidy item.
+2. *Untrusted JS reaches the JSFunction object indirectly* (caller/arguments leak,
+   stack-trace leak, prototype walk). All builtin callers are `"use strict"`
+   (`GeneratorPrototype.js:71`); `ImplementationVisibility::Private`
+   (`JSGlobalObject.cpp:2594`) elides the function from error stacks; the JSFunction is
+   never stored on any user-reachable object. No leak path.
+3. *The builtin caller's type gate is raced away* — i.e. `@isGenerator(this)` passes,
+   then another thread "changes the type" before the host hook reads it.
+   `@isGenerator` checks `JSType` in the cell header; `JSType` is fixed at allocation
+   and IMMUTABLE for the cell's lifetime (Structure transitions never change it; no
+   threads protocol rewrites cell headers in place). So the gate cannot be invalidated
+   by any cross-thread machinery — there is no "other machinery" that breaks this
+   invariant.
+4. *The iterator-helper path passes a stale internal-field value.*
+   `JSIteratorHelperPrototype.js:31-40` gates `@isIteratorHelper(this)` then reads
+   `generator` from an internal field and calls `@claimGeneratorResume(generator)`
+   without re-checking its type. The field is written exactly once at helper
+   construction (a real `JSGenerator`) and is otherwise touched only by builtin code;
+   internal fields are not user-writable (no property maps to them), so no thread can
+   substitute a non-generator. Same JSType-immutability argument closes the rest.
+
+Threads adds NO new reachability of the pre-existing bytecode intrinsics
+(`@putInternalField` etc.); they were already the engine's `Unsafe` and remain
+lexer-gated identically. The new host hooks follow the established
+`uncheckedDowncast<T>(uncheckedArgument(0))` pattern used by the Promise link-time
+constants in the same file (`:1068`, `:1076`) — same exposure class, same gate.
+
 ## P8 — Property waiter table (Atomics.wait/notify on plain objects)
 
 **Where:** `ThreadAtomics.cpp:776+` (PropertyWaiterTable), `:972`
@@ -262,13 +335,15 @@ class), audited there, not here.
 
 | Test | Surface | Mode |
 |---|---|---|
-| mc-prim-indexed-missing-define-race.js | P4 | deterministic invariant; passes GIL-on, probes residual GIL-off |
-| mc-prim-generator-resume-claim.js | P5 | deterministic invariant; amplifier-ready |
+| mc-prim-indexed-missing-define-race.js | P4 | deterministic invariant; PASSING since 2026-06-10 (regression pin) |
+| mc-prim-generator-resume-claim.js | P5 sync | deterministic invariant; PASSING 20/20 since 2026-06-10 (§N.5 sync claim landed) |
+| mc-prim-async-generator-resume-claim.js | P5 async | deterministic invariant; `//@ threadsExpectFail("gilOff")` — XFAIL until async resume-head claim lands |
+| mc-prim-generator-claim-leak-stack-overflow.js | P5 leak guard | deterministic (stack-limit forced); PASSING since 2026-06-10 |
 | mc-prim-arraybuffer-transfer-vs-atomics.js | P6 | hammer; ASAN/TSAN/amplifier-ready |
 
-All three carry `//@ requireOptions("--useJSThreads=1")` and use the §8 harness
-(`load("../harness.js", "caller relative")`). None were built or executed in this
-audit (tree is mid-bring-up); they join the post-ungil thread-cve-audit run.
+All carry `//@ requireOptions("--useJSThreads=1")` and use the §8 harness
+(`load("../harness.js", "caller relative")`). Execution status per
+CVE-AUDIT-STATUS.md.
 
 ## Fix queue (when execution confirms)
 
@@ -287,9 +362,15 @@ audit (tree is mid-bring-up); they join the post-ungil thread-cve-audit run.
    wrapper-less async functions previously silently skipped). UNCLAIMED and OPEN:
    `AsyncGeneratorPrototype.js` resume head (plain check-then-store :37/:78/:83) +
    asyncGeneratorEnqueue queue-field writers — two threads racing `agen.next()`
-   still get two simultaneous owners. Deferral + owed async susceptibility test
-   recorded in CVE-AUDIT-STATUS.md item 3 and SPEC-ungil-history.md
-   "§N.5 LANDED SHAPE".
+   still get two simultaneous owners. Deferral recorded in CVE-AUDIT-STATUS.md
+   item 3 and SPEC-ungil-history.md "§N.5 LANDED SHAPE"; **owed async test is
+   landed** (`mc-prim-async-generator-resume-claim.js`, mechanical XFAIL gilOff).
 3. P1 fragility note: add the `probeArrayStorageElementForAtomics` lock scope to the
    thread-scanners clang-tidy target so the no-alloc/no-park obligation is
    machine-checked.
+4. P9 hardening: demote `Options::exposePrivateIdentifiers` from `Normal` to
+   `Restricted` (`runtime/OptionsList.h:569`). Pre-threads the worst it exposed was
+   single-thread internal-field pokes; post-threads it hands user JS a raw
+   cross-thread CAS at a fixed cell offset (`claimGeneratorResume`). Not a hole in
+   the untrusted-JS threat model (option-setting is out of scope), but the
+   availability class no longer matches the blast radius.
