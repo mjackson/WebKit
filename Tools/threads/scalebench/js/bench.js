@@ -68,6 +68,18 @@ function isSmoke() {
     return shellArgs.length > 1 && shellArgs[1] === "smoke";
 }
 const N_BASE = isSmoke() ? N_BASE_SMOKE : N_BASE_DEFAULT;
+
+// SCALEBENCH intcs arm (§29 fairness amendment, discriminating experiment):
+// `bench.js -- W intcs` runs the §1.8 postings checksum with allocation-free
+// 32-bit Number arithmetic (Math.imul / >>>0) instead of heap-BigInt mod-2^64.
+// Everything else (phaseA/B/C workload, locking, the Map/array shapes) is
+// identical. Produces a DIFFERENT checksum tuple (32-bit, not the spec's
+// 64-bit reference) — record it as its own reference; the point of this arm is
+// to disambiguate "BigInt allocation under shared-heap" from "concurrency
+// cost" by removing the serial allocation floor. Default OFF: no arg => the
+// spec-exact BigInt path runs and the checksumA/A2 reference tuple is
+// unchanged.
+const INTCS = shellArgs.indexOf("intcs") >= 1;
 const N_QUERIES = N_BASE;
 const N_BASEn = BigInt(N_BASE);
 
@@ -326,6 +338,40 @@ function postingsChecksum() {
         }
     }
     return { sum, postings };
+}
+
+// intcs arm: same loop shape, allocation-free 32-bit Number arithmetic.
+// fnv1a32/mix32 mirror the BigInt versions structurally (xorshift-multiply)
+// but mod-2^32 via >>>0 / Math.imul. No BigInt() boxing, no heap JSBigInt.
+function fnv1a32(s) {
+    let h = 0x811c9dc5 >>> 0;
+    for (let i = 0; i < s.length; ++i)
+        h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0;
+    return h;
+}
+function mix32(x) {
+    let z = (x + 0x9e3779b9) >>> 0;
+    z = Math.imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
+    z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
+    return (z ^ (z >>> 16)) >>> 0;
+}
+function postingsChecksumInt() {
+    let sum = 0;
+    let postings = 0;
+    for (let s = 0; s < K; ++s) {
+        for (const [term, p] of shards[s].map) {
+            const th = fnv1a32(term);
+            const n = p.docIds.length;
+            postings += n;
+            for (let i = 0; i < n; ++i) {
+                const item = (th
+                    ^ (Math.imul(p.docIds[i], 0xd6e8feb9) >>> 0)
+                    ^ (Math.imul(p.tfs[i], 0xcaaf00dd) >>> 0)) >>> 0;
+                sum = (sum + mix32(item)) >>> 0;
+            }
+        }
+    }
+    return { sum: BigInt(sum), postings };
 }
 
 function buildDfSnap() {
@@ -700,7 +746,7 @@ function workerBody(id) {
     if (id === 0) {
         results.phaseA_ms = nowMs() - t0;
         let s0 = nowMs();
-        const { sum, postings } = postingsChecksum();
+        const { sum, postings } = INTCS ? postingsChecksumInt() : postingsChecksum();
         results.postingsChecksum1_ms = nowMs() - s0;
         results.checksumA = sum;
         results.postings = postings;
@@ -722,7 +768,7 @@ function workerBody(id) {
             cs = (cs + partialB[i]) & MASK;
         results.checksumB = cs;
         let s0 = nowMs();
-        results.checksumA2 = postingsChecksum().sum;
+        results.checksumA2 = (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
         results.postingsChecksum2_ms = nowMs() - s0;
         s0 = nowMs();
         const { groups, keys } = makeGroups(); // pre-populated before Phase C (§1.10)
@@ -769,7 +815,7 @@ function ms(x) {
     return Math.round(x * 1000) / 1000;
 }
 
-print('{"impl":"js","threads":' + W
+print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + ',"threads":' + W
     + (WS_MODE ? ',"mode":"ws"' : '')
     + ',"phaseA_ms":' + ms(results.phaseA_ms)
     + ',"phaseB_ms":' + ms(results.phaseB_ms)
