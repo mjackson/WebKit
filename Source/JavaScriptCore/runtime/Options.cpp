@@ -1011,6 +1011,33 @@ void Options::notifyOptionsChanged()
         Options::useHandlerICInFTL() = true;   // §5.2/D1: FTL must not patch property-IC code in place.
         Options::usePollingTraps() = true;     // I21: cooperative polls only; async breakpoint patching = I2 violation.
         Options::useConcurrentJIT() = true;    // Task 12: sync-compile bypasses the JITWorklist dedup backstop (§5.7.3).
+        // SCALEBENCH §33 RUN-3.8 / v38: REVERSES the campaign-4 §27.S2
+        // C1-congc-no-default decision (see comment above the §13.2 block).
+        // That ruling was correct on v33 data (STW-GC 5.4% of wall, congc A/B
+        // +1.8% regression) but is STALE on v38: STW parking is now 15.5% of
+        // phaseA — past the >=10% revisit threshold the §27.S2 comment set —
+        // and a fresh intcs A/B at W=16 shows congc=1 ~7550 ms vs congc=0
+        // ~10200 ms (-26%), W=1 neutral (~17.1 s both). So force C1 on under
+        // the GIL-off shape. Gated on !useThreadGIL && useSharedGCHeap, NOT
+        // on useJSThreads alone (review round, this campaign): (a) the §13.2
+        // prefix-rule cascade above runs BEFORE this block, so an unguarded
+        // force here would bypass it on the U19 GIL-on / bare-useJSThreads
+        // shape (sharedGCHeap=false) and flip
+        // Heap::sharedGCWindowedStagesEnabled() true on a non-shared heap —
+        // the exact invariant the Heap.h:1403 comment relies on; (b) the
+        // GIL-on identity arm (useJSThreads=1 useThreadGIL=1
+        // useSharedGCHeap=1) has NO congc A/B data — every cited number is
+        // GIL-off — and Heap.cpp setMutatorShouldBeFenced drops the
+        // always-fenced forcing when congc && !isGILOffProcess, a live
+        // behavior delta on the §30/§31 identity gate. The U0 normalization
+        // upstream guarantees !useThreadGIL => useSharedGCHeap, so the
+        // sharedGCHeap conjunct is belt-and-suspenders for the §13.2
+        // invariant. OptionsList.h default stays false; flag-off path never
+        // enters this block — byte-identical. W=32 stability under congc is
+        // UNVERIFIED (5/5 gate was W=4 only); a W=32 5/5 run is owed before
+        // the v38 W=32 baseline row is reported with this default.
+        if (!Options::useThreadGIL() && Options::useSharedGCHeap())
+            Options::useConcurrentSharedGCMarking() = true;
 
         // D8 / Task-8 item 6: flag-on requires 64-bit pointers and a JIT-visible TLS
         // mechanism for the R5 tag (ELF initial-exec TLS on Linux x86-64/arm64, or
