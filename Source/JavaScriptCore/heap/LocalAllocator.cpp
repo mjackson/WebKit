@@ -267,6 +267,23 @@ void* LocalAllocator::allocateSlowCase(JSC::Heap& heap, size_t cellSize, GCDefer
 
         ASSERT(!subspace->isPreciseOnly());
         ASSERT_WITH_MESSAGE(cellSize == m_directory->cellSize(), "non-preciseOnly allocations should match allocator's the size class");
+        // B2-serial-eden-block-churn (b): bias toward OWN-directory retained-
+        // empty REUSE before minting a fresh page. tryAllocateFromOwnDirectory
+        // above scanned canAllocateBits; emptyBits additionally covers blocks
+        // the canAllocate cursor cannot see (addBlock'd-then-consumed blocks
+        // and mid-cycle swept-to-empty blocks — see findOwnEmptyBlockForRefill).
+        // Stripe-safe: own-directory only — we hold m_refillLock + the shared
+        // facade side; the in-lock sweep inside tryAllocateIn is the SAME I5b
+        // license as the cursor leg above. tryAllocateIn handles both decline
+        // shapes itself (weak-bearing carve-out -> didFinishUsingBlock; stale
+        // isEmpty on a now-full block -> unsweepWithNoNewlyAllocated path),
+        // so a null result leaves no inUse leak and we fall through to the
+        // fresh-block leg unchanged. Reached only when isSharedServer() (the
+        // enclosing branch); flag-off byte-identical.
+        if (MarkedBlock::Handle* block = m_directory->findOwnEmptyBlockForRefill()) {
+            if (void* result = tryAllocateIn(block, cellSize))
+                return result;
+        }
         if (MarkedBlock::Handle* block = m_directory->tryAllocateBlock(stripeLocker, heap)) [[likely]] {
             m_directory->addBlock(block);
             void* result = allocateIn(block, cellSize);

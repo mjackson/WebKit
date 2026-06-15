@@ -2241,7 +2241,22 @@ public:
     // §10A.1 current-client TLS slot (set by attachCurrentThread() and the
     // server's ISS access forwarding; cleared by detachCurrentThread();
     // releaseHeapAccess() does NOT clear it). Null on non-client threads.
-    JS_EXPORT_PRIVATE static Heap* currentThreadClient();
+    //
+    // B1-alloc-client-tls-fastpath: ALWAYS_INLINE over a plain C++
+    // `thread_local Heap*` (storage defined in GCThreadLocalCache.cpp; same
+    // model as t_currentVMLite, VMLite.cpp:67) — every allocateCell under
+    // (useSharedGCHeap && gilOff) routes through
+    // allocationClientForCurrentThread -> this accessor, and the prior
+    // out-of-line LazyNeverDestroyed<ThreadSpecific> resolver paid
+    // std::call_once + pthread_getspecific per call (bigintcost: ~45% of the
+    // GIL-off/GIL-on heap-BigInt regression). The slot is only READ under
+    // gates that are false flag-off (g_jscConfig.options.useJSThreads /
+    // isSharedServer() / sharedGCBarrierStateIsPerClient()), so flag-off
+    // codegen on every hot path is byte-identical; the zero-init of the
+    // unread slot matches "ThreadSpecific never constructed". Writers stay
+    // out-of-line (setCurrentThreadClient below) so every existing stamp
+    // site at attach/detach/JSLock A36C re-stamp is semantically unchanged.
+    ALWAYS_INLINE static Heap* currentThreadClient() { return s_currentThreadClient; }
 
     // GlobalGC FIXME resolved (T4): lastChanceToFinalize() relinquishes
     // memory from this client's allocators — owned non-iso TLC allocators AND
@@ -2260,6 +2275,11 @@ private:
     static constexpr uint8_t noAccessState = 0; // §10A m_accessState values.
     static constexpr uint8_t hasAccessState = 1;
 
+    // §10A.1 backing storage for currentThreadClient(); plain C++
+    // thread_local (constant zero-init, no guard), defined in
+    // GCThreadLocalCache.cpp. JS_EXPORT_PRIVATE so the inlined reader links
+    // from every TU including out-of-tree consumers of the header.
+    JS_EXPORT_PRIVATE static thread_local Heap* s_currentThreadClient;
     static void setCurrentThreadClient(Heap*); // §10A.1; defined in GCThreadLocalCache.cpp.
 
     // I4(b) enforcement (§10.6/I12, T6): every thread that acquires heap

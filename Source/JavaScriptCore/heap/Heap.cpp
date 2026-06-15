@@ -3473,7 +3473,56 @@ void Heap::updateAllocationLimits()
         // fixed minimum.
         size_t lastMaxHeapSize = m_maxHeapSize;
         size_t windowRetainedBytes = isSharedServer() ? std::min(m_sharedGCWindowRetainedBytesThisCycle, currentHeapSize) : 0;
-        if (windowRetainedBytes) [[unlikely]] {
+        // B2-serial-eden-block-churn (a): per-TLC partial-block fragmentation
+        // rebase. With N>=2 attached clients, every GCClient::Heap holds its
+        // own LocalAllocator + partially-filled MarkedBlock for each size
+        // class touched in the parallel section, so committed capacity()
+        // diverges from m_totalBytesVisited by ~N x the single-client slack
+        // (SCALEBENCH §28: footprint W=16 1095MB vs W=1 328MB at IDENTICAL
+        // 4.16M-postings live; bytes_allowed 593M vs 120M, 4.92x). Feeding
+        // that multi-client transient peak through proportionalHeapSize()
+        // hands the SERIAL section (one mutator, siblings parked) ~5x its
+        // single-client eden budget; the BigInt loop then mints ~5x the fresh
+        // MarkedBlocks per cycle (tryAllocateBlock -> MarkedBlock::tryCreate
+        // -> bmalloc mmap -> kernel page-fault), and reclaimSharedGCMemoryAtCycleEnd
+        // frees them again — the _raw_spin_lock / asm_exc_page_fault /
+        // sync_regs / __free_one_page kernel-symbol family that accounts for
+        // ~2900M cycles of the W=16-vs-W=1 1875ms postingsChecksum delta.
+        //
+        // Rebase the GROWTH HEADROOM on a single-client live estimate by
+        // subtracting the per-TLC capacity overhead, exactly mirroring the
+        // T4(c)/T2-wlr windowRetainedBytes conservative-subtraction pattern
+        // immediately below (so the CIND assert, the m_maxEdenSize
+        // subtraction, and the next-eden monotone-visited asserts all hold by
+        // the SAME headroomBase/clamp proof). The subtrahend is the share of
+        // (capacity - currentHeapSize) attributable to the N-1 extra clients
+        // — capacityOverhead * (N-1)/N — clamped to currentHeapSize so the
+        // rebase can only LOWER limits (never inflates them; an
+        // over-subtraction floors at minHeapSize via the max() below — more
+        // GCs, never fewer; correctness > speed). capacity() is exact here
+        // (world stopped, I7). clientSet().size() takes its own lock; world
+        // stopped -> uncontended (same as the §27 W-adaptive arm). Flag-off /
+        // !isSharedServer(): perTLCFragmentationBytes == 0 (the gate
+        // short-circuits before the size() call). W=1 GIL-off: numClients<2
+        // -> 0. Both take the landed else-branch unchanged — byte-identical.
+        //
+        // RECORDED, NOT FIXED HERE (B2 secondary): per-client conservative
+        // root-scan scaling — ~0.22ms/GC/client linear in attached clients
+        // (microbench W=16-parked GC pause 4.297ms vs W=1 0.675ms,
+        // ~0.42 + 0.22*W), 141ms total = 7.5% of the 1875ms penalty. That is
+        // gatherStackRoots / MachineThreads cost, not allocation-limit
+        // policy; addressed separately.
+        size_t perTLCFragmentationBytes = 0;
+        if (isSharedServer()) [[unlikely]] {
+            unsigned numClients = clientSet().size();
+            if (numClients >= 2) {
+                size_t committed = m_objectSpace.capacity();
+                size_t capacityOverhead = committed > currentHeapSize ? committed - currentHeapSize : 0;
+                perTLCFragmentationBytes = capacityOverhead - capacityOverhead / numClients;
+            }
+        }
+        size_t sharedRebaseBytes = std::min(windowRetainedBytes + perTLCFragmentationBytes, currentHeapSize);
+        if (sharedRebaseBytes) [[unlikely]] {
             // T4(c) — threshold feedback-loop fix. m_totalBytesVisited (and
             // hence currentHeapSize) includes the Wlr window-witness cohort,
             // which is RETENTION, not live program size; feeding it into
@@ -3512,8 +3561,17 @@ void Heap::updateAllocationLimits()
             // cycle holds via the clamp below. Flag-off identity:
             // windowRetainedBytes == 0 outside ISS + >= 2 clients, so this
             // branch — and the rebase — are unreachable there.
+            //
+            // B2-serial-eden-block-churn (a): the subtrahend is the COMBINED
+            // sharedRebaseBytes (Wlr cohort + per-TLC capacity overhead), so
+            // both shared-only inflation terms key the headroom on the same
+            // single-client base in one pass. sharedRebaseBytes is clamped to
+            // currentHeapSize above, so the subtraction is non-negative; the
+            // minSize floor and the +max(headroom,minSize) addend are
+            // unchanged, hence every soundness clause in this comment block
+            // holds verbatim with the wider subtrahend.
             size_t minSize = minHeapSize(m_heapType, m_ramSize);
-            size_t headroomBase = std::max(currentHeapSize - windowRetainedBytes, minSize);
+            size_t headroomBase = std::max(currentHeapSize - sharedRebaseBytes, minSize);
             size_t headroom = std::max(proportionalHeapSize(headroomBase, m_ramSize), headroomBase) - headroomBase;
             // Clamp the rebased currentHeapSize to at most m_totalBytesVisited
             // so the next eden's monotone-visited asserts (line 3538
@@ -3523,7 +3581,7 @@ void Heap::updateAllocationLimits()
             // + extraMemorySize(eden) >= m_totalBytesVisited(now). headroomBase
             // can exceed m_totalBytesVisited when the minSize floor applies on
             // a small heap (heap-allocation-storm.js et al.) or when
-            // extraMemorySize > windowRetainedBytes; in those cases the clamp
+            // extraMemorySize > sharedRebaseBytes; in those cases the clamp
             // sets m_sizeAfterLast*Collect a little lower than headroomBase,
             // which only enlarges bytesAllowedThisCycle (a more lenient
             // trigger — conservative). m_maxHeapSize stays keyed on
@@ -6552,6 +6610,30 @@ void Heap::reclaimSharedGCMemoryAtCycleEnd()
             return;
         }
     }
+    // B2-serial-eden-block-churn (b): RETAIN the steady-state empty-block set
+    // across cycles instead of mmap/munmap-churning it. The unconditional
+    // every-cycle shrink() below was the T4(d) decommit-restoration fix for
+    // the monotone-capacity bug; with the (a) arm above now keying
+    // m_maxHeapSize on a single-client base, a serial section's per-cycle
+    // budget is bounded again, so committed capacity tracks m_maxHeapSize
+    // and shrinking it every cycle just frees blocks that the very next
+    // cycle re-mints via tryAllocateBlock -> MarkedBlock::tryCreate ->
+    // bmalloc mmap (kernel page-fault: _raw_spin_lock + asm_exc_page_fault +
+    // sync_regs + __list_del_entry + __free_one_page = ~2900M cycles of the
+    // §28 W=16 1875ms penalty). When committed capacity already fits inside
+    // the next cycle's m_maxHeapSize budget, KEEP the empties: endMarking
+    // has set canAllocate = live & ~markingRetired on them, so the stripe
+    // leg's tryAllocateFromOwnDirectory picks them up next cycle with NO
+    // fresh page (the "recycles a steady-state block set" goal). Only shrink
+    // when capacity overshoots the budget (genuine over-commit — e.g. the
+    // first cycle after a wide parallel section collapses to serial), so RSS
+    // stays bounded by ~m_maxHeapSize and the original T4(d) decommit
+    // guarantee is preserved at the bound. m_maxHeapSize was just assigned by
+    // updateAllocationLimits (this runs strictly after it in the conducted
+    // cycle's final stop window). isSharedServer()-only path (RELEASE_ASSERT
+    // above): flag-off never reaches here.
+    if (m_objectSpace.capacity() <= m_maxHeapSize)
+        return;
     m_objectSpace.shrink();
 }
 

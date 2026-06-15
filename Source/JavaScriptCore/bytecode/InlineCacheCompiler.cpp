@@ -83,6 +83,24 @@ static constexpr bool traceHandlerExecution = false;
 static constexpr bool traceHandlerStats = false || ICStatsInternal::traceHandlerChains;
 }
 
+#if USE(JSVALUE64)
+// B4-getbyid-optimize-never-settles-giloff: spine layout used by the
+// segmented-aware ArrayLength stub below (mirrors DFGSegmentedSpineInternal in
+// DFGSpeculativeJIT.cpp). The static_asserts hard-fail any layout drift, so
+// the duplicated constants cannot silently diverge.
+namespace ICCompilerSegmentedSpineInternal {
+static constexpr ptrdiff_t spineOffsetOfOutOfLineFragmentCount = OBJECT_OFFSETOF(ButterflySpine, outOfLineFragmentCount);
+static constexpr ptrdiff_t spineOffsetOfFragments = static_cast<ptrdiff_t>(sizeof(ButterflySpine));
+// Segmented predicate: top16 == 0xffff (SPEC-objectmodel §2). butterflyTagMask
+// occupies exactly the high 16 bits (ConcurrentButterfly.h static_assert), so
+// the unsigned-compare floor IS the tag mask.
+static constexpr uint64_t segmentedFloor = butterflyTagMask;
+static_assert(spineOffsetOfOutOfLineFragmentCount == 0, "B4: emitted offsets assume the frozen ButterflySpine layout");
+static_assert(spineOffsetOfFragments == 32, "B4: emitted offsets assume the frozen ButterflySpine layout");
+static_assert(segmentedFloor == 0xffff000000000000ULL, "B4: tagged>=segmentedFloor <=> top16==0xffff");
+} // namespace ICCompilerSegmentedSpineInternal
+#endif
+
 template<typename... Args>
 static void NODELETE traceHandler(CCallHelpers& jit, ICEvent::Kind kind, Args&&... args)
 {
@@ -3995,6 +4013,100 @@ void InlineCacheCompiler::generateAccessCase(unsigned index, AccessCase& accessC
     }
 
     case AccessCase::ArrayLength: {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            // B4-getbyid-optimize-never-settles-giloff (SCALEBENCH §28
+            // postingsChecksum docIds/tfs .length): the previous
+            // loadButterflyForRead routed segmented butterflies to
+            // m_failAndIgnore. failAndIgnore's contract is "transient
+            // unpatchable state — bump countdown so the slow path does NOT
+            // try to repatch". But once an array goes segmented under
+            // sharedGCHeap that state is PERMANENT for the object, so every
+            // call: stub increments countdown -> slow path
+            // operationGetByIdOptimize -> considerRepatchingCacheImpl
+            // decrements countdown -> net zero -> never reaches the
+            // cool-down/give-up trigger -> m_slowOperation stays at the
+            // *Optimize variant for the lifetime of the program (the +772M
+            // cycle / 5.2% delta vs the GIL-on profile, where this stub HITS
+            // through the plain butterfly load and the Optimize C-call is
+            // never re-entered). Fix the publish, not the gate: read
+            // publicLength inline for both flat AND segmented arms (mirrors
+            // SpeculativeJIT::compileGetArrayLengthSegmentedAware /
+            // emitLoadSegmentedPublicLength). The only residual
+            // failAndIgnore arms are the conservative SW=1 flat
+            // MaybeArrayStorage case (rare; AS-rule / I20 sound superset)
+            // and the pre-existing length>=2^31 bail — both genuinely
+            // transient/unpatchable per object, so the countdown semantics
+            // remain correct. Flag-off: this branch is dead and the legacy
+            // arm below emits byte-identical code (loadButterflyForRead
+            // flag-off is a single plain loadPtr).
+            using namespace ICCompilerSegmentedSpineInternal;
+
+            auto allocator = makeDefaultScratchAllocator(scratchGPR);
+            GPRReg scratch2GPR = allocator.allocateScratchGPR();
+            ScratchRegisterAllocator::PreservedState preservedState = allocator.preserveReusedRegistersByPushing(jit, ScratchRegisterAllocator::ExtraStackSpace::NoExtraSpace);
+
+            CCallHelpers::JumpList failAndIgnore;
+
+            // Tagged butterfly word. ArrayLength's guard (generateWithGuard)
+            // is an indexingType check, not a structureID check, so there is
+            // no live structureIDGPR to thread; emit the R7 structureID
+            // re-load + xor/add address dependency by hand so the butterfly
+            // load is ordered after the header word the guard observed
+            // (identical to loadButterflyForRead -> loadButterflyWith
+            // StructureDependency with structureIDGPR==InvalidGPRReg, and to
+            // the cited DFG mirror compileGetArrayLengthSegmentedAware).
+            // x86-64 is TSO: plain load there, so bench-host codegen is
+            // unchanged; flag-off never reaches this block.
+#if CPU(ARM64)
+            jit.load32(CCallHelpers::Address(baseGPR, JSCell::structureIDOffset()), scratchGPR);
+            jit.xor64(scratchGPR, scratchGPR, scratchGPR);
+            jit.addPtr(baseGPR, scratchGPR);
+            jit.loadPtr(CCallHelpers::Address(scratchGPR, JSObject::butterflyOffset()), scratchGPR);
+#else
+            jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), scratchGPR);
+#endif
+            auto segmented = jit.branch64(CCallHelpers::AboveOrEqual, scratchGPR, CCallHelpers::TrustedImm64(static_cast<int64_t>(segmentedFloor)));
+
+            // Flat arm: SW=1 with possible ArrayStorage shape stays the
+            // conservative failAndIgnore (sound superset, AS-rule / I20 —
+            // identical to loadButterflyForRead(MaybeArrayStorage,
+            // InvalidGPRReg)); SW=0 masks and reads the IndexingHeader.
+            failAndIgnore.append(jit.branchTest64(CCallHelpers::Signed, scratchGPR, scratchGPR));
+            jit.maskButterflyTag(scratchGPR);
+            jit.load32(CCallHelpers::Address(scratchGPR, ArrayStorage::lengthOffset()), scratchGPR);
+            auto flatDone = jit.jump();
+
+            // Segmented arm: spine* = mask(tagged); publicLength is C4-shared
+            // at fragments()[outOfLineFragmentCount] slot 0 low32 (same byte
+            // position as the flat IndexingHeader's). The guard above proved
+            // IsArray && IndexingShapeMask, so indexedFragmentCount > 0 and
+            // the indexed-fragment-0 dereference is in-bounds by construction
+            // (ButterflySpine: indexedFragmentCount==0 only when the flat
+            // butterfly had no IndexingHeader). Spine fields are immutable
+            // after publication (I6); the address dependency on the tagged
+            // word orders the fragment-pointer load.
+            segmented.link(&jit);
+            jit.maskButterflyTag(scratchGPR);
+            jit.load32(CCallHelpers::Address(scratchGPR, spineOffsetOfOutOfLineFragmentCount), scratch2GPR);
+            jit.loadPtr(CCallHelpers::BaseIndex(scratchGPR, scratch2GPR, CCallHelpers::TimesEight, spineOffsetOfFragments), scratchGPR);
+            jit.load32(CCallHelpers::Address(scratchGPR, 0), scratchGPR);
+
+            flatDone.link(&jit);
+            failAndIgnore.append(jit.branch32(CCallHelpers::LessThan, scratchGPR, CCallHelpers::TrustedImm32(0)));
+            jit.boxInt32(scratchGPR, valueRegs);
+            allocator.restoreReusedRegistersByPopping(jit, preservedState);
+            succeed();
+
+            if (allocator.didReuseRegisters()) {
+                failAndIgnore.link(&jit);
+                allocator.restoreReusedRegistersByPopping(jit, preservedState);
+                m_failAndIgnore.append(jit.jump());
+            } else
+                m_failAndIgnore.append(failAndIgnore);
+            return;
+        }
+#endif
         // SPEC-jit section 5.5 (Task 8): READ choke point (conservative
         // MaybeArrayStorage form - ArrayLength is reachable for AS arrays).
         m_failAndIgnore.append(jit.loadButterflyForRead(baseGPR, scratchGPR, CCallHelpers::ConcurrentButterflyShape::MaybeArrayStorage));

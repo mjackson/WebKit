@@ -131,6 +131,38 @@ MarkedBlock::Handle* BlockDirectory::findEmptyBlockToSteal()
     return m_blocks[m_emptyCursor];
 }
 
+MarkedBlock::Handle* BlockDirectory::findOwnEmptyBlockForRefill()
+{
+    // B2-serial-eden-block-churn (b): bias the T7 stripe refill toward
+    // OWN-directory retained-empty REUSE before tryAllocateBlock mints a
+    // fresh page. The cross-subspace Subspace::findEmptyBlockToSteal walk is
+    // stripe-UNSAFE (it sweeps a foreign directory's block — an I5b
+    // lock-free read on a directory whose m_refillLock we do not hold; see
+    // LocalAllocator::allocateSlowCase's "Skipping the steal-before-fresh-
+    // block reuse" note). Restricting the scan to THIS directory keeps the
+    // I5b read under our own m_refillLock + BVL, exactly the same coverage
+    // as tryAllocateFromOwnDirectory's findBlockForAllocation. emptyBits
+    // catches blocks that canAllocateBits no longer does (a freshly-addBlock'd
+    // block has isEmpty but NOT isCanAllocate — addBlock sets only
+    // isLive/isEmpty/isInUse — so once its allocator's didConsumeFreeList
+    // drops inUse it is invisible to the canAllocate cursor; and the
+    // mutator-concurrent IncrementalSweeper sweeps-to-empty without setting
+    // canAllocate). Clear canAllocate + empty here so the post-state matches
+    // findBlockForAllocation's contract and a later cursor walk (this client
+    // or a sibling under the same stripe) cannot double-pick a block that is
+    // about to be filled. Sole caller is the isSharedServer() stripe leg;
+    // flag-off / !isSharedServer() never reaches here.
+    Locker locker(bitvectorLock());
+    m_emptyCursor = (emptyBits() & ~inUseBits()).findBit(m_emptyCursor, true);
+    if (m_emptyCursor >= m_blocks.size())
+        return nullptr;
+    dataLogLnIf(BlockDirectoryInternal::verbose, "Setting block ", m_emptyCursor, " in use (findOwnEmptyBlockForRefill) for ", *this);
+    setIsInUse(m_emptyCursor, true);
+    setIsCanAllocate(m_emptyCursor, false);
+    setIsEmpty(m_emptyCursor, false);
+    return m_blocks[m_emptyCursor];
+}
+
 MarkedBlock::Handle* BlockDirectory::findBlockForAllocation(LocalAllocator& allocator)
 {
     Locker locker(bitvectorLock());

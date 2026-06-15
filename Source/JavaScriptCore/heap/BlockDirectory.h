@@ -178,7 +178,14 @@ public:
     void setNextDirectoryInAlignedMemoryAllocator(BlockDirectory* directory) { WTF::atomicStore(&m_nextDirectoryInAlignedMemoryAllocator, directory, linkStoreOrder); }
     
     MarkedBlock::Handle* findEmptyBlockToSteal();
-    
+    // B2-serial-eden-block-churn (b): own-directory empty-block reuse for the
+    // T7-mspl-per-directory stripe leg. Same emptyBits & ~inUseBits scan as
+    // findEmptyBlockToSteal, but additionally clears canAllocate/empty so the
+    // returned block's bit state matches a findBlockForAllocation result (no
+    // double-pick once didConsumeFreeList drops inUse). isSharedServer()-only
+    // caller (LocalAllocator::allocateSlowCase stripe leg).
+    MarkedBlock::Handle* findOwnEmptyBlockForRefill();
+
     inline MarkedBlock::Handle* findBlockToSweep();
     MarkedBlock::Handle* findBlockToSweep(unsigned& unsweptCursor);
 

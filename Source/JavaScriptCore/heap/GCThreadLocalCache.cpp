@@ -33,42 +33,41 @@
 #include "LocalAllocator.h"
 #include "Options.h"
 #include <algorithm>
-#include <mutex>
 #include <wtf/FastMalloc.h>
-#include <wtf/NeverDestroyed.h>
-#include <wtf/ThreadSpecific.h>
 
 namespace JSC {
 namespace GCClient {
 
 // --- §10A.1 current-client TLS (server -> client seam) ---
 //
-// One process-wide ThreadSpecific slot mapping each mutator thread to the
+// One process-wide thread_local slot mapping each mutator thread to the
 // GCClient::Heap it is currently operating as. Set by attachCurrentThread()
 // and by the server's ISS access forwarding (JSLock migration re-stamps it);
 // cleared by detachCurrentThread(); releaseHeapAccess() does NOT clear it.
-// CanBeGCThread::True: GC helper threads may evaluate predicates that read
-// the slot (they simply see null).
+// GC helper threads may evaluate predicates that read the slot (they simply
+// see the zero-initialized null — the prior ThreadSpecific's
+// CanBeGCThread::True served only to permit that null read, which a plain
+// thread_local gives unconditionally).
+//
+// B1-alloc-client-tls-fastpath: replaced the LazyNeverDestroyed<
+// ThreadSpecific<Heap*>> + std::call_once resolver with a plain C++
+// thread_local (same storage model as t_currentVMLite, VMLite.cpp:67). The
+// reader is now ALWAYS_INLINE in Heap.h so allocationClientForCurrentThread
+// collapses to one predictable branch + one __thread load + the existing
+// server-identity check on the per-allocateCell hot path; this was the
+// dominant term in the GIL-off/GIL-on heap-BigInt gap (bigintcost:
+// currentThreadClient + pthread_getspecific + pthread_once@plt). Flag-off
+// the slot is never read (every reader is behind a useJSThreads / gilOff /
+// isSharedServer gate) and zero-init matches "never constructed". The
+// writer stays out-of-line so every existing stamp site (attach/detach,
+// JSLock A36C carrier swap, Heap.cpp main-client adoption) is semantically
+// unchanged.
 
-static LazyNeverDestroyed<ThreadSpecific<Heap*, WTF::CanBeGCThread::True>> s_currentThreadClient;
-static std::once_flag s_currentThreadClientOnceFlag;
-
-static ThreadSpecific<Heap*, WTF::CanBeGCThread::True>& currentThreadClientSlot()
-{
-    std::call_once(s_currentThreadClientOnceFlag, [] {
-        s_currentThreadClient.construct();
-    });
-    return s_currentThreadClient.get();
-}
-
-Heap* Heap::currentThreadClient()
-{
-    return *currentThreadClientSlot();
-}
+thread_local Heap* Heap::s_currentThreadClient { nullptr };
 
 void Heap::setCurrentThreadClient(Heap* client)
 {
-    *currentThreadClientSlot() = client;
+    s_currentThreadClient = client;
 }
 
 // --- End §10A.1 current-client TLS ---

@@ -1565,3 +1565,172 @@ R1 partially closes the W=2 RSS negative; S2(d)/S3 are pure wins on
 sys-time with no wall regression). The Java-parity gap is now
 **quantified to a single section** (postingsChecksum heap-BigInt
 GIL-off tax, ~3800 ms W=16) and named as the campaign-4 target above.
+
+## §29 Fairness amendment: postingsChecksum is a SPEC-mandated type asymmetry, not a threading deficit
+
+### Finding
+
+The §28 campaign-4 target — the `postingsChecksum` GIL-off tax that
+accounts for 51% of W=16 wall and the entire Java-parity gap — is a
+**spec-mandated cross-language type asymmetry**, not a threading
+artifact. `Tools/threads/scalebench/SPEC.md` L49-53 fixes the checksum
+arithmetic per language:
+
+> All arithmetic on seeds/hashes is unsigned 64-bit with wraparound. JS
+> must use `BigInt` masked to 64 bits (`& 0xFFFFFFFFFFFFFFFFn`) for the
+> PRNG and checksums; Go uses `uint64`; Java uses `long` …
+
+Audit of the three implementations confirms the spec is followed exactly
+and no implementation reaches for arbitrary-precision:
+
+| Lang | File:line | Checksum accumulator | Per-iter cost |
+|---|---|---|---|
+| Go | `go/main.go` L348 `func indexChecksum() (sum uint64, count uint64)` | native `uint64`, register-resident | add+mul+xor, no alloc |
+| Java | `Bench.java` L243-255 `static long[] indexChecksum() { long sum = 0, … }` | native `long`, register-resident | add+mul+xor, no alloc; no `java.math.BigInteger` anywhere |
+| JS | `js/bench.js` L312-324 `postingsChecksum()` + `mix()` L85-90 | heap `JSBigInt`, `& MASK` after every op | ~10 BigInt mul/xor/add/shift per posting; each op allocates 2-3 heap `JSBigInt` under `sharedGCHeap` |
+
+At 8.3M postings × ~10 ops/posting this is **~83M heap-BigInt
+allocations** on the JS side versus **zero** on the Go/Java side. There
+is no `math/big` import in `main.go` and no `BigInteger` reference in
+`Bench.java`.
+
+### Measured budget for the same work
+
+| Arm | Source | pc1+pc2 (+ dfSnap+sort) wall ms | Ratio vs Go |
+|---|---|---|---|
+| Go W=1 | `out-run1` rep1 inter-phase (total − Σ phases) = 1777.3 − 1689.2 | **88** | 1.0× |
+| Java W=1 | `out-run1` rep1 inter-phase = 1898.4 − 1792.8 | **106** | 1.2× |
+| JS v34 GIL-on W=1 | §28 attribution table: 1846.5 + 2002.5 | **3849** | 44× |
+| JS v34 GIL-off W=1 | `results-v34ab-raw.jsonl` rep3: 2814.7 + 3051.3 | **5866** | 67× |
+
+The Go/Java inter-phase residual covers *both* checksum passes plus
+`dfSnap` and the §1.9 sort, so 88/106 ms is an **upper bound** on their
+checksum cost. JS pays **~55–65×** the native-u64 budget for
+bit-identical output — a serial BigInt-allocation tax that exists
+identically at W=1 with zero sibling threads.
+
+### Interpretive rulings (this section is the amendment; nothing else changes)
+
+**(i)** The engine-side **B1 fix stands on its own merits**, independent
+of cross-language fairness: *heap-BigInt allocation must not regress
+1.5× GIL-off vs GIL-on on identical single-threaded code under
+`sharedGCHeap`*. The 5866/3849 = **1.52×** GIL-off/GIL-on ratio at W=1
+(§28 table: 1.51–1.54×) is a `useSharedGCHeap=1` allocation-path
+regression measured against the engine's own GIL-on baseline — it would
+be a bug at any absolute cost and is the campaign-4 deliverable
+regardless of what Go/Java pay.
+
+**(ii)** The headline **JS-vs-Java speedup-vs-self numbers in §28 carry
+a serial-BigInt tax that Go and Java do not pay**. The §28
+"speedup-vs-self vs Java curve" row (1.51/1.63/1.54× vs 1.99/1.99/1.75×)
+compares each language to *its own* W=1, so a large JS-only serial
+component depresses the JS ratio by Amdahl while leaving the Java ratio
+untouched. Read those cells as "JS scaling under a ~5.9 s spec-imposed
+serial floor that Java runs in ~0.1 s", not as "JS threading is 0.4×
+worse than Java threading". The W=16 sibling-interference component
+(1.32×, §28) *is* a threading cost and remains correctly attributed.
+
+**(iii)** **`bench.js` and `SPEC.md` are NOT changed.** The spec's
+BigInt mandate is the only portable way to get bit-identical u64
+wraparound in JS without an engine intrinsic; rewriting the bench to
+dodge it would invalidate the cross-language checksum reference. The
+engine fix (per-lite BigInt scratch / nursery or an int64-fitting fast
+path, §28 last bullet) is the deliverable; this §29 amendment is
+**interpretive only** — it annotates how to read §28's cross-language
+ratios, it does not relax any gate.
+
+## §30 Run 3.5: campaign-4/B1 sharedGCHeap allocation-path delta — Java bar still missed
+
+Measures a 7-file working-tree delta (+369/−27) over `3909da474a7e`:
+`BlockDirectory.{h,cpp}`, `GCThreadLocalCache.cpp`, `Heap.{h,cpp}`,
+`LocalAllocator.cpp`, `InlineCacheCompiler.cpp`. Release `jsc-v35` sha256
+`8ff9c49a…`; Debug sha256 `e4afea49…`. Baseline `d8ed7b6f5254` reused
+bit-identically (`jsc-v33-baseline`, sha256 `2a85f8e5…` — identical to
+§25/§27/§28). Driver `v35_ab.sh`, raw `results-v35ab-raw.jsonl`.
+
+**Host-drift control.** Loadavg 3.3–14.2 across batches (a separate
+`/root/bun` bridge build session held ~5 cores intermittently; 64-core
+host so W≤32 retains ≥27 spare cores). The same-host base column
+(back-to-back A/B per cell, W=32 + GIL-on interleaved) controls for it;
+absolute walls carry ±~2% host noise.
+
+### Before/after (run 3.4 §28 medians vs run 3.5 medians; same-host A/B vs `d8ed7b6f5254` in parentheses)
+
+| Cell | §28 wall ms | 3.5 wall ms | vs §28 | vs same-host base | speedup-vs-self | Java bar | §28 cpu | 3.5 cpu | §28 RSS MB | 3.5 RSS MB | RSS vs base |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| GIL-off W=1 | 24558.4 | **22333.2** | −9.1% | **−9.7%** (base 24732) | 1.00x | — | 1.04 | 1.05 | 420 | 423 | −0.3% |
+| GIL-off W=2 | 24617.0 | **22630.1** | −8.1% | **−23.6%** (base 29605) | 0.99x | — | 0.93 | 1.01 | 1641 | 1315 | **−14.7%** |
+| GIL-off W=4 | 19101.7 | **17728.0** | −7.2% | **−25.5%** (base 23796) | 1.26x | — | 0.72 | 0.80 | 1747 | 1254 | **−28.1%** |
+| GIL-off W=8 | 16211.0 | **15348.6** | −5.3% | **−28.8%** (base 21550) | **1.455x** | 1.99x | 0.57 | 0.63 | 1741 | 1302 | **−26.5%** |
+| GIL-off W=16 | 15024.2 | **14478.1** | −3.6% | **−31.0%** (base 20974) | **1.543x** | 1.99x | 0.46 | 0.51 | 1792 | 1333 | **−26.4%** |
+| GIL-off W=32 | 15933.9 | **15358.2** | −3.6% | **−28.8%** (base 21557) | **1.454x** | 1.75x | 0.32 | 0.37 | 1847 | 1368 | **−22.0%** |
+| GIL-on W=1 | 16157.6 | **16087.2** | −0.4% | **−3.2%** (base 16612) | — | — | 1.03 | 1.03 | 422 | 421 | +0.0% |
+
+- All 51/51 ladder+gilon+congc reps and 30/30 stability reps rc=0; every
+  checksum tuple matches the reference
+  (`b3e65a6855b9bdeb|4158957|39c33392b2a4c5b2|c4bdd580f85ee058|af028188d7a56a96`).
+- **Speedup-vs-self vs Java curve** (vs v35's own W=1 22333.2 ms): W=8
+  1.455x **< 1.99x** (gap −4126 ms wall, need ≤11223); W=16 1.543x
+  **< 1.99x** (gap −3255 ms, need ≤11223); W=32 1.454x **< 1.75x** (gap
+  −2596 ms, need ≤12762). **All three Java bars MISSED.** v35 lowers W=1
+  by 9.1% (−2225 ms) but W=16 only by 3.6% (−546 ms), so the
+  speedup-vs-self ratio actually *drops* slightly at W=8/32 (1.51→1.455,
+  1.54→1.454) — Amdahl: shrinking the serial component improves
+  absolutes but the parallel-section ceiling is unchanged.
+- **Per-section delta** (medians, v35 vs §28 v34): pc1+2 −793/−784/
+  −944/−1120/−654/−674 ms at W=1..32 (the B1 target moved); phaseA
+  −1210/−1090/−341/**+114**/**+246**/**+343** ms; phaseB −179/−140/−59/
+  +5/+84/−102 ms. **§28-attribution update:** v35 W=16 pc1+2 = 7059 ms
+  = **49% of 14478** (was 51% of 15012); GIL-off/GIL-on W=1 pc1+2 ratio
+  **1.524x → 1.433x** (5073/3540); W=16/W=1 sibling-interference on
+  pc1+2 **1.315x → 1.391x** (7059/5073). The §29(i) `sharedGCHeap`
+  allocation tax is *reduced* (1.52→1.43) but not closed; the
+  sibling-interference ratio worsened in relative terms (absolute pc1+2
+  is lower at every W, but W=1 dropped more than W=16).
+- **Fairness note (per §29):** the cross-language Java-bar gate compares
+  speedup-vs-self under JS's spec-mandated ~5.1 s serial heap-BigInt
+  floor vs Java's ~0.1 s native-`long` floor. The 49% serial pc1+2 share
+  caps achievable speedup at ~2.05× even with perfect parallel scaling
+  of everything else; v35 achieves 1.54× of that ceiling. The threading
+  cost is the parallel-section residual (W=16 wall − pc1+2 = 7419 ms vs
+  W=1 17260 ms → 2.33× on the parallelizable 77%).
+- **Honest negatives:** **(a)** phaseA regresses **+2–6%** at W∈{8,16,32}
+  (+114/+246/+343 ms) — the B1 allocation-path change costs the parallel
+  ingest hot loop slightly; net wall is still −3.6% to −5.3% at those W
+  because pc1+2 wins outweigh it. **(b)** W=16 pc-sibling-interference
+  ratio worsened 1.32×→1.39× (B1 helped W=1 more than W=16). **(c)**
+  Loadavg 5–14 during batches (foreign `/root/bun` build); the
+  same-host-base column controls for it but absolute vs-§28 deltas carry
+  ±~2% noise. **(d)** stab32 rep-spread wide (min 14899 / max 21278 ms,
+  43%) — host bimodality, not arm-correlated; median 15400 stable.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| **W=32 stability 30 reps (P0)** | **30/30 exit 0, 0 SIGSEGV**, 1 unique cs tuple (median 15399.6 ms, loadavg 3.3→14.3) |
+| Corpus GIL-off full (`run-tests.sh`, pinned env, Debug) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on full (`JSC_useJSThreads=1`, Debug) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release v35) | **0 mismatches** |
+| congc: `bench.js -- 4` + `JSC_useConcurrentSharedGCMarking=1`, 5 reps | **5/5 exit 0**, correct checksums, median 18158.6 ms (§28: 19186.5, −5.4%) |
+| GIL-on W=1 5-rep interleaved A/B vs `d8ed7b6f5254` | **−3.2%** (≤2% gate PASS) |
+| **BigInt-stress GIL-off** (`grep -l BigInt JSTests/stress \| head -50`, pinned env, Release v35) | **49/50 pass**; 1 fail `atomic-increment-bigint64.js` rc=134 is **pre-existing on baseline+v34** (wasm-disabled-under-GIL-off abort, not B1-related) — **no v35 regression** |
+| No same-host wall cell regressing >5% | **PASS** (every cell −3.6% to −9.1% vs §28 v34; −9.7% to −31.0% vs same-host base) |
+| Speedup-vs-self beats Java at W=8/16/32 | **FAIL** (1.455/1.543/1.454 vs 1.99/1.99/1.75) |
+
+### Acceptance verdict
+
+**All correctness gates GREEN; Java bar MISSED.** Corpus + identity +
+BigInt-stress green; W=32 0/30 crash; GIL-on same-host −3.2%; congc
+−5.4%; no wall regression anywhere; W∈{1..32} −3.6% to −9.1% vs §28 v34
+(−9.7% to −31.0% same-host vs `d8ed7b6f5254`); RSS −22% to −28% at W≥2;
+sys-time −56% to −70% at W≥2. But B1 closed only ~0.09 of the 1.52×
+GIL-off/GIL-on pc-ratio (→1.43×) and W=1 improved more than W=16, so
+speedup-vs-self moved 1.63→1.54 at W=16 — **further from**, not toward,
+the 1.99× bar in ratio terms despite every absolute being faster. The
+campaign-4 delta can land (pure wins on wall/RSS/sys at every W; no
+correctness regression; phaseA +2–6% at W≥8 is the only sub-component
+loss). **Campaign-5 named target:** the residual 1.43× GIL-off/GIL-on
+pc-ratio (still ~1530 ms at W=1) plus the 1.39× pc sibling-interference
+— closing both takes W=16 pc1+2 to ~3540 ms → wall ~10960 ms ≈ 2.04×,
+clearing the bar.
