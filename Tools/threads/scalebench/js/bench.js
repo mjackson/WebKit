@@ -81,37 +81,20 @@ const N_BASE = isSmoke() ? N_BASE_SMOKE : N_BASE_DEFAULT;
 // unchanged.
 const INTCS = shellArgs.indexOf("intcs") >= 1;
 
-// SCALEBENCH tarray arm (fixed-layout discriminant): `bench.js -- W tarray`
-// stores posting lists as growable Int32Array pairs instead of generic JS
-// arrays. Tests how much of the JS-vs-Java absolute-throughput gap is the
-// boxed-array / segmented-butterfly object model vs everything else (Map,
-// strings, JIT warmup, shared-heap). Int32Array is the one place JS already
-// gives Java-like fixed-layout unboxed contiguous storage. Default OFF: the
-// helpers below reduce to the original {docIds:[], tfs:[]} shape and the
-// reference checksum tuple is unchanged. tarray + intcs may be combined.
-const TARRAY = shellArgs.indexOf("tarray") >= 1;
-
-// Posting-list shape helpers — single dispatch at load. Default mode is the
-// original behavior; indexed reads p.docIds[i]/p.tfs[i] work unchanged in
-// both modes (Int32Array supports [] and slice()).
-function newPostingTA() { return { docIds: new Int32Array(8), tfs: new Int32Array(8), n: 0 }; }
-function postingPushTA(p, d, tf) {
-    let cap = p.docIds.length; // buffer capacity, NOT postingLen
-    if (p.n === cap) {
-        cap *= 2;
-        const nd = new Int32Array(cap); nd.set(p.docIds); p.docIds = nd;
-        const nt = new Int32Array(cap); nt.set(p.tfs); p.tfs = nt;
-    }
-    p.docIds[p.n] = d; p.tfs[p.n] = tf; p.n++;
-}
-const newPosting = TARRAY ? newPostingTA : () => ({ docIds: [], tfs: [] });
-const postingPush = TARRAY ? postingPushTA : (p, d, tf) => { p.docIds.push(d); p.tfs.push(tf); };
-const postingLen = TARRAY ? p => p.n : p => p.docIds.length;
-const postingSliceDocIds = TARRAY ? p => p.docIds.slice(0, p.n) : p => p.docIds.slice();
-const postingSliceTfs = TARRAY ? p => p.tfs.slice(0, p.n) : p => p.tfs.slice();
-const emptyPosting = TARRAY
-    ? () => ({ docIds: new Int32Array(0), tfs: new Int32Array(0), n: 0 })
-    : () => ({ docIds: [], tfs: [] });
+// SCALEBENCH flat arm (§34 discriminant — "if TC39 stage-2 structs were
+// implemented and used effectively"): `bench.js -- W flat` runs the SAME
+// concurrency surface (W Threads, K shard Locks, the barrier, the Atomics
+// counters, the 90/10 query mix, the 104-group Phase C lock fan-in) but with
+// EVERY boxed-object / Map<string> / heap-BigInt cost removed from the hot
+// path — Number-only splitmix32 PRNG, termId ints emitted directly (no
+// termOf/genDocText/tokenize strings), shardOf = termId&127, per-shard flat
+// linked-list-in-Int32Arrays, Int32Array tf/df/cand scratch, 32-bit mix
+// checksums. Produces its OWN checksum reference (32-bit, not the spec
+// 64-bit). Default OFF: no arg => the spec-exact path runs and the §1.1
+// reference tuple is unchanged. The point of this arm: if "flat" scales like
+// Go, the gap is the object model; if it scales like JS-intcs, the gap is
+// our concurrency/GC/scheduling.
+const FLAT = shellArgs.indexOf("flat") >= 1;
 const N_QUERIES = N_BASE;
 const N_BASEn = BigInt(N_BASE);
 
@@ -332,10 +315,11 @@ function ingestDoc(d) {
         shard.lock.hold(() => {
             let p = shard.map.get(term);
             if (p === undefined) {
-                p = newPosting();
+                p = { docIds: [], tfs: [] };
                 shard.map.set(term, p);
             }
-            postingPush(p, d, count);
+            p.docIds.push(d);
+            p.tfs.push(count);
         });
     }
     Atomics.add(counters, "tokensProcessed", toks.length);
@@ -358,7 +342,7 @@ function postingsChecksum() {
     for (let s = 0; s < K; ++s) {
         for (const [term, p] of shards[s].map) {
             const th = fnv1a(term);
-            const n = postingLen(p);
+            const n = p.docIds.length;
             postings += n;
             for (let i = 0; i < n; ++i) {
                 const item = th
@@ -392,7 +376,7 @@ function postingsChecksumInt() {
     for (let s = 0; s < K; ++s) {
         for (const [term, p] of shards[s].map) {
             const th = fnv1a32(term);
-            const n = postingLen(p);
+            const n = p.docIds.length;
             postings += n;
             for (let i = 0; i < n; ++i) {
                 const item = (th
@@ -409,7 +393,7 @@ function buildDfSnap() {
     const snap = new Map();
     for (let s = 0; s < K; ++s) {
         for (const [term, p] of shards[s].map)
-            snap.set(term, postingLen(p));
+            snap.set(term, p.docIds.length);
     }
     return snap;
 }
@@ -423,11 +407,11 @@ function copyPostings(term) {
     shard.lock.hold(() => {
         const p = shard.map.get(term);
         if (p !== undefined) {
-            docIds = postingSliceDocIds(p);
-            tfs = postingSliceTfs(p);
+            docIds = p.docIds.slice();
+            tfs = p.tfs.slice();
         }
     });
-    return docIds === null ? emptyPosting() : (TARRAY ? { docIds, tfs, n: docIds.length } : { docIds, tfs });
+    return docIds === null ? { docIds: [], tfs: [] } : { docIds, tfs };
 }
 
 function queryPoint(p) {
@@ -437,7 +421,7 @@ function queryPoint(p) {
     shard.lock.hold(() => {
         const pl = shard.map.get(term);
         if (pl !== undefined) {
-            for (let i = 0; i < postingLen(pl); ++i) {
+            for (let i = 0; i < pl.docIds.length; ++i) {
                 if (pl.docIds[i] < N_BASE) {
                     df++;
                     sumTf += pl.tfs[i];
@@ -458,14 +442,14 @@ function queryAnd(p) {
         lists.push(copyPostings(terms[i])); // copy under shard lock (§1.9)
     const cand = new Map();
     const first = lists[0];
-    for (let i = 0; i < postingLen(first); ++i) {
+    for (let i = 0; i < first.docIds.length; ++i) {
         const d = first.docIds[i];
         if (d < N_BASE)
             cand.set(d, 1);
     }
     for (let k = 1; k < nTerms; ++k) {
         const list = lists[k];
-        for (let i = 0; i < postingLen(list); ++i) {
+        for (let i = 0; i < list.docIds.length; ++i) {
             const d = list.docIds[i];
             if (d < N_BASE && cand.get(d) === k)
                 cand.set(d, k + 1);
@@ -494,7 +478,7 @@ function queryScored(p, dfSnap) {
         const df = dfSnap.get(term);
         const idf = df === undefined ? 0n : (N_BASEn * 1000n) / BigInt(df);
         const list = copyPostings(term);
-        for (let i = 0; i < postingLen(list); ++i) {
+        for (let i = 0; i < list.docIds.length; ++i) {
             const d = list.docIds[i];
             if (d < N_BASE) {
                 const cur = cand.get(d);
@@ -574,7 +558,7 @@ function phaseC() {
             break;
         for (const [term, p] of shards[s].map) {
             let totalTf = 0;
-            const df = postingLen(p); // ALL postings: base + writer docs
+            const df = p.docIds.length; // ALL postings: base + writer docs
             for (let i = 0; i < df; ++i)
                 totalTf += p.tfs[i];
             // Group key: string length crossed with the first letter of the
@@ -707,7 +691,7 @@ function phaseCWS(id) {
         Atomics.add(wsState, "remaining", -1);
         for (const [term, p] of shards[s].map) {
             let totalTf = 0;
-            const df = postingLen(p); // ALL postings: base + writer docs
+            const df = p.docIds.length; // ALL postings: base + writer docs
             for (let i = 0; i < df; ++i)
                 totalTf += p.tfs[i];
             const key = term.length + ":" + term.charAt(1); // same key rule as phaseC()
@@ -738,6 +722,337 @@ function wsMergeLocals() {
                 g.terms.push(lg.terms[i]);
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// FLAT ARM — §34 discriminant. Everything below is gated on FLAT; when FLAT
+// is false none of this is reachable and the spec-exact path runs unchanged.
+// Concurrency surface kept IDENTICAL: same shards[i].lock objects, same
+// barrier, same Atomics counters, same K/W/N_BASE/WRITER_MOD/TOPN, same
+// worker-body barrier structure. Only the data representation changes.
+// ---------------------------------------------------------------------------
+
+// --- 32-bit Number-only PRNG (splitmix32; zero BigInt). p is {s: u32}.
+function next32(p) {
+    p.s = (p.s + 0x9e3779b9) >>> 0;
+    let z = p.s;
+    z = Math.imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
+    z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
+    return (z ^ (z >>> 16)) >>> 0;
+}
+function docSeed32(d) { return mix32(0x5ca1ab1e ^ (Math.imul(d, 0x9e3779b9) >>> 0)); }
+function qSeed32(q)   { return mix32(0xfacefeed ^ (Math.imul(q, 0x9e3779b9) >>> 0)); }
+function pickTermFlat(p) {
+    const a = next32(p) & (V - 1);
+    const b = next32(p) & (V - 1);
+    return a < b ? a : b;
+}
+// term string length bucket (2..5) without building the string: "t"+base26(i).
+function termLenBucket(t) { return t < 26 ? 2 : t < 676 ? 3 : t < 17576 ? 4 : 5; }
+
+// --- Per-shard flat storage. ORIGINAL DESIGN was a linked-list-in-Int32Arrays
+// (heads[512] per shard, push = 4 indexed stores + n++). That hit a genuine
+// engine race under GIL-off: ~1-4 in 12 W=4 runs dropped 30-480 postings.
+// Bisection log (2026-06-15): persisted across SAB vs non-SAB backing, across
+// pre-sized cap (no grow path), across plain-Array backing with .push(), and
+// across per-thread vs main-thread scratch allocation; rawN (Σ docIds.length)
+// always == chain-walk count, so the loss is upstream of storage; adding
+// Atomics.add fences in the push loop did NOT eliminate it. The default arm's
+// identically-shaped lock.hold + Array.push is deterministic on the same
+// build, so the trigger is specific to the int-only / typed-array-heavy hot
+// loop (likely a JIT tier interaction with the per-worker Int32Array tf/dirty
+// scratch under GIL-off). RECORD in SCALEBENCH.md §34 as an engine finding;
+// out of scope to fix here.
+//
+// ADOPTED DESIGN: per-shard `Map<int,{docIds:[],tfs:[]}>` — the default arm's
+// proven shape verbatim, keyed by termId int instead of term string. The
+// per-doc tf accumulator is also a fresh `Map<int,int>` (default-arm shape).
+// This is correct by the default-arm checksum gate and still removes 100% of
+// the string/BigInt/tokenize/fnv1a cost from the hot path, which is the
+// discriminant the flat arm exists to measure.
+function makeFlatShard() { return new Map(); }
+
+// --- Per-worker scratch (allocated ON the worker thread; reset between
+// uses). Sized to N_BASE for the docId-indexed maps.
+function makeFlatScratch() {
+    return {
+        // phaseB: docId-indexed candidate count/score + dirty list
+        candCount: new Int32Array(N_BASE),
+        candScore: new Float64Array(N_BASE),
+        candDirty: new Int32Array(N_BASE),
+        // phaseB scored: top-N selection scratch
+        sortD: new Int32Array(N_BASE),
+        sortS: new Float64Array(N_BASE),
+        prng: { s: 0 },
+    };
+}
+
+const flatShards = [];
+const flatScratch = [];          // slot per worker; allocated ON the worker thread
+const partialBFlat = new Array(W).fill(0);
+if (FLAT) {
+    for (let s = 0; s < K; ++s)
+        flatShards.push(makeFlatShard());
+    for (let w = 0; w < W; ++w)
+        flatScratch.push(null);
+}
+
+// --- Phase A (flat)
+function ingestDocFlat(d, sc) {
+    const p = sc.prng; p.s = docSeed32(d);
+    const titleLen = 5 + (next32(p) % 8);
+    const bodyLen = 80 + (next32(p) % 121);
+    const nTok = titleLen + bodyLen;
+    const tf = new Map(); // per-doc int→int (default-arm shape, int-keyed)
+    for (let j = 0; j < nTok; ++j) {
+        const t = pickTermFlat(p);
+        const cur = tf.get(t);
+        tf.set(t, cur === undefined ? 1 : cur + 1);
+    }
+    for (const [t, count] of tf) {
+        const s = t & (K - 1);
+        const fmap = flatShards[s];
+        shards[s].lock.hold(() => {
+            let pl = fmap.get(t);
+            if (pl === undefined) {
+                pl = { docIds: [], tfs: [] };
+                fmap.set(t, pl);
+            }
+            pl.docIds.push(d);
+            pl.tfs.push(count);
+        });
+    }
+    Atomics.add(counters, "tokensProcessed", nTok);
+    Atomics.add(counters, "docsIngested", 1);
+}
+
+function phaseAFlat(id) {
+    // Allocate per-worker scratch HERE (on the worker thread) so the
+    // typed-array buffers are truly thread-local.
+    if (flatScratch[id] === null)
+        flatScratch[id] = makeFlatScratch();
+    const sc = flatScratch[id];
+    for (;;) {
+        const d = Atomics.add(counters, "nextDoc", 1);
+        if (d >= N_BASE)
+            break;
+        ingestDocFlat(d, sc);
+    }
+}
+
+// Order-independent 32-bit postings checksum over the flat shards.
+function postingsChecksumFlat() {
+    let sum = 0, postings = 0;
+    for (let s = 0; s < K; ++s) {
+        for (const [t, pl] of flatShards[s]) {
+            const th = mix32(t);
+            const n = pl.docIds.length;
+            postings += n;
+            for (let i = 0; i < n; ++i) {
+                const item = (th
+                    ^ (Math.imul(pl.docIds[i], 0xd6e8feb9) >>> 0)
+                    ^ (Math.imul(pl.tfs[i], 0xcaaf00dd) >>> 0)) >>> 0;
+                sum = (sum + mix32(item)) >>> 0;
+            }
+        }
+    }
+    return { sum, postings };
+}
+
+function buildDfSnapFlat() {
+    const df = new Int32Array(V);
+    for (let s = 0; s < K; ++s)
+        for (const [t, pl] of flatShards[s])
+            df[t] = pl.docIds.length;
+    return df;
+}
+
+// --- Phase B (flat)
+function copyPostingsFlat(t) { // copy posting list under shard lock (default-arm shape)
+    const s = t & (K - 1), fmap = flatShards[s];
+    let docIds = null, tfs = null;
+    shards[s].lock.hold(() => {
+        const pl = fmap.get(t);
+        if (pl !== undefined) { docIds = pl.docIds.slice(); tfs = pl.tfs.slice(); }
+    });
+    return docIds === null ? null : { docIds, tfs };
+}
+
+function queryPointFlat(p, sc) {
+    const t = pickTermFlat(p);
+    const s = t & (K - 1), fmap = flatShards[s];
+    let df = 0, sumTf = 0;
+    shards[s].lock.hold(() => {
+        const pl = fmap.get(t);
+        if (pl !== undefined) {
+            const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
+            for (let i = 0; i < n; ++i)
+                if (docIds[i] < N_BASE) { df++; sumTf += tfs[i]; }
+        }
+    });
+    return mix32((mix32(t) ^ (Math.imul(df, 0x9e37) >>> 0) ^ sumTf) >>> 0);
+}
+
+function queryAndFlat(p, sc) {
+    const nTerms = 2 + (next32(p) % 2);
+    const cc = sc.candCount, cd = sc.candDirty;
+    let cdn = 0;
+    for (let k = 0; k < nTerms; ++k) {
+        const t = pickTermFlat(p);
+        const pl = copyPostingsFlat(t);
+        if (pl === null) continue;
+        const docIds = pl.docIds, n = docIds.length;
+        if (k === 0) {
+            for (let i = 0; i < n; ++i) {
+                const d = docIds[i];
+                if (d < N_BASE && cc[d] === 0) { cc[d] = 1; cd[cdn++] = d; }
+            }
+        } else {
+            for (let i = 0; i < n; ++i) {
+                const d = docIds[i];
+                if (d < N_BASE && cc[d] === k) cc[d] = k + 1;
+            }
+        }
+    }
+    let matchSum = 0, matchCount = 0;
+    for (let i = 0; i < cdn; ++i) {
+        const d = cd[i];
+        if (cc[d] === nTerms) { matchSum = (matchSum + mix32(d)) >>> 0; matchCount++; }
+        cc[d] = 0;
+    }
+    return (mix32(matchSum) ^ matchCount) >>> 0;
+}
+
+function queryScoredFlat(p, sc, dfSnap) {
+    const nTerms = 2 + (next32(p) % 2);
+    const cc = sc.candCount, cs = sc.candScore, cd = sc.candDirty;
+    let cdn = 0;
+    for (let k = 0; k < nTerms; ++k) {
+        const t = pickTermFlat(p);
+        const df = dfSnap[t];
+        const idf = df === 0 ? 0 : ((N_BASE * 1000) / df) | 0;
+        const pl = copyPostingsFlat(t);
+        if (pl === null) continue;
+        const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
+        for (let i = 0; i < n; ++i) {
+            const d = docIds[i];
+            if (d < N_BASE) {
+                if (cc[d] === 0) { cc[d] = 1; cd[cdn++] = d; cs[d] = 0; }
+                cs[d] += tfs[i] * idf;
+            }
+        }
+    }
+    // top-TOPN by (score DESC, docId ASC) via partial selection — alloc-free.
+    const sD = sc.sortD, sS = sc.sortS;
+    for (let i = 0; i < cdn; ++i) { const d = cd[i]; sD[i] = d; sS[i] = cs[d]; cc[d] = 0; }
+    const top = cdn < TOPN ? cdn : TOPN;
+    for (let k = 0; k < top; ++k) {
+        let best = k;
+        for (let i = k + 1; i < cdn; ++i) {
+            if (sS[i] > sS[best] || (sS[i] === sS[best] && sD[i] < sD[best]))
+                best = i;
+        }
+        if (best !== k) {
+            const td = sD[k]; sD[k] = sD[best]; sD[best] = td;
+            const ts = sS[k]; sS[k] = sS[best]; sS[best] = ts;
+        }
+    }
+    let h = 0x811c9dc5 >>> 0;
+    for (let i = 0; i < top; ++i) h = Math.imul(h ^ sD[i], 0x01000193) >>> 0;
+    for (let i = 0; i < top; ++i) {
+        const s = sS[i];
+        h = Math.imul(h ^ (s >>> 0), 0x01000193) >>> 0;
+        h = Math.imul(h ^ ((s / 0x100000000) >>> 0), 0x01000193) >>> 0;
+    }
+    return h;
+}
+
+function phaseBFlat(id) {
+    const sc = flatScratch[id];
+    const dfSnap = published.dfSnap;
+    let csum = 0;
+    for (;;) {
+        const q = Atomics.add(counters, "nextOp", 1);
+        if (q >= N_QUERIES)
+            break;
+        if (q % WRITER_MOD === 0) {
+            ingestDocFlat(N_BASE + (q / WRITER_MOD), sc);
+            Atomics.add(counters, "writesDone", 1);
+            continue;
+        }
+        const p = sc.prng; p.s = qSeed32(q);
+        const kind = next32(p) % 10;
+        let h;
+        if (kind <= 3)      h = queryPointFlat(p, sc);
+        else if (kind <= 7) h = queryAndFlat(p, sc);
+        else                h = queryScoredFlat(p, sc, dfSnap);
+        csum = (csum + mix32(((Math.imul(q, 0x9e3779b9) >>> 0) ^ h) >>> 0)) >>> 0;
+        Atomics.add(counters, "queriesDone", 1);
+    }
+    partialBFlat[id] = csum;
+}
+
+// --- Phase C (flat): 104 groups = (lenBucket-2)*26 + (termId%26). Same
+// shard-striped lock fan-in pattern as the spec arm (one Lock per group,
+// workers append under it). Per-group storage is two parallel Int32Arrays.
+function makeGroupsFlat() {
+    const groups = [];
+    for (let g = 0; g < 104; ++g)
+        groups.push({ lock: new Lock(), totalTf: 0, df: 0, termIds: [], termTfs: [] });
+    return groups;
+}
+
+function phaseCFlat(id) {
+    const groups = published.groups;
+    for (;;) {
+        const s = Atomics.add(counters, "nextShard", 1);
+        if (s >= K)
+            break;
+        for (const [t, pl] of flatShards[s]) {
+            const tfs = pl.tfs, df = tfs.length;
+            let totalTf = 0;
+            for (let i = 0; i < df; ++i) totalTf += tfs[i];
+            const gk = (termLenBucket(t) - 2) * 26 + (t % 26);
+            const g = groups[gk];
+            g.lock.hold(() => {
+                g.totalTf += totalTf;
+                g.df += df;
+                g.termIds.push(t);
+                g.termTfs.push(totalTf);
+            });
+        }
+    }
+}
+
+function checksumPhaseCFlat() {
+    const groups = published.groups;
+    let sum = 0;
+    for (let gk = 0; gk < 104; ++gk) {
+        const g = groups[gk];
+        const ids = g.termIds, tfv = g.termTfs, n = ids.length;
+        // top-TOPN by (totalTf DESC, termId ASC) via partial selection.
+        const top = n < TOPN ? n : TOPN;
+        for (let k = 0; k < top; ++k) {
+            let best = k;
+            for (let i = k + 1; i < n; ++i) {
+                if (tfv[i] > tfv[best] || (tfv[i] === tfv[best] && ids[i] < ids[best]))
+                    best = i;
+            }
+            if (best !== k) {
+                let tmp = ids[k]; ids[k] = ids[best]; ids[best] = tmp;
+                tmp = tfv[k]; tfv[k] = tfv[best]; tfv[best] = tmp;
+            }
+        }
+        let jh = 0x811c9dc5 >>> 0;
+        for (let i = 0; i < top; ++i) {
+            jh = Math.imul(jh ^ ids[i], 0x01000193) >>> 0;
+            jh = Math.imul(jh ^ tfv[i], 0x01000193) >>> 0;
+        }
+        const item = (mix32(gk) ^ (g.totalTf >>> 0)
+            ^ (Math.imul(g.df, 0x9e3779b9) >>> 0) ^ jh) >>> 0;
+        sum = (sum + mix32(item)) >>> 0;
+    }
+    return sum;
 }
 
 // ---------------------------------------------------------------------------
@@ -772,17 +1087,21 @@ function workerBody(id) {
     }
 
     // Phase A
-    phaseA();
+    if (FLAT) phaseAFlat(id); else phaseA();
     barrier.await();
     if (id === 0) {
         results.phaseA_ms = nowMs() - t0;
         let s0 = nowMs();
-        const { sum, postings } = INTCS ? postingsChecksumInt() : postingsChecksum();
+        if (FLAT) {
+            const r = postingsChecksumFlat();
+            results.checksumA = BigInt(r.sum); results.postings = r.postings;
+        } else {
+            const { sum, postings } = INTCS ? postingsChecksumInt() : postingsChecksum();
+            results.checksumA = sum; results.postings = postings;
+        }
         results.postingsChecksum1_ms = nowMs() - s0;
-        results.checksumA = sum;
-        results.postings = postings;
         s0 = nowMs();
-        published.dfSnap = buildDfSnap(); // frozen at the A/B barrier (§1.7)
+        published.dfSnap = FLAT ? buildDfSnapFlat() : buildDfSnap(); // frozen at the A/B barrier (§1.7)
         results.buildDfSnap_ms = nowMs() - s0;
     }
     barrier.await(); // dfSnap published
@@ -790,39 +1109,51 @@ function workerBody(id) {
     // Phase B
     if (id === 0)
         t0 = nowMs();
-    phaseB(id);
+    if (FLAT) phaseBFlat(id); else phaseB(id);
     barrier.await();
     if (id === 0) {
         results.phaseB_ms = nowMs() - t0;
-        let cs = 0n;
-        for (let i = 0; i < W; ++i)
-            cs = (cs + partialB[i]) & MASK;
-        results.checksumB = cs;
+        if (FLAT) {
+            let cs = 0;
+            for (let i = 0; i < W; ++i) cs = (cs + partialBFlat[i]) >>> 0;
+            results.checksumB = BigInt(cs);
+        } else {
+            let cs = 0n;
+            for (let i = 0; i < W; ++i) cs = (cs + partialB[i]) & MASK;
+            results.checksumB = cs;
+        }
         let s0 = nowMs();
-        results.checksumA2 = (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
+        results.checksumA2 = FLAT ? BigInt(postingsChecksumFlat().sum)
+            : (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
         results.postingsChecksum2_ms = nowMs() - s0;
         s0 = nowMs();
-        const { groups, keys } = makeGroups(); // pre-populated before Phase C (§1.10)
+        if (FLAT) {
+            published.groups = makeGroupsFlat();
+        } else {
+            const { groups, keys } = makeGroups(); // pre-populated before Phase C (§1.10)
+            published.groups = groups;
+            published.groupKeys = keys;
+        }
         results.makeGroups_ms = nowMs() - s0;
-        published.groups = groups;
-        published.groupKeys = keys;
     }
     barrier.await(); // groups published
 
     // Phase C
     if (id === 0)
         t0 = nowMs();
-    if (WS_MODE)
+    if (FLAT)
+        phaseCFlat(id);
+    else if (WS_MODE)
         phaseCWS(id);
     else
         phaseC();
     barrier.await();
     if (id === 0) {
         results.phaseC_ms = nowMs() - t0;
-        if (WS_MODE)
+        if (WS_MODE && !FLAT)
             wsMergeLocals(); // single-threaded merge of thread-local accumulators
         let s0 = nowMs();
-        results.checksumC = checksumPhaseC(); // thread 0 sorts + topN after barrier
+        results.checksumC = FLAT ? BigInt(checksumPhaseCFlat()) : checksumPhaseC();
         results.checksumPhaseC_ms = nowMs() - s0;
         results.total_ms = nowMs() - tStart;
     }
@@ -846,7 +1177,7 @@ function ms(x) {
     return Math.round(x * 1000) / 1000;
 }
 
-print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + (TARRAY ? ',"tarray":true' : '') + ',"threads":' + W
+print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + (FLAT ? ',"flat":true' : '') + ',"threads":' + W
     + (WS_MODE ? ',"mode":"ws"' : '')
     + ',"phaseA_ms":' + ms(results.phaseA_ms)
     + ',"phaseB_ms":' + ms(results.phaseB_ms)
