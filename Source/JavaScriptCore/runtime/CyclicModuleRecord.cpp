@@ -409,7 +409,11 @@ void CyclicModuleRecord::link(JSGlobalObject* globalObject, RefPtr<ScriptFetcher
     // 7. Return UNUSED.
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+JSPromise* CyclicModuleRecord::evaluate(JSGlobalObject* globalObject, int64_t referrerAsyncOrder)
+#else
 JSPromise* CyclicModuleRecord::evaluate(JSGlobalObject* globalObject)
+#endif
 {
     // https://tc39.es/ecma262/#sec-moduleevaluation
 
@@ -447,10 +451,7 @@ JSPromise* CyclicModuleRecord::evaluate(JSGlobalObject* globalObject)
     module->setTopLevelCapability(vm, capability);
     // 8. Let result be Completion(InnerModuleEvaluation(module, stack, 0)).
 #if USE(BUN_JSC_ADDITIONS)
-    // Snapshot the async-order counter so the DFS can tell deps that were
-    // already EvaluatingAsync before this Evaluate() (re-entrant deadlock
-    // case, see note at 11.c.v) from siblings that transition during it.
-    module->innerModuleEvaluation(globalObject, stack, 0, vm.moduleAsyncEvaluationCount());
+    module->innerModuleEvaluation(globalObject, stack, 0, referrerAsyncOrder);
 #else
     module->innerModuleEvaluation(globalObject, stack, 0);
 #endif

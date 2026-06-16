@@ -92,9 +92,12 @@ public:
     // APIs to control the module loader.
     void provideFetch(JSGlobalObject*, const Identifier& key, ScriptFetchParameters::Type, SourceCode&&);
     void provideFetch(JSGlobalObject*, const Identifier& key, ScriptFetchParameters::Type, JSSourceCode*);
-    JSPromise* loadModule(JSGlobalObject*, const Identifier& moduleName, RefPtr<ScriptFetchParameters>, RefPtr<ScriptFetcher>, OptionSet<ModuleLoadFlag>);
+    JSPromise* loadModule(JSGlobalObject*, const Identifier& moduleName, RefPtr<ScriptFetchParameters>, RefPtr<ScriptFetcher>, OptionSet<ModuleLoadFlag>, int64_t referrerAsyncOrder = -1);
     JSPromise* linkAndEvaluateModule(JSGlobalObject*, const Identifier& moduleKey, RefPtr<ScriptFetchParameters>, RefPtr<ScriptFetcher>);
-    JSPromise* requestImportModule(JSGlobalObject*, const Identifier& moduleName, const Identifier& referrer, RefPtr<ScriptFetchParameters>, RefPtr<ScriptFetcher>, bool deferred = false);
+    JSPromise* requestImportModule(JSGlobalObject*, const Identifier& moduleName, const Identifier& referrer, RefPtr<ScriptFetchParameters>, RefPtr<ScriptFetcher>, bool deferred = false, int64_t referrerAsyncOrder = -1);
+#if USE(BUN_JSC_ADDITIONS)
+    JS_EXPORT_PRIVATE int64_t asyncEvaluationOrderForKey(const Identifier& key);
+#endif
 
     // Platform dependent hooked APIs.
     JSPromise* importModule(JSGlobalObject*, JSString* moduleName, JSValue parameters, const SourceOrigin& referrer, bool deferred = false);
@@ -159,7 +162,7 @@ public:
     JSPromise* hostLoadImportedModule(JSGlobalObject*, const ModuleReferrer&, const ModuleRequest&, JSCell* payload, RefPtr<ScriptFetcher>, bool useImportMap);
     JSPromise* loadModule(JSGlobalObject*, const ModuleReferrer&, const ModuleRequest&, JSCell* payload, RefPtr<ScriptFetcher>, OptionSet<ModuleLoadFlag>);
     void continueModuleLoading(JSGlobalObject*, ModuleGraphLoadingState*, ModuleCompletion result);
-    void continueDynamicImport(JSGlobalObject*, JSPromise*, ModuleCompletion, RefPtr<ScriptFetcher>, bool deferred);
+    void continueDynamicImport(JSGlobalObject*, ModuleLoaderPayload*, ModuleCompletion, RefPtr<ScriptFetcher>);
     JSPromise* loadRequestedModules(JSGlobalObject*, AbstractModuleRecord*, RefPtr<ScriptFetcher>);
 
     static JSPromise* makeModule(JSGlobalObject*, const Identifier& moduleKey, JSSourceCode*);

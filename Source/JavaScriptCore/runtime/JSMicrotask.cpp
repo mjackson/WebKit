@@ -1074,7 +1074,11 @@ static void moduleLoadTopSettled(JSGlobalObject* globalObject, VM& vm, ThrowScop
         if (context->useImportMap())
             innerLoadFlags.add(ModuleLoadFlag::UseImportMap);
         if (context->dynamic()) {
+#if USE(BUN_JSC_ADDITIONS)
+            combinedCell = ModuleLoaderPayload::create(vm, statePromise, context->deferred(), context->referrerAsyncOrder());
+#else
             combinedCell = ModuleLoaderPayload::create(vm, statePromise, context->deferred());
+#endif
             loadPromise = globalObject->moduleLoader()->loadModule(globalObject, globalObject, request, combinedCell, scriptFetcher, innerLoadFlags);
         } else {
             combinedCell = ModuleGraphLoadingState::create(vm, statePromise, scriptFetcher);
@@ -1346,11 +1350,12 @@ static void dynamicImportLoadSettled(JSGlobalObject* globalObject, VM& vm, Throw
     // Step-4 rejectedClosure or Step-6 linkAndEvaluateClosure
     //
     // continueDynamicImport: loadPromise settled
-    // arguments[0] = capabilityPromise
+    // arguments[0] = AbstractModuleRecord*
     // arguments[1] = resolution or error
-    // arguments[2] = AbstractModuleRecord*
-    auto* capabilityPromise = uncheckedDowncast<JSPromise>(arguments[0]);
-    auto* module = uncheckedDowncast<AbstractModuleRecord>(arguments[2]);
+    // arguments[2] = ModuleLoaderPayload*
+    auto* module = uncheckedDowncast<AbstractModuleRecord>(arguments[0]);
+    auto* dynamicPayload = uncheckedDowncast<ModuleLoaderPayload>(arguments[2]);
+    auto* capabilityPromise = dynamicPayload->promise();
     auto status = static_cast<JSPromise::Status>(payload);
     if (status != JSPromise::Status::Fulfilled) {
         // Step-4 rejectedClosure
@@ -1373,7 +1378,11 @@ static void dynamicImportLoadSettled(JSGlobalObject* globalObject, VM& vm, Throw
 
     if (!deferred) {
         // 6.c. Let evaluatePromise be module.Evaluate().
+#if USE(BUN_JSC_ADDITIONS)
+        JSPromise* evaluatePromise = module->evaluate(globalObject, dynamicPayload->referrerAsyncOrder());
+#else
         JSPromise* evaluatePromise = module->evaluate(globalObject);
+#endif
         if (scope.exception()) [[unlikely]] {
             capabilityPromise->rejectWithCaughtException(vm, scope);
             return;
@@ -1402,7 +1411,11 @@ static void dynamicImportLoadSettled(JSGlobalObject* globalObject, VM& vm, Throw
     // For each Module Record dep of evaluationList, append dep.Evaluate() to asyncDepsEvaluationPromises.
     MarkedArgumentBuffer asyncDepsEvaluationPromises;
     for (AbstractModuleRecord* dep : evaluationList) {
+#if USE(BUN_JSC_ADDITIONS)
+        JSPromise* depPromise = dep->evaluate(globalObject, dynamicPayload->referrerAsyncOrder());
+#else
         JSPromise* depPromise = dep->evaluate(globalObject);
+#endif
         if (scope.exception()) [[unlikely]] {
             capabilityPromise->rejectWithCaughtException(vm, scope);
             return;

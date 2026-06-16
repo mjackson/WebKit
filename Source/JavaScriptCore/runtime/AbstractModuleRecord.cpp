@@ -1144,7 +1144,11 @@ JS_EXPORT_PRIVATE JSValue AbstractModuleRecord::evaluate(JSGlobalObject* globalO
     return jsUndefined();
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+JSPromise* AbstractModuleRecord::evaluate(JSGlobalObject* globalObject, int64_t referrerAsyncOrder)
+#else
 JSPromise* AbstractModuleRecord::evaluate(JSGlobalObject* globalObject)
+#endif
 {
     VM& vm = globalObject->vm();
 
@@ -1159,7 +1163,11 @@ JSPromise* AbstractModuleRecord::evaluate(JSGlobalObject* globalObject)
     };
 
     if (auto* cyclicRecord = dynamicDowncast<CyclicModuleRecord>(this))
+#if USE(BUN_JSC_ADDITIONS)
+        return wrap(cyclicRecord->evaluate(globalObject, referrerAsyncOrder));
+#else
         return wrap(cyclicRecord->evaluate(globalObject));
+#endif
     if (auto* syntheticRecord = dynamicDowncast<SyntheticModuleRecord>(this))
         return wrap(syntheticRecord->evaluate(globalObject));
     RELEASE_ASSERT_NOT_REACHED();
@@ -1188,7 +1196,7 @@ static void checkSafeToRecurse(JSGlobalObject* globalObject, ThrowScope& scope)
 }
 
 #if USE(BUN_JSC_ADDITIONS)
-unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObject, Vector<AbstractModuleRecord*, 8>& stack, unsigned index, int64_t asyncOrderWatermark)
+unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObject, Vector<AbstractModuleRecord*, 8>& stack, unsigned index, int64_t referrerAsyncOrder)
 #else
 unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObject, Vector<AbstractModuleRecord*, 8>& stack, unsigned index)
 #endif
@@ -1262,37 +1270,10 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
     for (AbstractModuleRecord* requiredModule : evaluationList) {
         checkSafeToRecurse(globalObject, scope);
         RETURN_IF_EXCEPTION(scope, invalid);
-#if USE(BUN_JSC_ADDITIONS)
-        // Record whether this dep was already mid-TLA before our recursive
-        // visit. The spec (12.b.v) makes us wait on it, which is a guaranteed
-        // deadlock when we're running inside that very dep's TLA continuation
-        // (e.g. Nitro: index.mjs top-level `await fetch()` -> handler ->
-        // `import("./chunk")` -> chunk statically imports index.mjs). The
-        // pre-rewrite JS loader did not track async parents across dynamic
-        // imports, so it evaluated the chunk immediately with the parent's
-        // already-initialised bindings. Preserve that for back-compat.
-        //
-        // "Already EvaluatingAsync" alone is too broad: it also matches a
-        // sibling static import in the *same* Evaluate() pass that popped an
-        // SCC to EvaluatingAsync earlier in the walk. In that case the dep's
-        // body has not run yet (its bindings are TDZ) and skipping the wait
-        // executes the importer too early. We narrow at 12.b.v below: only
-        // skip when the cycle root's pendingAsyncDependencies is 0, i.e. its
-        // ExecuteModule/ExecuteAsyncModule has already been called and the
-        // bindings before its first await are initialised. For an SCC still
-        // queued behind an async dep the root's count is > 0. That alone is
-        // still insufficient: a TLA dep with no async deps of its own has
-        // count 0 yet may have only run to its first await within this same
-        // DFS, leaving post-await bindings TDZ (#30259). We additionally
-        // require asyncEvaluationOrder() < asyncOrderWatermark, i.e. the
-        // dep entered EvaluatingAsync in a *prior* Evaluate() call.
-        bool depWasAlreadyEvaluatingAsync = false;
-        if (auto* depCyclic = dynamicDowncast<CyclicModuleRecord>(requiredModule))
-            depWasAlreadyEvaluatingAsync = depCyclic->status() == Status::EvaluatingAsync;
         // 12.a. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).
-        unsigned result = requiredModule->innerModuleEvaluation(globalObject, stack, index, asyncOrderWatermark);
+#if USE(BUN_JSC_ADDITIONS)
+        unsigned result = requiredModule->innerModuleEvaluation(globalObject, stack, index, referrerAsyncOrder);
 #else
-        // 12.a. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).
         unsigned result = requiredModule->innerModuleEvaluation(globalObject, stack, index);
 #endif
         RETURN_IF_EXCEPTION(scope, invalid);
@@ -1339,17 +1320,16 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
             // 12.b.v. If requiredModule.[[AsyncEvaluationOrder]] is an integer, then
             if (cyclic->asyncEvaluationOrder().hasOrder()) {
 #if USE(BUN_JSC_ADDITIONS)
-                // See note above the recursive call: skip the spec-mandated
-                // wait to avoid self-deadlock and match old-loader behaviour.
-                // Only skip when the cycle root entered EvaluatingAsync in a
-                // *prior* Evaluate() (order < asyncOrderWatermark) — a dep
-                // that became EvaluatingAsync earlier in *this* DFS is a
-                // sibling whose post-await bindings are still TDZ (#30259) —
-                // and its body has already been entered
-                // (pendingAsyncDependencies == 0).
-                if (!depWasAlreadyEvaluatingAsync
-                    || cyclic->asyncEvaluationOrder().order() >= asyncOrderWatermark
-                    || cyclic->pendingAsyncDependencies().value_or(1)) {
+                // Spec says wait on this dep. That's a guaranteed deadlock when
+                // the dep is the very module whose TLA continuation called the
+                // dynamic import() that started this Evaluate(): the dep can
+                // only finish after the import() promise settles, which is
+                // waiting on us. referrerAsyncOrder is that module's
+                // asyncEvaluationOrder(), captured at the import() call site
+                // (-1 when the referrer was not EvaluatingAsync). It is a
+                // VM-unique identity, so equality is exact — siblings that
+                // happen to be EvaluatingAsync (#30259, #30634) never match.
+                if (cyclic->asyncEvaluationOrder().order() != referrerAsyncOrder) {
 #endif
                 // 12.b.v.1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
                 module->setPendingAsyncDependencies(module->pendingAsyncDependencies().value() + 1);
