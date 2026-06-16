@@ -1071,6 +1071,42 @@ Structure* Structure::addPropertyTransitionToExistingStructureConcurrently(Struc
     // SPEC-objectmodel L6(i)/I37 (Task 3c): the m_lock-holding lookup. Kept
     // out-of-line so the flag-off fast path in the ALWAYS_INLINE dispatcher
     // (StructureInlines.h) stays at today's code size at every put site.
+    //
+    // SCALEBENCH §36 R-addproptransition-concurrently-unconditional-mlo
+    // (FLAT-GAP-EVIDENCE round 3): the m_lock acquire below was UNCONDITIONAL,
+    // but the steady-state path is a read-only HIT — once a literal site has
+    // executed once, every subsequent traversal finds its PropertyAddition
+    // transition already published in the source's single-slot table word.
+    // flatten1's two-property literal {docIds:[],tfs:[]} is a single-slot
+    // chain (each source Structure has exactly one outgoing PropertyAddition),
+    // so this precheck resolves ~100% of its lookups lock-free; the W=16
+    // flatten1 window attributes 25.4% (528/2079 samples) to this function's
+    // self time + its lockSlow tail, and phaseA's first-term literal is the
+    // same shape (158 + ~210 leaf samples). DCLP shape mirrors the
+    // already-landed dfg-osrexit-genlock-dclp-precheck: acquire-probe the
+    // publish word; on a confirmed hit return the same value the locked Impl
+    // would have returned; on miss / map tag / empty slot fall through to
+    // m_lock. The map-tag arm still locks: TransitionMap::set may rehash
+    // under m_lock (AB17g ruling at StructureInlines.h
+    // addPropertyTransitionToExistingStructure), and a lock-free WeakGCMap
+    // walk during rehash can read a torn HashTable buffer — that arm is rare
+    // for the target literals (single-slot only) and not worth a seqlock here.
+    // hasBeenDictionary() is checked first to match Impl's early-nullptr;
+    // it's a monotonic-true bitfield so a lock-free read is safe (false→true
+    // race just falls through to the locked Impl which returns nullptr).
+    // Flag-off byte-identical: this function is reached only via the
+    // useJSThreads reroute in addPropertyTransitionToExistingStructure
+    // (StructureInlines.h), so flag-off codegen is unchanged.
+    ASSERT(!structure->isDictionary());
+    ASSERT(structure->isObject());
+    offset = invalidOffset;
+    if (!structure->hasBeenDictionary()) [[likely]] {
+        if (Structure* existingTransition = structure->m_transitionTable.tryGetSingleSlotConcurrently(uid, attributes, TransitionKind::PropertyAddition)) [[likely]] {
+            validateOffset(existingTransition->transitionOffset(), existingTransition->inlineCapacity());
+            offset = existingTransition->transitionOffset();
+            return existingTransition;
+        }
+    }
     ConcurrentJSLocker locker(structure->m_lock);
     return addPropertyTransitionToExistingStructureImpl(structure, uid, attributes, offset);
 }

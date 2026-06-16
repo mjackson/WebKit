@@ -16,6 +16,20 @@
 // scheduler and concurrent-GC workers are part of the platform, exactly as
 // JSC's JIT/marking helper threads and the JVM's GC/JIT threads are.
 //
+// ALGORITHMIC FLOOR (SCALEBENCH.md §36 lens, 64-HW-thread host, NBASE=28000):
+// `GOGC=off` W=16 — phaseA 202 ms, total 354 ms (2-rep stable 354/357). With
+// the collector switched off this is the zero-GC, AOT-compiled, M:N-scheduled
+// floor for the SPEC workload on this host: no JIT warmup, no write barrier,
+// no mark assist. Go-with-GC W=16 phaseA ≈266 ms / total 410–457 ms, so Go's
+// own GC costs ≈64 ms phaseA wall (perf shows ~20% CPU in gcBgMarkWorker but
+// most of it is wall-free on idle Ps — `GOMAXPROCS=16` is FASTER at 380 ms
+// than the default-64 410–457 ms, refuting any "idle-P free marking"
+// advantage). Direct answer to the §36 "is there a JS-reachable ceiling?"
+// lens: phaseA cannot go below ~202 ms and total cannot go below ~354 ms; at
+// §36 JS-flat W=16 phaseA 570 ms there is 368 ms of removable headroom, and
+// JS total 1053 ms = 3.0× floor while Java 925 ms = 2.6× floor — Java is ALSO
+// far from the floor, so the residual JS→Java gap is not "JIT vs JIT".
+//
 // Run:  go run main.go <W>     (module-less; or: go build -o bench-go main.go)
 // Env:  SCALEBENCH_SMOKE=1  => N_BASE=2000 (runner preflight, SPEC §5.1)
 package main

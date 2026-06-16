@@ -820,6 +820,14 @@ function makeFlatShard() { return new Map(); }
 // time — same fast-path predicate, same 0-arg shape.
 function makeFlatScratch() {
     const sc = {
+        // go-gap-liveheap-7x-mark-15pct-postA: per-doc termId-indexed tf
+        // accumulator + dirty list (replaces the per-doc `new Map()` in
+        // ingestDocFlat / ingestWriterDocFlat — see those callsites). Reset is
+        // dirty-list-only (≤213 stores), so the 256 KB V-sized scratch is
+        // touched proportionally to nTok, not V. Per-worker thread-local;
+        // never read across the shard lock.
+        tfScratch: new Int32Array(V),
+        tfDirty: new Int32Array(256), // max unique terms/doc = titleLen+bodyLen ≤ 13+200
         // phaseB: docId-indexed candidate count/score + dirty list
         candCount: new Int32Array(N_BASE),
         candScore: new Float64Array(N_BASE),
@@ -839,7 +847,19 @@ function makeFlatScratch() {
         const t = sc.hT, fmap = sc.hFmap;
         let pl = fmap.get(t);
         if (pl === undefined) {
-            pl = { docIds: [], tfs: [] };
+            // flatten1-full-FASTER-than-noTA-proves-collision §37 fixup: the
+            // round-3 in-place flatten relies on every pl wrapper having the
+            // SAME Structure as ingestWriterHold's `{docIds,tfs,len}` literal.
+            // A 2-prop literal here gets inlineCapacity=2, so flatten1's later
+            // `pl.len=` add transitions to a {docIds,tfs,len}-OOL Structure
+            // DISTINCT from the 3-prop literal's inlineCapacity=3 Structure —
+            // postingsChecksumFlat then OSR-exits BadCache at bc#234 on the
+            // first phaseB-created pl and never re-stabilizes in FTL (W=1 cs2
+            // 14→110ms). Allocate the 3-prop shape here so the wrapper is
+            // monomorphic process-wide. `len:0` is the flatten1 discriminant
+            // (JSArray-source path); flatten1 overwrites it with the real
+            // length. Data identical → flat checksum reference unchanged.
+            pl = { docIds: [], tfs: [], len: 0 };
             fmap.set(t, pl);
         }
         pl.docIds.push(sc.hD);
@@ -848,22 +868,34 @@ function makeFlatScratch() {
     sc.ingestWriterHold = function() {
         const t = sc.hT, fmap = sc.hFmap, d = sc.hD, count = sc.hCount;
         const pl = fmap.get(t);
-        if (pl === undefined)
-            fmap.set(t, { docIds: Int32Array.of(d), tfs: Int32Array.of(count) });
-        else {
-            pl.docIds = appendI32(pl.docIds, d);
-            pl.tfs = appendI32(pl.tfs, count);
+        if (pl === undefined) {
+            const nd = new Int32Array(4), nt = new Int32Array(4);
+            nd[0] = d; nt[0] = count;
+            fmap.set(t, { docIds: nd, tfs: nt, len: 1 });
+            return;
         }
+        let len = pl.len, docIds = pl.docIds, tfs = pl.tfs;
+        if (len === docIds.length) {
+            const cap = len << 1;
+            const nd = new Int32Array(cap); nd.set(docIds); pl.docIds = docIds = nd;
+            const nt = new Int32Array(cap); nt.set(tfs);    pl.tfs    = tfs    = nt;
+        }
+        docIds[len] = d; tfs[len] = count;
+        pl.len = len + 1;
     };
     sc.copyPostingsHold = function() {
         const pl = sc.hFmap.get(sc.hT);
-        if (pl !== undefined) { sc.hOutDocIds = pl.docIds.slice(); sc.hOutTfs = pl.tfs.slice(); }
+        if (pl !== undefined) {
+            const len = pl.len;
+            sc.hOutDocIds = pl.docIds.slice(0, len);
+            sc.hOutTfs = pl.tfs.slice(0, len);
+        }
     };
     sc.queryPointHold = function() {
         const pl = sc.hFmap.get(sc.hT);
         let df = 0, sumTf = 0;
         if (pl !== undefined) {
-            const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
+            const docIds = pl.docIds, tfs = pl.tfs, n = pl.len;
             for (let i = 0; i < n; ++i)
                 if (docIds[i] < N_BASE) { df++; sumTf += tfs[i]; }
         }
@@ -890,25 +922,50 @@ if (FLAT) {
 }
 
 // --- Phase A (flat)
+// go-gap-liveheap-7x-mark-15pct-postA: the previous per-doc `new Map()` tf
+// accumulator allocated 28k JSMap shells + ~2.8M HashMapBucket cells + 28k
+// JSCellButterfly bucket vectors over phaseA (and 2.8k more in the phaseB
+// writer). Under W=16 GIL-off the eden collector promotes most of those into
+// old-gen before the doc loop drops them, so they survive as carcasses until
+// the next FullCollection — logGC W=16 reports the post-phaseA live set at
+// ~645 MB vs Go's ~86 MB (gctrace gc 39: 161→86 MB), a 7.5× bloat, and
+// perf -D 700 W=16 attributes 9.68% self to JSCellButterfly::visitChildrenImpl
+// (Map bucket-vector marking) + 3.19% SlotVisitor::markAuxiliary + 1.27%
+// drain + 1.14% visitSegmentedButterfly = 15.28% on-CPU in mark, plus ~3
+// FullCollection cycles at 29 ms each. Go's per-doc `map[int]int` is a single
+// flat hmap struct the tracer walks in O(buckets) with no per-entry cell;
+// Java's HashMap<Integer,Integer> entries are nursery-local and die before
+// promotion under G1's region budget. The flat arm's whole point is "if
+// structs were implemented" — a per-worker reusable Int32Array(V) tf scratch
+// + Int32Array dirty list IS the struct-shaped accumulator (Go's map ≈ open-
+// addressed int array). Iteration below walks tfDirty in first-occurrence
+// order, which is exactly Map insertion order, so the per-term shard-lock
+// sequence and posting-list contents are byte-identical and the flat-arm
+// checksum reference 686d6890|4154468|0fbbd673|3af6b072|e1d22021 is
+// unchanged. Per-doc allocation: 1 JSMap + ~100 buckets + 1 bucket vector +
+// 1 MapIterator → 0. Reset cost: ≤213 indexed int32 stores.
 function ingestDocFlat(d, sc) {
     const p = sc.prng; p.s = docSeed32(d);
     const titleLen = 5 + (next32(p) % 8);
     const bodyLen = 80 + (next32(p) % 121);
     const nTok = titleLen + bodyLen;
-    const tf = new Map(); // per-doc int→int (default-arm shape, int-keyed)
+    const tf = sc.tfScratch, dirty = sc.tfDirty;
+    let nDirty = 0;
     for (let j = 0; j < nTok; ++j) {
         const t = pickTermFlat(p);
-        const cur = tf.get(t);
-        tf.set(t, cur === undefined ? 1 : cur + 1);
+        if (tf[t] === 0) dirty[nDirty++] = t;
+        tf[t]++;
     }
     // hold-closure-alloc: stage captures through sc, reuse the per-worker
     // hoisted body (see makeFlatScratch). hD is loop-invariant per doc.
     sc.hD = d;
     const ingestHold = sc.ingestHold;
-    for (const [t, count] of tf) {
+    for (let k = 0; k < nDirty; ++k) {
+        const t = dirty[k];
         const s = t & (K - 1);
-        sc.hT = t; sc.hCount = count; sc.hFmap = flatShards[s];
+        sc.hT = t; sc.hCount = tf[t]; sc.hFmap = flatShards[s];
         shards[s].lock.hold(ingestHold);
+        tf[t] = 0; // reset-on-consume: scratch is all-zero on return
     }
     Atomics.add(counters, "tokensProcessed", nTok);
     Atomics.add(counters, "docsIngested", 1);
@@ -989,49 +1046,101 @@ function phaseAFlat(id) {
 // monomorphic. Second flatten (post-phaseB) stays thread-0 serial: sources
 // are already Int32Array (same-type memcpy, ~65 ms) and fall under pc2.
 function flattenFlatShards(first, stride) {
+    // flatten1-full-FASTER-than-noTA-proves-collision (FLAT-GAP-EVIDENCE §36
+    // round 3 discriminant): at W=16 the FULL body below previously ran in
+    // 47-54ms but a noTA probe (objlit-only, NO `new Int32Array`) ran in
+    // 80ms — ADDING ~131k typed-array constructions made the loop ~30ms
+    // FASTER because the createUninitialized+segwalk work spaced out the
+    // acquisitions of the global empty-`{}` Structure's m_lock and halved
+    // the collision rate. Canonical signature of a collision-bound (not
+    // work-bound) lock; the contended site is the `{docIds,tfs,len:}`
+    // literal's first transition empty→{docIds}: the empty-object Structure
+    // has many first-property outgoing edges program-wide, so its transition
+    // table is map-tagged and the round-3 single-slot DCLP precheck in
+    // addPropertyTransitionToExistingStructureConcurrently (Structure.cpp)
+    // falls through to m_lock on every one of ~65k literals × W workers.
+    // FIX: drop the fresh wrapper entirely and mutate the existing `pl` in
+    // place — the Map already holds it, so no fmap.set either. The two field
+    // replaces are existing-slot writes (per-object, no transition); the one
+    // `.len` add transitions the {docIds,tfs} Structure, whose ONLY outgoing
+    // edge is →len (every site that grows this shape adds `len` next), so it
+    // is single-slot and the precheck resolves it lock-free. Net m_lock
+    // traffic from flatten1: zero. Bound: flatten1 W=16 collapses to the
+    // typed-array work floor ≈ (full W=1 91ms − noTA W=1 21ms)/16 + per-
+    // worker FTL warmup ≈ 13-15ms. The "rebuild wrapper fresh on thread 0"
+    // rationale above is stale anyway (flatten1 is W-parallel now); the
+    // phaseA `{docIds,tfs,len:0}` literal (ingestHold) and ingestWriterHold's
+    // `{docIds,tfs,len:1}` literal share the SAME inlineCapacity=3 Structure,
+    // and the in-place writes here are existing-slot replaces (no transition),
+    // so downstream `pl.docIds` GetById stays monomorphic. (A 2-prop phaseA
+    // literal would NOT — its later +len transitions to a distinct OOL-len
+    // Structure and postingsChecksumFlat OSR-exits BadCache; §37 measurement
+    // caught this.) Data identical → flat checksum
+    // reference 686d6890|4154468|0fbbd673|3af6b072|e1d22021 unchanged.
     for (let s = first; s < K; s += stride) {
         const fmap = flatShards[s];
-        for (const [t, pl] of fmap)
-            fmap.set(t, {
-                docIds: new Int32Array(pl.docIds),
-                tfs: new Int32Array(pl.tfs),
-            });
+        for (const pl of fmap.values()) {
+            const len = pl.len;
+            // flatten1: source is the phaseA `{docIds:[], tfs:[]}` JS-array
+            // shape (no `.len`) → Int32Array-from-Array. flatten2: source is
+            // the post-flatten1 typed shape with a `.len` that may be < cap
+            // (geometric grow in ingestWriterHold) → trim-slice.
+            // len===0 ⇔ phaseA JSArray-source pl (ingestHold initializes len:0;
+            // every post-flatten1 / ingestWriterHold pl has len≥1).
+            const docIds = len === 0
+                ? new Int32Array(pl.docIds) : pl.docIds.slice(0, len);
+            const tfs = len === 0
+                ? new Int32Array(pl.tfs) : pl.tfs.slice(0, len);
+            pl.docIds = docIds;
+            pl.tfs = tfs;
+            pl.len = docIds.length;
+        }
     }
 }
 
 // Phase-B writer ingest (post-flatten). Body matches ingestDocFlat exactly
 // except for the per-term append: the posting lists are now Int32Array (no
-// `.push`), so grow-by-one into a fresh typed array. Called for
-// N_QUERIES/WRITER_MOD ≈ 2800 docs × ~50 distinct terms ≈ 1.4e5 appends, each
-// copying ~64 ints on average — negligible vs phaseB query work, and it keeps
-// every list typed-monomorphic for the second flatten / pc2 / phaseC. New
-// terms (pl===undefined) are also born as Int32Array so pc2 never sees a mix.
-// Kept as a SEPARATE function so the phaseA hot path (ingestDocFlat) stays
-// byte-identical and its JIT profile is not polluted by the typed-array arm.
-function appendI32(a, v) {
-    const n = a.length, b = new Int32Array(n + 1);
-    b.set(a);
-    b[n] = v;
-    return b;
-}
+// `.push`), so use Java's PostingList shape — geometric-doubling Int32Array
+// with a separate `.len` field — for amortized-O(1) appends INSIDE the held
+// shard lock (Go `append`/Java `pl.add` are amortized-O(1) in the same
+// critical section; the previous grow-by-one `appendI32` was O(n) per push:
+// ≈280k typed-array constructions + ~72 MB Gigacage memcpy under the lock,
+// which serialized phaseB scaling). Every list typed-monomorphic for the
+// second flatten / pc2 / phaseC; new terms (pl===undefined) are also born as
+// Int32Array so pc2 never sees a mix. flatten1 stamps `.len` on every pl so
+// the phaseB readers (queryPointHold/copyPostingsHold) and ingestWriterHold
+// see a uniform 3-prop Structure. Kept as a SEPARATE function so the phaseA
+// hot path (ingestDocFlat) stays byte-identical and its JIT profile is not
+// polluted by the typed-array arm.
 function ingestWriterDocFlat(d, sc) {
     const p = sc.prng; p.s = docSeed32(d);
     const titleLen = 5 + (next32(p) % 8);
     const bodyLen = 80 + (next32(p) % 121);
     const nTok = titleLen + bodyLen;
-    const tf = new Map();
+    // go-gap-liveheap-7x-mark-15pct-postA: same per-worker tf scratch as
+    // ingestDocFlat (see that comment). The phaseB writer fires 2800× and was
+    // the only remaining `new Map()` on the flat-arm hot path; with it gone
+    // the steady-state phaseB allocation profile is the copyPostingsFlat
+    // slice pair + the ingestWriterHold geometric-grow buffers and nothing
+    // else, so eden cycles stop promoting Map carcasses into the FullCollect
+    // mark set. tfScratch is per-worker thread-local and reset-on-consume
+    // below, so phaseA's last doc left it all-zero.
+    const tf = sc.tfScratch, dirty = sc.tfDirty;
+    let nDirty = 0;
     for (let j = 0; j < nTok; ++j) {
         const t = pickTermFlat(p);
-        const cur = tf.get(t);
-        tf.set(t, cur === undefined ? 1 : cur + 1);
+        if (tf[t] === 0) dirty[nDirty++] = t;
+        tf[t]++;
     }
     // hold-closure-alloc: see makeFlatScratch.
     sc.hD = d;
     const ingestWriterHold = sc.ingestWriterHold;
-    for (const [t, count] of tf) {
+    for (let k = 0; k < nDirty; ++k) {
+        const t = dirty[k];
         const s = t & (K - 1);
-        sc.hT = t; sc.hCount = count; sc.hFmap = flatShards[s];
+        sc.hT = t; sc.hCount = tf[t]; sc.hFmap = flatShards[s];
         shards[s].lock.hold(ingestWriterHold);
+        tf[t] = 0;
     }
     Atomics.add(counters, "tokensProcessed", nTok);
     Atomics.add(counters, "docsIngested", 1);
@@ -1053,9 +1162,12 @@ function flattenGroupsFlat() {
 }
 
 // Order-independent 32-bit postings checksum over the flat shards.
-function postingsChecksumFlat() {
+// `sEnd` is a plain (non-default) param so the bytecode keeps a simple
+// parameter list — real callers pass K; the cs1 pre-warm passes a small
+// prefix (see workerBody).
+function postingsChecksumFlat(sEnd) {
     let sum = 0, postings = 0;
-    for (let s = 0; s < K; ++s) {
+    for (let s = 0; s < sEnd; ++s) {
         for (const [t, pl] of flatShards[s]) {
             const th = mix32(t);
             // Hoist (matches queryPointFlat/phaseCFlat shape): under the
@@ -1287,6 +1399,10 @@ const results = {
     // postingsChecksum1_ms in flat mode. Output-only diagnostic keys; Go/Java
     // need not emit them (fairness-neutral).
     flatten1_ms: 0, cs1_ms: 0, flatten2_ms: 0, cs2_ms: 0,
+    // go-gap-liveheap-7x-mark-15pct-postA: wall time of the explicit
+    // post-flatten1 fullGC() (FLAT only; thread-0 serial). JS-only diagnostic
+    // — Go/Java need not emit it (fairness-neutral; see workerBody comment).
+    flattenGC_ms: 0,
 };
 
 // §1.11 requires a MONOTONIC clock. The jsc shell's preciseTime() is
@@ -1323,9 +1439,48 @@ function workerBody(id) {
     barrier.await(); // flatten1 done — all shards normalized to Int32Array
     if (id === 0) {
         if (FLAT) results.flatten1_ms = nowMs() - t0;
+        // go-gap-liveheap-7x-mark-15pct-postA: flatten1 just discarded the
+        // bulk of the phaseA representation — 130k segmented-butterfly
+        // JSArrays holding 4.15M×2 boxed ints — by overwriting the wrapper
+        // fields in place with Int32Arrays (the 65k wrappers themselves are
+        // now reused, see flatten1-full-FASTER-than-noTA-proves-collision).
+        // The OLD set is unreachable but tenured (it was the live posting
+        // store for all of phaseA, so every eden cycle promoted it), and JSC
+        // sizes the FullCollection trigger off the post-sweep footprint, so
+        // phaseB inherits a ~645 MB heap (logGC W=16: Full sweep 729418kb →
+        // 645530kb) vs Go's ~86 MB. perf -D 700 W=16 then attributes 15.28%
+        // self to GC mark and the run pays ~3 FullCollection cycles at ~29 ms
+        // each. Go/Java have NO flatten step (their posting slices/ArrayLists
+        // are contiguous from birth — see the flattenFlatShards header), so
+        // this discarded representation is a JS-ONLY artefact and collecting
+        // it explicitly is the second half of the JS-only flatten cost, not a
+        // benchmark cheat: it is honestly accounted INSIDE total_ms. One
+        // synchronous fullGC here (workers 1..W-1 are already racing toward /
+        // parked at the dfSnap barrier — pure STW, no mutator interleaving)
+        // drops the live set to the ~55 MB post-flatten Int32Array state, so
+        // every subsequent phaseB mark cycle is ~10× cheaper and the
+        // FullCollection trigger re-bases off the small heap. Net: pay ~1
+        // cycle up front, save ~3 inflated cycles + 15% helper-thread mark
+        // CPU during phaseB. estMs ≈ 45.
+        if (FLAT) {
+            let g0 = nowMs();
+            fullGC();
+            results.flattenGC_ms = nowMs() - g0;
+        }
+        // w1-cs1-cold-vs-warm-45ms (§37 MEASURED-AND-REJECTED): a small-prefix
+        // pre-warm `postingsChecksumFlat(8)` here was proposed to absorb the
+        // two Overflow recompiles + FTL install outside the cs1 timer. Direct
+        // A/B at W=16: WITHOUT prewarm cs1 {67,68,79,82} stable; WITH prewarm
+        // cs1 bimodal {44-77} / {122-241} — the 8-shard call's return path
+        // executes once, the second DFG compile (post-Overflow-reopt) sees an
+        // under-profiled tail, and the FTL/FTLForOSREntry install races the
+        // prewarm→cs1 call boundary, so ~1/3 of reps land in a recompile slow
+        // band. Net median ~+10ms and ~7× variance. The `sEnd` parameter is
+        // kept (both real callers pass K) so a future per-function tier-up
+        // hint can revisit this without a signature change.
         let s0 = nowMs();
         if (FLAT) {
-            const r = postingsChecksumFlat();
+            const r = postingsChecksumFlat(K);
             results.cs1_ms = nowMs() - s0;
             results.checksumA = BigInt(r.sum); results.postings = r.postings;
         } else {
@@ -1357,15 +1512,17 @@ function workerBody(id) {
         }
         let s0 = nowMs();
         if (FLAT) {
-            // re-normalize: phaseB writers (a) grew some lists via appendI32
-            // from foreign threads → pl wrapper SW=1, (b) created fresh pl
-            // objects on worker threads for brand-new terms. Rebuild all pl
-            // wrappers on thread 0 so pc2 sees the same monomorphic shape pc1
-            // did. Sources are already Int32Array → same-type memcpy.
+            // re-normalize: phaseB writers (a) geometric-grew some lists in
+            // place from foreign threads (ingestWriterHold: `.len` < cap, pl
+            // wrapper SW=1), (b) created fresh pl objects on worker threads
+            // for brand-new terms. Rebuild all pl wrappers on thread 0 with
+            // exact-sized Int32Arrays (trim to `.len`) so pc2 sees the same
+            // monomorphic shape pc1 did. Sources are already Int32Array →
+            // same-type memcpy.
             flattenFlatShards(0, 1);
             let s1 = nowMs();
             results.flatten2_ms = s1 - s0;
-            results.checksumA2 = BigInt(postingsChecksumFlat().sum);
+            results.checksumA2 = BigInt(postingsChecksumFlat(K).sum);
             results.cs2_ms = nowMs() - s1;
         } else
             results.checksumA2 = (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
@@ -1452,4 +1609,5 @@ print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + (FLAT ? ',"flat":true' :
     + ',"cs1_ms":' + ms(results.cs1_ms)
     + ',"flatten2_ms":' + ms(results.flatten2_ms)
     + ',"cs2_ms":' + ms(results.cs2_ms)
+    + ',"flattenGC_ms":' + ms(results.flattenGC_ms)
     + '}');

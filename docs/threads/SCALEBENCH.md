@@ -2473,3 +2473,140 @@ W=32 vs W=16 (FLAT-GAP-EVIDENCE round 2 §(4): fast-mode 7.6% park/acq vs
    (intcs W=16 1/3 fast at 4916 ms): orthogonal to the flat-arm targets
    this round and §34's named discriminant (out-of-band GC counter)
    stands.
+
+## §37 flat-gap-bughunter round 3
+
+Tree `cbb7d616a1f6` + worktree delta below; Release jsc sha256
+`1bda2d11d95516e8…`, Debug `7b9844107a619723…`. Pinned GIL-off env, 64 HW
+threads, loadavg 5.9–9.5 across the matrix (host did not decay below the
+2.5 gate inside the 180 s synchronous wait; W=16 cell at load 6.7). Evidence
+pack: `docs/threads/FLAT-GAP-EVIDENCE.md` Round 3 (per-batch warmup probe /
+flatten1 W-scan / lazy-slow-path counter / K=256 discriminant / GetByIdGaveUp
+finding / Go `GOGC=off` floor) on the §36 binary `cbb7d616…/d953dcbf…`. Raw
+`results-v41ab-raw.jsonl` (36 records, 0 nonzero rc). Driver `v41_ab.sh` /
+`v41_analyze.py`.
+
+### Survivor list (changes that landed this round)
+
+| target | file | what it does | flag-off effect |
+|---|---|---|---|
+| **R-addproptransition-concurrently-unconditional-mlo** | `runtime/Structure.cpp`, `runtime/StructureInlines.h`, `runtime/StructureTransitionTable.h` | `addPropertyTransitionToExistingStructureConcurrently` took the source Structure's `m_lock` UNCONDITIONALLY, but the steady-state path is a read-only HIT on a single-slot transition word. New `tryGetSingleSlotConcurrently` acquire-probes `m_data`; on a key-matched single-slot publish, returns the transition + `transitionOffset()` lock-free (release in `setSingleTransition` orders the target's constructor stores). Map-tag / empty / mismatch fall through to `m_lock` (TransitionMap rehash hazard — intentionally NOT lock-free-walked). Evidence §(2): 25.4% W=16 flatten1 self + the phaseA first-term literal; same DCLP shape as the round-2 `dfg-osrexit-genlock-dclp-precheck`. | Reached ONLY via the `useJSThreads()` reroute in `addPropertyTransitionToExistingStructure` (StructureInlines.h); flag-off codegen byte-identical. |
+| **go-gap-liveheap-7x-mark-15pct-postA** (tf-scratch + post-flatten1 `fullGC()`) | `bench.js` | Per-doc `new Map()` tf accumulator → per-worker reusable `Int32Array(V)` scratch + dirty-list (the struct-shaped accumulator the flat arm models). Kills 28k JSMap shells + ~2.8M HashMapBucket cells + 28k bucket vectors per phaseA; iteration walks `tfDirty` in first-occurrence order = Map insertion order, so per-term shard-lock sequence and the flat-arm checksum tuple are byte-identical. Then ONE explicit `fullGC()` after flatten1 (workers parked; JS-only discarded representation) drops the post-phaseA live set from ~645 MB to the ~55 MB Int32Array state — phaseB mark cycles ~10× cheaper. W=16 phaseB: 242 ms → **95 ms (−61%)**; flat W=16 peak RSS 420 MB. `flattenGC_ms` is a JS-only output diagnostic, accounted INSIDE `total_ms`. | Flat-arm only; default/intcs arms byte-identical. |
+| **flatten1-full-FASTER-than-noTA-proves-collision** (in-place mutate + ingestWriterHold geometric-grow) | `bench.js` | Evidence §(2) discriminant: at W=16 the `{docIds,tfs}` literal's empty→docIds transition contends on the GLOBAL empty Structure's `m_lock` (map-tagged → DCLP precheck falls through). Drop the fresh wrapper entirely: mutate `pl` in place (existing-slot replaces, no transition), and `ingestWriterHold` geometric-grows the typed buffers in place instead of `appendI32`. **§37 fixup found in measurement**: the in-place `+len` add transitions a 2-prop-literal pl to a {docIds,tfs,len} Structure with inlineCapacity=2/len-OOL, DISTINCT from the 3-prop literal's inlineCapacity=3 Structure — `postingsChecksumFlat` then FTL-OSR-exits BadCache at bc#234 on the first phaseB-created pl (`JSC_verboseOSR`: exit #29 D@439 BadCache → reopt loop; W=1 cs2 14→110 ms). Fix: phaseA `ingestHold` allocates `{docIds:[],tfs:[],len:0}` so the wrapper is monomorphic process-wide. flatten1 `m_lock` traffic: zero. | Flat-arm only. |
+| **Go `GOGC=off` algorithmic-floor record** | `go/main.go` (header comment only) | W=16 floor 354 ms (phaseA 202) — the zero-GC AOT-compiled M:N-scheduled SPEC ceiling on this host. Direct lens for the residual table. | Comment-only. |
+
+### Measured-and-rejected this round
+
+| proposal | result |
+|---|---|
+| **w1-cs1-cold-vs-warm-45ms** (8-shard `postingsChecksumFlat` pre-warm) | A/B at W=16: WITHOUT prewarm cs1 {67,68,79,82}; WITH prewarm cs1 bimodal {44–77} / {122–241}. The 8-shard call's return path executes once → second DFG (post-Overflow-reopt) under-profiles bc#475 (`InadequateCoverage` exit), and the FTLFunctionCall/FTLForOSREntry install races the prewarm→cs1 call boundary. ~1/3 reps land in a +160 ms slow band; net median +10 ms, ~7× variance. **Rejected**; `sEnd` parameter kept for a future per-function tier-up hint. |
+| **§36-R2 thunk-side DCLP** (`operationCompileFTLLazySlowPath`) | Evidence §(3): 0.31% W=16 self (5.28 M calls, ≈21 cyc/call on the existing C++ DCLP fast path), ceiling ≤2 ms wall. **Do not implement.** |
+| **§36-R3 K=256** | Evidence §(4): halves W=32 park rate to 7.5% but W=32 phaseA does NOT improve (832 vs 705) and W=16 goes bimodal. **Refuted** — W=32 band is not shard-lock-park-bound. |
+| **§36-R1 species-STW / per-worker-FTL-warmup** | Evidence §(2): species fires at +736 ms (phaseB), 0 STW windows >2 ms in the flatten1 bucket, pre-warm −25% only. **Both refuted**; flatten1's W>8 knee is a global-resource contention on the ~65 k typed-array constructions (now obviated for the literal half by the in-place mutate above). |
+
+### JS-flat wall ms vs Java / Go (3-rep medians; Go/Java from §34)
+
+| W | **JS-flat ms** | Java ms | Go ms | JS/Java | JS/Go | §36 JS-flat | Δ vs §36 |
+|---|---|---|---|---|---|---|---|
+| 1 | **3759** | 1974 | 1836 | 1.90× | 2.05× | 3223 | +17% (see †) |
+| 8 | **1010** | 939 | 535 | 1.08× | 1.89× | 1104 | −9% |
+| 16 | **872** | 976 | 422 | **0.89×** | **2.07×** | 1032 | **−16%** |
+| 32 | **870** | 1022 | 378 | **0.85×** | 2.30× | 1374 | **−37%** |
+
+W=16 reps {848, 872, 874}; W=8 {995, 1010, 1015}; W=32 {859, 870, 1136} —
+the 1136 is a 1/15 phaseA-slow rep (phaseA 723 vs fast-band 417–464; see
+residual 3). All 27 flat reps + 12 stability reps rc=0; every rep matches
+the flat reference `686d6890|4154468|0fbbd673|3af6b072|e1d22021`.
+
+**JS-flat now BEATS Java at W=16 (0.89×, −104 ms) and W=32 (0.85×).** To
+Go: W=16 closes from 2.45× to 2.07×; vs the `GOGC=off` algorithmic floor
+(354 ms) JS is at 2.46× floor and Java at 2.76× — at W=16 JS is now closer
+to the zero-GC SPEC ceiling than Java is.
+
+† W=1 reps {3726, 3759, 3759} at loadavg **6.35**. Evidence §(1) re-baselined
+W=1 on this binary at ~3920 ms (loadavg 0.75–2.0) and flagged §36's 3223 as
+a binary-delta anomaly (§36's `e0fb8fe1…` build vs `cbb7d616…`). Against the
+verified this-binary baseline, round 3 W=1 is **−4% at +6 load points**; an
+earlier rep at load 2.9 read 3498 ms (−11%). The +17% vs §36's table value
+is the unresolved §36 cross-check, not a round-3 regression.
+
+Residual W=16 wall composition (median rep): phaseA 474 + flatten1 76 +
+flattenGC 9 + cs1 72 + buildDfSnap ~6 + phaseB 96 + pc2 85 (= flatten2 64 +
+cs2 20) + phaseC/csC ~35 ≈ 853 ms. The phaseB drop (242→96) is the entire
+JS→Java W=16 crossover; flatten1 is flat vs §36 (the in-place mutate and the
+W>8 typed-array knee roughly cancel — see residual 2).
+
+### Slower-arm re-baseline (default + intcs, 3-rep medians, GIL-off)
+
+| arm | W | wall ms | evidence §(6) (this binary) | §36 | reference tuple |
+|---|---|---|---|---|---|
+| default | 1 | 20 313 | 19 583 | 18 069 | `b3e65a68…\|4158957\|39c33392…\|c4bdd580…\|af028188…` ✓ |
+| default | 16 | **13 395** | 12 868 | 9 887 | ✓ unchanged |
+| intcs | 1 | 16 167 | 15 326 | 14 030 | `8021f000\|4158957\|1fc7d941\|…` ✓ |
+| intcs | 16 | **7 901** | 7 683 | 7 395 | ✓ unchanged |
+
+All 12 reps rc=0, all reference tuples match. default W=16 reps {13 125,
+13 395, 13 676} (0/3 fast-mode this sample); intcs W=16 {5064, 7901, 8182}
+(1/3 fast-mode, §34(C) signature unchanged). +4–5% vs evidence §(6) is
+host-load delta (matrix at load 5.8–9.5 vs evidence at ≤0.35); the round-3
+engine change is reached only under `useJSThreads()` and the precheck is a
+read-only hit, so default/intcs codegen is unchanged. Evidence §(6)'s
+finding stands: §36's default W=16 9 887 does not reproduce on `cbb7d616`.
+
+### W=32 stability (12 reps, post-round-3)
+
+12/12 rc=0, all ref-match; total **820–907 ms (med 860, 10.2% spread)**.
+phaseA sorted: {417, 418, 428, 434, 435, 439, 440, 444, 448, 454, 463, 464}
+— **0/12 slow-mode**, single 47 ms band. cs1 66–85, cs2 19–21 every rep.
+With the prewarm rejected the cs1 slow band is gone; the 12-rep sweep no
+longer shows the §36 654–820 phaseA band at all (round-3 phaseA is ~36%
+faster than §36's fast band).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug `7b984410…`, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| Default-arm reference tuple unchanged (W=1 + W=16) | **PASS** |
+| intcs-arm reference tuple unchanged (W=1 + W=16) | **PASS** |
+| Flat-arm checksum stable (all W, all reps incl. stability) | **PASS** (`686d6890\|4154468\|0fbbd673\|3af6b072\|e1d22021`, 27/27) |
+| W=32 stability (12 reps) | **12/12 rc=0**, 820–907 ms, 10.2% spread, **0/12 slow-mode** |
+| All matrix reps rc=0 | **PASS** (36/36) |
+| **JS-flat W=16 wall < 976 ms (beat Java)** | **PASS — 872 ms** (0.89× Java) |
+
+### Honest residuals
+
+1. **cs1 cold ~70 ms vs cs2 warm 20 ms — ~50 ms unrecovered tier-up** on
+   `postingsChecksumFlat`'s first call (the two `Overflow` recompiles at
+   bc#363/bc#402 + FTL install). The 8-shard prewarm proposal was measured
+   and rejected (bimodal slow band, net regression). Next lever: a
+   per-function tier-up hint (`$vm.optimizeNextInvocation`-shaped) or a
+   second discarded full-K call before the timer; both are bench-side and
+   fairness-neutral but were not landed this round.
+2. **W>8 flatten1 contention knee unchanged** (W=1 75 / W=8 33 / W=16 76 /
+   W=32 92 ms): the in-place mutate removed the literal's `m_lock` traffic
+   but the per-shard `new Int32Array(segmentedJSArray)` typed-array
+   construction half remains. Evidence §(2) names the candidate global
+   resource (Gigacage/ArrayBufferContents alloc or the segwalk-copy
+   acquire-loads on foreign-thread spines); needs a flatten1-windowed perf
+   slice to attribute.
+3. **W=32 phaseA low-rate slow rep** (1/15 at ~720 ms vs fast band 417–464,
+   +280 ms): not the §35-R2 OSR-exit-genlock chain (12-rep sweep 0/12), not
+   load-correlated (slow rep at load 6.70, fast reps at 8.97–9.43). Signature
+   resembles the previous-run 4/12 {692–732} band that vanished once the
+   prewarm-induced recompile churn was removed; one rep is below the
+   discriminant floor — flagged for a 50-rep sweep in the next round.
+4. **`operationGetByIdGaveUp` 4.45% W=16 self** (evidence §(N), the
+   `PropertyInlineCache.cpp:278` dictionary-base GiveUp on the `sc` scratch
+   object) and the **9.8% segmented-butterfly `[].push` path** are
+   UNADDRESSED this round — both are phaseA steady-state cost and the
+   largest named W=16 levers remaining (~40 ms + ~85 ms ceiling).
+5. **§36 default-arm W=16 9 887 anomaly**: this binary reads 12 868–13 395
+   at every loadavg sampled (0.35–9.5). Either §36's `e0fb8fe1…` build
+   carried a default-arm-relevant delta that did not land in `cbb7d616`, or
+   §36's sample was fast-mode-biased. Unresolved cross-check.
+6. **`forof-tdz-osr-loop` still `useJSThreads()`-gated** (evidence §(5)):
+   un-gating is a flag-off DFG/FTL codegen change under the byte-identical
+   LAW; not chartered without an explicit reviewer ruling.

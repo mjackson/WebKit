@@ -304,6 +304,22 @@ public:
 
     Structure* trySingleTransition() const;
 
+    // SCALEBENCH §36 R-addproptransition-concurrently-unconditional-mlo:
+    // lock-free single-slot HIT probe for the DCLP precheck inside
+    // Structure::addPropertyTransitionToExistingStructureConcurrently.
+    // Acquire-loads m_data; if the single-slot tag is set and the published
+    // transition's key (uid/attributes/kind) matches, returns it — the
+    // release store in setSingleTransition (Structure.cpp) orders the target's
+    // constructor stores (m_transitionPropertyName, transitionPropertyAttributes,
+    // transitionKind, transitionOffset) before this load, so the caller may
+    // read transitionOffset() without m_lock. Map tag, empty slot, or key
+    // mismatch return nullptr and the caller falls through to the locked
+    // lookup: TransitionMap::set may rehash under m_lock and a lock-free
+    // WeakGCMap::get() during rehash can observe a torn HashTable buffer, so
+    // the map arm is intentionally NOT probed lock-free here. Defined in
+    // StructureInlines.h next to get().
+    Structure* tryGetSingleSlotConcurrently(PointerKey, unsigned attributes, TransitionKind) const;
+
     // SPEC-objectmodel F4 chain-fire support (Task 3): invokes the functor on
     // every live transition target in this table. Callers in the multi-slot
     // case must satisfy WeakGCMap::forEach's contract (GC deferred) and, per

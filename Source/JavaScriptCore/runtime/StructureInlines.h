@@ -960,6 +960,25 @@ inline Structure* StructureTransitionTable::get(PointerKey rep, unsigned attribu
     return std::bit_cast<TransitionMap*>(data)->get(StructureTransitionTable::Hash::createKey(rep, attributes, transitionKind));
 }
 
+// SCALEBENCH §36 R-addproptransition-concurrently-unconditional-mlo: see the
+// declaration in StructureTransitionTable.h. Single-slot-only acquire probe;
+// map tag deliberately returns nullptr (caller takes m_lock — rehash hazard).
+inline Structure* StructureTransitionTable::tryGetSingleSlotConcurrently(PointerKey rep, unsigned attributes, TransitionKind transitionKind) const
+{
+    // Acquire pairs with setSingleTransition's release store (Structure.cpp)
+    // so the target Structure's key fields + transitionOffset are visible on
+    // hit. Same single mov as dataConcurrently() on x86; ldar on arm64.
+    intptr_t data = WTF::atomicLoad(const_cast<intptr_t*>(&m_data), std::memory_order_acquire);
+    if (!(data & UsingSingleSlotFlag))
+        return nullptr; // Map tag — TransitionMap rehash is not lock-free-walkable; fall through to m_lock.
+    auto* transition = std::bit_cast<Structure*>(static_cast<uintptr_t>(data) & ~static_cast<uintptr_t>(UsingSingleSlotFlag));
+    if (!transition)
+        return nullptr; // Empty slot — first install hasn't published yet (or GC cleared it); fall through.
+    if (Hash::createKeyFromStructure(transition) != Hash::createKey(rep, attributes, transitionKind))
+        return nullptr; // Different transition in the slot; fall through (locked lookup will also miss).
+    return transition;
+}
+
 // SPEC-objectmodel L6/I37 (Task 3c): see the declaration. Mirrors add()'s
 // keying exactly (createKeyFromStructure on the candidate), so a hit is
 // precisely the Structure a subsequent add(candidate) would have clobbered.

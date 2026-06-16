@@ -572,3 +572,222 @@ W=16), and the post-(A)+(B) W=16 wall of 1032 ms already crosses the
 round-2 bar; the JIT-side fix (osrExitGenerationThunk reading the
 published slot directly and tail-jumping) is a thunk codegen change with
 no perf-evidence-backed need this round.
+
+## Round 3
+
+Tree `cbb7d616a1f6`, Release jsc sha256 `d953dcbf5f0b88c1…`. Pinned
+GIL-off env, 64 HW threads. Method: read-only on `Source/` — uprobes via
+`perf probe` at `operationCompileFTLLazySlowPath` /
+`JSThreadsSafepoint::stopTheWorldAndRun` /
+`JSGlobalObject::tryInstall{TypedArray,ArrayBuffer}SpeciesWatchpoint`
+(symbols at `0x7fa360` / `0x1de0d0` / `0xcde510` / `0xcde2c0`); per-batch /
+per-worker timing via instrumented bench copies under `/tmp/r3/`.
+`git diff --stat Source/` clean at exit.
+
+### (1) W=1 flat decomposition — JIT-warmup hypothesis REFUTED
+
+Per-1000-doc phaseA batch wall (`/tmp/r3/bench-w1decomp.js`): 28 batches
+99–130 ms, **batch 0 = 99.4 ms** ≈ steady-state. 100-doc resolution on
+docs 0–1999: batch 0 = 12.3 ms, batch 7 = 7.9 ms, batches 10–19 ≈ 8.9–
+14.4 ms — warmup contributes **≤5 ms of phaseA's ~2800 ms**.
+
+`JSC_verboseOSR=1` W=1 (`/tmp/r3/w1-osr.log`, 6354 lines): 39 LLInt /
+42 Baseline / 39 DFG / 17 FTL installs, 28 OSR-exit ramps generated,
+**1 jettison total** (queryScoredFlat). `ingestDocFlat` tier history
+LLInt→Baseline→DFG→FTL once each — clean. No recompile loops.
+
+`perf record -F 997` W=1 (`/tmp/r3/w1.perf`, 5K samples): **57.4 %
+children in `lockProtoFuncHold`** (6.29 % self in the C++ trampoline,
+remainder is FTL `ingestHold` body). Top non-JIT self: 6.29 %
+`lockProtoFuncHold`, 3.75 % `Int32Adaptor::setFromTypedArray`, ~2.1 %
+`JSOrderedHashTable::{addImpl,copyImpl}`, 0.93 % `DeferTermination`
+ctor, 0.87 % `ensureLengthSlowConcurrent`, 0.41 %
+`operationGetByIdGaveUp`, 0.40 % `operationCompileFTLLazySlowPath`.
+4.7 % kernel page-fault.
+
+**Reading**: the W=1→Java gap (~1250 ms+) is **steady-state per-doc
+cost**, not tier-up: 28 000 docs × ~50 `lock.hold` calls each at ~35 ns
+trampoline + the FTL `ingestHold` body (Map.get/set on per-shard Map +
+two `[].push` onto a foreign-thread-contended segmented butterfly).
+Running twice in-process is unnecessary — the per-batch curve is flat
+from doc ~800 onward.
+
+**W=1 wall on this binary** at loadavg 0.75–2.0: {3825, 3834, 3881,
+3945, 3958, 3979} med **~3920 ms** vs §36's 3223 (+21 %). Same commit,
+different binary sha (`d953dcbf` vs §36's `e0fb8fe1`); host-variance
+and/or rebuild delta. Recorded as an anomaly for §36 cross-check.
+
+### (2) W=16 flatten1 species-STW hypothesis REFUTED; pre-warm: −25 % only
+
+`perf record -c 1 -e probe_jsc:{stw,stw_ret,taspecies,abspecies}` W=16
+(`/tmp/r3/w16-stw.perf`, 443 STW windows captured): **`tryInstall
+TypedArraySpeciesWatchpoint` fires at +736 ms wall** (2 racing JS
+Threads) — that is **inside phaseB** (first `Int32Array.prototype.slice`
+in `copyPostingsFlat`/`queryPointFlat`), **NOT in flatten1**. `new
+Int32Array(jsArray)` does not consult the species watchpoint (only the
+iterator-protocol fast-path), so flatten1 cannot trigger it.
+`tryInstallArrayBufferSpeciesWatchpoint`: **0 calls**. STW windows in
+the flatten1 bucket (≈+607–653 ms): **5**, max single-window 1.63 ms,
+p50 0.11 ms, p90 0.39 ms — negligible vs flatten1's ~53 ms.
+
+Pre-warm (`/tmp/r3/bench-prewarm.js`, 50 thread-0 calls of
+`flattenFlatShards` on a dummy shard before the start barrier):
+flatten1 {40.3, 35.2, 40.9} vs no-prewarm {55.6, 53.2, 49.6}, both
+3-rep, checksums unchanged — **−13 ms / −25 %, does NOT eliminate**.
+
+Per-worker flatten timing (`/tmp/r3/bench-flattime.js`, 3 reps): all 16
+workers **uniform 47–54 ms** (min 46.9, max 54.5). No straggler; the
+53 ms is the per-worker rate, not a barrier tail.
+
+flatten1 wall vs W (per-worker mean):
+
+| W | flatten1 ms | shards/worker | ms/shard |
+|---|---|---|---|
+| 1 | 91 | 128 | 0.71 |
+| 2 | 69 | 64 | 1.08 |
+| 4 | 41–54 | 32 | 1.28–1.69 |
+| 8 | 25–26 | 16 | 1.59 |
+| **16** | **47–54** | 8 | **6.3** |
+| 32 | 99–106 | 4 | **25** |
+
+Clean speedup through W=8 (3.5×), then **doubles at every step
+W=8→16→32**. The 57 ms W=16 floor is a **W>8 contention knee** (per-
+shard cost 4× from W=8→16, 4× again 16→32) on a global resource hit by
+`new Int32Array(segmentedJSArray)` × ~65 k calls — NOT species STW, NOT
+per-worker FTL warmup. **§36-R1 both components REFUTED.** Candidate
+mechanism for next round: typed-array buffer allocation
+(`ArrayBufferContents` / Gigacage) or `forEachSegmentedIndexedContiguousRun`
+acquire-loads on foreign-thread spines; needs a flatten1-windowed perf
+slice to attribute.
+
+### (3) `operationCompileFTLLazySlowPath` — §36-R2 "≈3 %" REFUTED
+
+`perf stat -e probe_jsc:lazy`: **5 284 162 calls/run at W=16**,
+5 469 514 at W=1 (workload-fixed, ~1.2 calls per `lock.hold`). Per-
+process `perf record -F 1997` W=16 (`/tmp/r3/w16c.perf`, 29K samples,
+35.7 G cycles): self **0.29 % JS Thread + 0.02 % main = 0.31 %** (NOT
+~3 %); `FTL::JITCode::ftl()` vtable 0.02 %. ≈111 M cycles / 5.28 M
+calls ≈ **21 cycles/call** (≈6.6 ns @ 3.17 GHz) — the existing C++ DCLP
+fast path (`stubCodePtrConcurrently()` acquire-load + cmp + ret,
+`FTLOperations.cpp:988`) is already near-free post round-2.
+
+Thunk-side DCLP (§36-R2's deferred (C)): the `lazySlowPathGeneration
+ThunkGenerator` (`FTLThunks.cpp:160`) would need to load
+`callFrame→codeBlock→jitCodeRawPtr→ftl()→lazySlowPaths[index]→
+m_stubCodePtr` (`FTLLazySlowPath.h:105`, `std::atomic<void*>`) and
+tail-jump on non-null — 4 dependent loads + cmp + jmp in the thunk.
+**FEASIBLE** but ceiling is 0.31 % CPU ≈ **≤2 ms W=16 wall**. Recommend
+**DO NOT IMPLEMENT** — round-2's estimate was on the §35 binary; on
+`cbb7d616` it is 10× smaller than projected.
+
+### (4) W=32 vs W=16 shard-lock; K=256 does NOT help
+
+`JSC_logJSLockContention=1`, single rep each (acquires invariant
+4 682 886 / 4 682 998):
+
+| W | spinIters | parks | park/acq | hottest |
+|---|---|---|---|---|
+| 16 | 2 824 293 | **175 170** | **3.74 %** | #16, 1959 |
+| 32 | 6 055 281 | **593 399** | **12.67 %** | #39, 5622 |
+
+W=32/W=16 park ratio **3.39×** (round-2: 2.01×) — the round-2 critical-
+section speedups raised the collision rate again. `WTF::Lock` parks
+after ~40 spin iters; W=32 spin/acq 1.29 → most acquires still resolve
+in spin.
+
+K=256 discriminant (`/tmp/r3/bench-k256.js`, checksums unchanged —
+sharding doesn't affect the flat-arm postings tuple):
+
+| K | W | parks | park/acq | phaseA reps |
+|---|---|---|---|---|
+| 128 | 32 | 593 k–606 k | 12.7 % | {628, 705, 792} |
+| **256** | 32 | 349 k–357 k | **7.5 %** | **{817, 832, 836}** |
+| 128 | 16 | 175 k | 3.7 % | {537, 547, 554} |
+| 256 | 16 | 28 k–170 k | 0.6–3.6 % | {535, 901, 1176} |
+
+K=256 halves W=32 park rate exactly as predicted, but **W=32 phaseA does
+NOT improve** (med 832 vs 705) and W=16 phaseA goes bimodal. **REFUTES
+"K=256 would help"** — the W=32 phaseA 654–820 band is **NOT shard-lock
+park-bound**; per-shard striping is moot (each shard already has its own
+lock). The W=32 regression remaining after round-2's genlock-dclp is
+something else (candidate: same allocation/coherency knee as §(2)'s
+flatten1, plus the §(N) `operationGetByIdGaveUp` cost — both scale with
+contending writers).
+
+### (5) `forof-tdz-osr-loop` gating — STILL `useJSThreads()`-gated
+
+`DFGFixupPhase.cpp:5123`: `if (Options::useJSThreads() && m_graph.has
+ExitSite(…, BadType)) return;`. The in-tree comment (lines 5109–5122)
+already documents that the underlying recompile loop is **generic**
+(reproduces with all shared-heap flags off) and that the gate exists
+solely "to keep flag-off codegen byte-identical (LAW)". Un-gating would
+change flag-off DFG/FTL output on the recompile-after-`BadType` path
+(an inserted `Check<…Use>` is dropped) — a flag-off-codegen change.
+Under the strict byte-identical LAW this is **not** a chartered un-gate
+without an explicit reviewer ruling that exit-profile-driven recompile
+deltas are exempt; it is the same idiom already used elsewhere in the
+file, which is the argument FOR exemption.
+
+### (6) Re-baseline default + intcs (cbb7d616 / d953dcbf, 3-rep medians)
+
+| arm | W | reps | median | §36 | Δ | reference tuple |
+|---|---|---|---|---|---|---|
+| default | 1 | {19062, 19583, 20029} | **19 583** | 18 069 | +8 % | `b3e65a68…\|4158957\|…\|c4bdd580…\|af028188…` ✓ |
+| default | 16 | {12817, 12868, 12954} | **12 868** | 9 887 | **+30 %** | ✓ unchanged |
+| intcs | 1 | {15054, 15326, 15557} | **15 326** | 14 030 | +9 % | `8021f000\|4158957\|1fc7d941\|…` ✓ |
+| intcs | 16 | {4907, 7683, 7788} | **7 683** | 7 395 | +4 % | ✓ unchanged |
+
+All 12 reps rc=0, all reference tuples match. The 4907 intcs rep is the
+unchanged §34(C) fast-mode signature. **default W=16 +30 % vs §36** is
+NOT host noise: a confirmatory rep at loadavg **0.35** gave 12 847 ms.
+This binary's default arm matches §35 (13 013 / 13 183), not §36's
+9 887; either §36's "+ worktree delta" carried a default-arm-relevant
+change that did not land in `cbb7d616`, or §36's default-W=16 sample was
+fast-mode-biased. Flagged for §36 cross-check.
+
+### (N) NEW finding — `operationGetByIdGaveUp` 4.45 % W=16 self
+
+`/tmp/r3/w16c.perf`: **4.17 % JS Thread + 0.28 % main = 4.45 % self**
+(≈1.6 G cycles ≈ 31 ms wall at W=16); 0.41 % at W=1. Called from FTL
+JIT code via the `op_call_ignore_result_return_location` chain (the
+phaseA ingest loop). `PropertyInlineCache.cpp:278` returns `GaveUp` for
+**any** `useJSThreads()` AccessCase whose base structure
+`isDictionary()`; the IC repatches to call `operationGetByIdGaveUp`
+forever. Hypothesis: the per-worker `sc` scratch object
+(`makeFlatScratch`) — 17+ named slots added imperatively — goes
+dictionary, and the hoisted `sc.hT/sc.hCount/sc.hFmap/…` reads inside
+the per-worker `ingestHold` closure pay a generic C++ get-by-id every
+iteration. At W=16 this is 4.45 % of CPU; named round-3 target
+(**bench**: pre-shape `sc` via a single object-literal so it never goes
+dictionary; **engine**: dictionary-safe self-load handler under the
+structure lock instead of GaveUp).
+
+Also visible in the W=16 profile: `ButterflySpine::publicLength` 4.95 %
++ `bumpPublicLengthToAtLeast` 2.75 % + `JSArray::pushInline` 2.11 %
+self = **9.8 %** in the segmented-butterfly foreign-thread `[].push`
+path (phaseA `pl.docIds.push(d)` under the shard lock); 1.28 %
+`operationCompareStrictEq`; `lockProtoFuncHold` 8.98 % self (vs 6.29 %
+W=1 — coherency on the Lock word).
+
+### Synthesis (round-3, 1-paragraph)
+
+All three §36 residual hypotheses are refuted on `cbb7d616`: (R1) the
+57 ms W=16 flatten1 floor is **not** species STW (fires in phaseB at
++736 ms, 0 ArrayBuffer-species calls) and **not** per-worker FTL warmup
+(pre-warm −25 % only; per-worker times uniform; clean 3.5× scaling
+through W=8 then a hard W>8 contention knee, per-shard cost 4× at every
+doubling 8→16→32) — it is a global-resource contention on the ~65 k
+`new Int32Array(segmentedJSArray)` allocations; (R2)
+`operationCompileFTLLazySlowPath` is **0.31 %** W=16 self at 5.28 M
+calls (≈21 cyc/call) — the thunk-side DCLP's ceiling is ≤2 ms wall, do
+not implement; (R3) K=256 halves W=32 park rate to 7.5 % but **does not
+reduce** phaseA wall — the W=32 band is not shard-lock-park-bound. The
+forof-tdz fix is still `useJSThreads()`-gated; un-gating is a flag-off
+codegen change under the LAW. (1) the W=1 gap is **steady-state**
+per-doc cost (≤5 ms warmup of 2800 ms phaseA; clean single tier-up;
+57 % children in `lockProtoFuncHold`). New named target this round:
+**`operationGetByIdGaveUp` 4.45 % W=16 self** via the
+`PropertyInlineCache.cpp:278` dictionary-base GiveUp rule (likely the
+`sc` scratch object). Re-baseline anomaly: default W=16 reads
+**12 868 ms** on this binary (loadavg-0.35-confirmed), matching §35 not
+§36's 9 887 — §36 default-arm number needs re-verification.
