@@ -1330,6 +1330,7 @@ public:
     void installMapPrototypeWatchpoint(MapPrototype*);
     void installSetPrototypeWatchpoint(SetPrototype*);
     void tryInstallArrayBufferSpeciesWatchpoint(ArrayBufferSharingMode);
+    void tryInstallArrayBufferSpeciesWatchpointImpl(ArrayBufferSharingMode); // THREADS lazy-species-install-race sibling (§35-R1): gilOff routes the public entry through STW; this is the unchanged body.
     void tryInstallTypedArraySpeciesWatchpoint(TypedArrayType);
     void tryInstallTypedArraySpeciesWatchpointImpl(TypedArrayType); // THREADS lazy-species-install-race: gilOff routes the public entry through STW; this is the unchanged body.
     void installTypedArrayIteratorProtocolWatchpoint(JSObject* prototype, TypedArrayType);

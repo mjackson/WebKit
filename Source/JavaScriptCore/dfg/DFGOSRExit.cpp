@@ -174,7 +174,13 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
     // index through the exiting thread's lite when gilOff (mode-split read;
     // GIL-on this is the VM-block word, bit-identical to today).
     uint32_t exitIndex = vm.group3Primitives().osrExitIndex;
-    OSRExit& exit = codeBlock->jitCode()->dfg()->m_osrExit[exitIndex];
+    // SCALEBENCH §36 jitcode-refptr-bounce-14pct: cache the DFG::JITCode* once
+    // via the raw accessor (the by-value jitCode() was four `lock incl/decl`
+    // pairs on the shared-CodeBlock refcount per traversal; gilOff every exit
+    // traverses here forever). codeBlock is conservatively-live on this stack
+    // and pins m_jitCode; flag-off output-identical.
+    DFG::JITCode* dfgJIT = codeBlock->jitCodeRawPtr()->dfg();
+    OSRExit& exit = dfgJIT->m_osrExit[exitIndex];
 
     // DW-1 instrumentation (deepwater LEDGER row 1): GIL-off, every DFG exit
     // traverses this operation (the rel32 repatch is suppressed — U-T4b
@@ -183,19 +189,51 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
     // comparator-return trampoline slow path cross-checks it
     // (llint_slow_path_array_sort_comparator_return). GIL-on: not recorded
     // and not consumed; behavior and codegen unchanged.
-    if (vm.gilOff()) [[unlikely]]
+    if (vm.gilOff()) [[unlikely]] {
         recordSortComparatorOSRExitStashIfApplicable(vm, codeBlock, exit, exitIndex);
+        // SCALEBENCH §36 dfg-osrexit-genlock-dclp-precheck (FLAT-GAP-EVIDENCE
+        // round 2 §(2)/§R2): U-T4b means the steady state for an
+        // already-compiled exit is "land here, return the published ramp".
+        // The U-T4a existing-ramp short-circuit lives AFTER the
+        // dfgOSRExitGenerationLock tryLock spin AND after the per-traversal
+        // variableEventStream.reconstruct() below — eu-stack on a W=32
+        // slow-mode rep shows 22% of JS threads at __sched_yield inside that
+        // spin (the exit fires INSIDE the held shard lock, so every spinning
+        // thread is a stalled critical section: 2.2× park inflation, +850 ms
+        // phaseA bimodal). Do the lock-free DCLP read FIRST: m_exits[i] is
+        // initialized to the process-singleton osrExitGenerationThunk
+        // (DFGPlan.cpp:834) and overwritten exactly once by setExitCode under
+        // dfgOSRExitGenerationLock; the move-assign writes m_codePtr (the
+        // single tagged word the JIT-emitted unlinked dispatch ALSO reads
+        // lock-free, DFGJITCompiler.cpp:147) FIRST, so a non-thunk codePtr
+        // implies the ramp's executable memory is fully constructed
+        // (FINALIZE_CODE's LinkBuffer fence) and held live by either the
+        // writer's stack-local exitCode or the m_exits slot's RefPtr. The
+        // thunk codePtr is cached in a function-static (process-lifetime CTI
+        // stub; thread-safe static-local init avoids the per-traversal
+        // JITThunks lock). Same value the under-lock check returned;
+        // DW-1 record above already ran (matching the under-lock early
+        // return's ordering). gilOff-only arm; flag-off byte-identical.
+        static void* const s_osrExitGenerationThunkCodePtr =
+            vm.getCTIStub(osrExitGenerationThunkGenerator).retaggedCode<OSRExitPtrTag>().taggedPtr();
+        void* publishedCodePtr = codeBlock->dfgJITData()->exitCode(exitIndex).code().taggedPtr();
+        if (publishedCodePtr && publishedCodePtr != s_osrExitGenerationThunkCodePtr) [[likely]] {
+            WTF::loadLoadFence(); // pairs with FINALIZE_CODE's publish + the storeStoreFence before setExitCode.
+            vm.group3Primitives().osrExitJumpDestination = publishedCodePtr;
+            return;
+        }
+    }
 
     ASSERT(!vm.group3Primitives().callFrameForCatch || exit.m_kind == GenericUnwind); // UNGIL §A.1.3 mode split.
     EXCEPTION_ASSERT_UNUSED(scope, !!scope.exception() || !exit.isOSRExitDueToException());
-    
+
     // Compute the value recoveries.
     Operands<ValueRecovery> operands;
-    codeBlock->jitCode()->dfg()->variableEventStream.reconstruct(codeBlock, exit.m_codeOrigin, codeBlock->jitCode()->dfg()->minifiedDFG, exit.m_streamIndex, operands);
+    dfgJIT->variableEventStream.reconstruct(codeBlock, exit.m_codeOrigin, dfgJIT->minifiedDFG, exit.m_streamIndex, operands);
 
     SpeculationRecovery* recovery = nullptr;
     if (exit.m_recoveryIndex != UINT_MAX)
-        recovery = &codeBlock->jitCode()->dfg()->m_speculationRecovery[exit.m_recoveryIndex];
+        recovery = &dfgJIT->m_speculationRecovery[exit.m_recoveryIndex];
 
     // UNGIL U-T4a (DFG sibling of ftlOSRExitGenerationLock, same rank and
     // discipline): gilOff, N threads can fire the SAME not-yet-compiled exit
@@ -287,6 +325,14 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
                 exitIndex, exit.m_dfgNodeIndex, toCString(exit.m_codeOrigin).data(),
                 toCString(exit.m_kind).data(), toCString(*codeBlock).data(),
                 toCString(ignoringContext<DumpContext>(operands)).data());
+        // SCALEBENCH §36 dfg-osrexit-genlock-dclp-precheck: pair with the
+        // gilOff lock-free reader's loadLoadFence above (and the JIT-emitted
+        // unlinked-DFG farJump that reads m_codePtr directly). LinkBuffer's
+        // performFinalization already issued a crossModifyingCodeFence for
+        // i-cache coherence; this fence orders the slot's m_codePtr store
+        // after the ramp's executable-memory writes for d-side readers.
+        // Once-per-exit-compile; flag-off output-identical.
+        WTF::storeStoreFence();
         codeBlock->dfgJITData()->setExitCode(exitIndex, exitCode);
     }
 

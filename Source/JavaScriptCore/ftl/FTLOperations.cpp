@@ -964,7 +964,15 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileFTLLazySlowPath, void*, (CallF
     DeferGCForAWhile deferGC(vm);
 
     CodeBlock* codeBlock = callFrame->codeBlock();
-    JITCode* jitCode = codeBlock->jitCode()->ftl();
+    // SCALEBENCH §36 jitcode-refptr-bounce-14pct: gilOff U-T4b leaves the
+    // patchable jump unpatched, so this operation runs on EVERY FTL slow-path
+    // traversal forever; perf annotate puts 76% of this function's 13% W=16
+    // self time on the `lock incl 0x8(jitCode)` from the by-value jitCode()
+    // (FLAT-GAP-EVIDENCE round 2 §(1)). codeBlock is conservatively-live on
+    // this stack and pins its JITCode; raw read is the same pointer the
+    // by-value temporary held. Flag-off output-identical (one fewer
+    // inc/dec on a single-threaded refcount).
+    JITCode* jitCode = codeBlock->jitCodeRawPtr()->ftl();
 
     LazySlowPath& lazySlowPath = *jitCode->lazySlowPaths[index];
 

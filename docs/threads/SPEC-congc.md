@@ -1,6 +1,10 @@
-# SPEC-congc.md - N-MUTATOR CONCURRENT GC (draft rev 12)
+# SPEC-congc.md - N-MUTATOR CONCURRENT GC (draft rev 13)
 
-Status: DRAFT rev 12 — NOT converged. Rev 12 = directed round
+Status: DRAFT rev 13 — NOT converged. Rev 13 = §7.1a gilOff
+single-handoff (gc-sharedheap-zero-concurrent-overlap-now-11pct;
+SCALEBENCH §35 round-2 / §27.S2 re-evaluation on 56b8f886e000):
+bounded one-Concurrent-window-per-cycle subset of C1, gilOff-
+only, C1R OFF; rev 12 below stands. Rev 12 = directed round
 4: gate RE-CONFIRMED UNMET — all four §13.5(5) gates stay
 OPEN on the SPEC-ungil/-nativeaffinity owners; CG-7 still owes
 ONLY a rev-7/8 delta pass (rev 12 log); cite fix :4628->:4627
@@ -388,6 +392,32 @@ windows; the conductor runs the §3.7 wait — NEITHER legacy arm
 used when ISS (ANNEX CGD1.3). Requires: §5 + §6 complete; §8
 audit executed; §9.1 pause protocol. Conductor remains the §10.2
 requester.
+
+### 7.1a gilOff single-handoff (rev 13; SCALEBENCH §35 round-2)
+
+A BOUNDED subset of C1, gilOff-process only, NO §13.2 flag: the
+§3 windowed conduct machinery (Reentry/non-final close/§3.7
+wait/F46/CG-I11 per-cycle reclaim placement) is live whenever
+`gilOffProcess` (predicate `sharedGCWindowedConductActive()` =
+`sharedGCWindowedStagesEnabled() || gilOffProcess`,
+`Heap.cpp:199`); `runFixpointPhase` schedules AT MOST ONE
+Concurrent window per cycle (conductor-thread-local cap, reset
+per `runBeginPhase`); C1R stays OFF — barriers keep the F44
+multi-producer server-stack append (Msm-merged at the Reentry
+fixpoint) and the F19 always-fenced master holds, so §5.2's
+re-whiten CAS path covers between-window N-mutator barriers
+without CMS routing (F44: CMS is contention-only).
+Re-evaluation of §27.S2: at v33 STW was 5.4% of W=16 wall and
+unbounded handoffs added ~30 reentries (+1.8% net); on
+56b8f886e000 round-1's denominator shrink leaves the same
+~143 ms STW = 11.0% of 1291 ms (W-invariant 12-16 stops; 45% of
+the residual JS->Java gap), and the per-cycle cap bounds extra
+rendezvous to #cycles. Correctness = §6.2 + §8.1 verbatim
+(Cs/Wlr GreyedByExecution re-run post-Reentry on the bumped
+`m_phaseVersion`; CG-I6 LA flush per window). Flag-off/GIL-on:
+`gilOffProcess` false, predicate degenerates to
+`sharedGCWindowedStagesEnabled()`, byte-for-byte the §27.S2
+default (CG-I0).
 
 ### 7.2 C2 — collector continuity + activity-callback collection
 

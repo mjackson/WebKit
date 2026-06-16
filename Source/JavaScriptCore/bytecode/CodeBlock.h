@@ -367,6 +367,18 @@ public:
     }
 
     RefPtr<JSC::JITCode> jitCode() { return m_jitCode.get(); }
+    // SCALEBENCH §36 jitcode-refptr-bounce-14pct: jitCode() returns a fresh
+    // RefPtr by VALUE, so every call is a `lock incl/decl m_refCount`. Under
+    // gilOff the U-T4b lazy-slow-path / DFG OSR-exit steady states and the
+    // hold-vmEntry-trampoline fast path call jitCode() on a SHARED CodeBlock
+    // millions of times from N threads — perf annotate attributes ~14.4% of
+    // W=16 on-CPU time to that one cache-line bounce (FLAT-GAP-EVIDENCE
+    // round 2 §(1)). The CodeBlock pins m_jitCode for its lifetime and every
+    // such call site holds the CodeBlock conservatively-live on its stack, so
+    // a raw read needs no ref. Same consume-ordered ConcurrentJITCodePtr load
+    // as jitType() below. Flag-off this is a strict subset of the
+    // ref-then-get-then-deref the by-value accessor did; output-identical.
+    JSC::JITCode* jitCodeRawPtr() const LIFETIME_BOUND { return m_jitCode.get(); }
     static constexpr ptrdiff_t jitCodeOffset() { return OBJECT_OFFSETOF(CodeBlock, m_jitCode); }
     JITType jitType() const
     {

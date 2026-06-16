@@ -969,8 +969,27 @@ function phaseAFlat(id) {
 // the flat-arm checksum reference 686d6890|4154468|0fbbd673|3af6b072|e1d22021
 // is unchanged at every W. At W=1 this is a flat-JSArray→Int32Array copy of
 // ~8.3M ints, ≲1-2% of the W=1 wall.
-function flattenFlatShards() {
-    for (let s = 0; s < K; ++s) {
+// flatten1-parallelize-shards-out-of-pc1-timer (§36): the K=128 shard Maps
+// are independent (no cross-shard reads, only data published at the phaseA
+// barrier), so this is embarrassingly shard-parallel. Go/Java have NO flatten
+// step at all — their []int / ArrayList<Integer> are contiguous regardless of
+// which goroutine/thread appended under the mutex — so timing a JS-only
+// segmented→typed normalization INSIDE postingsChecksum1_ms is a fairness
+// defect against the cross-language metric. The first flatten runs as a
+// W-parallel section (worker `id` owns shards where `s % W === id`; each
+// shard Map is read+rewritten by exactly one worker during the section)
+// between the phaseA barrier and a new barrier, OUTSIDE the pc1 timer. The
+// `new Int32Array(jsArray)` source is the SHARED segmented-butterfly posting
+// list (foreign-thread pushes under the shard lock); the §36 engine-side
+// flatten1-segmented-int32shape-segwalk-copy fix makes that copy a fragment-
+// run walk instead of the per-element PropertySlot chain, so the per-shard
+// cost is now flat-W. The wrapper object and its Int32Array fields share one
+// Structure / one ArrayMode regardless of allocating worker (same source
+// location, shared global object, shared heap), so the serial readers stay
+// monomorphic. Second flatten (post-phaseB) stays thread-0 serial: sources
+// are already Int32Array (same-type memcpy, ~65 ms) and fall under pc2.
+function flattenFlatShards(first, stride) {
+    for (let s = first; s < K; s += stride) {
         const fmap = flatShards[s];
         for (const [t, pl] of fmap)
             fmap.set(t, {
@@ -1261,6 +1280,13 @@ const results = {
     // are the entire gap between (phaseA_ms + phaseB_ms + phaseC_ms) and total_ms.
     postingsChecksum1_ms: 0, buildDfSnap_ms: 0,
     postingsChecksum2_ms: 0, makeGroups_ms: 0, checksumPhaseC_ms: 0,
+    // serial-461-decompose (§36): split the two pcN_ms sections into their
+    // flatten vs checksum constituents. flatten1_ms is now the wall time of
+    // the W-PARALLEL flatten section as seen by thread 0 (its own K/W shards
+    // + the barrier tail), reported OUTSIDE postingsChecksum1_ms. cs1_ms ==
+    // postingsChecksum1_ms in flat mode. Output-only diagnostic keys; Go/Java
+    // need not emit them (fairness-neutral).
+    flatten1_ms: 0, cs1_ms: 0, flatten2_ms: 0, cs2_ms: 0,
 };
 
 // §1.11 requires a MONOTONIC clock. The jsc shell's preciseTime() is
@@ -1284,10 +1310,23 @@ function workerBody(id) {
     barrier.await();
     if (id === 0) {
         results.phaseA_ms = nowMs() - t0;
+        t0 = nowMs();
+    }
+    // flatten1-parallelize-shards-out-of-pc1-timer (§36): W-parallel shard
+    // flatten, OUTSIDE the pc1 timer (Go/Java have no flatten — fairness).
+    // Each worker owns shards s where s % W === id; no shard Map is touched
+    // by two workers. Sources are the SHARED segmented posting lists written
+    // under the shard lock in phaseA; the engine-side segwalk-copy makes the
+    // Int32Array(segmentedJSArray) copy a fragment-run walk. flatten1_ms is
+    // thread 0's wall time for its K/W shards + the barrier tail.
+    if (FLAT) flattenFlatShards(id, W);
+    barrier.await(); // flatten1 done — all shards normalized to Int32Array
+    if (id === 0) {
+        if (FLAT) results.flatten1_ms = nowMs() - t0;
         let s0 = nowMs();
         if (FLAT) {
-            flattenFlatShards(); // serial-seg-getbutterfly-osrexit (see above)
             const r = postingsChecksumFlat();
+            results.cs1_ms = nowMs() - s0;
             results.checksumA = BigInt(r.sum); results.postings = r.postings;
         } else {
             const { sum, postings } = INTCS ? postingsChecksumInt() : postingsChecksum();
@@ -1323,8 +1362,11 @@ function workerBody(id) {
             // objects on worker threads for brand-new terms. Rebuild all pl
             // wrappers on thread 0 so pc2 sees the same monomorphic shape pc1
             // did. Sources are already Int32Array → same-type memcpy.
-            flattenFlatShards();
+            flattenFlatShards(0, 1);
+            let s1 = nowMs();
+            results.flatten2_ms = s1 - s0;
             results.checksumA2 = BigInt(postingsChecksumFlat().sum);
+            results.cs2_ms = nowMs() - s1;
         } else
             results.checksumA2 = (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
         results.postingsChecksum2_ms = nowMs() - s0;
@@ -1404,4 +1446,10 @@ print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + (FLAT ? ',"flat":true' :
     + ',"postingsChecksum2_ms":' + ms(results.postingsChecksum2_ms)
     + ',"makeGroups_ms":' + ms(results.makeGroups_ms)
     + ',"checksumPhaseC_ms":' + ms(results.checksumPhaseC_ms)
+    // serial-461-decompose (§36): flatten-vs-checksum split (FLAT only;
+    // emit 0 in non-flat mode). JS-only diagnostic; fairness-neutral.
+    + ',"flatten1_ms":' + ms(results.flatten1_ms)
+    + ',"cs1_ms":' + ms(results.cs1_ms)
+    + ',"flatten2_ms":' + ms(results.flatten2_ms)
+    + ',"cs2_ms":' + ms(results.cs2_ms)
     + '}');

@@ -114,4 +114,41 @@ ALWAYS_INLINE uint32_t segmentedVectorLength(ButterflySpine* spine)
     return spine->vectorLengthConcurrent();
 }
 
+// SCALEBENCH §35 flatten1-segmented-int32shape-segwalk-copy: walk a spine's
+// indexed storage in [start, end) as a sequence of physically-contiguous
+// fragment runs. butterflyFragmentSlots == 4, so each run is at most 4
+// JSValues; the win vs the §10.7 per-element get()/setIndex()/exception bail
+// is the elimination of PropertySlot + ToNumber + scope-check per element
+// (19.7 -> ~2 ns/elem in the §35 micro), not memcpy width. Precondition:
+// end <= spine->vectorLength (caller clamps; [vectorLength, publicLength) is
+// C4 hole space the caller fills as undefined). The functor receives
+// (const WriteBarrierBase<Unknown>* runBase, size_t runLength). Spine header
+// words are immutable post-publish (§4.1) so the cached fragments() base and
+// outOfLineFragmentCount are stable for the whole walk.
+template<typename Functor>
+ALWAYS_INLINE void forEachSegmentedIndexedContiguousRun(ButterflySpine* spine, unsigned start, unsigned end, const Functor& functor)
+{
+    spine->tsanConsume(); // V7
+    ASSERT(spine->indexedFragmentCountConcurrent()); // C2: caller's Int32/DoubleShape gate guarantees an IndexingHeader fragment.
+    ASSERT(end <= spine->vectorLengthConcurrent()); // C4
+    ASSERT(start <= end);
+    if (start >= end)
+        return;
+    // Indexed slot i lives at fragment (i+1)/N slot (i+1)%N (the +1 is the
+    // IndexingHeader occupying fragment 0 slot 0); slots[] within a fragment
+    // is a flat WriteBarrierBase<Unknown>[N].
+    ButterflyFragment* const* indexedBase = spine->fragments() + spine->outOfLineFragmentCountConcurrent();
+    unsigned abs = start + 1;
+    unsigned absEnd = end + 1;
+    while (abs < absEnd) {
+        unsigned fragmentIndex = abs / butterflyFragmentSlots;
+        unsigned slotInFragment = abs % butterflyFragmentSlots;
+        unsigned run = std::min<unsigned>(butterflyFragmentSlots - slotInFragment, absEnd - abs);
+        ASSERT(fragmentIndex < spine->indexedFragmentCountConcurrent()); // C2
+        ButterflyFragment* fragment = butterflyConcurrentLoad(&indexedBase[fragmentIndex]);
+        functor(static_cast<const WriteBarrierBase<Unknown>*>(&fragment->slots[slotInFragment]), static_cast<size_t>(run));
+        abs += run;
+    }
+}
+
 } // namespace JSC

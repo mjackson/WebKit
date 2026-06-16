@@ -157,6 +157,63 @@ void jsThreadsBumpStopGeneration(); // ANNEX ISB1.1 (VMLite.cpp); bumped by EVER
 bool jsThreadsModeStopGatesCurrentThread(VM&); // SPEC-ungil §A.3.2b(i): Mode-machine stop bit gates fresh access (VMManager.cpp).
 void jsThreadsParkForModeStop(VM&); // §A.3.2b(i) NVS park until the Mode machine resumes; pre: caller holds NO heap access.
 
+// ===== gc-sharedheap-zero-concurrent-overlap-now-11pct (SPEC-congc §7.1a) =====
+//
+// SCALEBENCH §35 round-2 measured Σp = Σcycle (zero mutator/marker overlap)
+// under the pinned GIL-off env: every shared collection is a single STW
+// window (§3.6 degenerate), and the i#1 root pass (Cs/Msr/Wlr/Msm) + bulk
+// drainInParallel runs with all W siblings parked. At W=16 that fixed STW
+// floor is ~143 ms = 11.0% of the 1291 ms wall — 45% of the residual JS->Java
+// gap (Java W=16 = 976 ms). §27.S2 had previously REFUTED defaulting the full
+// stage-C1 flag because at that tree (a) STW was only 5.4% of wall and (b)
+// the unbounded scheduler-driven Concurrent handoffs added ~30 extra Reentry
+// rendezvous per run (~9 ms each at W=16), eating the saving. Round-1's
+// denominator shrink makes (a) no longer hold; (b) is the structural defect
+// this lever bounds.
+//
+// sharedGCWindowedConductActive(): the §3 windowed conduct machinery
+// (Reentry open / non-final close / §3.7 wait / F46 per-window atom-table
+// pin / per-cycle reclaim placement) is live whenever a §13.2 stage flag is
+// on OR the process is GIL-off. Under the gilOff arm the machinery runs in a
+// BOUNDED single-handoff shape (§7.1a):
+//  - runFixpointPhase schedules AT MOST ONE Concurrent phase per cycle
+//    (t_sharedGCConcurrentHandoffsThisCycle, conductor-thread-local; reset in
+//    runBeginPhase's gilOff block) — the §27.S2(b) bound: extra rendezvous
+//    per conduct = #cycles, not scheduler-driven;
+//  - C1R stays OFF (sharedGCBarrierStateIsPerClient() unchanged): barriers
+//    keep the F44 multi-producer server-stack append, drained at the Reentry
+//    window's Msm constraint pass; the F19 server-master always-fenced pin
+//    holds under gilOff (setMutatorShouldBeFenced's `|| isGILOffProcess()`
+//    arm), so addToRememberedSet's unfenced ASSERT(isMarked) is unreachable
+//    and the fenced re-whiten CAS path (mutator-count-independent, §5.2
+//    CG-T3) covers between-window barrier execution. SPEC-congc §5.2/F44
+//    states CMS is contention/accounting only, NOT a soundness gate — so the
+//    single-handoff mode's correctness rests on the same §6.2 + §8.1 rules
+//    as full C1: Wlr/Cs are GreyedByExecution and re-run at the post-Reentry
+//    fixpoint (m_phaseVersion bumped by the Concurrent->Reloop edge), and
+//    every per-client LA is re-flushed by the Reentry stopThePeriphery
+//    (CG-I6 once-per-window pairing).
+// Flag-off (useJSThreads=0 / useThreadGIL=1): VM::isGILOffProcess() is false,
+// the predicate degenerates to sharedGCWindowedStagesEnabled() and every arm
+// keyed on it stays byte-for-byte the §27.S2 default (CG-I0).
+//
+// File-local mirror of Heap::sharedGCWindowedStagesEnabled() (private; the
+// option disjunction below MUST track Heap.h:1411 — both are the §13.2
+// stage-flag list, validated by Options.cpp's prefix-rule check).
+static ALWAYS_INLINE bool sharedGCWindowedConductActive()
+{
+    return Options::useConcurrentSharedGCMarking() || Options::useSharedGCCollectorThread()
+        || Options::useSharedGCIncrementalSweep() || Options::useSharedGCMutatorAssist()
+        || VM::isGILOffProcess();
+}
+
+// Conductor-thread-local per-cycle handoff cap (§7.1a). Written and read only
+// on the §3.7 closed-loop conductor thread (one cycle = one thread; CG-I19);
+// reset at runBeginPhase's gilOff block, bumped at the runFixpointPhase
+// gilOff scheduling arm. Unused outside gilOff (the C1 stage-flag arm is
+// scheduler-driven, not capped).
+static thread_local unsigned t_sharedGCConcurrentHandoffsThisCycle { 0 };
+
 // NEVER_INLINE to prevent LTO from inlining this function, which can break
 // compiler barriers in MarkedBlock::isMarked on x86_64.
 NEVER_INLINE bool Heap::isMarked(const void* rawCell)
@@ -2071,6 +2128,12 @@ NEVER_INLINE bool Heap::runBeginPhase(GCConductor conn)
     // the fallback already had.
     if (VM::isGILOffProcess()) [[unlikely]] {
         m_siblingSlotVisitorPoolMayGrow.store(true, std::memory_order_relaxed);
+        // §7.1a single-handoff: per-CYCLE cap reset, conductor-thread-local
+        // (this thread runs the whole cycle as a §3.7 closed loop; CG-I19).
+        // Reset BEFORE the m_markingMutex acquire so the value is published
+        // by the same release edge that publishes assistEnabled; consumed
+        // only by this same thread in runFixpointPhase below.
+        t_sharedGCConcurrentHandoffsThisCycle = 0;
         Locker locker { m_markingMutex };
         m_siblingMarkingAssistEnabled = true;
     }
@@ -2201,18 +2264,44 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         return true;
 
     // SharedGC (deviation 4, T5) — RETIRED BY STAGE C1 (SPEC-congc §7.1,
-    // CG-3a): with useConcurrentSharedGCMarking off, no concurrent-marking
-    // window once shared — the conducted collection is fully synchronous, so
-    // never resume the world into CollectorPhase::Concurrent; keep draining
-    // at the fixpoint until termination (the world stays suspended
-    // Begin..End; §3.6 degenerate, CG-I0). With the C1 stage flag on, the
-    // conduct tenure may schedule Concurrent — but ONLY when
-    // numberOfGCMarkers() >= 2 (§3.7/ANNEX CGD1.3 zero-helper rule: the
-    // conductor's between-window wait is passive; with no helpers nobody
-    // would drain and waitForTermination would park until the scheduler
-    // timeout every window for no progress).
+    // CG-3a) and the §7.1a gilOff single-handoff: with both off, no
+    // concurrent-marking window once shared — the conducted collection is
+    // fully synchronous, so never resume the world into
+    // CollectorPhase::Concurrent; keep draining at the fixpoint until
+    // termination (the world stays suspended Begin..End; §3.6 degenerate,
+    // CG-I0). With the C1 stage flag on, the conduct tenure may schedule
+    // Concurrent — but ONLY when numberOfGCMarkers() >= 2 (§3.7/ANNEX
+    // CGD1.3 zero-helper rule: the conductor's between-window wait is
+    // passive; with no helpers nobody would drain and waitForTermination
+    // would park until the scheduler timeout every window for no progress).
+    //
+    // §7.1a gilOff single-handoff arm (gc-sharedheap-zero-concurrent-overlap-
+    // now-11pct; SCALEBENCH §35 round-2 / §27.S2 re-evaluation): under
+    // gilOff WITHOUT the C1 stage flag, schedule AT MOST ONE Concurrent
+    // window per cycle — the i#1 root pass (Cs/Msr/Wlr/Msm) + the bulk
+    // drainInParallel above have already executed in-window; the one
+    // Concurrent handoff lets the W siblings run JS while the heapHelperPool
+    // drains (between-window barriers land in the F44 multi-producer server
+    // stack and are merged at the Reentry window's Msm convergence pass);
+    // the post-Reentry fixpoint then re-runs Cs/Wlr (GreyedByExecution,
+    // m_phaseVersion-keyed) and converges in-window. This bounds extra
+    // rendezvous to exactly #cycles (the §27.S2(b) defect: unbounded
+    // scheduler-driven handoffs added ~30 reentries/run at ~9 ms each and
+    // net-regressed). C1R stays OFF — F19 keeps the server fence master
+    // always-true under gilOff, so addToRememberedSet's fenced re-whiten
+    // CAS path covers N-mutator between-window barriers without per-client
+    // CMS routing (§5.2/F44: CMS is contention-only, not a soundness gate).
+    // Same >=2-marker rule (§3.7). Flag-off: VM::isGILOffProcess() is false,
+    // this arm is dead, behavior identical to the §27.S2 default.
     if (isSharedServer()) [[unlikely]] {
-        if (!Options::useConcurrentSharedGCMarking() || Options::numberOfGCMarkers() < 2)
+        if (Options::useConcurrentSharedGCMarking()) {
+            if (Options::numberOfGCMarkers() < 2)
+                return true;
+        } else if (VM::isGILOffProcess()) {
+            if (Options::numberOfGCMarkers() < 2 || t_sharedGCConcurrentHandoffsThisCycle)
+                return true;
+            t_sharedGCConcurrentHandoffsThisCycle++;
+        } else
             return true;
     }
 
@@ -2248,8 +2337,9 @@ NEVER_INLINE bool Heap::runConcurrentPhase(GCConductor conn)
     // Concurrent -> Reloop suspend edge is the WND-reopen (§3.1 Reentry).
     if (isSharedServer()) [[unlikely]] {
         // Reachable only via the retired runFixpointPhase kill switch, which
-        // requires the C1 flag + >= 2 markers (§3.7).
-        RELEASE_ASSERT(Options::useConcurrentSharedGCMarking());
+        // requires the C1 flag OR the §7.1a gilOff single-handoff, + >= 2
+        // markers (§3.7).
+        RELEASE_ASSERT(Options::useConcurrentSharedGCMarking() || VM::isGILOffProcess());
         RELEASE_ASSERT(Options::numberOfGCMarkers() >= 2);
         // §10B.2: the conn is pinned Mutator in stages C0-C1 (the collector
         // thread stays quiesced until C2/CG-4).
@@ -2539,7 +2629,12 @@ NEVER_INLINE bool Heap::finishChangingPhase(GCConductor conn)
     // close / F28 successor handling in conductSharedCollection (no
     // non-final close there). Concurrent is the only phase a conduct tenure
     // passes through with the world resumed, so this is exhaustive.
-    bool windowedConcurrentMarking = isSharedServer() && Options::useConcurrentSharedGCMarking();
+    // §7.1a: the gilOff single-handoff arm activates the same WND-close /
+    // WND-reopen pairing on the Concurrent edge as the C1 stage flag (the
+    // ONE handoff per cycle scheduled by runFixpointPhase reaches here via
+    // changePhase(Concurrent)); flag-off VM::isGILOffProcess() is false and
+    // the predicate is the §27.S2 default (CG-I0).
+    bool windowedConcurrentMarking = isSharedServer() && (Options::useConcurrentSharedGCMarking() || VM::isGILOffProcess());
     bool deferredNonFinalWindowClose = false;
 
     if (suspendedBefore != suspendedAfter) {
@@ -6272,7 +6367,7 @@ void Heap::openSharedGCStopWindow(GCClient::Heap& conductorClient, SharedGCWindo
     RELEASE_ASSERT(!m_gcStopPending.load(std::memory_order_seq_cst));
 
     if (openKind == SharedGCWindowOpen::Reentry) {
-        RELEASE_ASSERT(sharedGCWindowedStagesEnabled()); // Flag-dead at C0 (CG-I0).
+        RELEASE_ASSERT(sharedGCWindowedConductActive()); // Flag-dead at C0 (CG-I0); §7.1a gilOff single-handoff also reaches Reentry.
         ASSERT(!conductorClient.hasHeapAccess()); // §3.7: released all tenure.
         // §9.1(2a) GCL FAIRNESS (F45; ANNEX CGD7.2): the landed §A.3
         // acquisition is an unqueued 1ms tryLock poll with no queue position;
@@ -6425,7 +6520,7 @@ void Heap::openSharedGCStopWindow(GCClient::Heap& conductorClient, SharedGCWindo
     // conductSharedCollection stands byte-for-byte (CG-I0); consumers
     // (finalize(), deleteUnmarkedCompiledCode, the step-7 phase loop) are all
     // in-window (§8.1), so no consumer loses coverage.
-    if (sharedGCWindowedStagesEnabled()) {
+    if (sharedGCWindowedConductActive()) {
         WTF::AtomStringTable* previous = Thread::currentSingleton().setCurrentAtomStringTable(vm().atomStringTable());
         if (openKind == SharedGCWindowOpen::FirstWindow || openKind == SharedGCWindowOpen::TicketDrainSuccessor) {
             // Tenure-original table (the successor starts a NEW tenure on the
@@ -6528,7 +6623,7 @@ void Heap::closeSharedGCStopWindow(bool isFinalClose) WTF_IGNORES_THREAD_SAFETY_
     // create/deref (CG-I27) — debug builds null the conductor's table so any
     // violation crashes deterministically. Flag-off: dead (the tenure-wide
     // install in conductSharedCollection restores at function return).
-    if (sharedGCWindowedStagesEnabled()) {
+    if (sharedGCWindowedConductActive()) {
         if (isFinalClose) {
             Thread::currentSingleton().setCurrentAtomStringTable(m_sharedGCWindowSavedAtomStringTable);
             m_sharedGCWindowSavedAtomStringTable = nullptr;
@@ -6554,7 +6649,7 @@ void Heap::closeSharedGCStopWindow(bool isFinalClose) WTF_IGNORES_THREAD_SAFETY_
     VMManager::requestResumeAll(VMManager::StopReason::GC);
 
     if (!isFinalClose) {
-        RELEASE_ASSERT(sharedGCWindowedStagesEnabled()); // Flag-dead at C0 (CG-I0: one window per conduct).
+        RELEASE_ASSERT(sharedGCWindowedConductActive()); // Flag-dead at C0 (CG-I0: one window per conduct); §7.1a gilOff single-handoff also reaches the non-final close.
         // CG-I12: GCL released between windows — what lets a JSThreads stop
         // interleave (§9.1(1)). F22: the phase stores above (wired by CG-3)
         // completed before this release.
@@ -6576,8 +6671,9 @@ void Heap::waitBetweenSharedGCWindows()
     // Wake-ups: helper notifyAll + the scheduler timeout.
     // numberOfGCMarkers()==1: Concurrent is NEVER scheduled (a passive
     // conductor would wait forever — nobody drains), per §3.7.
-    // Flag-dead at C0; CG-3 calls this from runConcurrentPhase's ISS arm.
-    RELEASE_ASSERT(sharedGCWindowedStagesEnabled());
+    // Flag-dead at C0; CG-3 calls this from runConcurrentPhase's ISS arm
+    // (also reached under the §7.1a gilOff single-handoff).
+    RELEASE_ASSERT(sharedGCWindowedConductActive());
     m_collectorSlotVisitor->donateAll();
     m_collectorSlotVisitor->waitForTermination(m_scheduler->timeToStop());
 }
@@ -6632,11 +6728,11 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // WSAC / WND-close before GCL release — see the open/close helpers);
     // between windows the §3.7 closed loop takes no atom operations
     // (CG-I27).
-    auto* previousAtomStringTable = sharedGCWindowedStagesEnabled()
+    auto* previousAtomStringTable = sharedGCWindowedConductActive()
         ? nullptr
         : Thread::currentSingleton().setCurrentAtomStringTable(vm().atomStringTable());
     auto atomStringTableScopeExit = makeScopeExit([&] {
-        if (!sharedGCWindowedStagesEnabled())
+        if (!sharedGCWindowedConductActive())
             Thread::currentSingleton().setCurrentAtomStringTable(previousAtomStringTable);
     });
 
@@ -6768,7 +6864,7 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
         //      bump and WSAC/GSP clears AFTER this point — the CG-I23 /
         //      CG-T8 F35 sub-arm order. Satisfies D1/D1R verbatim (CGS1
         //      closing note; CGD5.1(4)).
-        if (sharedGCWindowedStagesEnabled()) [[unlikely]] {
+        if (sharedGCWindowedConductActive()) [[unlikely]] {
             runSafepointHooksAndReclaim();
             runTIDRebiasIfSnapshotSealed(cycleWasFull);
             // T4(d): per-cycle, still inside the cycle's final window (WSAC
@@ -6786,7 +6882,7 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // skipped when isSharedServer()), followed by the §11 reclaim sequence
     // (I11) under the reclaimer's own compiler-thread suspension, then the
     // §D.1 rebias on the landed per-conduct aggregate.
-    if (!sharedGCWindowedStagesEnabled()) {
+    if (!sharedGCWindowedConductActive()) {
         runSafepointHooksAndReclaim();
         runTIDRebiasIfSnapshotSealed(sawFullCollectionThisStop);
         // T4(d): world-stopped physical reclamation — the only point in the

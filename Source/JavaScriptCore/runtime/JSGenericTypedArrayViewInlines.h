@@ -476,19 +476,120 @@ bool JSGenericTypedArrayView<Adaptor>::setFromArrayLike(JSGlobalObject* globalOb
             // tagged/segmented word must not be dereferenced as a flat
             // butterfly by copyFromInt32ShapeArray/copyFromDoubleShapeArray
             // (spine-as-flat deref = OOB; typedArray.set(sharedArray) is the
-            // canonical attack). Bail to the generic per-element loop below,
-            // which lands in §9.5-dispatched accessors.
-            if (!array->mayBeSegmentedButterfly() && safeLength == length && (safeLength + objectOffset) <= array->length() && array->isIteratorProtocolFastAndNonObservable()) {
+            // canonical attack). The old §10.7 fix bailed to the generic
+            // per-element loop below — the §35 flatten1 19.7 ns/elem path
+            // (get() -> PropertySlot -> spine indirection, then setIndex()
+            // ToNumber + RETURN_IF_EXCEPTION every iteration). The segmented
+            // arm walks fragment runs directly (§9.3 spine layout, immutable
+            // post-publish) and reuses the flat copyElements/nativeFromInt32
+            // bodies per run. Flag-off mayBeSegmentedButterfly() is constant
+            // false (I22) so the else-arm is dead and the flat path is the
+            // unchanged byte-identical original.
+            if (safeLength == length && (safeLength + objectOffset) <= array->length() && array->isIteratorProtocolFastAndNonObservable()) {
                 IndexingType indexingType = array->indexingType() & IndexingShapeMask;
-                if (indexingType == Int32Shape) {
-                    copyFromInt32ShapeArray(offset, array, objectOffset, safeLength);
-                    return true;
+                if (!array->mayBeSegmentedButterfly()) {
+                    if (indexingType == Int32Shape) {
+                        copyFromInt32ShapeArray(offset, array, objectOffset, safeLength);
+                        return true;
+                    }
+                    if (indexingType == DoubleShape) {
+                        copyFromDoubleShapeArray(offset, array, objectOffset, safeLength);
+                        return true;
+                    }
                 }
-                if (indexingType == DoubleShape) {
-                    copyFromDoubleShapeArray(offset, array, objectOffset, safeLength);
-                    return true;
+#if USE(JSVALUE64)
+                else if (indexingType == Int32Shape || indexingType == DoubleShape) {
+                    // SCALEBENCH §35 flatten1-segmented-int32shape-segwalk-copy:
+                    // re-load the tagged word (mayBeSegmentedButterfly proved it
+                    // tagged a moment ago, but use ONE load for spine + bounds).
+                    uint64_t word = array->taggedButterflyWord();
+                    if (isSegmentedButterfly(word)) [[likely]] {
+                        ButterflySpine* spine = butterflySpine(word);
+                        // C4: [vectorLength, publicLength) reads as holes. Clamp
+                        // the fragment walk and fill the tail as undefined.
+                        unsigned spineEnd = static_cast<unsigned>(objectOffset + safeLength);
+                        unsigned walkEnd = std::min(spineEnd, segmentedVectorLength(spine));
+                        unsigned walkStart = std::min(static_cast<unsigned>(objectOffset), walkEnd);
+                        size_t dst = offset;
+                        if (indexingType == Int32Shape) {
+                            forEachSegmentedIndexedContiguousRun(spine, walkStart, walkEnd, [&](const WriteBarrierBase<Unknown>* run, size_t runLength) {
+                                if constexpr (Adaptor::typeValue == TypeUint8 || Adaptor::typeValue == TypeInt8)
+                                    WTF::copyElements(byteCast<uint8_t>(typedSpan().subspan(dst)), std::span { std::bit_cast<const uint64_t*>(run), runLength });
+                                else if constexpr (Adaptor::typeValue == TypeUint16 || Adaptor::typeValue == TypeInt16)
+                                    WTF::copyElements(spanReinterpretCast<uint16_t>(typedSpan().subspan(dst)), std::span { std::bit_cast<const uint64_t*>(run), runLength });
+                                else if constexpr (Adaptor::typeValue == TypeUint32 || Adaptor::typeValue == TypeInt32)
+                                    WTF::copyElements(spanReinterpretCast<uint32_t>(typedSpan().subspan(dst)), std::span { std::bit_cast<const uint64_t*>(run), runLength });
+                                else {
+                                    for (size_t k = 0; k < runLength; ++k) {
+                                        JSValue value = run[k].get();
+                                        if (!!value) [[likely]]
+                                            setIndexQuicklyToNativeValue(dst + k, Adaptor::toNativeFromInt32(value.asInt32()));
+                                        else
+                                            setIndexQuicklyToNativeValue(dst + k, Adaptor::toNativeFromUndefined());
+                                    }
+                                }
+                                dst += runLength;
+                            });
+                        } else {
+                            forEachSegmentedIndexedContiguousRun(spine, walkStart, walkEnd, [&](const WriteBarrierBase<Unknown>* run, size_t runLength) {
+                                const double* dRun = std::bit_cast<const double*>(run);
+                                if constexpr (Adaptor::typeValue == TypeFloat64 || Adaptor::typeValue == TypeFloat32)
+                                    WTF::copyElements(typedSpan().subspan(dst), std::span { dRun, runLength });
+                                else {
+                                    for (size_t k = 0; k < runLength; ++k)
+                                        setIndexQuicklyToNativeValue(dst + k, Adaptor::toNativeFromDouble(dRun[k]));
+                                }
+                                dst += runLength;
+                            });
+                        }
+                        // C4 hole tail [walkEnd, spineEnd): undefined-as-native.
+                        for (; dst < offset + safeLength; ++dst)
+                            setIndexQuicklyToNativeValue(dst, Adaptor::toNativeFromUndefined());
+                        return true;
+                    }
+                    // Raced flat between the two loads: fall through to generic.
                 }
+#endif
             }
+#if USE(JSVALUE64)
+            // SCALEBENCH §35 setFromArrayLike-seg-generic-get-4deep-vtable-pl:
+            // any JSArray that did not match a memcpy/segwalk arm above
+            // (ContiguousShape, segmented-word-raced-flat, or the
+            // iterator-protocol-fast gate rejected) used to fall through to
+            // the generic object->get(unsigned) loop, whose per-element cost
+            // is the FULL property-slot chain: PropertySlot ctor +
+            // methodTable()->getOwnPropertySlotByIndex vtable +
+            // JS_EXPORT_PRIVATE tryGetIndexQuicklyConcurrent PLT stub +
+            // frame. perf -F997 W=16 thread-0 attributes ~155 ms of
+            // flatten1's 280 ms to that 4-deep chain (8.31M elem @ ~30 ns)
+            // vs ~45 ms of actual segment-index work. The header-INLINE
+            // tryGetIndexQuickly already dispatches segmented Int32/Contig/
+            // Double with zero PLT/frame and we already hold the downcast
+            // JSArray*; call it directly. An empty return (hole / OOB /
+            // ArrayStorage / Undecided) falls back to the spec get() for
+            // that one index, so semantics are identical to the generic
+            // loop. Flag-off this block is dead (I22) and the original
+            // generic loop below is the unchanged byte-identical path.
+            if (Options::useJSThreads()) [[unlikely]] {
+                for (size_t i = 0; i < safeLength; ++i) {
+                    ASSERT(i + objectOffset <= MAX_ARRAY_INDEX);
+                    JSValue value = array->tryGetIndexQuickly(static_cast<unsigned>(i + objectOffset));
+                    if (!value) [[unlikely]] {
+                        value = array->get(globalObject, static_cast<unsigned>(i + objectOffset));
+                        RETURN_IF_EXCEPTION(scope, false);
+                    }
+                    success &= setIndex(globalObject, offset + i, value);
+                    RETURN_IF_EXCEPTION(scope, false);
+                }
+                for (size_t i = safeLength; i < length; ++i) {
+                    JSValue value = array->get(globalObject, static_cast<uint64_t>(i + objectOffset));
+                    RETURN_IF_EXCEPTION(scope, false);
+                    success &= setIndex(globalObject, offset + i, value);
+                    RETURN_IF_EXCEPTION(scope, false);
+                }
+                return success;
+            }
+#endif
         }
     }
 

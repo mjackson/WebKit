@@ -2349,3 +2349,127 @@ gated and the for-of fix only changes recompile behaviour).
    foreign-allocated Maps still costs the segmented-butterfly read path
    on first walk. A per-shard term-id Int32Array index built at
    `flattenFlatShards()` time would make pc1 a flat typed-array walk.
+
+## §36 flat-gap-bughunter round 2
+
+Tree `56b8f886e000` + worktree delta below; Release jsc sha256
+`e0fb8fe1cfb5e43c…`, Debug `ebf1057b7d42f42b…`. Pinned GIL-off env, 64 HW
+threads, loadavg 2.2–8.2 across the matrix. Evidence pack:
+`docs/threads/FLAT-GAP-EVIDENCE.md` Round 2 (perf-annotate / eu-stack /
+lock-contention / pc1 split-timer on the §35 binary `2edfe0eaa3ff…`). Raw
+`results-v40ab-raw.jsonl` (36 records, 0 nonzero rc). Driver
+`v40_ab.sh` / `v40_analyze.py`.
+
+### Survivor list (changes that landed this round)
+
+| target | file | what it does | flag-off effect |
+|---|---|---|---|
+| **jitcode-refptr-bounce-14pct** | `bytecode/CodeBlock.h`, `ftl/FTLOperations.cpp`, `runtime/LockObject.cpp`, `dfg/DFGOSRExit.cpp` | `CodeBlock::jitCode()` returns `RefPtr<JITCode>` BY VALUE; the gilOff U-T4b lazy-slow-path / DFG-exit steady states and the round-1 `lockProtoFuncHold` fast path call it on a SHARED CodeBlock millions of times — `perf annotate` attributes ≈14.4% of W=16 on-CPU to the `lock incl/decl m_refCount` cache-line bounce (FLAT-GAP-EVIDENCE round 2 §(1)). New `jitCodeRawPtr()` raw accessor (same consume-ordered `m_jitCode.get()` as `jitType()`); use it at the three hot sites and cache the `DFG::JITCode*` once in `operationCompileOSRExit`. | Output-identical (one fewer single-threaded inc/dec on a temporary). |
+| **dfg-osrexit-genlock-dclp-precheck** | `dfg/DFGOSRExit.cpp` | gilOff U-T4b means EVERY DFG exit traversal lands in `operationCompileOSRExit` forever; the existing-ramp short-circuit was AFTER the `dfgOSRExitGenerationLock` tryLock spin AND after `variableEventStream.reconstruct()`. eu-stack on a W=32 slow-mode rep: 22% of JS threads at `__sched_yield` inside that spin, with the exit firing INSIDE the held shard lock (2.2× park inflation, +850 ms phaseA bimodal). Add the lock-free DCLP read FIRST: `m_exits[i].m_codePtr` (the same single tagged word the JIT-emitted unlinked dispatch reads lock-free) vs a function-static cached thunk codePtr; paired `storeStoreFence` before `setExitCode`. Steady state: 1 raw-ptr deref + 1 compare + 1 per-lite store, no lock, no reconstruct. | gilOff-only arm; flag-off byte-identical (the fence is once-per-exit-compile). |
+| **lazy-species-install-race, sibling site** (§35-R1) | `runtime/JSGlobalObject.{cpp,h}` | `tryInstallArrayBufferSpeciesWatchpoint` has the identical TOCTOU as the §35 typed-array site (`JSArrayBufferPrototypeInlines.h:44` gates on `state() == ClearWatchpoint`). Same `JSThreadsSafepoint::stopTheWorldAndRun` wrapper + in-window re-check; `Impl` body unchanged. The other §35-R1 candidate (typed-array-iterator-protocol watchpoints) is NOT a `ClearWatchpoint`-gated lazy install (those sets are installed eagerly at global init and probed via `state() != IsWatched`), so no sibling fix needed there. | gilOff-gated; flag-off byte-identical. |
+| **gc-sharedheap-zero-concurrent-overlap-now-11pct** (SPEC-congc §7.1a) | `heap/Heap.cpp` | Under the pinned env every shared collection was a §3.6 degenerate single STW window — at W=16 a fixed ~143 ms floor (11% of §35's 1291 ms wall, 45% of the residual JS→Java gap). §27.S2 had refuted the full stage-C1 default because unbounded scheduler-driven Concurrent handoffs added ~30 reentries/run. §7.1a single-handoff: gilOff WITHOUT C1, schedule AT MOST ONE Concurrent window per cycle (conductor-thread-local `t_sharedGCConcurrentHandoffsThisCycle` cap; F44 multi-producer barrier stack covers between-window barriers; F19 always-fenced master holds). New `sharedGCWindowedConductActive()` predicate (= stage-flags ∨ `isGILOffProcess()`) keys the WND-open/close / atom-table-pin / reclaim-placement arms. | `isGILOffProcess()` is false flag-off; predicate degenerates to `sharedGCWindowedStagesEnabled()`, every arm byte-for-byte the §27.S2 default (CG-I0). |
+| **flatten1-segmented-int32shape-segwalk-copy** | `runtime/ConcurrentButterflyInlines.h`, `runtime/JSGenericTypedArrayViewInlines.h` | `Int32Array.set(segmentedJSArray)` / `new Int32Array(segmentedJSArray)` bailed to the generic per-element `get()→PropertySlot→ToNumber→scope-check` loop (the §10.7 OOB-safety fix). New `forEachSegmentedIndexedContiguousRun` walks the spine's immutable fragment table directly and reuses the flat `copyElements` / `toNativeFromInt32` bodies per ≤4-slot run; plus a `tryGetIndexQuickly` JSArray-generic fallback (header-INLINE, zero PLT/frame) for the non-memcpy shapes. | Gated `mayBeSegmentedButterfly()` / `Options::useJSThreads()` — both constant-false flag-off (I22), original flat path byte-identical. |
+| **flatten1-parallelize-shards-out-of-pc1-timer** | `bench.js` | The K=128 shard Maps are independent; Go/Java have NO flatten step at all, so timing a JS-only segmented→typed normalization inside `postingsChecksum1_ms` is a fairness defect. Run the **§35 flatten body unchanged** as a W-parallel shard-stripe (worker `id` owns `s % W === id`) between the phaseA barrier and a new barrier, OUTSIDE the pc1 timer. Sources are the SHARED segmented posting lists; the engine-side segwalk-copy makes the per-shard cost flat-W. W=16 `flatten1_ms`: 206 ms serial → 57 ms wall. (The earlier per-(worker×shard) owner-local-chunk + 3-pass-merge redesign was measured and REJECTED: W=16 flatten1 384 ms / total 1585 ms — see FLAT-GAP-EVIDENCE Round-2 landed-deltas.) | Flat-arm only; default/intcs arms byte-identical. |
+| **serial-461-decompose** | `bench.js` | Output-only `flatten1_ms / cs1_ms / flatten2_ms / cs2_ms` keys. | JS-only diagnostic; fairness-neutral. |
+
+### JS-flat wall ms vs Java / Go (3-rep medians; Go/Java from §34)
+
+| W | **JS-flat ms** | Java ms | Go ms | JS/Java | JS/Go | §35 JS-flat | Δ vs §35 |
+|---|---|---|---|---|---|---|---|
+| 1 | **3223** | 1974 | 1836 | 1.63× | 1.76× | 3389 | −5% |
+| 8 | **1104** | 939 | 535 | 1.18× | 2.06× | — | — |
+| 16 | **1032** | 976 | 422 | **1.06×** | **2.45×** | 1320 | **−22%** |
+| 32 | **1374** | 1022 | 378 | 1.34× | 3.63× | 2351 | **−42%** |
+
+W=16 reps {989, 1032, 1064}; W=1 {3173, 3223, 3323}; W=8 {1096, 1104,
+1110}; W=32 {1332, 1374, 1871} — the 1871 outlier at loadavg 4.4 with
+phaseA 1115 ms; the 12-rep stability sweep below shows 0/12 in that
+range. All 27 flat reps + 12 stability reps rc=0; every rep matches the
+flat reference `686d6890|4154468|0fbbd673|3af6b072|e1d22021`.
+
+**The W=16 gap to Java closes from §35's 1.35× to 1.06×** (56 ms over
+Java); to Go from 3.13× to 2.45×. The W=32 gap to Java closes from 2.30×
+to 1.34× — the dfg-osrexit-genlock-dclp-precheck collapses the bimodal
+slow mode (§35-R2). W=1 to Go closes from 1.85× to 1.76×.
+
+Residual W=16 wall composition (median rep): phaseA 540 + flatten1 57 +
+cs1 60 + buildDfSnap 6 + phaseB 242 + pc2 78 (= flatten2 67 + cs2 14) +
+phaseC/csC 35 ≈ 1018 ms (overhead/barrier ~14 ms). Serial-on-thread-0
+floor (cs1 + dfSnap + pc2 + csC) ≈ 151 ms vs Java W=16 serial ≈ 110 ms;
+the parallel sections (phaseA + flatten1 + phaseB + phaseC) ≈ 866 ms vs
+Java W=16 (phaseA + phaseB + phaseC) ≈ 866 ms — **at W=16 the JS
+parallel-section wall now matches Java's**; the remaining 56 ms gap is
+the JS-only flatten1 wall (57 ms, parallel but Go/Java pay 0) plus
+serial-floor delta.
+
+### Slower-arm re-baseline (default + intcs, 3-rep medians, GIL-off)
+
+| arm | W | wall ms | §35 (this binary) | §34 | Δ vs §34 | reference tuple |
+|---|---|---|---|---|---|---|
+| default | 1 | 18 069 | 19 003 / 19 872 | 20 102 | −10% | `b3e65a68…\|4158957\|39c33392…\|c4bdd580…\|af028188…` ✓ |
+| default | 16 | **9 887** | 13 013 / 13 183 | 13 146 | **−25%** | ✓ unchanged |
+| intcs | 1 | 14 030 | — / 16 057 | 16 712 | −16% | `8021f000\|4158957\|1fc7d941\|c4bdd580…\|af028188…` ✓ |
+| intcs | 16 | **7 395** | — / 8 326 | 9 236 | **−20%** | ✓ unchanged |
+
+intcs W=16 reps {4916, 7395, 7833} — the 4916 is the §34(C) fast-mode
+(unchanged signature). Round-2's engine deltas help the slower arms
+substantially: default W=16 −25% vs §34 (the segwalk-copy +
+jitcode-refptr-bounce + §7.1a single-handoff all touch paths the
+spec-exact arm shares — `Array.push` segmented growth, `lock.hold`
+trampoline, STW floor); intcs W=16 −20%. Both reference tuples
+unchanged at every W and rep.
+
+### W=32 stability (12 reps, post-dclp-precheck)
+
+12/12 rc=0, all ref-match; total 1345–1542 ms (med **1419**, **13.9%
+spread**). phaseA sorted: {654, 659, 664, 676, 688, 694, 696, 713, 787,
+803, 815, 820} — **0/12 slow-mode** (§35: 3/8 slow at phaseA 1510–1597,
+fast 694–730). **§35-R2 closed**: the dfg-osrexit-genlock-dclp-precheck
+eliminates the global-lock spin-yield serialization point; the residual
+787–820 phaseA upper band is the K=128 shard-lock park-rate doubling at
+W=32 vs W=16 (FLAT-GAP-EVIDENCE round 2 §(4): fast-mode 7.6% park/acq vs
+3.8%), not the OSR-exit-under-lock chain.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug `ebf1057b…`, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| Default-arm reference tuple unchanged (W=1 + W=16) | **PASS** |
+| intcs-arm reference tuple unchanged (W=1 + W=16) | **PASS** |
+| Flat-arm checksum stable (all W, all reps incl. stability) | **PASS** (`686d6890\|4154468\|0fbbd673\|3af6b072\|e1d22021`, 27/27) |
+| W=32 stability (12 reps) | **12/12 rc=0**, 1345–1542 ms, 13.9% spread, **0/12 slow-mode** |
+| All matrix reps rc=0 | **PASS** (36/36) |
+| **JS-flat W=16 wall < 1100 ms** | **PASS — 1032 ms** (1.06× Java) |
+
+### Honest residuals
+
+1. **W=16 flatten1 ~57 ms parallel-section wall** is the entire
+   remaining JS→Java W=16 gap: Go/Java have no flatten at all. 3.6×
+   parallel efficiency on 16 workers (W=1 81 ms → W=16 57 ms) is bounded
+   by per-worker FTL warmup of `flattenFlatShards` (each worker calls it
+   once; tier-up is per-thread) and the one Int32Array species-watchpoint
+   STW that the first worker to reach `new Int32Array(jsArray)` issues.
+   Next lever: pre-warm `flattenFlatShards` on thread 0 with one dummy
+   shard before the phaseA barrier so all workers share the FTL
+   compilation, OR move the species-watchpoint install to global-init
+   (eager) so the STW lands before timing starts.
+2. **`operationCompileFTLLazySlowPath` residual ~3% W=16 self**: with
+   the refcount bounce removed, the steady state is still C-call +
+   `DeferGCForAWhile` + `->ftl()` vtable + one acquire-load per FTL
+   slow-path traversal (gilOff U-T4b never patches the jump). A
+   thunk-side fix — the generation thunk reads the release-published
+   `m_stubCodePtr` slot directly and tail-jumps when non-null without
+   entering C — would remove it; deferred (codegen change, ≤30 ms W=16
+   ceiling, no correctness exposure).
+3. **W=32 phaseA 654→820 upper band (~25% intra-band spread)**: K=128
+   shard-lock arithmetic at W=32 (linear-in-W park rate, FLAT-GAP-
+   EVIDENCE round 2 §(4)). Not a correctness issue and not bimodal;
+   recorded for the next scalability pass (K scales with W, or per-shard
+   striped-lock).
+4. **§34(C) fast-mode bimodality on default/intcs arms** is unchanged
+   (intcs W=16 1/3 fast at 4916 ms): orthogonal to the flat-arm targets
+   this round and §34's named discriminant (out-of-band GC counter)
+   stands.

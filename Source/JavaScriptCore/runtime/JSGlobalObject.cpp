@@ -4133,6 +4133,33 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 void JSGlobalObject::tryInstallArrayBufferSpeciesWatchpoint(ArrayBufferSharingMode sharingMode)
 {
+    VM& vm = this->vm();
+    // THREADS lazy-species-install-race, sibling site (SCALEBENCH §35-R1 /
+    // §36): identical TOCTOU to tryInstallTypedArraySpeciesWatchpoint — the
+    // call site (arrayBufferSpeciesConstructorSlow,
+    // JSArrayBufferPrototypeInlines.h:44) gates entry on
+    // `state() == ClearWatchpoint`, but under GIL-off N mutators can all
+    // observe Clear and re-enter; the second entrant trips
+    // tryInstallSpeciesWatchpoint's RELEASE_ASSERT(!constructorWatchpoint) /
+    // the ObjectPropertyChangeAdaptiveWatchpoint IsWatched ctor assert. Route
+    // the once-per-mode install through the §A.3 thread-granular stop, same
+    // pattern and licensing as the typed-array sibling and haveABadTime().
+    // One-shot per ArrayBufferSharingMode per global; STW cost is irrelevant.
+    // Flag-off / GIL-on: gilOff() is false, falls through to the unchanged
+    // inline body — byte-identical.
+    if (vm.gilOff()) [[unlikely]] {
+        JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            if (arrayBufferSpeciesWatchpointSet(sharingMode).state() != ClearWatchpoint)
+                return; // arbitration loser: a sibling already installed/invalidated.
+            tryInstallArrayBufferSpeciesWatchpointImpl(sharingMode);
+        }));
+        return;
+    }
+    tryInstallArrayBufferSpeciesWatchpointImpl(sharingMode);
+}
+
+void JSGlobalObject::tryInstallArrayBufferSpeciesWatchpointImpl(ArrayBufferSharingMode sharingMode)
+{
     static_assert(static_cast<unsigned>(ArrayBufferSharingMode::Default) == 0);
     static_assert(static_cast<unsigned>(ArrayBufferSharingMode::Shared) == 1);
     unsigned index = static_cast<unsigned>(sharingMode);

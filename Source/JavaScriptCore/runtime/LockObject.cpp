@@ -1065,7 +1065,14 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
     if (fastFunction) {
         FunctionCodeBlock* codeBlock = fastFunction->jsExecutable()->codeBlockForCall();
         if (codeBlock && codeBlock->numParameters() <= 1) [[likely]] {
-            void* entry = codeBlock->jitCode()->addressForCall();
+            // SCALEBENCH §36 jitcode-refptr-bounce-14pct: this is the 4.68 M
+            // call/run hot path; perf annotate attributes ~37% of
+            // lockProtoFuncHold's 11.9% W=16 self time to the `lock incl/decl`
+            // pair from the by-value jitCode(). codeBlock is the snapshot we
+            // already hold conservatively-live (ANNEX CBI item 3 above); raw
+            // read is the same pointer. gilOff-only path so flag-off codegen
+            // is unchanged.
+            void* entry = codeBlock->jitCodeRawPtr()->addressForCall();
             EncodedJSValue encodedResult = vmEntryToJavaScriptWith0Arguments(entry, &vm, codeBlock, fastFunction, jsUndefined(), nullptr);
             // Epilogue guard: cond.asyncWait may have consumed the hold (4.3(a)).
             if (state.m_holder.load(std::memory_order_relaxed) == currentThread) {
