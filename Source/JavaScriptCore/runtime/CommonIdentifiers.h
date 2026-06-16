@@ -147,6 +147,7 @@
     macro(get) \
     macro(getOwnPropertyDescriptor) \
     macro(global) \
+    macro(globalThis) \
     macro(go) \
     macro(granularity) \
     macro(groups) \
