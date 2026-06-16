@@ -63,6 +63,7 @@
 #include <WebCore/DocumentSyncData.h>
 #include <WebCore/SecurityOrigin.h>
 #include <WebCore/ShouldTreatAsContinuingLoad.h>
+#include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
 
 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=306415
@@ -236,11 +237,13 @@ void ProvisionalPageProxy::cancel()
     ASSERT(mainFrame);
     auto error = WebKit::cancelledError(m_request);
     error.setType(WebCore::ResourceError::Type::Cancellation);
+    auto securityOriginData = SecurityOriginData::fromURLWithoutStrictOpaqueness(m_request.url());
     FrameInfoData frameInfo {
         true, // isMainFrame
         FrameType::Local,
         m_request,
-        SecurityOriginData::fromURLWithoutStrictOpaqueness(m_request.url()),
+        securityOriginData,
+        securityOriginData,
         { },
         mainFrame->frameID(),
         m_page ? std::optional { m_page->identifier() } : std::nullopt,
@@ -737,6 +740,10 @@ void ProvisionalPageProxy::didReceiveMessage(IPC::Connection& connection, IPC::D
     if (decoder.messageName() == Messages::WebBackForwardList::BackForwardUpdateItem::name()) {
         if (RefPtr page = m_page.get()) {
 #if ENABLE(BACK_FORWARD_LIST_SWIFT)
+            page->backForwardList().setHandlingProvisionalMessage(true);
+            auto clearHandlingProvisionalMessage = makeScopeExit([&] {
+                page->backForwardList().setHandlingProvisionalMessage(false);
+            });
             page->backForwardListMessageReceiver().didReceiveMessage(connection, decoder);
 #else
             page->backForwardList().didReceiveProvisionalMessage(connection, decoder);

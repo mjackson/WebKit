@@ -4174,6 +4174,11 @@ void WebPageProxy::performDragOperation(DragData& dragData, const String& dragSt
         if (!protectedThis->m_mainFrame)
             return;
 
+#if ENABLE(ATTACHMENT_ELEMENT)
+        for (auto& filename : dragData.fileNames())
+            protect(protectedThis->legacyMainFrameProcess())->addAllowedAttachmentFilePath(filename);
+#endif
+
         DragData dragDataCopy(dragData);
 
         protectedThis->sendWithAsyncReplyToProcessContainingFrame(protectedThis->m_mainFrame->frameID(), Messages::WebPage::PerformDragOperation(protectedThis->m_mainFrame->frameID(), WTF::move(dragData), WTF::move(sandboxExtensionHandle), WTF::move(sandboxExtensionsForUpload)), [protectedThis, frameID = protectedThis->m_mainFrame->frameID(), dragDataCopy = WTF::move(dragDataCopy), dragStorageName] (DragOperationResult dragOperationResult) mutable {
@@ -5901,7 +5906,7 @@ void WebPageProxy::commitProvisionalPage(IPC::Connection& connection, FrameIdent
         topDocumentSyncData->documentURL = request.url();
         topDocumentSyncData->documentSecurityOrigin = SecurityOrigin::create(request.url());
         setTopDocumentSyncData(topDocumentSyncData.copyRef());
-        protect(legacyMainFrameProcess())->send(Messages::WebPage::LoadDidCommitInAnotherProcess(*oldMainFrameID, std::nullopt, WTF::move(topDocumentSyncData)), webPageIDInMainFrameProcess());
+        protect(legacyMainFrameProcess())->send(Messages::WebPage::LoadDidCommitInAnotherProcess(*oldMainFrameID, provisionalPage->process().coreProcessIdentifier(), std::nullopt, WTF::move(topDocumentSyncData)), webPageIDInMainFrameProcess());
         protect(m_browsingContextGroup)->transitionPageToRemotePage(*this, *provisionalPage->deferredRemoteTransitionSite());
     }
 
@@ -6027,6 +6032,7 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
         bool isPendingInitialHistoryItem = navigation.isInitialFrameSrcLoad() || frame.isShowingInitialAboutBlank();
         loadParameters.lockBackForwardList = isPendingInitialHistoryItem ? LockBackForwardList::No : navigation.lockBackForwardList();
         loadParameters.ownerPermissionsPolicy = navigation.ownerPermissionsPolicy();
+        loadParameters.advancedPrivacyProtections = navigation.originatorAdvancedPrivacyProtections();
         loadParameters.navigationUpgradeToHTTPSBehavior = navigationUpgradeToHTTPSBehavior;
         loadParameters.isHandledByAboutSchemeHandler = m_aboutSchemeHandler->canHandleURL(loadParameters.request.url());
         loadParameters.isHistoryItemNavigation = navigation.lastNavigationAction()->navigationType == NavigationType::BackForward;
@@ -7460,7 +7466,7 @@ void WebPageProxy::preferencesDidChange()
             webProcess.send(Messages::WebPage::PreferencesDidChange(preferencesStore(), sharedPreferencesVersion), pageID);
     });
 
-    websiteDataStore().propagateSettingUpdates();
+    protect(websiteDataStore())->propagateSettingUpdates();
 }
 
 void WebPageProxy::didCreateSubframe(FrameIdentifier parentID, FrameIdentifier newFrameID, String&& frameName, SandboxFlags sandboxFlags, ReferrerPolicy referrerPolicy, ScrollbarMode scrollingMode)
@@ -8539,7 +8545,7 @@ void WebPageProxy::observeAndCreateRemoteSubframesInOtherProcesses(WebFrameProxy
     forEachWebContentProcess([&](auto& webProcess, auto pageID) {
         if (webProcess.processID() == newFrame.process().processID())
             return;
-        webProcess.send(Messages::WebPage::CreateRemoteSubframe(parent->frameID(), newFrame.frameID(), frameName, newFrame.calculateFrameTreeSyncData()), pageID);
+        webProcess.send(Messages::WebPage::CreateRemoteSubframe(parent->frameID(), newFrame.frameID(), frameName, newFrame.process().coreProcessIdentifier(), newFrame.calculateFrameTreeSyncData()), pageID);
     });
 }
 
@@ -9926,10 +9932,12 @@ void WebPageProxy::decidePolicyForResponseShared(Ref<WebProcessProxy>&& process,
         completionHandlerWrapper(policyAction);
     }, expectSafeBrowsing , ShouldExpectAppBoundDomainResult::No, ShouldWaitForInitialLinkDecorationFilteringData::No, ShouldWaitForSiteHasStorageCheck::No, ShouldWaitForEnhancedSecurityLinkCheck::No);
     if (expectSafeBrowsing == ShouldExpectSafeBrowsingResult::Yes && navigation) {
+        navigation->whenSafeBrowsingCheckCompletes([listener] mutable {
+            listener->didReceiveSafeBrowsingResults();
+        });
         Seconds timeout = (MonotonicTime::now() - requestStart) * 1.5 + 0.25_s;
-        RunLoop::mainSingleton().dispatchAfter(timeout, [listener, navigation] mutable {
-            listener->didReceiveSafeBrowsingResults({ });
-            navigation->setSafeBrowsingCheckTimedOut();
+        RunLoop::mainSingleton().dispatchAfter(timeout, [listener] mutable {
+            listener->didReceiveSafeBrowsingResults();
         });
     }
 
@@ -11872,7 +11880,7 @@ void WebPageProxy::postMessageToInjectedBundle(const String& messageName, API::O
     send(Messages::WebPage::PostInjectedBundleMessage(messageName, UserData(protect(legacyMainFrameProcess())->transformObjectsToHandles(messageBody).get())));
 }
 
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(WPE)
 void WebPageProxy::Internals::failedToShowPopupMenu()
 {
     protect(page)->send(Messages::WebPage::FailedToShowPopupMenu());
@@ -12493,11 +12501,18 @@ void WebPageProxy::focusFromServiceWorker(CompletionHandler<void()>&& callback)
 
 // Other
 
-void WebPageProxy::setFocus(bool focused)
+void WebPageProxy::setFocus(bool focused, std::optional<WebCore::UserGestureTokenIdentifier> userGestureTokenIdentifier)
 {
-    if (focused)
+    if (focused) {
+        if (userGestureTokenIdentifier) {
+            if (RefPtr userInitiatedAction = protect(legacyMainFrameProcess())->userInitiatedActivity(userGestureTokenIdentifier)) {
+                if (userInitiatedAction->consumed())
+                    return;
+                userInitiatedAction->setConsumed();
+            }
+        }
         m_uiClient->focus(this);
-    else
+    } else
         m_uiClient->unfocus(this);
 }
 
@@ -13837,6 +13852,7 @@ WebPageCreationParameters WebPageProxy::creationParameters(WebProcessProxy& proc
     parameters.accessibilityMode = m_accessibilityMode;
     parameters.shouldForceSiteIsolationAlwaysOnForTesting = WebPreferences::forcedSiteIsolationAlwaysOnForTesting();
     parameters.shouldEnableNetworkInstrumentation = inspectorController().isNetworkInstrumentationEnabled();
+    parameters.shouldEnablePageInstrumentation = inspectorController().isPageInstrumentationEnabled();
 
     return parameters;
 }
@@ -14845,27 +14861,6 @@ void WebPageProxy::sampledPageTopColorChanged(const Color& sampledPageTopColor)
     if (pageClient)
         pageClient->sampledPageTopColorDidChange();
 }
-
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-std::optional<WebCore::SpatialBackdropSource> WebPageProxy::spatialBackdropSource() const
-{
-    return internals().spatialBackdropSource;
-}
-
-void WebPageProxy::spatialBackdropSourceChanged(std::optional<WebCore::SpatialBackdropSource>&& spatialBackdropSource)
-{
-    if (internals().spatialBackdropSource == spatialBackdropSource)
-        return;
-
-    if (RefPtr pageClient = this->pageClient())
-        pageClient->spatialBackdropSourceWillChange();
-
-    internals().spatialBackdropSource = WTF::move(spatialBackdropSource);
-
-    if (RefPtr pageClient = this->pageClient())
-        pageClient->spatialBackdropSourceDidChange();
-}
-#endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
 void WebPageProxy::allowImmersiveElement(CompletionHandler<void(bool)>&& completion)
@@ -16828,6 +16823,7 @@ void WebPageProxy::registerAttachmentIdentifierFromFilePath(IPC::Connection& con
 {
     MESSAGE_CHECK_BASE(protect(preferences())->attachmentElementEnabled(), connection);
     MESSAGE_CHECK_BASE(IdentifierToAttachmentMap::isValidKey(identifier), connection);
+    MESSAGE_CHECK_BASE(WebProcessProxy::fromConnection(connection)->isAllowedAttachmentFilePath(filePath), connection);
 
     if (attachmentForIdentifier(identifier))
         return;
@@ -16853,6 +16849,7 @@ void WebPageProxy::registerAttachmentsFromSerializedData(IPC::Connection& connec
     MESSAGE_CHECK_BASE(protect(preferences())->attachmentElementEnabled(), connection);
 
     for (auto& serializedData : data) {
+        MESSAGE_CHECK_BASE(IdentifierToAttachmentMap::isValidKey(serializedData.identifier), connection);
         auto identifier = WTF::move(serializedData.identifier);
         if (!attachmentForIdentifier(identifier)) {
             Ref attachment = ensureAttachment(identifier);
@@ -18298,6 +18295,7 @@ INSTANTIATE_SEND_TO_PROCESS_CONTAINING_FRAME(WebPage::SetFocusedElementSelectedI
 INSTANTIATE_SEND_TO_PROCESS_CONTAINING_FRAME(WebPage::SetSelectElementIsOpen);
 INSTANTIATE_SEND_TO_PROCESS_CONTAINING_FRAME(WebPage::SetIsShowingInputViewForFocusedElement);
 INSTANTIATE_SEND_TO_PROCESS_CONTAINING_FRAME(WebPage::AutofillLoginCredentials);
+INSTANTIATE_SEND_TO_PROCESS_CONTAINING_FRAME(WebPage::BlurFocusedElement);
 #endif
 #undef INSTANTIATE_SEND_TO_PROCESS_CONTAINING_FRAME
 
@@ -18353,13 +18351,21 @@ INSTANTIATE_SEND_SYNC_TO_PROCESS_CONTAINING_FRAME(WebPage::ComputePagesForPrinti
 #endif
 #undef INSTANTIATE_SEND_SYNC_TO_PROCESS_CONTAINING_FRAME
 
-void WebPageProxy::focusRemoteFrame(IPC::Connection& connection, WebCore::FrameIdentifier frameID)
+void WebPageProxy::focusRemoteFrame(IPC::Connection& connection, WebCore::FrameIdentifier frameID, std::optional<WebCore::UserGestureTokenIdentifier> userGestureTokenIdentifier)
 {
     RefPtr destinationFrame = WebFrameProxy::webFrame(frameID);
     if (!destinationFrame || !destinationFrame->isMainFrame())
         return;
 
     ASSERT(destinationFrame->page() == this);
+
+    if (userGestureTokenIdentifier) {
+        if (RefPtr userInitiatedAction = WebProcessProxy::fromConnection(connection)->userInitiatedActivity(userGestureTokenIdentifier)) {
+            if (userInitiatedAction->consumed())
+                return;
+            userInitiatedAction->setConsumed();
+        }
+    }
 
     broadcastFocusedFrameToOtherProcesses(connection, std::make_optional(frameID));
     setFocus(true);

@@ -1080,14 +1080,8 @@ function :textureLoad, {
     [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_1d[F, read], T) => vec4[ChannelFormat[F]],
     [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_1d[F, read_write], T) => vec4[ChannelFormat[F]],
     [T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_2d[S], vec2[T], U) => vec4[S],
-    [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_2d[F, read], T) => vec4[ChannelFormat[F]],
-    [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_2d[F, read_write], T) => vec4[ChannelFormat[F]],
-    [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_2d_array[F, read], T) => vec4[ChannelFormat[F]],
-    [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_2d_array[F, read_write], T) => vec4[ChannelFormat[F]],
     [T < ConcreteInteger, V < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_2d_array[S], vec2[T], V, U) => vec4[S],
     [T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_3d[S], vec3[T], U) => vec4[S],
-    [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_3d[F, read], T) => vec4[ChannelFormat[F]],
-    [F, T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_storage_3d[F, read_write], T) => vec4[ChannelFormat[F]],
     [T < ConcreteInteger, U < ConcreteInteger, S < Concrete32BitNumber].(texture_multisampled_2d[S], vec2[T], U) => vec4[S],
 
 
@@ -1319,6 +1313,8 @@ function :textureSampleGrad, {
 # 17.7.13
 function :textureSampleLevel, {
     must_use: true,
+
+    [].(texture_1d[f32], sampler, f32, f32) => vec4[f32],
 
     [].(texture_2d[f32], sampler, vec2[f32], f32) => vec4[f32],
 

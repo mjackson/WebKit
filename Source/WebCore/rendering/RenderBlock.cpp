@@ -86,6 +86,8 @@
 #include "ShadowRoot.h"
 #include "ShapeOutsideInfo.h"
 #include "StyleContainmentCheckerInlines.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
+#include "StylePrimitiveNumericTypes+EvaluationMinimum.h"
 #include "TransformState.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SetForScope.h>
@@ -1893,9 +1895,9 @@ bool RenderBlock::isContainingBlockAncestorFor(RenderObject& renderer) const
 LayoutUnit RenderBlock::textIndentOffset() const
 {
     LayoutUnit cw;
-    if (style().textIndent().length.isPercentOrCalculated())
+    if (style().textIndent().amount.isPercentOrCalculated())
         cw = contentBoxLogicalWidth();
-    return Style::evaluate<LayoutUnit>(style().textIndent().length, cw, style().usedZoomForLength());
+    return Style::evaluate<LayoutUnit>(style().textIndent().amount, cw, style().usedZoomForLength());
 }
 
 LayoutUnit RenderBlock::logicalLeftOffsetForContent() const

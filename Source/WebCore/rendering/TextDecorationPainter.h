@@ -55,6 +55,8 @@ public:
             // override on a marked text that does not set a decoration); the painter then resolves auto against the
             // painting box.
             std::optional<Style::TextDecorationThickness> thickness;
+
+            bool operator==(const DecorationStyleAndColor&) const = default;
         };
         DecorationStyleAndColor underline;
         DecorationStyleAndColor overline;
@@ -92,8 +94,8 @@ private:
     GraphicsContext& m_context;
     bool m_isPrinting { false };
     WritingMode m_writingMode;
-    const Style::TextShadows& m_shadow;
-    const Style::AppleColorFilter& m_shadowColorFilter;
+    SUPPRESS_FORWARD_DECL_MEMBER const Style::TextShadows& m_shadow;
+    SUPPRESS_FORWARD_DECL_MEMBER const Style::AppleColorFilter& m_shadowColorFilter;
     const FontCascade& m_font;
 };
 

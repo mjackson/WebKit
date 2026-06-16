@@ -268,6 +268,7 @@
 #include "SymbolConstructorInlines.h"
 #include "SymbolObjectInlines.h"
 #include "SymbolPrototypeInlines.h"
+#include "SymbolTableInlines.h"
 #include "SyntheticModuleRecord.h"
 #include "TemporalCalendar.h"
 #include "TemporalDuration.h"
@@ -994,6 +995,7 @@ JSGlobalObject::JSGlobalObject(VM& vm, Structure* structure, const GlobalObjectM
     , m_varInjectionWatchpointSet(WatchpointSet::create(IsWatched))
     , m_varReadOnlyWatchpointSet(WatchpointSet::create(IsWatched))
     , m_regExpRecompiledWatchpointSet(WatchpointSet::create(IsWatched))
+    , m_regExpLastIndexWritableWatchpointSet(WatchpointSet::create(IsWatched))
     , m_arrayBufferDetachWatchpointSet(WatchpointSet::create(IsWatched))
     , m_weakRandom(Options::forceWeakRandomSeed() ? Options::forcedWeakRandomSeed() : cryptographicallyRandomNumber<uint32_t>())
     , m_runtimeFlags()
@@ -2197,9 +2199,6 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::isRegExp)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, init.owner, 1, "esSpecIsRegExp"_s, esSpecIsRegExp, ImplementationVisibility::Private));
-        });
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::regExpSplitFast)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, init.owner, 2, "regExpSplitFast"_s, regExpProtoFuncSplitFast, ImplementationVisibility::Private));
         });
 
     // String.prototype helpers.

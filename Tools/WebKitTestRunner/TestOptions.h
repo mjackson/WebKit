@@ -56,6 +56,8 @@ public:
     bool allowsLinkPreview() const { return boolTestRunnerFeatureValue("allowsLinkPreview"); }
     bool appHighlightsEnabled() const { return boolTestRunnerFeatureValue("appHighlightsEnabled"); }
     bool allowTestOnlyIPC() const { return boolTestRunnerFeatureValue("allowTestOnlyIPC"); }
+    bool allowTestOnlyMockContentFilterIPC() const { return boolTestRunnerFeatureValue("allowTestOnlyMockContentFilterIPC"); }
+    bool allowTestOnlyOriginAccessAllowListIPC() const { return boolTestRunnerFeatureValue("allowTestOnlyOriginAccessAllowListIPC"); }
     bool dumpJSConsoleLogInStdErr() const { return boolTestRunnerFeatureValue("dumpJSConsoleLogInStdErr"); }
     bool editable() const { return boolTestRunnerFeatureValue("editable"); }
     bool enableInAppBrowserPrivacy() const { return boolTestRunnerFeatureValue("enableInAppBrowserPrivacy"); }

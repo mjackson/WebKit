@@ -353,6 +353,7 @@ inline CapabilityLevel canCompile(DFG::Node* node)
     case GetPropertyEnumerator:
     case EnumeratorNextUpdateIndexAndMode:
     case StringIteratorNext:
+    case StringIteratorNextWithUndefined:
     case EnumeratorNextUpdatePropertyName:
     case EnumeratorGetByVal:
     case EnumeratorInByVal:
@@ -408,6 +409,7 @@ inline CapabilityLevel canCompile(DFG::Node* node)
     case RegExpMatchFast:
     case RegExpMatchFastGlobal:
     case RegExpSearch:
+    case RegExpSplitFast:
     case NewRegExp:
     case NewMap:
     case NewSet:

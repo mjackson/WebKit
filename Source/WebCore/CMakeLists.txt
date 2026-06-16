@@ -2599,6 +2599,7 @@ set(WebCoreTestSupport_IDL_FILES
 )
 
 list(APPEND WebCoreTestSupport_SOURCES
+    bindings/js/JSMallocStatisticsCustom.cpp
     testing/EventTargetForTesting.cpp
     testing/GCObservation.cpp
     testing/InternalSettings.cpp
@@ -3011,6 +3012,10 @@ GENERATE_BINDINGS(WebCoreBindings
     DESTINATION ${WebCore_DERIVED_SOURCES_DIR}
     GENERATOR JS
     SUPPLEMENTAL_DEPFILE ${SUPPLEMENTAL_DEPENDENCY_FILE}
+    # Auxiliary translation unit emitted alongside JSDOMWindow.cpp by
+    # CodeGeneratorJS.pm to keep JSDOMWindow.cpp's compile time off the build's
+    # critical path.
+    EXTRA_OUTPUT ${WebCore_DERIVED_SOURCES_DIR}/JSDOMWindowConstructorAttributes.cpp
     PP_EXTRA_OUTPUT
     ${ISO_SUBSPACES_HEADER_FILE} ${CLIENT_ISO_SUBSPACES_HEADER_FILE} ${CONSTRUCTORS_HEADER_FILE} ${WINDOW_CONSTRUCTORS_FILE} ${WORKERGLOBALSCOPE_CONSTRUCTORS_FILE} ${SHADOWREALMGLOBALSCOPE_CONSTRUCTORS_FILE} ${DEDICATEDWORKERGLOBALSCOPE_CONSTRUCTORS_FILE}
     PP_EXTRA_ARGS
@@ -3026,6 +3031,7 @@ GENERATE_BINDINGS(WebCoreBindings
         --workletGlobalScopeConstructorsFile ${WORKLETGLOBALSCOPE_CONSTRUCTORS_FILE}
         --paintWorkletGlobalScopeConstructorsFile ${PAINTWORKLETGLOBALSCOPE_CONSTRUCTORS_FILE}
         --audioWorkletGlobalScopeConstructorsFile ${AUDIOWORKLETGLOBALSCOPE_CONSTRUCTORS_FILE})
+
 list(APPEND WebCore_DEPENDENCIES WebCoreBindings WebCore_CopyPrivateHeaders)
 
 if (ENABLE_WEBINSPECTORUI)
@@ -3172,11 +3178,6 @@ WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreJSBindings
     PREFIX WebCoreJSBindingsPrefix.h
     PREFIX_LANGUAGES CXX
     DIRS JSBindings bindings)
-WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreRenderStyleInlines
-    PREFIX WebCoreRenderStyleInlinesPrefix.h
-    PREFIX_LANGUAGES CXX
-    HEADER_GROUPS RenderStyleGetters
-    CHAIN_PARENT WebCoreDOMAndRendering)
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreStyle
     PREFIX WebCoreStylePrefix.h
     PREFIX_LANGUAGES CXX
@@ -3293,7 +3294,7 @@ endif ()
 # These files are very large and exhaust virtual memory on 32-bit ARM.
 if (WTF_CPU_ARM AND NOT CMAKE_CROSSCOMPILING)
     set(DerivedSources_COMPILE_OPTIONS -O0 -DRELEASE_WITHOUT_OPTIMIZATIONS=ON)
-    set_source_files_properties(${WebCore_DERIVED_SOURCES_DIR}/JSDOMWindow.cpp PROPERTIES
+    set_source_files_properties(${WebCore_DERIVED_SOURCES_DIR}/JSDOMWindow.cpp ${WebCore_DERIVED_SOURCES_DIR}/JSDOMWindowConstructorAttributes.cpp PROPERTIES
         COMPILE_OPTIONS "${DerivedSources_COMPILE_OPTIONS}"
         SKIP_PRECOMPILE_HEADERS ON)
 endif ()

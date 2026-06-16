@@ -1121,6 +1121,20 @@ static void addJSONTextContent(Ref<JSON::Object>&& jsonObject, const TextExtract
 
 static void populateJSONForItem(JSON::Object&, const TextExtraction::Item&, std::optional<NodeIdentifier>&&, TextExtractionAggregator&);
 
+static Vector<String> selectedOptionDisplayValues(const TextExtraction::SelectData& selectData)
+{
+    Vector<String> displays;
+    for (auto& option : selectData.options) {
+        if (!option.isSelected)
+            continue;
+        auto& display = !option.value.isEmpty() ? option.value : option.label;
+        if (display.isEmpty())
+            continue;
+        displays.append(display);
+    }
+    return displays;
+}
+
 static Ref<JSON::Object> createJSONForChildItem(const TextExtraction::Item& item, std::optional<NodeIdentifier>&& enclosingNode, TextExtractionAggregator& aggregator)
 {
     Ref jsonObject = JSON::Object::create();
@@ -1172,6 +1186,15 @@ static void populateJSONForItem(JSON::Object& jsonObject, const TextExtraction::
             }
             if (optionsArray->length())
                 jsonObject.setArray("options"_s, WTF::move(optionsArray));
+            else {
+                auto displays = selectedOptionDisplayValues(selectData);
+                if (!displays.isEmpty()) {
+                    Ref selectedArray = JSON::Array::create();
+                    for (auto& display : displays)
+                        selectedArray->pushString(display);
+                    jsonObject.setArray("selected"_s, WTF::move(selectedArray));
+                }
+            }
             if (selectData.isMultiple)
                 jsonObject.setBoolean("multiple"_s, true);
         },
@@ -1699,6 +1722,11 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
         [&](const TextExtraction::SelectData& selectData) {
             if (aggregator.useHTMLOutput()) {
                 auto attributes = partsForItem(item, aggregator, includeRectForParentItem);
+                if (!aggregator.includeSelectOptions()) {
+                    auto displays = selectedOptionDisplayValues(selectData);
+                    if (!displays.isEmpty())
+                        attributes.append(makeString("selected='"_s, escapeStringForHTML(makeStringByJoining(displays, ","_s)), '\''));
+                }
                 if (attributes.isEmpty())
                     parts.append(makeString('<', item.nodeName.convertToASCIILowercase(), '>'));
                 else
@@ -1733,6 +1761,10 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
                             optionParts.append(makeString('\'', escapeString(option.label), '\''));
                         aggregator.addResult(optionLine, WTF::move(optionParts));
                     }
+                } else {
+                    auto displays = selectedOptionDisplayValues(selectData);
+                    if (!displays.isEmpty())
+                        parts.append(makeString("selected="_s, quoteValue(escapeString(makeStringByJoining(displays, ","_s)), streamlined)));
                 }
 
                 if (selectData.isMultiple)
@@ -1929,6 +1961,46 @@ void convertToText(TextExtraction::Item&& item, TextExtractionOptions&& options,
     }
 
     addTextRepresentationRecursive(item, { }, 0, aggregator);
+}
+
+String formatPDFMarkdownForOutput(const String& pdfText, TextExtractionOutputFormat outputFormat)
+{
+    using enum TextExtractionOutputFormat;
+    switch (outputFormat) {
+    case Markdown:
+    case PlainText:
+        return pdfText;
+
+    case TextTree: {
+        auto visibleText = trimAndSimplifyWhitespace(pdfText);
+        return makeString("root\n\t'"_s, escapeString(visibleText), '\'');
+    }
+
+    case HTMLMarkup: {
+        auto escaped = trimAndSimplifyWhitespace(pdfText);
+        escaped = makeStringByReplacingAll(escaped, '&', "&amp;"_s);
+        escaped = makeStringByReplacingAll(escaped, '<', "&lt;"_s);
+        escaped = makeStringByReplacingAll(escaped, '>', "&gt;"_s);
+        return makeString("<body>"_s, WTF::move(escaped), "</body>"_s);
+    }
+
+    case MinifiedJSON: {
+        Ref textObject = JSON::Object::create();
+        textObject->setString("type"_s, "text"_s);
+        textObject->setString("content"_s, trimAndSimplifyWhitespace(pdfText));
+
+        Ref children = JSON::Array::create();
+        children->pushObject(WTF::move(textObject));
+
+        Ref root = JSON::Object::create();
+        root->setString("type"_s, "root"_s);
+        root->setArray("children"_s, WTF::move(children));
+        return root->toJSONString();
+    }
+    }
+
+    ASSERT_NOT_REACHED();
+    return pdfText;
 }
 
 } // namespace WebKit

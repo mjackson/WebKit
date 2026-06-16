@@ -62,6 +62,7 @@
 #include "InByStatus.h"
 #include "InlineCacheCompiler.h"
 #include "InstanceOfStatus.h"
+#include "IteratorOperations.h"
 #include "JSArrayBufferConstructor.h"
 #include "JSArrayIterator.h"
 #include "JSAsyncFromSyncIterator.h"
@@ -100,6 +101,7 @@
 #include "StringConstructor.h"
 #include "StructureID.h"
 #include "SymbolConstructor.h"
+#include "SymbolTableInlines.h"
 #include "WeakMapConstructor.h"
 #include "WeakSetConstructor.h"
 #include <wtf/CommaPrinter.h>
@@ -1485,7 +1487,7 @@ ByteCodeParser::Terminality ByteCodeParser::handleCall(
     ASSERT(registerOffset <= 0);
 
     refineStatically(callLinkStatus, callTarget);
-    
+
     VERBOSE_LOG("    Handling call at ", currentCodeOrigin(), ": ", callLinkStatus, "\n");
     
     // If we have profiling information about this call, and it did not behave too polymorphically,
@@ -3775,6 +3777,76 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             return CallOptimizationResult::Inlined;
         }
 
+        case RegExpSplitIntrinsic: {
+            if (argumentCountIncludingThis < 2)
+                return CallOptimizationResult::DidNothing;
+
+            // Don't inline intrinsic if we exited due to one of the primordial RegExp checks failing.
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadConstantValue))
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache))
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, ExoticObjectMode))
+                return CallOptimizationResult::DidNothing;
+
+            JSGlobalObject* globalObject = m_inlineStackTop->m_codeBlock->globalObject();
+            if (!globalObject->regExpPrimordialPropertiesWatchpointSet().isStillValid())
+                return CallOptimizationResult::DidNothing;
+
+            // The C++ split fast path bypasses the species constructor — so the species watchpoint
+            // must be valid for our DFG node to be sound.
+            if (!globalObject->regExpSpeciesWatchpointSet().isStillValid())
+                return CallOptimizationResult::DidNothing;
+
+            Structure* regExpStructure = globalObject->regExpStructure();
+            m_graph.registerStructure(regExpStructure);
+            ASSERT(regExpStructure->storedPrototype().isObject());
+            ASSERT(regExpStructure->storedPrototype().asCell()->classInfo() == RegExpPrototype::info());
+
+            FrozenValue* regExpPrototypeObjectValue = m_graph.freeze(regExpStructure->storedPrototype());
+            Structure* regExpPrototypeStructure = regExpPrototypeObjectValue->structure();
+
+            auto isRegExpPropertySame = [&] (JSValue primordialProperty, UniquedStringImpl* propertyUID) {
+                JSValue currentProperty;
+                if (!m_graph.getPrototypeProperty(regExpStructure->storedPrototypeObject(), regExpPrototypeStructure, propertyUID, currentProperty))
+                    return false;
+
+                return currentProperty == primordialProperty;
+            };
+
+            // Check that RegExp.exec is still the primordial RegExp.prototype.exec
+            if (!isRegExpPropertySame(globalObject->regExpProtoExecFunction(), m_vm->propertyNames->exec.impl()))
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+
+            // Check that the regex is actually a RegExp object.
+            Node* regExpObject = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+            addToGraph(Check, Edge(regExpObject, RegExpObjectUse));
+
+            // Check that the regex's exec is actually the primordial RegExp.prototype.exec.
+            UniquedStringImpl* execPropertyID = m_vm->propertyNames->exec.impl();
+            m_graph.identifiers().ensure(execPropertyID);
+            auto* data = m_graph.m_getByIdData.add(GetByIdData { CacheableIdentifier::createFromImmortalIdentifier(execPropertyID), CacheType::GetByIdPrototype });
+            Node* actualProperty = addToGraph(TryGetById, OpInfo(data), OpInfo(SpecFunction), Edge(regExpObject, CellUse));
+            FrozenValue* regExpPrototypeExec = m_graph.freeze(globalObject->regExpProtoExecFunction());
+            addToGraph(CheckIsConstant, OpInfo(regExpPrototypeExec), Edge(actualProperty, CellUse));
+
+            Node* string = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+            Node* limit = argumentCountIncludingThis >= 3
+                ? get(virtualRegisterForArgumentIncludingThis(2, registerOffset))
+                : jsConstant(jsUndefined());
+
+            Node* regExpSplit = addToGraph(RegExpSplitFast, OpInfo(0), OpInfo(prediction), regExpObject, string, limit);
+            setResult(regExpSplit);
+            return CallOptimizationResult::Inlined;
+        }
+
         case ObjectCreateIntrinsic: {
             if (argumentCountIncludingThis != 2)
                 return CallOptimizationResult::DidNothing;
@@ -4241,6 +4313,49 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             addToGraph(PutInternalField, OpInfo(static_cast<uint32_t>(JSStringIterator::Field::IteratedString)), iterator, base);
 
             setResult(iterator);
+            return CallOptimizationResult::Inlined;
+        }
+
+        case JSStringIteratorNextIntrinsic: {
+            if (!is64Bit())
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType) || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache))
+                return CallOptimizationResult::DidNothing;
+
+            JSGlobalObject* globalObject = m_graph.globalObjectFor(currentNodeOrigin().semantic);
+            // The structure is created lazily, but profiling already ran next(), so it exists by
+            // the time this call site is hot. Bail if it does not exist for some reason.
+            Structure* iteratorResultStructure = globalObject->iteratorResultObjectStructureConcurrently();
+            if (!iteratorResultStructure)
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+
+            Node* iterator = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+            addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(globalObject->stringIteratorStructure())), iterator);
+
+            Node* position = addToGraph(GetInternalField, OpInfo(static_cast<uint32_t>(JSStringIterator::Field::Index)), OpInfo(SpecInt32Only), iterator);
+            Node* string = addToGraph(GetInternalField, OpInfo(static_cast<uint32_t>(JSStringIterator::Field::IteratedString)), OpInfo(SpecString), iterator);
+
+            Node* tuple = addToGraph(StringIteratorNextWithUndefined, Edge(string), Edge(position));
+            Node* value = addToGraph(ExtractFromTuple, OpInfo(0), tuple);
+            value->setResult(NodeResultJS);
+            Node* nextPosition = addToGraph(ExtractFromTuple, OpInfo(1), tuple);
+            nextPosition->setResult(NodeResultInt32);
+
+            Node* doneIndex = jsConstant(jsNumber(JSStringIterator::doneIndex));
+            Node* done = addToGraph(CompareStrictEq, Edge(nextPosition, Int32Use), Edge(doneIndex, Int32Use));
+
+            Node* resultObject = addToGraph(NewObject, OpInfo(m_graph.registerStructure(iteratorResultStructure)));
+            handlePutByOffset(resultObject, m_graph.identifiers().ensure(m_vm->propertyNames->value.impl()), iteratorResultObjectValuePropertyOffset, value);
+            handlePutByOffset(resultObject, m_graph.identifiers().ensure(m_vm->propertyNames->done.impl()), iteratorResultObjectDonePropertyOffset, done);
+
+            // Advance the iterator only after all nodes that can OSR exit, so that an exit cannot
+            // observe the updated index and run next() again with the advanced position.
+            addToGraph(PutInternalField, OpInfo(static_cast<uint32_t>(JSStringIterator::Field::Index)), iterator, nextPosition);
+
+            setResult(resultObject);
             return CallOptimizationResult::Inlined;
         }
 

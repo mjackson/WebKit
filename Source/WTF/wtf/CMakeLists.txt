@@ -109,6 +109,7 @@ set(WTF_PUBLIC_HEADERS
     FlipBytes.h
     Float16.h
     ForbidHeapAllocation.h
+    FormattedLogging.h
     Forward.h
     Function.h
     FunctionDispatcher.h
@@ -325,6 +326,7 @@ set(WTF_PUBLIC_HEADERS
     SoftLinking.h
     SortedArrayMap.h
     SpanningTree.h
+    SparseBitVector.h
     Spectrum.h
     StackAllocation.h
     StackBounds.h

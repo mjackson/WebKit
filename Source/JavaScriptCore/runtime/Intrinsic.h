@@ -112,6 +112,7 @@ namespace JSC {
     macro(RegExpTestIntrinsic) \
     macro(RegExpMatchIntrinsic) \
     macro(RegExpSearchIntrinsic) \
+    macro(RegExpSplitIntrinsic) \
     macro(ObjectAssignIntrinsic) \
     macro(ObjectCreateIntrinsic) \
     macro(ObjectDefinePropertyIntrinsic) \
@@ -193,6 +194,7 @@ namespace JSC {
     macro(JSSetValuesIntrinsic) \
     macro(JSSetEntriesIntrinsic) \
     macro(JSStringIteratorIntrinsic) \
+    macro(JSStringIteratorNextIntrinsic) \
     macro(JSWeakMapGetIntrinsic) \
     macro(JSWeakMapHasIntrinsic) \
     macro(JSWeakMapSetIntrinsic) \

@@ -2194,6 +2194,7 @@ void Page::syncLocalFrameInfoToRemote()
             childrenFrameLayoutInfo.add(child->frameID(), RemoteFrameLayoutInfo::create(
                 frameView->visibleRectOfChild(*child.get()),
                 frameView->childFrameOwnerToRootContentTransform(*child),
+                frameView->absoluteToChildFrameOwnerLocalTransform(*child),
                 frame.usedZoomForChild(*child),
                 frameView->childFrameOwnerContentBoxLocation(*child),
                 frameView->appearanceOfOwnerElementOfChildFrame(*child)
@@ -3624,18 +3625,6 @@ Color Page::themeColor() const
 
     return { };
 }
-
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-std::optional<SpatialBackdropSource> Page::spatialBackdropSource() const
-{
-    RefPtr localMainFrame = this->localMainFrame();
-    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
-    if (!document)
-        return std::nullopt;
-
-    return document->spatialBackdropSource();
-}
-#endif
 
 Color Page::pageExtendedBackgroundColor() const
 {

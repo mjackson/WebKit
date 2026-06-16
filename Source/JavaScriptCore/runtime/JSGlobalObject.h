@@ -518,6 +518,7 @@ public:
     const Ref<WatchpointSet> m_varInjectionWatchpointSet;
     const Ref<WatchpointSet> m_varReadOnlyWatchpointSet;
     const Ref<WatchpointSet> m_regExpRecompiledWatchpointSet;
+    const Ref<WatchpointSet> m_regExpLastIndexWritableWatchpointSet;
     const Ref<WatchpointSet> m_arrayBufferDetachWatchpointSet;
 
     struct RareData;
@@ -886,15 +887,15 @@ public:
     ObjectPrototype* objectPrototype() const LIFETIME_BOUND { return m_objectPrototype.get(); }
     FunctionPrototype* functionPrototype() const LIFETIME_BOUND { return m_functionPrototype.get(); }
     ArrayPrototype* arrayPrototype() const LIFETIME_BOUND { return m_arrayPrototype.get(); }
-    JSObject* booleanPrototype() const LIFETIME_BOUND { return m_booleanObjectStructure.prototypeInitializedOnMainThread(this); }
+    JSObject* booleanPrototype() const LIFETIME_BOUND;
     StringPrototype* stringPrototype() const LIFETIME_BOUND { return m_stringPrototype.get(); }
-    JSObject* numberPrototype() const LIFETIME_BOUND { return m_numberObjectStructure.prototypeInitializedOnMainThread(this); }
+    JSObject* numberPrototype() const LIFETIME_BOUND;
     BigIntPrototype* bigIntPrototype() const LIFETIME_BOUND { return m_bigIntPrototype.get(); }
-    JSObject* datePrototype() const LIFETIME_BOUND { return m_dateStructure.prototype(this); }
+    JSObject* datePrototype() const LIFETIME_BOUND;
     SymbolPrototype* symbolPrototype() const LIFETIME_BOUND { return m_symbolPrototype.get(); }
     ShadowRealmPrototype* shadowRealmPrototype() const LIFETIME_BOUND { return m_shadowRealmPrototype.get(); }
     RegExpPrototype* regExpPrototype() const LIFETIME_BOUND { return m_regExpPrototype.get(); }
-    JSObject* errorPrototype() const LIFETIME_BOUND { return m_errorStructure.prototype(this); }
+    JSObject* errorPrototype() const LIFETIME_BOUND;
     JSIteratorPrototype* iteratorPrototype() const LIFETIME_BOUND { return m_iteratorPrototype.get(); }
     JSIteratorHelperPrototype* iteratorHelperPrototype() const LIFETIME_BOUND { return m_iteratorHelperPrototype.get(); }
     AsyncIteratorPrototype* asyncIteratorPrototype() const LIFETIME_BOUND { return m_asyncIteratorPrototype.get(); }
@@ -904,9 +905,9 @@ public:
     ArrayIteratorPrototype* arrayIteratorPrototype() const LIFETIME_BOUND { return m_arrayIteratorPrototype.get(); }
     MapIteratorPrototype* mapIteratorPrototype() const LIFETIME_BOUND { return m_mapIteratorPrototype.get(); }
     SetIteratorPrototype* setIteratorPrototype() const LIFETIME_BOUND { return m_setIteratorPrototype.get(); }
-    JSObject* mapPrototype() const LIFETIME_BOUND { return m_mapStructure.prototype(this); }
+    JSObject* mapPrototype() const LIFETIME_BOUND;
     // Workaround for the name conflict between JSCell::setPrototype.
-    JSObject* jsSetPrototype() const LIFETIME_BOUND { return m_setStructure.prototype(this); }
+    JSObject* jsSetPrototype() const LIFETIME_BOUND;
     JSPromisePrototype* promisePrototype() const LIFETIME_BOUND { return m_promisePrototype.get(); }
     AsyncGeneratorPrototype* asyncGeneratorPrototype() const LIFETIME_BOUND { return m_asyncGeneratorPrototype.get(); }
     AsyncGeneratorFunctionPrototype* asyncGeneratorFunctionPrototype() const LIFETIME_BOUND { return m_asyncGeneratorFunctionPrototype.get(); }
@@ -1017,6 +1018,7 @@ public:
     Structure* stringObjectStructure() const { return m_stringObjectStructure.get(); }
     Structure* symbolObjectStructure() const { return m_symbolObjectStructure.get(); }
     Structure* iteratorResultObjectStructure() const { return m_iteratorResultObjectStructure.get(this); }
+    Structure* iteratorResultObjectStructureConcurrently() const { return m_iteratorResultObjectStructure.getConcurrently(); }
     Structure* dataPropertyDescriptorObjectStructure() const { return m_dataPropertyDescriptorObjectStructure.get(this); }
     Structure* accessorPropertyDescriptorObjectStructure() const { return m_accessorPropertyDescriptorObjectStructure.get(this); }
     Structure* promiseCapabilityObjectStructure() const { return m_promiseCapabilityObjectStructure.get(this); }
@@ -1064,9 +1066,9 @@ public:
     Structure* trustedScriptStructure() { return m_trustedScriptStructure.get(); }
 
     JSObject* dateTimeFormatConstructor() LIFETIME_BOUND { return m_dateTimeFormatStructure.constructor(this); }
-    JSObject* dateTimeFormatPrototype() LIFETIME_BOUND { return m_dateTimeFormatStructure.prototype(this); }
+    JSObject* dateTimeFormatPrototype() LIFETIME_BOUND;
     JSObject* numberFormatConstructor() LIFETIME_BOUND { return m_numberFormatStructure.constructor(this); }
-    JSObject* numberFormatPrototype() LIFETIME_BOUND { return m_numberFormatStructure.prototype(this); }
+    JSObject* numberFormatPrototype() LIFETIME_BOUND;
 
     Structure* durationStructure() { return m_durationStructure.get(this); }
     Structure* instantStructure() { return m_instantStructure.get(this); }
@@ -1187,6 +1189,7 @@ public:
     WatchpointSet& varInjectionWatchpointSet() { return m_varInjectionWatchpointSet.get(); }
     WatchpointSet& varReadOnlyWatchpointSet() { return m_varReadOnlyWatchpointSet.get(); }
     WatchpointSet& regExpRecompiledWatchpointSet() { return m_regExpRecompiledWatchpointSet.get(); }
+    WatchpointSet& regExpLastIndexWritableWatchpointSet() { return m_regExpLastIndexWritableWatchpointSet.get(); }
     WatchpointSet& arrayBufferDetachWatchpointSet() { return m_arrayBufferDetachWatchpointSet.get(); }
 
     bool isHavingABadTime() const
@@ -1196,12 +1199,7 @@ public:
         
     void haveABadTime(VM&);
 
-    void notifyArrayBufferDetaching()
-    {
-        if (!m_arrayBufferDetachWatchpointSet->isStillValid())
-            return;
-        notifyArrayBufferDetachingSlow();
-    }
+    void notifyArrayBufferDetaching();
 
     void clearStructureCache(VM&);
         

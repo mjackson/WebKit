@@ -55,9 +55,8 @@
 #include "StyleComputedStyle+SettersInlines.h"
 #include "StyleFontSizeFunctions.h"
 #include "StyleKeyword+CSSValueConversion.h"
-#include "StyleLengthWrapper+CSSValueConversion.h"
+#include "StylePrimitiveNumericOrKeyword+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
-#include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StyleResolveForFont.h"
 #include "StyleResolver.h"
 #include "StyleTextEdge+CSSValueConversion.h"
@@ -143,6 +142,7 @@ inline OffsetDistance forwardInheritedValue(const OffsetDistance& value) { auto 
 inline OffsetPath forwardInheritedValue(const OffsetPath& value) { auto copy = value; return copy; }
 inline OffsetPosition forwardInheritedValue(const OffsetPosition& value) { auto copy = value; return copy; }
 inline OffsetRotate forwardInheritedValue(const OffsetRotate& value) { auto copy = value; return copy; }
+inline ObjectViewBox forwardInheritedValue(const ObjectViewBox& value) { auto copy = value; return copy; }
 inline OutlineOffset forwardInheritedValue(const OutlineOffset& value) { auto copy = value; return copy; }
 inline OverflowClipMargin forwardInheritedValue(const OverflowClipMargin& value) { auto copy = value; return copy; }
 inline Position forwardInheritedValue(const Position& value) { auto copy = value; return copy; }

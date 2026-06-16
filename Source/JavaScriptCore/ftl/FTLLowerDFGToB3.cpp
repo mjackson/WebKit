@@ -1798,6 +1798,7 @@ private:
             compileEnumeratorNextUpdateIndexAndMode();
             break;
         case StringIteratorNext:
+        case StringIteratorNextWithUndefined:
             compileStringIteratorNext();
             break;
         case EnumeratorNextUpdatePropertyName:
@@ -1856,6 +1857,9 @@ private:
             break;
         case RegExpSearch:
             compileRegExpSearch();
+            break;
+        case RegExpSplitFast:
+            compileRegExpSplitFast();
             break;
         case NewRegExp:
             compileNewRegExp();
@@ -10647,7 +10651,11 @@ IGNORE_CLANG_WARNINGS_END
         else if (m_node->child1().useKind() == SetObjectUse)
             speculateSetObject(m_node->child1());
 
-        if (m_graph.canDoFastSpread(m_node, m_state.forNode(m_node->child1()))) {
+        bool fastSpreadProven = m_graph.canDoFastSpread(m_node, m_state.forNode(m_node->child1()));
+        bool fastSpreadWithStructureCheck = !fastSpreadProven && m_graph.canDoFastSpreadWithStructureCheck(m_node);
+
+        if (fastSpreadProven || fastSpreadWithStructureCheck) {
+            LBasicBlock indexingTypeCheck = fastSpreadWithStructureCheck ? m_out.newBlock() : nullptr;
             LBasicBlock copyOnWriteContiguousCheck = m_out.newBlock();
             LBasicBlock copyOnWritePropagation = m_out.newBlock();
             LBasicBlock preLoop = m_out.newBlock();
@@ -10658,6 +10666,24 @@ IGNORE_CLANG_WARNINGS_END
             LBasicBlock slowPath = m_out.newBlock();
             LBasicBlock continuation = m_out.newBlock();
 
+            LBasicBlock lastNext = nullptr;
+
+            if (fastSpreadWithStructureCheck) {
+                JSGlobalObject* childGlobalObject = m_graph.globalObjectFor(m_node->child1()->origin.semantic);
+                LValue structureID = m_out.load32(argument, m_heaps.JSCell_structureID);
+                constexpr size_t numShapes = std::size(Graph::originalArrayShapesForSpread);
+                for (size_t i = 0; i < numShapes; ++i) {
+                    RegisteredStructure registered = m_graph.registerStructure(childGlobalObject->originalArrayStructureForIndexingType(Graph::originalArrayShapesForSpread[i]));
+                    bool isLast = (i + 1 == numShapes);
+                    LBasicBlock nextCompare = isLast ? slowPath : m_out.newBlock();
+                    m_out.branch(m_out.equal(structureID, weakStructureID(registered)),
+                        unsure(indexingTypeCheck), unsure(nextCompare));
+                    if (!isLast)
+                        m_out.appendTo(nextCompare);
+                }
+                lastNext = m_out.appendTo(indexingTypeCheck, copyOnWriteContiguousCheck);
+            }
+
             LValue indexingMode = m_out.load8ZeroExt32(argument, m_heaps.JSCell_indexingTypeAndMisc);
             LValue indexingShape = m_out.bitAnd(indexingMode, m_out.constInt32(IndexingShapeMask));
             LValue isOKIndexingType = m_out.belowOrEqual(
@@ -10665,7 +10691,10 @@ IGNORE_CLANG_WARNINGS_END
                 m_out.constInt32(ContiguousShape - Int32Shape));
 
             m_out.branch(isOKIndexingType, unsure(copyOnWriteContiguousCheck), unsure(slowPath));
-            LBasicBlock lastNext = m_out.appendTo(copyOnWriteContiguousCheck, copyOnWritePropagation);
+            if (fastSpreadProven)
+                lastNext = m_out.appendTo(copyOnWriteContiguousCheck, copyOnWritePropagation);
+            else
+                m_out.appendTo(copyOnWriteContiguousCheck, copyOnWritePropagation);
             LValue butterfly = m_out.loadPtr(argument, m_heaps.JSObject_butterfly);
             m_out.branch(m_out.equal(m_out.bitAnd(indexingMode, m_out.constInt32(IndexingModeMask)), m_out.constInt32(CopyOnWriteArrayWithContiguous)), unsure(copyOnWritePropagation), unsure(preLoop));
 
@@ -10732,7 +10761,7 @@ IGNORE_CLANG_WARNINGS_END
             }
 
             m_out.appendTo(slowPath, continuation);
-            ValueFromBlock slowResult = m_out.anchor(vmCall(pointerType(), operationSpreadFastArray, weakPointer(globalObject), argument));
+            ValueFromBlock slowResult = m_out.anchor(vmCall(pointerType(), fastSpreadProven ? operationSpreadFastArray : operationSpreadGeneric, weakPointer(globalObject), argument));
             m_out.jump(continuation);
 
             m_out.appendTo(continuation, lastNext);
@@ -18165,6 +18194,7 @@ IGNORE_CLANG_WARNINGS_END
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
         LValue string = lowString(m_node->child1());
         LValue position = lowInt32(m_node->child2());
+        bool isStringIteratorNextWithUndefined = m_node->op() == StringIteratorNextWithUndefined;
 
         LBasicBlock notRope = m_out.newBlock();
         LBasicBlock is8BitCheck = m_out.newBlock();
@@ -18197,14 +18227,18 @@ IGNORE_CLANG_WARNINGS_END
         m_out.jump(continuation);
 
         m_out.appendTo(doneBlock, slowPath);
-        ValueFromBlock doneValue = m_out.anchor(weakPointer(jsEmptyString(vm())));
+        ValueFromBlock doneValue = m_out.anchor(isStringIteratorNextWithUndefined ? m_out.constInt64(JSValue::encode(jsUndefined())) : weakPointer(jsEmptyString(vm())));
         ValueFromBlock donePosition = m_out.anchor(m_out.constInt32(JSStringIterator::doneIndex));
         m_out.jump(continuation);
 
         m_out.appendTo(slowPath, continuation);
         LValue tuple = vmCall(toOperationType(pointerType()), operationStringIteratorNext, weakPointer(globalObject), string, position);
-        ValueFromBlock slowValue = m_out.anchor(m_out.extract(tuple, 0));
-        ValueFromBlock slowPosition = m_out.anchor(m_out.castToInt32(m_out.extract(tuple, 1)));
+        LValue slowResultValue = m_out.extract(tuple, 0);
+        LValue slowResultPosition = m_out.castToInt32(m_out.extract(tuple, 1));
+        if (isStringIteratorNextWithUndefined)
+            slowResultValue = m_out.select(m_out.equal(slowResultPosition, m_out.constInt32(JSStringIterator::doneIndex)), m_out.constInt64(JSValue::encode(jsUndefined())), slowResultValue);
+        ValueFromBlock slowValue = m_out.anchor(slowResultValue);
+        ValueFromBlock slowPosition = m_out.anchor(slowResultPosition);
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
@@ -19531,6 +19565,16 @@ IGNORE_CLANG_WARNINGS_END
         LValue base = lowRegExpObject(m_node->child2());
         LValue argument = lowString(m_node->child3());
         LValue result = vmCall(Int64, operationRegExpMatchFastString, globalObject, base, argument);
+        setJSValue(result);
+    }
+
+    void compileRegExpSplitFast()
+    {
+        JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        LValue base = lowRegExpObject(m_node->child1());
+        LValue argument = lowString(m_node->child2());
+        LValue limit = lowJSValue(m_node->child3());
+        LValue result = vmCall(Int64, operationRegExpSplitFast, weakPointer(globalObject), base, argument, limit);
         setJSValue(result);
     }
 

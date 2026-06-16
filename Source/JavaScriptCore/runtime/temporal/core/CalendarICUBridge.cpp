@@ -34,6 +34,9 @@
 #include <wtf/DateMath.h>
 #include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/TZoneMalloc.h>
+#include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/TinyLRUCache.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/unicode/icu/ICUHelpers.h>
 
@@ -61,7 +64,7 @@ static CString buildICULocale(StringView calendarId)
 
 // buildCalendarTemplate — internal: opens ICU UCalendar for the given CalendarID, set to UTC.
 // NOTE: For Gregory/ISO/Japanese/Buddhist/Roc: sets Gregorian change date to -infinity for proleptic Gregorian arithmetic.
-static std::unique_ptr<UCalendar, ICUDeleter<ucal_close>> buildCalendarTemplate(CalendarID calendarId)
+static std::unique_ptr<UCalendar, ICUDeleter<ucal_close>> buildCalendarTemplate(const AbstractLocker&, CalendarID calendarId)
 {
     auto str = calendarIDToString(calendarId);
     auto locale = buildICULocale(str);
@@ -84,43 +87,44 @@ static std::unique_ptr<UCalendar, ICUDeleter<ucal_close>> buildCalendarTemplate(
     return cal;
 }
 
-struct CalendarCacheEntry {
-    WTF::Lock useLock;
-    std::atomic<bool> initialized { false };
-    UCalendar* cal { nullptr };
+struct CalendarCacheEntry final : public ThreadSafeRefCounted<CalendarCacheEntry> {
+    WTF_MAKE_TZONE_ALLOCATED(CalendarCacheEntry);
+public:
+    Lock useLock;
+    std::unique_ptr<UCalendar, ICUDeleter<ucal_close>> cal;
+};
+WTF_MAKE_TZONE_ALLOCATED_IMPL(CalendarCacheEntry);
+
+struct CalendarLRUCachePolicy {
+    static bool isKeyNull(const CalendarID&) { return false; }
+    static RefPtr<CalendarCacheEntry> createValueForNullKey() { return nullptr; }
+    static RefPtr<CalendarCacheEntry> createValueForKey(const CalendarID&) { return adoptRef(*new CalendarCacheEntry); }
+    static CalendarID createKeyForStorage(const CalendarID& id) { return id; }
 };
 
-static CalendarCacheEntry& calendarCacheEntry(CalendarID calendarId)
+static RefPtr<CalendarCacheEntry> calendarCacheEntry(CalendarID calendarId)
 {
-    static LazyNeverDestroyed<Vector<CalendarCacheEntry>> cache;
+    static Lock cacheLock;
+    static LazyNeverDestroyed<TinyLRUCache<CalendarID, RefPtr<CalendarCacheEntry>, 8, CalendarLRUCachePolicy>> cache;
     static std::once_flag onceFlag;
     std::call_once(onceFlag, [] {
-        cache.construct(intlAvailableCalendars().size());
+        cache.construct();
     });
-    return cache.get()[calendarId];
-}
-
-static void ensureCalendar(CalendarCacheEntry& entry, CalendarID calendarId)
-{
-    if (entry.initialized.load(std::memory_order_acquire))
-        return;
-    WTF::Locker locker { entry.useLock };
-    if (!entry.initialized.load(std::memory_order_relaxed)) {
-        auto owned = buildCalendarTemplate(calendarId);
-        entry.cal = owned.release();
-        entry.initialized.store(true, std::memory_order_release);
-    }
+    Locker locker { cacheLock };
+    return cache.get().get(calendarId);
 }
 
 template<typename F>
 static auto withCalendar(CalendarID calendarId, F&& fn) -> decltype(fn(static_cast<UCalendar*>(nullptr)))
 {
-    CalendarCacheEntry& entry = calendarCacheEntry(calendarId);
-    ensureCalendar(entry, calendarId);
-    WTF::Locker locker { entry.useLock };
-    if (entry.cal)
-        ucal_clear(entry.cal);
-    return fn(entry.cal);
+    auto entry = calendarCacheEntry(calendarId);
+    ASSERT(entry);
+    Locker locker { entry->useLock };
+    if (!entry->cal)
+        entry->cal = buildCalendarTemplate(locker, calendarId);
+    if (entry->cal)
+        ucal_clear(entry->cal.get());
+    return fn(entry->cal.get());
 }
 
 // lunarCalendarExtendedYearFor1972 — probes UCAL_EXTENDED_YEAR for the given lunisolar calendar
@@ -1115,7 +1119,27 @@ static std::optional<bool> surpassesMonths(
     auto trialMonthCode = getMonthCode(trialCal, calendarId);
     if (!trialMonthCode) [[unlikely]]
         return std::nullopt;
-    return nonISODateSurpasses(calendarId, sign, trialYear, *trialMonthCode, sourceDay, 0, targetYear, targetMonthCode, targetOrdinalMonth, targetDay);
+
+    // Phase 1: lexicographic check (year, monthCode, day).
+    // Equivalent to nonISODateSurpasses with candidateYears=0, but inlined so we don't
+    // need resolveMonthCodeToOrdinal — that would re-enter withCalendar and deadlock with
+    // the cache lock the caller holds across the month iteration.
+    if (compareSurpassesLexicographic(sign, trialYear, *trialMonthCode, sourceDay, targetYear, targetMonthCode, targetDay))
+        return true;
+
+    // Phase 2: constrain source monthCode to year y0, compare ordinally.
+    // trialCal is at the trial position, so its ordinal month equals resolveMonthCodeToOrdinal(calendarId, trialMonthCode, trialYear).
+    // Read it directly. computeOrdinalMonth mutates trialCal (walks from year-start for lunisolar). save+restore epoch ms preserves
+    // the trial position for the next loop iteration.
+    double savedMs = ucal_getMillis(trialCal, &status);
+    if (U_FAILURE(status)) [[unlikely]]
+        return std::nullopt;
+    auto trialOrdinal = computeOrdinalMonth(trialCal, calendarId);
+    UErrorCode restoreStatus = U_ZERO_ERROR;
+    ucal_setMillis(trialCal, savedMs, &restoreStatus);
+    if (!trialOrdinal || U_FAILURE(restoreStatus)) [[unlikely]]
+        return std::nullopt;
+    return compareSurpassesOrdinally(sign, trialYear, *trialOrdinal, sourceDay, targetYear, targetOrdinalMonth, targetDay);
 }
 
 // setMonths — icu4x: SurpassesChecker::set_months (components/calendar/src/calendar_arithmetic.rs)
@@ -1245,31 +1269,12 @@ TemporalResult<ISO8601::Duration> calendarDateUntil(CalendarID calendarId, const
     int32_t yearDiff = target.year - source.year;
     int32_t minYears = !yearDiff ? 0 : yearDiff - sign;
 
-    int32_t years = 0, months = 0, weeks = 0;
-
-    // 6. largestUnit is ~year~ or ~month~: use a cloned working calendar for the month/year loop.
-    //    The clone is obtained inside its own withCalendar call; all subsequent mutations happen
-    //    on the clone, which is not shared — no lock needed for the clone itself.
+    // 6. largestUnit is ~year~ or ~month~: count years (if any) using nonISODateSurpasses,
+    //    then run the month loop on the shared cached calendar.
     ASSERT(largestUnit == TemporalUnit::Year || largestUnit == TemporalUnit::Month);
-    // Obtain a clone of the shared calendar to use as our working state for the iteration.
-    auto workCalOrError = withCalendar(calendarId, [&](UCalendar* cal) -> TemporalResult<std::unique_ptr<UCalendar, ICUDeleter<ucal_close>>> {
-        if (!cal) [[unlikely]]
-            return makeUnexpected(rangeError(icuOpenCalendarFailed));
-        // Set to source (one) so the clone starts at the right position.
-        if (!setCalendarToISODate(cal, one)) [[unlikely]]
-            return makeUnexpected(rangeError(icuSetCalendarFailed));
-        UErrorCode cloneStatus = U_ZERO_ERROR;
-        auto cloned = std::unique_ptr<UCalendar, ICUDeleter<ucal_close>>(ucal_clone(cal, &cloneStatus));
-        if (!cloned || U_FAILURE(cloneStatus)) [[unlikely]]
-            return makeUnexpected(rangeError(icuOpenCalendarFailed));
-        return cloned;
-    });
-    if (!workCalOrError)
-        return makeUnexpected(workCalOrError.error());
-    auto workCal = WTF::move(*workCalOrError);
-    UCalendar* cal = workCal.get();
 
-    UErrorCode status = U_ZERO_ERROR;
+    int32_t years = 0;
+    int32_t months = 0;
 
     //    a. If largestUnit is ~year~: count full years using nonISODateSurpasses fast-forward.
     if (largestUnit == TemporalUnit::Year) {
@@ -1281,24 +1286,30 @@ TemporalResult<ISO8601::Duration> calendarDateUntil(CalendarID calendarId, const
             years = static_cast<int32_t>(candidateYears);
             candidateYears += sign;
         }
-        //       i. Set cal to (one + years) using calendarDateAdd (preserves month code).
-        if (years) {
-            ISO8601::Duration yearDur;
-            yearDur.setYears(static_cast<int64_t>(years));
-            auto advanced = calendarDateAdd(calendarId, one, yearDur, TemporalOverflow::Constrain);
-            if (!advanced) [[unlikely]]
-                return makeUnexpected(advanced.error());
-            // Set the working clone to the advanced date.
-            if (!setCalendarToISODate(cal, *advanced)) [[unlikely]]
-                return makeUnexpected(rangeError(icuSetCalendarFailed));
-        }
     }
 
-    //    b. Count full months from cal using surpassesMonths (day=1 to avoid clamping).
-    {
+    //    b. Compute the month-loop start: (one + years) via calendarDateAdd (preserves month code).
+    ISO8601::PlainDate monthLoopStart = one;
+    if (years) {
+        ISO8601::Duration yearDur;
+        yearDur.setYears(static_cast<int64_t>(years));
+        auto advanced = calendarDateAdd(calendarId, one, yearDur, TemporalOverflow::Constrain);
+        if (!advanced) [[unlikely]]
+            return makeUnexpected(advanced.error());
+        monthLoopStart = *advanced;
+    }
+
+    //    c. Month iteration on the cached calendar.
+    return withCalendar(calendarId, [&](UCalendar* cal) -> TemporalResult<ISO8601::Duration> {
+        if (!cal) [[unlikely]]
+            return makeUnexpected(rangeError(icuOpenCalendarFailed));
+        if (!setCalendarToISODate(cal, monthLoopStart)) [[unlikely]]
+            return makeUnexpected(rangeError(icuSetCalendarFailed));
+
+        UErrorCode status = U_ZERO_ERROR;
         // NOTE: lunisolar months per year vary; iterate one at a time (no min_months fast-forward).
         int32_t candidateMonths = sign;
-        //    c. Set cal to (one + years) with day=1 for clamping-free month advancement.
+        //    d. Set cal to (one + years) with day=1 for clamping-free month advancement.
         double startMs = ucal_getMillis(cal, &status);
         if (U_FAILURE(status)) [[unlikely]]
             return makeUnexpected(rangeError(icuReadCalendarFailed));
@@ -1307,22 +1318,16 @@ TemporalResult<ISO8601::Duration> calendarDateUntil(CalendarID calendarId, const
         if (U_FAILURE(status)) [[unlikely]]
             return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
 
-        // Clone for surpassesMonths iteration.
-        UErrorCode cloneStatus = U_ZERO_ERROR;
-        auto trialCalOwned = std::unique_ptr<UCalendar, ICUDeleter<ucal_close>>(ucal_clone(cal, &cloneStatus));
-        if (!trialCalOwned || U_FAILURE(cloneStatus)) [[unlikely]]
-            return makeUnexpected(rangeError(icuOpenCalendarFailed));
-
         for (;;) {
-            auto surpasses = surpassesMonths(trialCalOwned.get(), calendarId, sign, source.day, target.year, target.monthCode, target.ordinalMonth, target.day);
+            auto surpasses = surpassesMonths(cal, calendarId, sign, source.day, target.year, target.monthCode, target.ordinalMonth, target.day);
             if (!surpasses) [[unlikely]]
                 return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
             if (*surpasses)
                 break;
             months = candidateMonths;
             candidateMonths += sign;
-            // trialCal already advanced by surpassesMonths — no reset needed.
-            // (Resetting to cal's fixed position would cause infinite loop since cal never moves.)
+            // cal already advanced by surpassesMonths — no reset needed here.
+            // ucal_setMillis(cal, startMs) below resets it before applying the final months count.
         }
 
         // Restore cal to (one + years), apply total months in one ucal_add (avoids undo asymmetry).
@@ -1334,29 +1339,29 @@ TemporalResult<ISO8601::Duration> calendarDateUntil(CalendarID calendarId, const
             if (U_FAILURE(status)) [[unlikely]]
                 return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
         }
-        //    c. Apply regulated day = min(sourceDay, end_of_month) via setMonths.
+        //    e. Apply regulated day = min(sourceDay, end_of_month) via setMonths.
         if (!setMonths(cal, source.day)) [[unlikely]]
             return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
-        //    d. If largestUnit is ~month~, clear years (months were counted from one + years=0).
-        if (largestUnit == TemporalUnit::Month)
-            years = 0;
-    }
 
-    // 7. Compute remaining days from the epoch ms difference between cal and two.
-    const double msPerDay = 86'400'000.0; // nsPerDay / nsPerMillisecond
-    // 8. Return Duration { years, months, weeks, days }.
-    double finalMs1 = ucal_getMillis(cal, &status);
-    if (U_FAILURE(status)) [[unlikely]]
-        return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
-    double daysDiff = std::trunc((target.epochMs - finalMs1) / msPerDay);
+        // 7. Compute remaining days from the epoch ms difference between cal and two.
+        const double msPerDay = 86'400'000.0; // nsPerDay / nsPerMillisecond
+        // 8. Return Duration { years, months, weeks, days }.
+        double finalMs1 = ucal_getMillis(cal, &status);
+        if (U_FAILURE(status)) [[unlikely]]
+            return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
+        double daysDiff = std::trunc((target.epochMs - finalMs1) / msPerDay);
 
-    return ISO8601::Duration {
-        years,
-        months,
-        weeks,
-        static_cast<int64_t>(daysDiff),
-        0, 0, 0, 0, Int128(0), Int128(0)
-    };
+        //    f. If largestUnit is ~month~, clear years (months were counted from one + years=0).
+        int32_t resultYears = (largestUnit == TemporalUnit::Month) ? 0 : years;
+
+        return ISO8601::Duration {
+            resultYears,
+            months,
+            0,
+            static_cast<int64_t>(daysDiff),
+            0, 0, 0, 0, Int128(0), Int128(0)
+        };
+    });
 }
 
 
@@ -1762,33 +1767,30 @@ TemporalResult<ISO8601::PlainDate> calendarDateFromFields(CalendarID calendarId,
             ucal_set(cal, UCAL_DAY_OF_MONTH, 1);
             ucal_getMillis(cal, &status);
             if (U_FAILURE(status)) [[unlikely]]
-                return makeUnexpected(rangeError("Failed to resolve lunisolar calendar"_s)); // Use a separate calendar to count months in year.
-            // Clone: need an independent copy to advance months while cal stays at its current date.
-            UErrorCode cloneStatus = U_ZERO_ERROR;
-            auto countCal = std::unique_ptr<UCalendar, ICUDeleter<ucal_close>>(ucal_clone(cal, &cloneStatus));
-            if (U_FAILURE(cloneStatus)) [[unlikely]]
-                return makeUnexpected(rangeError("Failed to open counting calendar"_s));
+                return makeUnexpected(rangeError("Failed to resolve lunisolar calendar"_s));
+            // Count months in year by walking cal forward, then reset to year start.
             double calMs = ucal_getMillis(cal, &status);
             if (U_FAILURE(status)) [[unlikely]]
                 return makeUnexpected(rangeError(icuReadCalendarFailed));
-            ucal_setMillis(countCal.get(), calMs, &status);
-            if (U_FAILURE(status)) [[unlikely]]
-                return makeUnexpected(rangeError(icuSetCalendarFailed));
-            int32_t savedYear = ucal_get(countCal.get(), UCAL_EXTENDED_YEAR, &status);
+            int32_t savedYear = ucal_get(cal, UCAL_EXTENDED_YEAR, &status);
             if (U_FAILURE(status)) [[unlikely]]
                 return makeUnexpected(rangeError(icuReadCalendarFailed));
             int32_t monthsInYear = 1;
             for (int i = 0; i < 14; i++) {
-                ucal_add(countCal.get(), UCAL_MONTH, 1, &status);
+                ucal_add(cal, UCAL_MONTH, 1, &status);
                 if (U_FAILURE(status)) [[unlikely]]
                     return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
-                int32_t curYear = ucal_get(countCal.get(), UCAL_EXTENDED_YEAR, &status);
+                int32_t curYear = ucal_get(cal, UCAL_EXTENDED_YEAR, &status);
                 if (U_FAILURE(status)) [[unlikely]]
                     return makeUnexpected(rangeError(icuReadCalendarFailed));
                 if (curYear != savedYear)
                     break;
                 monthsInYear++;
             }
+            // Reset to year start before advancing to target month.
+            ucal_setMillis(cal, calMs, &status);
+            if (U_FAILURE(status)) [[unlikely]]
+                return makeUnexpected(rangeError(icuSetCalendarFailed));
 
             // Clamp or reject month against monthsInYear.
             uint8_t resolvedMonth = month;

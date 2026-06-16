@@ -234,6 +234,7 @@ class WebPageProxy;
 class WebProcessPool;
 class WebProcessProxy;
 
+struct InteractionInformationAtPosition;
 struct WebHitTestResultData;
 
 enum class ContinueUnsafeLoad : bool;
@@ -1003,6 +1004,7 @@ private:
 #endif
 
     std::optional<EditorState::PostLayoutData> postLayoutDataForContentEditable();
+    bool inputMethodUsesCorrectKeyEventOrder();
 
     WeakObjCPtr<WKWebView> m_view;
     const UniqueRef<PageClient> m_pageClient;

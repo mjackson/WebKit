@@ -1088,6 +1088,7 @@ css/parser/CSSPropertyParserConsumer+Inline.cpp
 css/parser/CSSPropertyParserConsumer+Lists.cpp
 css/parser/CSSPropertyParserConsumer+Masking.cpp
 css/parser/CSSPropertyParserConsumer+Motion.cpp
+css/parser/CSSPropertyParserConsumer+ObjectViewBox.cpp
 css/parser/CSSPropertyParserConsumer+Overflow.cpp
 css/parser/CSSPropertyParserConsumer+Percentage.cpp
 css/parser/CSSPropertyParserConsumer+Position.cpp
@@ -1424,7 +1425,6 @@ dom/SimpleRange.cpp
 dom/SimulatedClick.cpp
 dom/SlotAssignment.cpp @header:RenderStyleGetters
 dom/SpaceSplitString.cpp
-dom/SpatialBackdropSource.cpp
 dom/SpeculationRulesMatcher.cpp
 dom/StaticNodeList.cpp
 dom/StaticRange.cpp
@@ -1590,6 +1590,7 @@ html/DirectoryFileListCreator.cpp
 html/EmailInputType.cpp
 html/EnterKeyHint.cpp
 html/FTPDirectoryDocument.cpp
+html/FallbackPopupMenu.cpp
 html/FileInputType.cpp
 html/FormAssociatedCustomElement.cpp
 html/FormAssociatedElement.cpp
@@ -3128,7 +3129,7 @@ rendering/svg/SVGBoundingBoxComputation.cpp @header:RenderStyleGetters
 rendering/svg/SVGContainerLayout.cpp @header:RenderStyleGetters
 rendering/svg/SVGInlineFlowBox.cpp
 rendering/svg/SVGInlineTextBox.cpp @header:RenderStyleGetters
-rendering/svg/SVGPathData.cpp @header:RenderStyleGetters
+rendering/svg/SVGPathFromElement.cpp @header:RenderStyleGetters
 rendering/svg/SVGRenderSupport.cpp @header:RenderStyleGetters
 rendering/svg/SVGRenderTreeAsText.cpp @header:RenderStyleGetters
 rendering/svg/SVGRenderingContext.cpp @header:RenderStyleGetters
@@ -3406,6 +3407,7 @@ style/values/images/StyleGradient.cpp @header:RenderStyleGetters @cost:6
 style/values/images/StyleImageOrNone.cpp
 style/values/images/StyleImageOrientation.cpp
 style/values/images/StyleImageWrapper.cpp
+style/values/images/StyleObjectViewBox.cpp
 style/values/inline/StyleLineHeight.cpp @header:RenderStyleGetters @cost:5
 style/values/inline/StyleVerticalAlign.cpp
 style/values/inline/StyleWebKitInitialLetter.cpp
@@ -3425,6 +3427,7 @@ style/values/masking/StyleMaskLayer.cpp
 style/values/masking/StyleMaskMode.cpp
 style/values/math/StyleMathDepth.cpp @header:RenderStyleGetters @cost:5
 style/values/motion/StyleOffsetAnchor.cpp
+style/values/motion/StyleOffsetDistance.cpp
 style/values/motion/StyleOffsetPath.cpp
 style/values/motion/StyleOffsetPosition.cpp
 style/values/motion/StyleOffsetRotate.cpp
@@ -3442,8 +3445,8 @@ style/values/page/StylePageSize.cpp
 style/values/pointerevents/StyleTouchAction.cpp
 style/values/primitives/StyleCustomIdent.cpp
 style/values/primitives/StyleLengthResolution.cpp @header:RenderStyleGetters @cost:6
-style/values/primitives/StyleLengthWrapperData.cpp
 style/values/primitives/StylePosition.cpp
+style/values/primitives/StylePrimitiveData.cpp
 style/values/primitives/StylePrimitiveNumericTypes+Conversions.cpp @header:RenderStyleGetters @cost:5
 style/values/primitives/StyleRatio.cpp
 style/values/primitives/StyleString.cpp
@@ -4123,7 +4126,8 @@ JSDOMStringList.cpp
 JSDOMStringMap.cpp
 JSDOMTokenList.cpp
 JSDOMURL.cpp
-JSDOMWindow.cpp @no-unify-when(bundle<=8) @cost:44
+JSDOMWindow.cpp @no-unify-when(bundle<=8) @cost:22
+JSDOMWindowConstructorAttributes.cpp @no-unify-when(bundle<=8) @cost:22
 JSDataCue.cpp
 JSDataTransfer.cpp
 JSDataTransferItem.cpp

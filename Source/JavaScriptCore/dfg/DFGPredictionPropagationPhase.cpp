@@ -1045,6 +1045,7 @@ private:
         case RegExpTestInline:
         case RegExpMatchFast:
         case RegExpMatchFastGlobal:
+        case RegExpSplitFast:
         case StringReplace:
         case StringReplaceAll:
         case StringReplaceRegExp:
@@ -1578,6 +1579,11 @@ private:
 
         case StringIteratorNext: {
             setTuplePredictions(SpecString, SpecInt32Only);
+            break;
+        }
+
+        case StringIteratorNextWithUndefined: {
+            setTuplePredictions(SpecString | SpecOther, SpecInt32Only);
             break;
         }
 

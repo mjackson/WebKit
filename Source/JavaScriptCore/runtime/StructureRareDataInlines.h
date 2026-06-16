@@ -30,6 +30,7 @@
 #include "JSString.h"
 #include "PackedCellPtr.h"
 #include "StructureChain.h"
+#include "StructureInlinesLight.h"
 #include "StructureRareData.h"
 #include "VM.h"
 #include <wtf/Bag.h>

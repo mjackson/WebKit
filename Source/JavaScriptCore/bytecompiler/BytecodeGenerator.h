@@ -956,7 +956,6 @@ namespace JSC {
         RegisterID* emitIsMap(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSMapType); }
         RegisterID* emitIsSet(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSSetType); }
         RegisterID* emitIsShadowRealm(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, ShadowRealmType); }
-        RegisterID* emitIsStringIterator(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSStringIteratorType); }
         RegisterID* emitIsArrayIterator(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSArrayIteratorType); }
         RegisterID* emitIsMapIterator(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSMapIteratorType); }
         RegisterID* emitIsSetIterator(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSSetIteratorType); }
@@ -1241,7 +1240,7 @@ namespace JSC {
             }
 
             auto optionalVariablesUnderTDZ = getVariablesUnderTDZ();
-            std::optional<Vector<Identifier>> generatorOrAsyncWrapperFunctionParameterNames = std::nullopt;
+            std::optional<Vector<Identifier>> generatorOrAsyncWrapperFunctionParameterNames;
             std::optional<PrivateNameEnvironment> parentPrivateNameEnvironment = getAvailablePrivateAccessNames();
 
             // FIXME: These flags, ParserModes and propagation to XXXCodeBlocks should be reorganized.

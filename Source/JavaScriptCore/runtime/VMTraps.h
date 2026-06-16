@@ -29,6 +29,7 @@
 #include "StackManager.h"
 #include <wtf/AutomaticThread.h>
 #include <wtf/Box.h>
+#include <wtf/Condition.h>
 #include <wtf/Lock.h>
 #include <wtf/Locker.h>
 #include <wtf/RefPtr.h>

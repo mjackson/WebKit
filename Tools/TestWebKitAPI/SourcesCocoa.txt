@@ -36,6 +36,7 @@ Helpers/cocoa/DecomposedAttributedText.mm @nonARC
 Helpers/cocoa/DragAndDropSimulator.mm @nonARC
 Helpers/cocoa/HostWindowManager.mm @nonARC
 Helpers/cocoa/ImageAnalysisTestingUtilities.mm @nonARC
+Helpers/cocoa/MediaRemoteSoftLink.mm @nonARC
 Helpers/cocoa/ModelLoadingMessageHandler.mm @nonARC
 Helpers/cocoa/NSItemProviderAdditions.mm @nonARC
 Helpers/cocoa/PlatformUtilitiesCocoa.mm @nonARC
@@ -327,7 +328,7 @@ Tests/WebKit/WKWebView/VisibilityState.mm @nonARC
 Tests/WebKit/WKWebView/VisibleContentRect.mm @nonARC
 Tests/WebKit/WKWebView/VisitedLinkStore.mm @nonARC
 Tests/WebKit/WKWebView/WKAppHighlights.mm @nonARC
-Tests/WebKit/WKWebView/WKAttachmentTests.mm @nonARC
+Tests/WebKit/WKWebView/WKAttachmentTests.mm @nonARC @no-unify
 Tests/WebKit/WKWebView/WKContentExtensionStore.mm @nonARC
 Tests/WebKit/WKWebView/WKContentViewEditingActions.mm @nonARC
 Tests/WebKit/WKWebView/WKContentViewTargetForAction.mm @nonARC

@@ -1802,6 +1802,7 @@ public:
         switch (op()) {
         case EnumeratorNextUpdateIndexAndMode:
         case StringIteratorNext:
+        case StringIteratorNextWithUndefined:
             return true;
         default:
             return false;
@@ -1843,6 +1844,7 @@ public:
         switch (op()) {
         case EnumeratorNextUpdateIndexAndMode:
         case StringIteratorNext:
+        case StringIteratorNextWithUndefined:
             return 2;
         default:
             break;
@@ -2145,6 +2147,7 @@ public:
         case RegExpMatchFast:
         case RegExpMatchFastGlobal:
         case RegExpSearch:
+        case RegExpSplitFast:
         case GetGlobalVar:
         case GetGlobalLexicalVariable:
         case StringReplace:

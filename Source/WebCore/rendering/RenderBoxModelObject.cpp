@@ -66,6 +66,8 @@
 #include "ScrollingConstraints.h"
 #include "Settings.h"
 #include "StyleImage.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
+#include "StylePrimitiveNumericTypes+EvaluationMinimum.h"
 #include "Styleable.h"
 #include "TextBoxPainter.h"
 #include "TransformState.h"
@@ -84,6 +86,26 @@ namespace WebCore {
 using namespace HTMLNames;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderBoxModelObject);
+
+LayoutUnit borderLeft(const RenderBoxModelObject& renderer)
+{
+    return renderer.borderLeft();
+}
+
+LayoutUnit borderTop(const RenderBoxModelObject& renderer)
+{
+    return renderer.borderTop();
+}
+
+LayoutUnit paddingLeft(const RenderBoxModelObject& renderer)
+{
+    return renderer.paddingLeft();
+}
+
+LayoutUnit paddingTop(const RenderBoxModelObject& renderer)
+{
+    return renderer.paddingTop();
+}
 
 using FirstLetterRemainingTextMap = SingleThreadWeakHashMap<const RenderBoxModelObject, SingleThreadWeakPtr<RenderTextFragment>>;
 

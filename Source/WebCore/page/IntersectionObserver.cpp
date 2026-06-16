@@ -63,6 +63,7 @@
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
+#include "TransformState.h"
 #include "VisibleRectContext.h"
 #include "WebCoreOpaqueRootInlines.h"
 #include <JavaScriptCore/AbstractSlotVisitorInlines.h>
@@ -86,7 +87,7 @@ static ExceptionOr<IntersectionObserverMarginBox> parseMargin(String& margin, co
     tokenRange.consumeWhitespace();
 
     if (tokenRange.atEnd())
-        return IntersectionObserverMarginBox { IntersectionObserverMarginEdge::Fixed { 0 } };
+        return IntersectionObserverMarginBox { IntersectionObserverMarginEdge::Dimension { 0 } };
 
     auto consumeEdge = [&] -> ExceptionOr<IntersectionObserverMarginEdge> {
         auto parsedValue = MetaConsumer<CSS::LengthPercentage<CSS::All, float>>::consume(tokenRange, parserState);
@@ -106,7 +107,7 @@ static ExceptionOr<IntersectionObserverMarginBox> parseMargin(String& margin, co
                 // Spec states: "Similar to the CSS margin property, this is a string of 1-4 components, each either an *absolute length* or a percentage."
                 // https://w3c.github.io/IntersectionObserver/#dom-intersectionobserverinit-rootmargin
                 if (lengthUnit == CSS::LengthUnit::Px) {
-                    return { IntersectionObserverMarginEdge::Fixed {
+                    return { IntersectionObserverMarginEdge::Dimension {
                         Style::toStyle(CSS::LengthRaw<CSS::All, float> { lengthUnit, raw->value }, NoConversionDataRequiredToken { }).unresolvedValue()
                     } };
                 }
@@ -241,7 +242,7 @@ static String marginBoxToString(const IntersectionObserverMarginBox& marginBox)
         if (auto percentage = edge.tryPercentage())
             stringBuilder.append(static_cast<int>(percentage->value), "%"_s, side != BoxSide::Left ? " "_s : ""_s);
         else
-            stringBuilder.append(static_cast<int>(edge.tryFixed()->resolveZoom(Style::ZoomNeeded { })), "px"_s, side != BoxSide::Left ? " "_s : ""_s);
+            stringBuilder.append(static_cast<int>(edge.tryDimension()->resolveZoom(Style::ZoomNeeded { })), "px"_s, side != BoxSide::Left ? " "_s : ""_s);
     }
     return stringBuilder.toString();
 }
@@ -357,7 +358,7 @@ static void expandRootBoundsWithRootMargin(FloatRect& rootBounds, const Intersec
     auto zoomAdjustedLength = [](const IntersectionObserverMarginEdge& edge, float maximumValue, float zoomFactor) {
         if (auto percentage = edge.tryPercentage())
             return Style::evaluate<float>(*percentage, maximumValue);
-        return Style::evaluate<float>(*edge.tryFixed(), Style::ZoomNeeded { }) * zoomFactor;
+        return Style::evaluate<float>(*edge.tryDimension(), Style::ZoomNeeded { }) * zoomFactor;
     };
 
     auto rootMarginEdges = FloatBoxExtent {
@@ -499,12 +500,60 @@ static std::optional<LayoutRect> computeClippedRectInRootContentsSpace(const Lay
     return computeClippedRectInRootContentsSpace(*absoluteClippedRect, targetSecurityOrigin, enclosingFrame.get(), WTF::move(scrollMargin));
 }
 
+// Equivalent to FrameView::convertFromContainingView.
+static FloatRect convertFromContainingView(const FrameView& frameView, const FrameView& parentView, FloatRect rect)
+{
+    if (is<LocalFrameView>(parentView)) {
+        // If we can compute it the old way, do so.
+        return frameView.convertFromContainingView(rect);
+    }
+
+    rect = parentView.viewToContents(rect);
+
+    auto transform = parentView.absoluteToChildFrameOwnerLocalTransform(frameView.frame());
+    FloatRect transformed = transform.projectQuad(rect).boundingBox();
+    transformed.moveBy(-parentView.childFrameOwnerContentBoxLocation(frameView.frame()));
+
+    return transformed;
+}
+
+// Equivalent to Widget::convertFromRootView.
+static FloatRect convertFromRootView(const FrameView& frameView, FloatRect rect)
+{
+    auto parentView = [&frameView] () -> RefPtr<const FrameView> {
+        if (RefPtr parent = dynamicDowncast<FrameView>(frameView.parent()))
+            return parent;
+
+        // When Site Isolation is enabled, Widget::m_parent is not populated if
+        // frameView is RemoteFrameView. Workaround this by using the frame tree parent.
+        // FIXME: fix the underlying issue instead.
+        if (RefPtr parent = frameView.frame().tree().parent())
+            return parent->virtualView();
+
+        return nullptr;
+    }();
+
+    if (parentView) {
+        FloatRect parentRect = convertFromRootView(*parentView, rect);
+        return convertFromContainingView(frameView, *parentView, parentRect);
+    }
+
+    return rect;
+}
+
+// Equivalent to rootViewToContents.
+static FloatRect mainFrameViewToContents(const FrameView& targetFrameView, FloatRect rect)
+{
+    return targetFrameView.viewToContents(convertFromRootView(targetFrameView, rect));
+}
+
 auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRegistration& registration, FrameView& hostFrameView, Element& target, ApplyRootMargin applyRootMargin) const -> IntersectionObservationState
 {
     bool isFirstObservation = !registration.previousThresholdIndex;
 
-    // This is only set for explicit roots.
-    // FIXME: remove one remaining place that needs this to work with implicit root.
+    // This is not set if the root is implicit (meaning the root is the main frame),
+    // it's cross-origin with the target, and Site Isolation is enabled. In that case,
+    // the renderer is in another process and can't be accessed.
     CheckedPtr<RenderBox> rootRenderer;
 
     CheckedPtr<RenderElement> targetRenderer;
@@ -564,12 +613,8 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
             return;
         }
 
-        // This is needed to get the root's renderer to compute the root bounds.
-        // FIXME: remove this when computing root bounds no longer requires rootRenderer.
-        RefPtr hostLocalFrameView = dynamicDowncast<LocalFrameView>(hostFrameView);
-        if (!hostLocalFrameView)
-            return;
-        rootRenderer = hostLocalFrameView->renderView();
+        if (RefPtr hostLocalFrameView = dynamicDowncast<LocalFrameView>(hostFrameView))
+            rootRenderer = hostLocalFrameView->renderView();
 
         intersectionState.canComputeIntersection = true;
         intersectionState.rootBounds = layoutViewportRectForIntersection();
@@ -582,25 +627,11 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
     }
 
     if (applyRootMargin == ApplyRootMargin::Yes) {
-        auto rootUsedZoom = [&] () -> float {
-            if (rootRenderer)
-                return rootRenderer->style().usedZoom();
-
-            // If applyRootMargin is Yes, the root and target frames are same-origin.
-            // Therefore the root frame should be in the same process as the target frame
-            // (with or without Site Isolation)
-            auto* hostLocalFrameView = dynamicDowncast<LocalFrameView>(hostFrameView);
-            ASSERT(hostLocalFrameView);
-            if (!hostLocalFrameView)
-                return 1;
-
-            CheckedPtr hostRenderView = hostLocalFrameView->renderView();
-            ASSERT(hostRenderView);
-            if (!hostRenderView)
-                return 1;
-
-            return hostRenderView->style().usedZoom();
-        }();
+        // If applyRootMargin is Yes, the root and target frames are same-origin.
+        // Therefore the root renderer should be available, as the root is in the
+        // same process as the target (with or without Site Isolation)
+        ASSERT(rootRenderer);
+        float rootUsedZoom = rootRenderer ? rootRenderer->style().usedZoom() : 1;
 
         expandRootBoundsWithRootMargin(intersectionState.rootBounds, scrollMarginBox(), rootUsedZoom);
         expandRootBoundsWithRootMargin(intersectionState.rootBounds, rootMarginBox(), rootUsedZoom);
@@ -662,14 +693,36 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
     if (isFirstObservation || intersectionState.isIntersecting)
         intersectionState.absoluteTargetRect = targetRenderer->localToAbsoluteQuad(FloatRect(localTargetBounds)).boundingBox();
 
+    auto rootLocalToAbsoluteRect = [&] (FloatRect rect) {
+        if (rootRenderer)
+            return rootRenderer->localToAbsoluteQuad(rect).boundingBox();
+
+        // The below codepath is specific to implicit root, where the root is the main frame.
+        ASSERT(!root());
+
+        // When page scale is > 1 (e.g by pinch-to-zoom), a scale transform is applied on the
+        // main frame's RenderView in Style::resolveForDocument(). Therefore we have to apply
+        // this transform to the local coordinate to turn it into absolute.
+        // This is identical to calling localToAbsoluteQuad() on the main frame's RenderView,
+        // as it'll apply the same transform.
+        // Not applicable on iOS family as they apply page scale differently.
+        // FIXME: replace the platform ifdef with something else.
+#if !PLATFORM(IOS_FAMILY)
+        if (RefPtr hostPage = hostFrameView.frame().page())
+            rect.scale(hostPage->pageScaleFactor());
+#endif
+
+        return rect;
+    };
+
     if (intersectionState.isIntersecting) {
-        auto rootAbsoluteIntersectionRect = rootRenderer->localToAbsoluteQuad(rootLocalIntersectionRect).boundingBox();
+        auto rootAbsoluteIntersectionRect = rootLocalToAbsoluteRect(rootLocalIntersectionRect);
 
         if (root() && &targetRenderer->frame() == &rootRenderer->frame())
             intersectionState.absoluteIntersectionRect = rootAbsoluteIntersectionRect;
         else {
             auto rootViewIntersectionRect = hostFrameView.contentsToView(rootAbsoluteIntersectionRect);
-            intersectionState.absoluteIntersectionRect = targetRenderer->view().frameView().rootViewToContents(rootViewIntersectionRect);
+            intersectionState.absoluteIntersectionRect = mainFrameViewToContents(targetRenderer->view().frameView(), rootViewIntersectionRect);
         }
 
         intersectionState.isIntersecting = intersectionState.absoluteIntersectionRect->edgeInclusiveIntersect(*intersectionState.absoluteTargetRect);
@@ -694,7 +747,7 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
 
     intersectionState.observationChanged = isFirstObservation || intersectionState.thresholdIndex != registration.previousThresholdIndex;
     if (intersectionState.observationChanged) {
-        intersectionState.absoluteRootBounds = rootRenderer->localToAbsoluteQuad(intersectionState.rootBounds).boundingBox();
+        intersectionState.absoluteRootBounds = rootLocalToAbsoluteRect(intersectionState.rootBounds);
 
         if (!intersectionState.absoluteTargetRect)
             intersectionState.absoluteTargetRect = targetRenderer->localToAbsoluteQuad(FloatRect(localTargetBounds)).boundingBox();

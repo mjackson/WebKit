@@ -30,6 +30,7 @@
 #include "APIObject.h"
 #include "MessageReceiver.h"
 #include "TextExtractionAssertionScope.h"
+#include <WebCore/UserGestureTokenIdentifier.h>
 #include <wtf/ApproximateTime.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/CompletionHandler.h>
@@ -343,9 +344,6 @@ struct ScrollingNodeIDType;
 struct SerializedAttachmentData;
 struct ShareDataWithParsedURL;
 struct SleepDisablerIdentifierType;
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-struct SpatialBackdropSource;
-#endif
 struct SpeechRecognitionError;
 struct SnapshotIdentifierType;
 struct SystemPreviewInfo;
@@ -1043,10 +1041,6 @@ public:
 
     // Corresponds to the web content's `<meta name="theme-color">` or application manifest's `"theme_color"`.
     WebCore::Color NODELETE themeColor() const;
-
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    std::optional<WebCore::SpatialBackdropSource> spatialBackdropSource() const;
-#endif
 
     void setShouldSuppressHDR(bool);
 
@@ -2011,7 +2005,7 @@ public:
     void inspectorNodeSearchMovedToPosition(const WebCore::FloatPoint&);
     void inspectorNodeSearchEndedAtPosition(const WebCore::FloatPoint&);
 
-    void blurFocusedElement();
+    void blurFocusedElement(std::optional<WebCore::FrameIdentifier>);
     void setIsShowingInputViewForFocusedElement(std::optional<WebCore::FrameIdentifier>, bool);
 
     void requestFocusedElementInformation(CompletionHandler<void(const std::optional<FocusedElementInformation>&)>&&);
@@ -2212,7 +2206,7 @@ public:
     void getLoadDecisionForIcons(const HashMap<WebKit::CallbackID, WebCore::LinkIcon>&);
 
     void focusFromServiceWorker(CompletionHandler<void()>&&);
-    void setFocus(bool focused);
+    void setFocus(bool focused, std::optional<WebCore::UserGestureTokenIdentifier> = std::nullopt);
     void setWindowFrame(const WebCore::FloatRect&);
     void getWindowFrame(CompletionHandler<void(const WebCore::FloatRect&)>&&);
     void getWindowFrameWithCallback(Function<void(WebCore::FloatRect)>&&);
@@ -3200,10 +3194,6 @@ private:
     void pageExtendedBackgroundColorDidChange(const WebCore::Color&);
     void sampledPageTopColorChanged(const WebCore::Color&);
 
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    void spatialBackdropSourceChanged(std::optional<WebCore::SpatialBackdropSource>&&);
-#endif
-
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
     void allowImmersiveElement(CompletionHandler<void(bool)>&&);
     void presentImmersiveElement(const WebCore::LayerHostingContextIdentifier, CompletionHandler<void(bool)>&&);
@@ -3605,7 +3595,7 @@ private:
 
     void broadcastFocusedFrameToOtherProcesses(IPC::Connection&, std::optional<WebCore::FrameIdentifier>&&);
 
-    void focusRemoteFrame(IPC::Connection&, WebCore::FrameIdentifier);
+    void focusRemoteFrame(IPC::Connection&, WebCore::FrameIdentifier, std::optional<WebCore::UserGestureTokenIdentifier>);
     void postMessageToRemote(WebCore::FrameIdentifier source, const WebCore::SecurityOriginData& sourceOrigin, WebCore::FrameIdentifier target, std::optional<WebCore::SecurityOriginData> targetOrigin, const WebCore::MessageWithMessagePorts&);
     void renderTreeAsTextForTesting(WebCore::FrameIdentifier, uint64_t baseIndent, OptionSet<WebCore::RenderAsTextFlag>, CompletionHandler<void(String&&)>&&);
     void layerTreeAsTextForTesting(WebCore::FrameIdentifier, uint64_t baseIndent, OptionSet<WebCore::LayerTreeAsTextOptions>, CompletionHandler<void(String&&)>&&);

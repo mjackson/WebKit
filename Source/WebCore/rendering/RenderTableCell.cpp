@@ -49,6 +49,7 @@
 #include "RenderView.h"
 #include "Settings.h"
 #include "StyleBoxShadow.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleProperties.h"
 #include "TransformState.h"
 #include <ranges>
@@ -317,7 +318,7 @@ bool RenderTableCell::computeIntrinsicPadding(LayoutUnit heightConstraint)
         [&](const CSS::Keyword::WebkitBaselineMiddle&) {
             // Do nothing.
         },
-        [&](const Style::VerticalAlign::Length&) {
+        [&](const Style::VerticalAlign::LengthPercentage&) {
             applyStandard();
         }
     );

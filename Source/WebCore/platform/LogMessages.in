@@ -28,7 +28,11 @@ CachedRawResourceRedirectReceived, "CachedRawResource::redirectReceived", (), DE
 CachedResourceLoadNoAssociatedFrame, "CachedResource::load: No associated frame", (), DEFAULT, Network
 CachedResourceRedirectReceived, "CachedResource::redirectReceived:", (), DEFAULT, Network
 DocumentLoaderAttachToFrame, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::attachToFrame", (uint64_t, uint64_t, int), DEFAULT, Network
+DocumentLoaderCancelMainResourceLoad, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::cancelMainResourceLoad: (type=%d, code=%d)", (uint64_t, uint64_t, int, int, int), DEFAULT, Network
 DocumentLoaderDetachFromFrame, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::detachFromFrame", (uint64_t, uint64_t, int), DEFAULT, Network
+DocumentLoaderMainReceivedError, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::mainReceivedError: (type=%d, code=%d)", (uint64_t, uint64_t, int, int, int), DEFAULT, Network
+DocumentLoaderNotifyFinishedCancelingLoad, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::notifyFinished: canceling load (type=%d, code=%d)", (uint64_t, uint64_t, int, int, int), DEFAULT, Network
+DocumentLoaderSetMainDocumentError, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::setMainDocumentError: (type=%d, code=%d)", (uint64_t, uint64_t, int, int, int), DEFAULT, Network
 DocumentLoaderStartLoadingMainResourceEmptyDocument, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::startLoadingMainResource: Returning empty document", (uint64_t, uint64_t, int), DEFAULT, Network
 DocumentLoaderStartLoadingMainResourceStartingLoad, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::startLoadingMainResource: Starting load", (uint64_t, uint64_t, int), DEFAULT, Network
 DocumentLoaderStopLoading, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::stopLoading", (uint64_t, uint64_t, int), DEFAULT, Network
@@ -70,7 +74,7 @@ HTMLMediaElementCreateMediaPlayer, "HTMLMediaElement::createMediaPlayer(%" PRIX6
 HTMLMediaElementCurrentMediaTimeSeeking, "HTMLMediaElement::currentMediaTime(%" PRIX64 ") seeking, returning %f", (uint64_t, float), DEFAULT, Media
 HTMLMediaElementDestructor, "HTMLMediaElement::~HTMLMediaElement(%" PRIX64 ")", (uint64_t), DEFAULT, Media
 HTMLMediaElementDidMoveToNewDocument, "HTMLMediaElement::didMoveToNewDocument(%" PRIX64 ")", (uint64_t), DEFAULT, Media
-HTMLMediaElementDispatchPlayPauseEventsIfNeedsQuirks, "HTMLMediaElement::dispatchPlayPauseEventsIfNeedsQuirks(%" PRIX64 ")", (uint64_t), DEFAULT, Media
+HTMLMediaElementDispatchPlayPauseEventsIfNeedsQuirks, "HTMLMediaElement::dispatchPlayPauseEventsIfNeedsQuirks(%" PRIX64 ")", (uint64_t), INFO, Media
 HTMLMediaElementExitFullscreen, "HTMLMediaElement::exitFullscreen(%" PRIX64 ")", (uint64_t), DEFAULT, Media
 HTMLMediaElementFinishSeek, "HTMLMediaElement::finishSeek(%" PRIX64 ") current time = %f, pending seek = %d", (uint64_t, double, int), DEFAULT, Media
 HTMLMediaElementHardwareMutedStateDidChange, "HTMLMediaElement::hardwareMutedStateDidChange(%" PRIX64 ")", (uint64_t), DEFAULT, Media
@@ -91,13 +95,13 @@ HTMLMediaElementMediaPlayerTimeChangedLooping, "HTMLMediaElement::mediaPlayerTim
 HTMLMediaElementMediaPlayerVolumeChanged, "HTMLMediaElement::mediaPlayerVolumeChanged(%" PRIX64 ")", (uint64_t), DEFAULT, Media
 HTMLMediaElementMediaStreamCaptureStarted, "HTMLMediaElement::mediaStreamCaptureStarted(%" PRIX64 ")", (uint64_t), DEFAULT, Media
 HTMLMediaElementNoneSupported, "HTMLMediaElement::noneSupported(%" PRIX64 ")", (uint64_t), DEFAULT, Media
-HTMLMediaElementPause, "HTMLMediaElement::pause(%" PRIX64 ")", (uint64_t), DEFAULT, Media
-HTMLMediaElementPauseInternal, "HTMLMediaElement::pauseInternal(%" PRIX64 ")", (uint64_t), DEFAULT, Media
+HTMLMediaElementPause, "HTMLMediaElement::pause(%" PRIX64 ")", (uint64_t), INFO, Media
+HTMLMediaElementPauseInternal, "HTMLMediaElement::pauseInternal(%" PRIX64 ")", (uint64_t), INFO, Media
 HTMLMediaElementPausePlaybackForExtendedTextDescription, "HTMLMediaElement::pausePlaybackForExtendedTextDescription(%" PRIX64 ")", (uint64_t), DEFAULT, Media
 HTMLMediaElementPauseSpeakingCueText, "HTMLMediaElement::pauseSpeakingCueText(%" PRIX64 ")", (uint64_t), DEFAULT, Media
-HTMLMediaElementPlay, "HTMLMediaElement::play(%" PRIX64 ")", (uint64_t), DEFAULT, Media
-HTMLMediaElementPlayDom, "HTMLMediaElement::play(%" PRIX64 ") (DOM)", (uint64_t), DEFAULT, Media
-HTMLMediaElementPlayInternal, "HTMLMediaElement::playInternal(%" PRIX64 ")", (uint64_t), DEFAULT, Media
+HTMLMediaElementPlay, "HTMLMediaElement::play(%" PRIX64 ")", (uint64_t), INFO, Media
+HTMLMediaElementPlayDom, "HTMLMediaElement::play(%" PRIX64 ") (DOM)", (uint64_t), INFO, Media
+HTMLMediaElementPlayInternal, "HTMLMediaElement::playInternal(%" PRIX64 ")", (uint64_t), INFO, Media
 HTMLMediaElementPostConnectionSteps, "HTMLMediaElement::postConnectionSteps(%" PRIX64 ")", (uint64_t), DEFAULT, Media
 HTMLMediaElementPrepareForLoad, "HTMLMediaElement::prepareForLoad(%" PRIX64 ") gesture = %d", (uint64_t, int), DEFAULT, Media
 HTMLMediaElementPurgeBufferedDataIfPossible, "HTMLMediaElement::purgeBufferedDataIfPossible(%" PRIX64 ")", (uint64_t), DEFAULT, Media
@@ -120,7 +124,7 @@ HTMLMediaElementSelectMediaResourceLambdaTaskFired, "HTMLMediaElement::selectMed
 HTMLMediaElementSelectMediaResourceNothingToLoad, "HTMLMediaElement::selectMediaResource(%" PRIX64 ") nothing to load", (uint64_t), DEFAULT, Media
 HTMLMediaElementSelectMediaResourceUsingSrcAttributeUrl, "HTMLMediaElement::selectMediaResource(%" PRIX64 ") using 'src' attribute url", (uint64_t), DEFAULT, Media
 HTMLMediaElementSelectMediaResourceUsingSrcObjectProperty, "HTMLMediaElement::selectMediaResource(%" PRIX64 ") using 'srcObject' property", (uint64_t), DEFAULT, Media
-HTMLMediaElementSetAutoplayEventPlaybackState, "HTMLMediaElement::setAutoplayEventPlaybackState(%" PRIX64 ") %" PUBLIC_LOG_STRING "", (uint64_t, CString), DEFAULT, Media
+HTMLMediaElementSetAutoplayEventPlaybackState, "HTMLMediaElement::setAutoplayEventPlaybackState(%" PRIX64 ") %" PUBLIC_LOG_STRING "", (uint64_t, CString), INFO, Media
 HTMLMediaElementSetBufferingPolicy, "HTMLMediaElement::setBufferingPolicy(%" PRIX64 "): %" PRIu8, (uint64_t, uint8_t), DEFAULT, Media
 HTMLMediaElementSetMutedInternal, "HTMLMediaElement::setMutedInternal(%" PRIX64 ") %d", (uint64_t, int), DEFAULT, Media
 HTMLMediaElementSetNetworkState, "HTMLMediaElement::setNetworkState(%" PRIX64 ") new state = %" PUBLIC_LOG_STRING ", current state = %" PUBLIC_LOG_STRING "", (uint64_t, CString, CString), DEFAULT, Media
@@ -170,6 +174,7 @@ ProgressTrackerFinalProgressComplete, "ProgressTracker::finalProgressComplete: v
 ProgressTrackerProgressCompleted, "ProgressTracker::progressCompleted: frameID %" PRIu64 ", value %f, tracked frames %d, originating frameID %" PRIu64 ", isMainLoad %d", (uint64_t, double, int, uint64_t, int), DEFAULT, Network
 ProgressTrackerProgressStarted, "ProgressTracker::progressStarted: frameID %" PRIu64 ", value %f, tracked frames %d, originating frameID %" PRIu64 ", isMainLoad %d", (uint64_t, double, int, uint64_t, int), DEFAULT, Network
 ResourceLoaderWillSendRequestInternal, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", resourceID=%" PRIu64 "] ResourceLoader::willSendRequestInternal: calling completion handler", (uint64_t, uint64_t, uint64_t), DEFAULT, Network
+ResourceLoaderWillSendRequestInternalCrossOriginRedirect, "[pageID=%" PRIu64 ", frameID=%" PRIu64 ", resourceID=%" PRIu64 "] ResourceLoader::willSendRequestInternal: Processing cross-origin redirect", (uint64_t, uint64_t, uint64_t), DEFAULT, Network
 RtcPeerConnectionSetLocalDescription, "RTCPeerConnection::setLocalDescription (%" PRIu64 ") to: '%" PUBLIC_LOG_STRING "'", (uint64_t, CString), DEFAULT, WebRTC
 RtcPeerConnectionSetRemoteDescription, "RTCPeerConnection::setRemoteDescription (%" PRIu64 ") to: '%" PUBLIC_LOG_STRING "'", (uint64_t, CString), DEFAULT, WebRTC
 ServiceWorkerThreadProxyRemoveFetch, "ServiceWorkerThreadProxy::removeFetch %" PRIu64, (uint64_t), DEFAULT, ServiceWorker

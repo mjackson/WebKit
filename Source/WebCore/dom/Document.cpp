@@ -1417,47 +1417,6 @@ const Color& Document::themeColor()
     return m_cachedThemeColor;
 }
 
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-void Document::spatialBackdropLinkElementChanged()
-{
-    spatialBackdropSourceChanged();
-}
-
-void Document::spatialBackdropSourceChanged()
-{
-    if (!settings().webPageSpatialBackdropEnabled())
-        return;
-
-    auto newSpatialBackdropSource = determineActiveSpatialBackdropSource();
-    if (m_cachedSpatialBackdropSource == newSpatialBackdropSource)
-        return;
-    m_cachedSpatialBackdropSource = WTF::move(newSpatialBackdropSource);
-
-    if (RefPtr page = this->page())
-        page->chrome().client().spatialBackdropSourceChanged();
-}
-
-std::optional<SpatialBackdropSource> Document::determineActiveSpatialBackdropSource() const
-{
-    auto sourceURL = m_url.url();
-    if (!sourceURL.isValid())
-        return std::nullopt;
-
-    for (auto& linkElement : descendantsOfType<HTMLLinkElement>(*this)) {
-        if (!linkElement.isSpatialBackdrop())
-            continue;
-
-        auto modelURL = linkElement.href();
-        if (!modelURL.isValid())
-            return std::nullopt;
-
-        return SpatialBackdropSource { WTF::move(sourceURL), WTF::move(modelURL), linkElement.environmentMap() };
-    }
-
-    return std::nullopt;
-}
-#endif
-
 Color Document::linkColor(const Style::ComputedStyle& style) const
 {
     if (m_linkColor.isValid())
@@ -4649,10 +4608,6 @@ void Document::setURL(URL&& url)
     m_documentURI = m_url.url();
     m_adjustedURL = adjustedURL();
     updateBaseURL();
-
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    spatialBackdropSourceChanged();
-#endif
 }
 
 const URL& Document::urlForBindings()
@@ -6250,6 +6205,7 @@ static void updateCaptureSourceToPageMutedState(Document& document, Page& page, 
         source.setMuted(page.mutedState().contains(MediaProducerMutedState::AudioCaptureIsMuted) || (document.hidden() && document.settings().interruptAudioOnPageVisibilityChangeEnabled()));
         break;
     case CaptureDevice::DeviceType::Camera:
+    case CaptureDevice::DeviceType::Canvas:
         source.setMuted(page.mutedState().contains(MediaProducerMutedState::VideoCaptureIsMuted) || (document.hidden() && document.settings().interruptVideoOnPageVisibilityChangeEnabled()));
         break;
     case CaptureDevice::DeviceType::Screen:
@@ -7343,24 +7299,12 @@ String Document::referrer()
 
 String Document::referrerForBindings()
 {
-    RefPtr mainFrameDocument = this->mainFrameDocument();
-    if (!mainFrameDocument) {
-        LOG_ONCE(SiteIsolation, "Unable to fully calculate Document::referrerForBindings() without access to the main frame document ");
-        return referrer();
-    }
-
-    RefPtr policySourceLoader = mainFrameDocument->loader();
-    if (!policySourceLoader)
-        return referrer();
-
-    if (!policySourceLoader->request().url().hasSpecialScheme() && url().protocolIsInHTTPFamily())
-        policySourceLoader = loader();
-
     bool shouldHideFromBindings = [&] {
-        if (!policySourceLoader || RegistrableDomain { URL { frame()->loader().referrer() } }.matches(securityOrigin().data()))
+        RefPtr loader = this->loader();
+        if (!loader || RegistrableDomain { URL { frame()->loader().referrer() } }.matches(securityOrigin().data()))
             return false;
 
-        auto policies = policySourceLoader->navigationalAdvancedPrivacyProtections();
+        auto policies = loader->navigationalAdvancedPrivacyProtections();
         if (policies.contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy) && requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::Referrer))
             return true;
 
@@ -11007,16 +10951,6 @@ HTMLDialogElement* Document::activeModalDialog() const
     for (auto& element : m_topLayerElements | std::views::reverse) {
         if (auto* dialog = dynamicDowncast<HTMLDialogElement>(element.get()); dialog && dialog->isModal())
             return dialog;
-    }
-
-    return nullptr;
-}
-
-HTMLDialogElement* Document::activeCloseableDialog() const
-{
-    for (auto& dialog : m_openDialogsList | std::views::reverse) {
-        if (dialog->computedClosedByState() != ClosedByState::None)
-            return &dialog.get();
     }
 
     return nullptr;

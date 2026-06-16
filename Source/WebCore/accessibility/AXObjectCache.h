@@ -529,6 +529,12 @@ public:
     Node* modalNode();
 
     void deferAttributeChangeIfNeeded(Element&, const QualifiedName&, const AtomString&, const AtomString&);
+
+    // True for the attributes in relationAttributes() (aria-labelledby, aria-owns, etc.).
+    static bool isRelationAttribute(const QualifiedName&);
+    // Records that an element carries a relation attribute so the next relations rebuild includes it.
+    void trackRelationAttributeElement(Element&);
+
     void recomputeIsIgnored(RenderObject&);
     void recomputeIsIgnored(Node*);
 
@@ -914,6 +920,7 @@ private:
     void handleTabPanelSelected(Element*, Element*);
     void handleRowCountChanged(AccessibilityObject*, Document*);
     void handleAttributeChange(Element*, const QualifiedName&, const AtomString&, const AtomString&);
+    void handleClickHandlerChanged(Node&, const AtomString& eventType);
     bool shouldProcessAttributeChange(Element*, const QualifiedName&);
     void selectedChildrenChanged(Node*);
     void selectedChildrenChanged(RenderObject*);

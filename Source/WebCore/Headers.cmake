@@ -1313,6 +1313,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/ElementContext.h
     dom/ElementData.h
     dom/ElementInlines.h
+    dom/ElementInlinesLight.h
     dom/ElementIterator.h
     dom/ElementIteratorAssertions.h
     dom/ElementIteratorInlines.h
@@ -1370,6 +1371,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/NodeFilterCondition.h
     dom/NodeIdentifier.h
     dom/NodeInlines.h
+    dom/NodeInlinesLight.h
     dom/NodeIterator.h
     dom/NodeList.h
     dom/NodeRenderStyle.h
@@ -1414,7 +1416,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/SimulatedClickOptions.h
     dom/SlotAssignmentMode.h
     dom/SpaceSplitString.h
-    dom/SpatialBackdropSource.h
     dom/StartViewTransitionOptions.h
     dom/StaticRange.h
     dom/StyledElement.h
@@ -2879,6 +2880,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/mediastream/libwebrtc/LibWebRTCProviderCocoa.h
     platform/mediastream/libwebrtc/LibWebRTCRefWrappers.h
     platform/mediastream/libwebrtc/LibWebRTCSocketIdentifier.h
+    platform/mediastream/libwebrtc/LibWebRTCVideoFrameUtilities.h
     platform/mediastream/libwebrtc/VideoFrameLibWebRTC.h
 
     platform/mock/DeviceOrientationClientMock.h
@@ -3325,6 +3327,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/images/StyleImageOrientation.h
     style/values/images/StyleImageWrapper.h
     style/values/images/StyleObjectPosition.h
+    style/values/images/StyleObjectViewBox.h
 
     style/values/images/kinds/StyleImage.h
 
@@ -3395,15 +3398,15 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/primitives/StyleCustomIdent.h
     style/values/primitives/StyleCoordinatedValueList.h
     style/values/primitives/StyleCoordinatedValueListValue.h
-    style/values/primitives/StyleLengthWrapper.h
-    style/values/primitives/StyleLengthWrapperData.h
     style/values/primitives/StylePosition.h
+    style/values/primitives/StylePrimitiveData.h
     style/values/primitives/StylePrimitiveNumeric+Forward.h
     style/values/primitives/StylePrimitiveNumeric.h
     style/values/primitives/StylePrimitiveNumericConcepts.h
     style/values/primitives/StylePrimitiveNumericOrKeyword.h
     style/values/primitives/StylePrimitiveNumericTypes+Calculation.h
     style/values/primitives/StylePrimitiveNumericTypes+Evaluation.h
+    style/values/primitives/StylePrimitiveNumericTypes+EvaluationMinimum.h
     style/values/primitives/StylePrimitiveNumericTypes+Rounding.h
     style/values/primitives/StylePrimitiveNumericTypes.h
     style/values/primitives/StyleRatio.h

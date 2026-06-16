@@ -34,6 +34,7 @@
 #include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "JSTestSubObj.h"
+#include "JSTestSubObjEnabledForContext.h"
 #include "ScriptExecutionContext.h"
 #include "Settings.h"
 #include "WebCoreJSClientData.h"
@@ -216,6 +217,8 @@ void JSTestEnabledForContext::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
         analyzer.setLabelForCell(cell, makeString("url "_s, context->url().string()));
     Base::analyzeHeap(cell, analyzer);
 }
+
+JSTestEnabledForContextOwner::JSTestEnabledForContextOwner(ClangVTableWorkaroundTag) { }
 
 bool JSTestEnabledForContextOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, ASCIILiteral* reason)
 {

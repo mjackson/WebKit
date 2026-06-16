@@ -74,7 +74,6 @@
 #include <WebKit/WKRetainPtr.h>
 #include <WebKit/WKScriptMessageRef.h>
 #include <WebKit/WKSecurityOriginRef.h>
-#include <WebKit/WKSpeechRecognitionPermissionCallback.h>
 #include <WebKit/WKTextChecker.h>
 #include <WebKit/WKURL.h>
 #include <WebKit/WKUserContentControllerRef.h>
@@ -1434,6 +1433,8 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
 
         WKPreferencesSetBoolValueForKeyForTesting(preferences, options.allowTestOnlyIPC(), toWK("AllowTestOnlyIPC").get());
         WKPreferencesSetBoolValueForKeyForTesting(preferences, false, toWK("GlobalPrivacyControlEnabled").get());
+        WKPreferencesSetBoolValueForKeyForTesting(preferences, options.allowTestOnlyMockContentFilterIPC(), toWK("AllowTestOnlyMockContentFilterIPC").get());
+        WKPreferencesSetBoolValueForKeyForTesting(preferences, options.allowTestOnlyOriginAccessAllowListIPC(), toWK("AllowTestOnlyOriginAccessAllowListIPC").get());
 
         for (const auto& [key, value] : options.boolWebPreferenceFeatures())
             WKPreferencesSetBoolValueForKeyForTesting(preferences, value, toWK(key).get());

@@ -29,12 +29,14 @@
 #if USE(COORDINATED_GRAPHICS) && USE(SKIA)
 #include "BitmapTexturePool.h"
 #include "CoordinatedTileBuffer.h"
+#include "FontRenderOptions.h"
 #include "PlatformDisplay.h"
 #include "SkiaPaintingEngine.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorSpace.h>
 #include <skia/gpu/ganesh/GrBackendSurface.h>
 #include <skia/gpu/ganesh/SkImageGanesh.h>
+#include <skia/gpu/ganesh/SkSurfaceGanesh.h>
 #include <skia/gpu/ganesh/gl/GrGLBackendSurface.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #include <wtf/SystemTracing.h>
@@ -153,23 +155,40 @@ void SkiaBackingStore::Tile::update(const IntRect& dirtyRect, const IntRect& til
     if (unscaledTileRect != m_rect) {
         m_rect = unscaledTileRect;
         m_texture = nullptr;
+        m_surface = nullptr;
     }
 
     if (buffer.isBackedByOpenGL()) {
         auto& acceleratedBuffer = static_cast<CoordinatedAcceleratedTileBuffer&>(buffer);
         acceleratedBuffer.serverWait();
 
-        Ref texture = acceleratedBuffer.texture();
-        if (dirtyRect.size() == tileRect.size()) {
-            // Fast path: whole tile content changed -- take ownership of the incoming texture, replacing the existing tile buffer (avoiding texture copies).
-            if (m_texture)
-                m_texture->swapTexture(texture.get());
-            else
-                m_texture = WTF::move(texture);
-            m_cachedImage = nullptr;
-        } else {
-            ensureTexture(tileRect.size(), buffer);
-            m_texture->copyFromExternalTexture(texture->id(), dirtyRect, { });
+        if (auto displayList = acceleratedBuffer.displayList()) {
+            ASSERT(!m_texture);
+            ASSERT(!m_cachedImage);
+
+            auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
+            ASSERT(grContext);
+
+            if (!m_surface) {
+                const auto& characterization = displayList->characterization();
+                m_surface = SkSurfaces::RenderTarget(grContext, skgpu::Budgeted::kYes, characterization.imageInfo(), characterization.sampleCount(), characterization.origin(), &characterization.surfaceProps());
+            }
+
+            skgpu::ganesh::DrawDDL(m_surface.get(), displayList);
+        } else if (auto texture = acceleratedBuffer.texture()) {
+            ASSERT(!m_surface);
+
+            if (dirtyRect.size() == tileRect.size()) {
+                // Fast path: whole tile content changed -- take ownership of the incoming texture, replacing the existing tile buffer (avoiding texture copies).
+                if (m_texture)
+                    m_texture->swapTexture(*texture);
+                else
+                    m_texture = WTF::move(texture);
+                m_cachedImage = nullptr;
+            } else {
+                ensureTexture(tileRect.size(), buffer);
+                m_texture->copyFromExternalTexture(texture->id(), dirtyRect, { });
+            }
         }
     } else {
         auto& unacceleratedBuffer = static_cast<CoordinatedUnacceleratedTileBuffer&>(buffer);
@@ -182,6 +201,9 @@ void SkiaBackingStore::Tile::update(const IntRect& dirtyRect, const IntRect& til
 
 sk_sp<SkImage> SkiaBackingStore::Tile::image() const
 {
+    if (m_surface)
+        return m_surface->makeImageSnapshot();
+
     if (!m_cachedImage && m_texture) {
         auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
         ASSERT(grContext);

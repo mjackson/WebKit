@@ -378,6 +378,7 @@ bool doesGC(Graph& graph, Node* node)
     case RegExpExecNonGlobalOrSticky:
     case RegExpMatchFast:
     case RegExpMatchFastGlobal:
+    case RegExpSplitFast:
     case RegExpTest:
     case RegExpTestInline:
     case RegExpSearch:
@@ -468,6 +469,7 @@ bool doesGC(Graph& graph, Node* node)
     case StringSubstring:
     case StringSubstr:
     case StringIteratorNext:
+    case StringIteratorNextWithUndefined:
     case StringValueOf:
     case CreateRest:
     case ToUpperCase:

@@ -1040,6 +1040,13 @@ public:
         return isWatchingGlobalObjectWatchpoint(globalObject, set, LinkerIR::Type::RegExpPrimordialPropertiesWatchpointSet);
     }
 
+    bool isWatchingRegExpSpeciesWatchpoint(Node* node)
+    {
+        JSGlobalObject* globalObject = globalObjectFor(node->origin.semantic);
+        InlineWatchpointSet& set = globalObject->regExpSpeciesWatchpointSet();
+        return isWatchingGlobalObjectWatchpoint(globalObject, set, LinkerIR::Type::RegExpSpeciesWatchpointSet);
+    }
+
     bool isWatchingPromiseThenWatchpoint(Node* node)
     {
         JSGlobalObject* globalObject = globalObjectFor(node->origin.semantic);
@@ -1256,6 +1263,12 @@ public:
     ObjectPropertyConditionSet tryEnsureAbsence(JSGlobalObject*, const StructureSet&, CacheableIdentifier);
 
     bool canDoFastSpread(Node*, const AbstractValue&);
+    bool canDoFastSpreadWithStructureCheck(Node*);
+    static constexpr IndexingType originalArrayShapesForSpread[] = {
+        CopyOnWriteArrayWithContiguous, ArrayWithContiguous,
+        ArrayWithInt32, CopyOnWriteArrayWithInt32,
+        ArrayWithDouble, CopyOnWriteArrayWithDouble,
+    };
     
     void registerFrozenValues();
 

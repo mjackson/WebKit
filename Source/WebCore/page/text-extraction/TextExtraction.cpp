@@ -479,16 +479,21 @@ static inline String labelText(HTMLElement& element)
     if (!labels)
         return { };
 
-    RefPtr<Element> firstRenderedLabel;
+    StringBuilder builder;
     for (unsigned index = 0; index < labels->length(); ++index) {
-        if (RefPtr label = dynamicDowncast<Element>(labels->item(index)); label && label->renderer())
-            firstRenderedLabel = WTF::move(label);
+        RefPtr label = dynamicDowncast<Element>(labels->item(index));
+        if (!label || !label->renderer())
+            continue;
+
+        auto text = label->textContent().simplifyWhiteSpace(isASCIIWhitespace);
+        if (text.isEmpty())
+            continue;
+
+        if (!builder.isEmpty())
+            builder.append(' ');
+        builder.append(WTF::move(text));
     }
-
-    if (firstRenderedLabel)
-        return firstRenderedLabel->textContent().simplifyWhiteSpace(isASCIIWhitespace);
-
-    return { };
+    return builder.toString();
 }
 
 static inline std::optional<FloatRect> visibleAssociatedLabelBounds(HTMLElement& element)
@@ -1230,7 +1235,7 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
         if (RefPtr iframe = dynamicDowncast<HTMLIFrameElement>(node); iframe && item) {
             if (RefPtr frame = dynamicDowncast<LocalFrame>(iframe->contentFrame())) {
                 if (RefPtr document = frame->document(); document && areSameOrigin(*document, protect(node.document()))) {
-                    auto [rootItem, textLength] = extractItem([&] {
+                    auto [rootItem, textLength, pdfContent] = extractItem([&] {
                         auto request = context.originalRequest;
                         request.targetNodeHandleIdentifier = { };
                         return request;
@@ -1402,11 +1407,11 @@ Result extractItem(Request&& request, LocalFrame& frame)
     Item root { ScrollableItemData { }, { }, { }, { }, { }, frameID, { }, { }, { }, { }, { }, { }, { }, 0 };
     RefPtr document = frame.document();
     if (!document)
-        return { root, 0 };
+        return { root, 0, { } };
 
     RefPtr bodyElement = document->body();
     if (!bodyElement)
-        return { root, 0 };
+        return { root, 0, { } };
 
     document->updateLayoutIgnorePendingStylesheets();
 
@@ -1429,11 +1434,11 @@ Result extractItem(Request&& request, LocalFrame& frame)
         addBoxShadowIfNeeded(*extractionRootNode, extractingWithDataDetectors ? "#0088FF"_s : "#ff8d28"_s);
 
     if (!extractionRootNode)
-        return { root, 0 };
+        return { root, 0, { } };
 
     RefPtr view = frame.view();
     if (!view)
-        return { root, 0 };
+        return { root, 0, { } };
 
     root.data = { ScrollableItemData {
         .contentSize = view->contentsSize(),
@@ -1444,7 +1449,7 @@ Result extractItem(Request&& request, LocalFrame& frame)
 
     root.rectInRootView = view->contentsToRootView(IntRect { IntPoint::zero(), view->contentsSize() });
     if (root.rectInRootView.isEmpty())
-        return { root, 0 };
+        return { root, 0, { } };
 
     unsigned visibleTextLength = 0;
     {
@@ -1526,7 +1531,7 @@ Result extractItem(Request&& request, LocalFrame& frame)
     pruneWhitespaceRecursive(root);
     pruneEmptyContainersRecursive(root);
 
-    return { WTF::move(root), visibleTextLength };
+    return { WTF::move(root), visibleTextLength, { } };
 }
 
 using Token = Variant<String, IntSize>;
@@ -2140,6 +2145,213 @@ struct ScrollableContainer {
     WeakPtr<ScrollableArea> scrollableArea;
 };
 
+static String textDescription(const Element& element, Vector<String>& stringsToValidate, bool isTargetElement = true)
+{
+    StringBuilder description;
+
+    if (element.hasEditableStyle())
+        description.append("editable "_s);
+
+    auto tagName = element.tagName().convertToASCIILowercase();
+    if (element.isLink())
+        description.append("link"_s);
+    else
+        description.append(tagName);
+
+    auto needsParentContext = true;
+
+    if (element.isLink()) {
+        if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::hrefAttr)); !text.isEmpty()) {
+            description.append(makeString(" with href "_s, wrapWithDoubleQuotes(WTF::move(text))));
+            stringsToValidate.append(WTF::move(text));
+            needsParentContext = false;
+        }
+    }
+
+    if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::roleAttr)); !text.isEmpty() && text != tagName) {
+        description.append(makeString(" with role "_s, wrapWithDoubleQuotes(WTF::move(text))));
+        needsParentContext = false;
+    }
+
+    if (auto text = normalizedLabelText(element); !text.isEmpty()) {
+        description.append(makeString(" labeled "_s, wrapWithDoubleQuotes(WTF::move(text))));
+        stringsToValidate.append(WTF::move(text));
+        needsParentContext = false;
+    }
+
+    if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::titleAttr)); !text.isEmpty()) {
+        description.append(makeString(" titled "_s, wrapWithDoubleQuotes(WTF::move(text))));
+        stringsToValidate.append(WTF::move(text));
+        needsParentContext = false;
+    }
+
+    if (auto text = element.attributeWithoutSynchronization(HTMLNames::typeAttr); !text.isEmpty() && text != tagName)
+        description.append(makeString(" of type "_s, text));
+
+    if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::placeholderAttr)); !text.isEmpty()) {
+        description.append(makeString(" with placeholder "_s, wrapWithDoubleQuotes(WTF::move(text))));
+        stringsToValidate.append(WTF::move(text));
+        needsParentContext = false;
+    }
+
+    if (RefPtr input = dynamicDowncast<HTMLInputElement>(element)) {
+        bool includeValue = std::ranges::any_of(std::array { "submit"_s, "button"_s, "reset"_s }, [&](const auto& typeToInclude) {
+            return equalLettersIgnoringASCIICase(input->type(), typeToInclude);
+        });
+
+        if (includeValue) {
+            if (auto text = normalizeText(input->value()); !text.isEmpty()) {
+                description.append(makeString(" with value "_s, wrapWithDoubleQuotes(WTF::move(text))));
+                stringsToValidate.append(WTF::move(text));
+                needsParentContext = false;
+            }
+        }
+    }
+
+    static constexpr auto maximumNumberOfClasses = 3;
+
+    if (auto text = element.attributeWithoutSynchronization(HTMLNames::idAttr); isCandidateClassOrId(text)) {
+        description.append(makeString(" with id "_s, wrapWithDoubleQuotes(text)));
+        needsParentContext = false;
+    }
+
+    if (auto classValue = element.attributeWithoutSynchronization(HTMLNames::classAttr); !classValue.isEmpty()) {
+        Vector<String, maximumNumberOfClasses> humanReadableClassNames;
+        for (auto className : StringView { classValue }.split(' ')) {
+            if (!isCandidateClassOrId(className))
+                continue;
+
+            humanReadableClassNames.append(className.toString());
+            if (humanReadableClassNames.size() >= maximumNumberOfClasses)
+                break;
+        }
+
+        if (!humanReadableClassNames.isEmpty()) {
+            auto classOrClasses = humanReadableClassNames.size() > 1 ? " with classes "_s : " with class "_s;
+            description.append(makeString(classOrClasses, wrapWithDoubleQuotes(makeStringByJoining(humanReadableClassNames, " "_s))));
+            needsParentContext = false;
+        }
+    }
+
+    auto elementDescription = description.toString();
+    if (!needsParentContext)
+        return elementDescription;
+
+    RefPtr parent = element.parentElementInComposedTree();
+    if (!parent)
+        return elementDescription;
+
+    auto parentDescription = textDescription(*parent, stringsToValidate, false);
+    if (parentDescription.isEmpty())
+        return elementDescription;
+
+    if (isTargetElement)
+        return makeString(WTF::move(elementDescription), " under "_s, WTF::move(parentDescription));
+
+    return parentDescription;
+}
+
+static String textDescription(const Element& element)
+{
+    Vector<String> ignoredStringsToValidate;
+    return textDescription(element, ignoredStringsToValidate);
+}
+
+static String textDescription(Node* node, Vector<String>& stringsToValidate)
+{
+    if (!node)
+        return { };
+
+    addBoxShadowIfNeeded(*node, "#ff383c"_s);
+
+    auto addRenderedTextOrLabeledChild = [&](const String& description) {
+        StringBuilder extendedDescription;
+        extendedDescription.append(description);
+
+        String renderedTextSuffix;
+        auto range = makeRangeSelectingNodeContents(*node);
+        if (auto text = normalizeText(plainText(range, behaviorsForTextExtraction)); !text.isEmpty()) {
+            stringsToValidate.append(text);
+            extendedDescription.append(makeString(", with rendered text "_s, wrapWithDoubleQuotes(WTF::move(text))));
+        }
+
+        String labeledChildSuffix;
+        if (RefPtr container = dynamicDowncast<ContainerNode>(node)) {
+            for (Ref child : descendantsOfType<Element>(*container)) {
+                auto label = normalizedLabelText(child);
+                if (label.isEmpty())
+                    continue;
+
+                stringsToValidate.append(label);
+                extendedDescription.append(makeString(", containing child labeled "_s, wrapWithDoubleQuotes(WTF::move(label))));
+                break;
+            }
+        }
+
+        return extendedDescription.toString();
+    };
+
+    if (RefPtr element = dynamicDowncast<Element>(*node))
+        return addRenderedTextOrLabeledChild(textDescription(*element, stringsToValidate));
+
+    if (RefPtr parentElement = node->parentElementInComposedTree())
+        return addRenderedTextOrLabeledChild(makeString("child node of "_s, textDescription(*parentElement, stringsToValidate)));
+
+    return { };
+}
+
+static String textDescription(std::optional<NodeIdentifier> identifier, Vector<String>& stringsToValidate)
+{
+    if (!identifier)
+        return { };
+
+    return textDescription(RefPtr { Node::fromIdentifier(*identifier) }.get(), stringsToValidate);
+}
+
+static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> identifier, const String& searchText, Action action, Vector<String>& stringsToValidate)
+{
+    if (!identifier && searchText.isEmpty())
+        return { };
+
+    RefPtr target = resolveNodeWithBodyAsFallback(frame, identifier);
+    if (!target)
+        return { };
+
+    auto searchTextPrefix = emptyString();
+    if (!searchText.isEmpty()) {
+        auto range = action == Action::Click ? searchForClickTarget(*target, searchText) : searchForText(*target, searchText);
+        if (!range)
+            return { };
+
+        target = commonInclusiveAncestor<ComposedTree>(*range);
+        if (!target)
+            return { };
+
+        auto escapedSearchText = normalizeText(searchText);
+        stringsToValidate.append(escapedSearchText);
+        searchTextPrefix = makeString(wrapWithDoubleQuotes(escapedSearchText), " in "_s);
+    }
+
+    return makeString(WTF::move(searchTextPrefix), textDescription(target.get(), stringsToValidate));
+}
+
+static String textDescription(LocalFrame& frame, FloatPoint locationInRootView, Vector<String>& stringsToValidate)
+{
+    RefPtr document = frame.document();
+    if (!document)
+        return { };
+
+    RefPtr view = frame.view();
+    if (!view)
+        return { };
+
+    RefPtr targetNode = findNodeAtRootViewLocation(*view, *document, locationInRootView);
+    if (!targetNode)
+        return { };
+
+    return textDescription(targetNode.get(), stringsToValidate);
+}
+
 static ScrollableContainer findLargeScrollableContainer(LocalFrame& frame)
 {
     RefPtr view = frame.view();
@@ -2422,7 +2634,7 @@ static void focusAndInsertText(NodeIdentifier identifier, String&& text, bool re
         UserTypingGestureIndicator indicator { *frame };
 
         protect(document->editor())->pasteAsPlainText(text, false);
-        completion(true, "Inserted text by simulating paste with plain text"_s);
+        completion(true, makeString("Inserted text into "_s, textDescription(*elementToFocus)));
     });
 }
 
@@ -2528,207 +2740,6 @@ void handleInteraction(Interaction&& interaction, LocalFrame& frame, CompletionH
             bounds = rootViewBounds(*targetNode);
         completion(success, WTF::move(message), bounds);
     });
-}
-
-static String textDescription(const Element& element, Vector<String>& stringsToValidate, bool isTargetElement = true)
-{
-    StringBuilder description;
-
-    if (element.hasEditableStyle())
-        description.append("editable "_s);
-
-    auto tagName = element.tagName().convertToASCIILowercase();
-    if (element.isLink())
-        description.append("link"_s);
-    else
-        description.append(tagName);
-
-    bool needsParentContext = true;
-
-    if (element.isLink()) {
-        if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::hrefAttr)); !text.isEmpty()) {
-            description.append(makeString(" with href "_s, wrapWithDoubleQuotes(WTF::move(text))));
-            stringsToValidate.append(WTF::move(text));
-            needsParentContext = false;
-        }
-    }
-
-    if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::roleAttr)); !text.isEmpty() && text != tagName) {
-        description.append(makeString(" with role "_s, wrapWithDoubleQuotes(WTF::move(text))));
-        needsParentContext = false;
-    }
-
-    if (auto text = normalizedLabelText(element); !text.isEmpty()) {
-        description.append(makeString(" labeled "_s, wrapWithDoubleQuotes(WTF::move(text))));
-        stringsToValidate.append(WTF::move(text));
-        needsParentContext = false;
-    }
-
-    if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::titleAttr)); !text.isEmpty()) {
-        description.append(makeString(" titled "_s, wrapWithDoubleQuotes(WTF::move(text))));
-        stringsToValidate.append(WTF::move(text));
-        needsParentContext = false;
-    }
-
-    if (auto text = element.attributeWithoutSynchronization(HTMLNames::typeAttr); !text.isEmpty() && text != tagName)
-        description.append(makeString(" of type "_s, text));
-
-    if (auto text = normalizeText(element.attributeWithoutSynchronization(HTMLNames::placeholderAttr)); !text.isEmpty()) {
-        description.append(makeString(" with placeholder "_s, wrapWithDoubleQuotes(WTF::move(text))));
-        stringsToValidate.append(WTF::move(text));
-        needsParentContext = false;
-    }
-
-    if (RefPtr input = dynamicDowncast<HTMLInputElement>(element)) {
-        bool includeValue = std::ranges::any_of(std::array { "submit"_s, "button"_s, "reset"_s }, [&](const auto& typeToInclude) {
-            return equalLettersIgnoringASCIICase(input->type(), typeToInclude);
-        });
-
-        if (includeValue) {
-            if (auto text = normalizeText(input->value()); !text.isEmpty()) {
-                description.append(makeString(" with value "_s, wrapWithDoubleQuotes(WTF::move(text))));
-                stringsToValidate.append(WTF::move(text));
-                needsParentContext = false;
-            }
-        }
-    }
-
-    static constexpr auto maximumNumberOfClasses = 3;
-
-    if (auto text = element.attributeWithoutSynchronization(HTMLNames::idAttr); isCandidateClassOrId(text)) {
-        description.append(makeString(" with id "_s, wrapWithDoubleQuotes(text)));
-        needsParentContext = false;
-    }
-
-    if (auto classValue = element.attributeWithoutSynchronization(HTMLNames::classAttr); !classValue.isEmpty()) {
-        Vector<String, maximumNumberOfClasses> humanReadableClassNames;
-        for (auto className : StringView { classValue }.split(' ')) {
-            if (!isCandidateClassOrId(className))
-                continue;
-
-            humanReadableClassNames.append(className.toString());
-            if (humanReadableClassNames.size() >= maximumNumberOfClasses)
-                break;
-        }
-
-        if (!humanReadableClassNames.isEmpty()) {
-            auto classOrClasses = humanReadableClassNames.size() > 1 ? " with classes "_s : " with class "_s;
-            description.append(makeString(classOrClasses, wrapWithDoubleQuotes(makeStringByJoining(humanReadableClassNames, " "_s))));
-            needsParentContext = false;
-        }
-    }
-
-    auto elementDescription = description.toString();
-    if (!needsParentContext)
-        return elementDescription;
-
-    RefPtr parent = element.parentElementInComposedTree();
-    if (!parent)
-        return elementDescription;
-
-    auto parentDescription = textDescription(*parent, stringsToValidate, false);
-    if (parentDescription.isEmpty())
-        return elementDescription;
-
-    if (isTargetElement)
-        return makeString(WTF::move(elementDescription), " under "_s, WTF::move(parentDescription));
-
-    return parentDescription;
-}
-
-static String textDescription(Node* node, Vector<String>& stringsToValidate)
-{
-    if (!node)
-        return { };
-
-    addBoxShadowIfNeeded(*node, "#ff383c"_s);
-
-    auto addRenderedTextOrLabeledChild = [&](const String& description) {
-        StringBuilder extendedDescription;
-        extendedDescription.append(description);
-
-        String renderedTextSuffix;
-        auto range = makeRangeSelectingNodeContents(*node);
-        if (auto text = normalizeText(plainText(range, behaviorsForTextExtraction)); !text.isEmpty()) {
-            stringsToValidate.append(text);
-            extendedDescription.append(makeString(", with rendered text "_s, wrapWithDoubleQuotes(WTF::move(text))));
-        }
-
-        String labeledChildSuffix;
-        if (RefPtr container = dynamicDowncast<ContainerNode>(node)) {
-            for (Ref child : descendantsOfType<Element>(*container)) {
-                auto label = normalizedLabelText(child);
-                if (label.isEmpty())
-                    continue;
-
-                stringsToValidate.append(label);
-                extendedDescription.append(makeString(", containing child labeled "_s, wrapWithDoubleQuotes(WTF::move(label))));
-                break;
-            }
-        }
-
-        return extendedDescription.toString();
-    };
-
-    if (RefPtr element = dynamicDowncast<Element>(*node))
-        return addRenderedTextOrLabeledChild(textDescription(*element, stringsToValidate));
-
-    if (RefPtr parentElement = node->parentElementInComposedTree())
-        return addRenderedTextOrLabeledChild(makeString("child node of "_s, textDescription(*parentElement, stringsToValidate)));
-
-    return { };
-}
-
-static String textDescription(std::optional<NodeIdentifier> identifier, Vector<String>& stringsToValidate)
-{
-    if (!identifier)
-        return { };
-
-    return textDescription(RefPtr { Node::fromIdentifier(*identifier) }.get(), stringsToValidate);
-}
-
-static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> identifier, const String& searchText, Action action, Vector<String>& stringsToValidate)
-{
-    if (!identifier && searchText.isEmpty())
-        return { };
-
-    RefPtr target = resolveNodeWithBodyAsFallback(frame, identifier);
-    if (!target)
-        return { };
-
-    auto searchTextPrefix = emptyString();
-    if (!searchText.isEmpty()) {
-        auto range = action == Action::Click ? searchForClickTarget(*target, searchText) : searchForText(*target, searchText);
-        if (!range)
-            return { };
-
-        target = commonInclusiveAncestor<ComposedTree>(*range);
-        if (!target)
-            return { };
-
-        auto escapedSearchText = normalizeText(searchText);
-        stringsToValidate.append(escapedSearchText);
-        searchTextPrefix = makeString(wrapWithDoubleQuotes(escapedSearchText), " in "_s);
-    }
-
-    return makeString(WTF::move(searchTextPrefix), textDescription(target.get(), stringsToValidate));
-}
-
-static String textDescription(LocalFrame& frame, FloatPoint locationInRootView, Vector<String>& stringsToValidate)
-{
-    RefPtr document = frame.document();
-    if (!document)
-        return { };
-
-    RefPtr view = frame.view();
-    if (!view)
-        return { };
-
-    RefPtr targetNode = findNodeAtRootViewLocation(*view, *document, locationInRootView);
-    if (!targetNode)
-        return { };
-
-    return textDescription(targetNode.get(), stringsToValidate);
 }
 
 InteractionDescription interactionDescription(const Interaction& interaction, LocalFrame& frame, Tense tense)

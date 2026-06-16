@@ -77,6 +77,7 @@
 #include "EventNames.h"
 #include "FocusController.h"
 #include "FrameLoader.h"
+#include "HTMLAnchorElement.h"
 #include "HTMLAreaElement.h"
 #include "HTMLButtonElement.h"
 #include "HTMLCanvasElement.h"
@@ -1498,14 +1499,12 @@ void AXObjectCache::onRendererCreated(Node& node)
     }
 }
 
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 static bool isClickEvent(const AtomString& eventType)
 {
     return eventType == eventNames().clickEvent
         || eventType == eventNames().mousedownEvent
         || eventType == eventNames().mouseupEvent;
 }
-#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 void AXObjectCache::onDragElementChanged(Element* oldElement, Element* newElement)
 {
@@ -1551,33 +1550,31 @@ void AXObjectCache::onDraggingDropped(Element& dragTarget)
 
 void AXObjectCache::onEventListenerAdded(Node& node, const AtomString& eventType)
 {
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    if (!isClickEvent(eventType))
-        return;
-
-    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID)) {
-        if (RefPtr object = get(node))
-            tree->queueNodeUpdate(object->objectID(), { AXProperty::HasClickHandler });
-    }
-#else
-    UNUSED_PARAM(node);
-    UNUSED_PARAM(eventType);
-#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    handleClickHandlerChanged(node, eventType);
 }
 
 void AXObjectCache::onEventListenerRemoved(Node& node, const AtomString& eventType)
 {
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    handleClickHandlerChanged(node, eventType);
+}
+
+void AXObjectCache::handleClickHandlerChanged(Node& node, const AtomString& eventType)
+{
     if (!isClickEvent(eventType))
         return;
 
-    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID)) {
-        if (RefPtr object = get(node))
-            tree->queueNodeUpdate(object->objectID(), { AXProperty::HasClickHandler });
-    }
-#else
-    UNUSED_PARAM(node);
-    UNUSED_PARAM(eventType);
+    RefPtr object = get(node);
+    if (!object)
+        return;
+
+    // A hrefless anchor is exposed as a link only when it has a click handler, so adding or removing
+    // one can change its role. (An anchor with an href is a link regardless of its click handlers.)
+    if (RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(node); anchor && !anchor->isLink())
+        object->updateRole();
+
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
+        tree->queueNodeUpdate(object->objectID(), { AXProperty::HasClickHandler });
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 }
 
@@ -3516,9 +3513,17 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
     // The remaining code in this method relies on shouldProcessAttributeChange null-checking element.
     AX_ASSERT(element);
 
-    if (relationAttributes().contains(attrName)) {
-        m_elementsWithRelationAttributes.add(*element);
+    if (isRelationAttribute(attrName))
         updateRelations(*element, attrName);
+
+    if (attrName == hrefAttr) {
+        // An anchor's role depends on whether it is a link (Element::isLink(), i.e. whether it has an
+        // href). Recompute the role when href changes so a hrefless anchor with a click handler can
+        // become a link, and vice versa.
+        if (RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(element)) {
+            if (RefPtr object = get(*anchor))
+                object->updateRole();
+        }
     }
 
     if (attrName == roleAttr)
@@ -3943,7 +3948,7 @@ VisiblePosition AXObjectCache::visiblePositionForTextMarkerData(const TextMarker
 
 CharacterOffset AXObjectCache::characterOffsetForTextMarkerData(const TextMarkerData& textMarkerData)
 {
-    if (textMarkerData.ignored)
+    if (textMarkerData.isRedacted)
         return { };
 
     RefPtr node = nodeForID(textMarkerData.axObjectID());
@@ -4222,9 +4227,9 @@ TextMarkerData AXObjectCache::textMarkerDataForCharacterOffset(const CharacterOf
         return { };
 
     if (RefPtr input = dynamicDowncast<HTMLInputElement>(characterOffset.node.get()); input && input->isSecureField())
-        return { *this, { }, true, origin };
+        return { *this, { }, /* isRedacted */ true, origin };
 
-    return { *this, characterOffset, false, origin };
+    return { *this, characterOffset, /* isRedacted */ false, origin };
 }
 
 CharacterOffset AXObjectCache::startOrEndCharacterOffsetForRange(const SimpleRange& range, bool isStart, bool enterTextControls)
@@ -4355,7 +4360,7 @@ TextMarkerData AXObjectCache::textMarkerDataForNextCharacterOffset(const Charact
         if (!range || !lengthForRange(*range))
             shouldContinue = true;
         previous = next;
-    } while (data.ignored || shouldContinue);
+    } while (data.isRedacted || shouldContinue);
     return data;
 }
 
@@ -4387,7 +4392,7 @@ TextMarkerData AXObjectCache::textMarkerDataForPreviousCharacterOffset(const Cha
         if (!range || !lengthForRange(*range))
             shouldContinue = true;
         next = previous;
-    } while (data.ignored || shouldContinue);
+    } while (data.isRedacted || shouldContinue);
     return data;
 }
 
@@ -4484,7 +4489,7 @@ CharacterOffset AXObjectCache::characterOffsetFromVisiblePosition(const VisibleP
 
 AccessibilityObject* AXObjectCache::objectForTextMarkerData(const TextMarkerData& textMarkerData)
 {
-    if (textMarkerData.ignored)
+    if (textMarkerData.isRedacted)
         return nullptr;
 
     RefPtr object = m_objects.get(*textMarkerData.axObjectID());
@@ -4509,7 +4514,12 @@ std::optional<TextMarkerData> AXObjectCache::textMarkerDataForVisiblePosition(co
     if (!node)
         return std::nullopt;
 
-    if (RefPtr input = dynamicDowncast<HTMLInputElement>(node); input && input->isSecureField())
+    auto isSecureField = [&node] () {
+        auto* input = dynamicDowncast<HTMLInputElement>(node.get());
+        return input && input->isSecureField();
+    };
+
+    if (isSecureField())
         return std::nullopt;
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
@@ -4518,12 +4528,15 @@ std::optional<TextMarkerData> AXObjectCache::textMarkerDataForVisiblePosition(co
         // the rendered, post-whitespace-collapse text.
         unsigned domOffset = position.deprecatedEditingOffset();
 
-        auto createFromRendererAndOffset = [&origin, &visiblePosition] (RenderObject& renderer, unsigned offset) -> std::optional<TextMarkerData> {
+        auto createFromRendererAndOffset = [&] (RenderObject& renderer, unsigned offset) -> std::optional<TextMarkerData> {
             CheckedPtr cache = renderer.document().axObjectCache();
             RefPtr object = cache ? cache->getOrCreate(renderer) : nullptr;
             if (!object)
                 return std::nullopt;
 
+            // We hardcode isRedacted to false below because we early-return for secure fields above.
+            // Assert here in case the check gets moved or changed.
+            AX_ASSERT(!isSecureField());
             return std::optional(TextMarkerData {
                 cache->treeID(),
                 object->objectID(),
@@ -4532,7 +4545,7 @@ std::optional<TextMarkerData> AXObjectCache::textMarkerDataForVisiblePosition(co
                 visiblePosition.affinity(),
                 0,
                 offset,
-                object->isIgnored(),
+                /* isRedacted */ false,
                 origin
             });
         };
@@ -4589,7 +4602,7 @@ std::optional<TextMarkerData> AXObjectCache::textMarkerDataForVisiblePosition(co
     if (!cache)
         return std::nullopt;
     return { { *cache, visiblePosition,
-        characterOffset.startIndex, characterOffset.offset, false, origin } };
+        characterOffset.startIndex, characterOffset.offset, /* isRedacted */ false, origin } };
 }
 
 CharacterOffset AXObjectCache::nextCharacterOffset(const CharacterOffset& characterOffset, bool ignoreNextNodeStart)
@@ -6191,6 +6204,7 @@ AXTreeData AXObjectCache::treeData(std::optional<OptionSet<AXStreamOptions>> add
 
 Vector<QualifiedName>& AXObjectCache::relationAttributes()
 {
+    // Keep this list in sync with the switch in isRelationAttribute().
     static NeverDestroyed<Vector<QualifiedName>> relationAttributes = Vector<QualifiedName> {
         aria_actionsAttr,
         aria_activedescendantAttr,
@@ -6207,6 +6221,30 @@ Vector<QualifiedName>& AXObjectCache::relationAttributes()
         popovertargetAttr,
     };
     return relationAttributes;
+}
+
+bool AXObjectCache::isRelationAttribute(const QualifiedName& attribute)
+{
+    // A faster equivalent of relationAttributes().contains(attribute) for the DOM-mutation hot
+    // path (Element::attributeChanged). Keep this in sync with the list in relationAttributes().
+    switch (attribute.nodeName()) {
+    case AttributeNames::aria_actionsAttr:
+    case AttributeNames::aria_activedescendantAttr:
+    case AttributeNames::aria_controlsAttr:
+    case AttributeNames::aria_describedbyAttr:
+    case AttributeNames::aria_detailsAttr:
+    case AttributeNames::aria_errormessageAttr:
+    case AttributeNames::aria_flowtoAttr:
+    case AttributeNames::aria_labelledbyAttr:
+    case AttributeNames::aria_labeledbyAttr:
+    case AttributeNames::aria_ownsAttr:
+    case AttributeNames::commandforAttr:
+    case AttributeNames::headersAttr:
+    case AttributeNames::popovertargetAttr:
+        return true;
+    default:
+        return false;
+    }
 }
 
 AXRelation AXObjectCache::symmetricRelation(AXRelation relation)
@@ -6556,6 +6594,18 @@ void AXObjectCache::updateRelationsForTree(ContainerNode& rootNode)
         if (hasRelationAttribute || is<HTMLLabelElement>(element.get()))
             m_elementsWithRelationAttributes.add(element);
     }
+}
+
+void AXObjectCache::trackRelationAttributeElement(Element& element)
+{
+    // This runs synchronously during DOM mutation and parsing, so it must not
+    // resolve relations or touch layout.
+    if (!canHaveRelations(element))
+        return;
+    m_elementsWithRelationAttributes.add(element);
+
+    if (!m_relationsNeedUpdate)
+        relationsNeedUpdate(true);
 }
 
 bool AXObjectCache::addRelation(Element& origin, const QualifiedName& attribute)

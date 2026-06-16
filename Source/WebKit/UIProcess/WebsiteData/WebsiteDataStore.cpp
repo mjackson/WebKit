@@ -343,6 +343,7 @@ NetworkProcessProxy& WebsiteDataStore::networkProcess()
         Ref networkProcess = networkProcessForSession(m_sessionID);
         m_networkProcess = networkProcess.copyRef();
         networkProcess->addSession(*this, NetworkProcessProxy::SendParametersToNetworkProcess::Yes);
+        propagateSettingUpdates();
     }
 
     return *m_networkProcess;
@@ -1079,7 +1080,7 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, const Ve
                     websitesToRemove.add(origin.toURL());
             }
         }
-        ScreenTimeWebsiteDataSupport::removeScreenTimeData(websitesToRemove, configuration());
+        ScreenTimeWebsiteDataSupport::removeScreenTimeData(websitesToRemove, configuration(), [callbackAggregator] { });
     }
 #endif
     if (dataTypes.contains(WebsiteDataType::EnhancedSecurityRecord) && isPersistent())
@@ -2074,7 +2075,7 @@ bool WebsiteDataStore::computeIsOptInCookiePartitioningEnabled() const
         return *m_cachedIsOptInCookiePartitioningEnabled;
 
     for (Ref page : m_pages) {
-        if (page->preferences().optInPartitionedCookiesEnabled())
+        if (protect(page->preferences())->optInPartitionedCookiesEnabled())
             return true;
     }
 #endif
@@ -2850,12 +2851,16 @@ void WebsiteDataStore::addPage(WebPageProxy& page)
 {
     m_pages.add(page);
 
+    propagateSettingUpdates();
+
     updateServiceWorkerInspectability();
 }
 
 void WebsiteDataStore::removePage(WebPageProxy& page)
 {
     m_pages.remove(page);
+
+    propagateSettingUpdates();
 
     updateServiceWorkerInspectability();
 }

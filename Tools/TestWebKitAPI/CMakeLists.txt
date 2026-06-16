@@ -58,6 +58,7 @@ set(TestWTF_SOURCES
     Tests/WTF/EnumTraits.cpp
     Tests/WTF/Expected.cpp
     Tests/WTF/FileSystem.cpp
+    Tests/WTF/FormattedLogging.cpp
     Tests/WTF/FixedBitVector.cpp
     Tests/WTF/FixedVector.cpp
     Tests/WTF/Function.cpp
@@ -120,6 +121,7 @@ set(TestWTF_SOURCES
     Tests/WTF/SentinelLinkedList.cpp
     Tests/WTF/SetForScope.cpp
     Tests/WTF/Signals.cpp
+    Tests/WTF/SparseBitVector.cpp
     Tests/WTF/StackTraceTest.cpp
     Tests/WTF/StdLibExtrasTests.cpp
     Tests/WTF/StringBuilder.cpp
@@ -177,6 +179,7 @@ if (ENABLE_JAVASCRIPTCORE)
         Tests/JavaScriptCore/InspectorConsoleMessage.cpp
         Tests/JavaScriptCore/MarkedVector.cpp
         Tests/JavaScriptCore/PropertySlot.cpp
+        Tests/JavaScriptCore/RegularExpression.cpp
     )
 
     set(TestJavaScriptCore_LIBRARIES

@@ -44,7 +44,7 @@
 #include "SVGElementTypeHelpers.h"
 #include "SVGGraphicsElement.h"
 #include "SVGNames.h"
-#include "SVGPathData.h"
+#include "SVGPathFromElement.h"
 #include "SVGUseElement.h"
 #include "StyleTransformResolver.h"
 #include "TransformState.h"
@@ -74,6 +74,8 @@ void RenderSVGModelObject::updateFromStyle()
 {
     RenderLayerModelObject::updateFromStyle();
     updateHasSVGTransformFlags();
+    if (!hasLayer())
+        updateLocalTransform();
 }
 
 void RenderSVGModelObject::updateLocalTransform()

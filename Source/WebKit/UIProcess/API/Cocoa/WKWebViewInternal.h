@@ -314,8 +314,18 @@ struct PerWebProcessState {
 #if ENABLE(RESPONSIVE_LIVE_RESIZE_UPDATE)
     std::optional<CGFloat> lastResizedViewWidth;
     RetainPtr<NSDate> lastResizeTimestamp;
+    std::optional<WebKit::TransactionID> transactionIDForEndLiveResize;
+    BOOL waitingForEndLiveResizePresentationUpdate { NO };
+    BOOL resizeAnimationViewIsUpdating { NO };
 #endif
 };
+
+#if ENABLE(RESPONSIVE_LIVE_RESIZE_UPDATE)
+struct LiveResizeSnapshotState {
+    RetainPtr<UIView> snapshotView;
+    CGFloat initialWidth { 0 };
+};
+#endif
 
 #endif // PLATFORM(IOS_FAMILY)
 
@@ -460,7 +470,7 @@ struct PerWebProcessState {
     UIEdgeInsets _animatedResizeOldObscuredInsets;
     RetainPtr<UIView> _resizeAnimationView;
 #if ENABLE(RESPONSIVE_LIVE_RESIZE_UPDATE)
-    RetainPtr<UIView> _liveResizeSnapshotContainerView;
+    std::optional<std::pair<WebKit::TransactionID, LiveResizeSnapshotState>> _liveResizeSnapshotState;
 #endif
     CGFloat _lastAdjustmentForScroller;
 
@@ -528,10 +538,6 @@ struct PerWebProcessState {
     String _defaultSTSLabel;
 #endif
 
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    RetainPtr<_WKSpatialBackdropSource> _cachedSpatialBackdropSource;
-#endif
-
     BOOL _didAccessBackForwardList;
     BOOL _dontResetTransientActivationAfterRunJavaScript;
 
@@ -591,10 +597,6 @@ struct PerWebProcessState {
 
 #if PLATFORM(MAC) && HAVE(NSWINDOW_SNAPSHOT_READINESS_HANDLER)
 - (void)_invalidateWindowSnapshotReadinessHandler;
-#endif
-
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-- (void)_spatialBackdropSourceDidChange;
 #endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)

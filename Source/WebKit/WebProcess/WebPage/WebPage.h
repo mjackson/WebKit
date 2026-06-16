@@ -850,7 +850,7 @@ public:
     RefPtr<WebCore::LocalFrame> NODELETE localMainFrame() const;
     RefPtr<WebCore::Document> localTopDocument() const;
 
-    void createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName, Ref<WebCore::FrameTreeSyncData>&&);
+    void createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName, WebCore::ProcessIdentifier hostingProcessID, Ref<WebCore::FrameTreeSyncData>&&);
 
     Awaitable<std::optional<FrameTreeNodeData>> getFrameTree();
     Awaitable<std::optional<FrameTreeNodeData>> getFrameTreeForBackForwardCacheEntry(WebCore::BackForwardFrameItemIdentifier);
@@ -1756,10 +1756,6 @@ public:
     void sampledPageTopColorChanged() { m_pendingSampledPageTopColorChange = true; }
     void flushPendingSampledPageTopColorChange();
 
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    void spatialBackdropSourceChanged();
-#endif
-
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
     void allowImmersiveElement(CompletionHandler<void(bool)>&&);
     void presentImmersiveElement(const WebCore::LayerHostingContextIdentifier, CompletionHandler<void(bool)>&&);
@@ -2325,7 +2321,7 @@ private:
     void dispatchCrossOriginBeforeUnloadCheckForFrame(WebCore::FrameIdentifier, WebCore::SecurityOriginData&&);
     void platformDidReceiveLoadParameters(const LoadParameters&);
     void createProvisionalFrame(ProvisionalFrameCreationParameters&&);
-    void loadDidCommitInAnotherProcess(WebCore::FrameIdentifier, std::optional<WebCore::LayerHostingContextIdentifier>, RefPtr<WebCore::DocumentSyncData>&&);
+    void loadDidCommitInAnotherProcess(WebCore::FrameIdentifier, WebCore::ProcessIdentifier hostingProcessID, std::optional<WebCore::LayerHostingContextIdentifier>, RefPtr<WebCore::DocumentSyncData>&&);
     [[noreturn]] void NODELETE loadRequestWaitingForProcessLaunch(LoadParameters&&, URL&&, WebPageProxyIdentifier, bool);
     void loadData(LoadParameters&&);
     void loadAlternateHTML(LoadParameters&&);
@@ -2524,7 +2520,7 @@ private:
     void setTextForActivePopupMenu(int32_t index);
 #endif
 
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(WPE)
     void failedToShowPopupMenu();
 #endif
 

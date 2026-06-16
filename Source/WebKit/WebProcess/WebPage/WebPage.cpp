@@ -971,6 +971,16 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
             backend->enableNetworkInstrumentation();
     }
 
+    if (parameters.shouldEnablePageInstrumentation) {
+        // Mirror network: enable page instrumentation before the frontend connects so the
+        // PageAgentProxy is live before this (possibly cross-origin, freshly-spawned) process's
+        // first frame commit. This sets the gate so ensurePageInstrumentationForFrame() registers
+        // a per-frame proxy when the provisional LocalFrame is created (WebFrame::createProvisionalFrame),
+        // delivering the child's initial frameNavigated to the UIProcess ProxyingPageAgent.
+        if (RefPtr backend = inspector(LazyCreationPolicy::CreateIfNeeded))
+            backend->enablePageInstrumentation();
+    }
+
 #if PLATFORM(IOS_FAMILY) || ENABLE(ROUTING_ARBITRATION)
     DeprecatedGlobalSettings::setShouldManageAudioSessionCategory(true);
 #endif
@@ -1290,19 +1300,19 @@ void WebPage::updateAfterDrawingAreaCreation(const WebPageCreationParameters& pa
 
 void WebPage::constructFrameTree(WebFrame& parent, const FrameTreeCreationParameters& treeCreationParameters)
 {
-    auto frame = WebFrame::createRemoteSubframe(*this, parent, treeCreationParameters.frameID, treeCreationParameters.frameName, treeCreationParameters.openerFrameID, Ref { treeCreationParameters.frameTreeSyncData });
+    auto frame = WebFrame::createRemoteSubframe(*this, parent, treeCreationParameters.frameID, treeCreationParameters.frameName, treeCreationParameters.openerFrameID, treeCreationParameters.hostingProcessID, Ref { treeCreationParameters.frameTreeSyncData });
     for (auto& parameters : treeCreationParameters.children)
         constructFrameTree(frame, parameters);
 }
 
-void WebPage::createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName, Ref<WebCore::FrameTreeSyncData>&& frameTreeSyncData)
+void WebPage::createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName, WebCore::ProcessIdentifier hostingProcessID, Ref<WebCore::FrameTreeSyncData>&& frameTreeSyncData)
 {
     RefPtr parentFrame = WebProcess::singleton().webFrame(parentID);
     if (!parentFrame) {
         ASSERT_NOT_REACHED();
         return;
     }
-    WebFrame::createRemoteSubframe(*this, *parentFrame, newChildID, newChildFrameName, std::nullopt, WTF::move(frameTreeSyncData));
+    WebFrame::createRemoteSubframe(*this, *parentFrame, newChildID, newChildFrameName, std::nullopt, hostingProcessID, WTF::move(frameTreeSyncData));
 }
 
 Awaitable<std::optional<FrameTreeNodeData>> WebPage::getFrameTree()
@@ -1322,11 +1332,13 @@ Awaitable<std::optional<FrameTreeNodeData>> WebPage::getFrameTreeForBackForwardC
     RefPtr topDocument = page->localTopDocument();
     Ref mainFrame = page->mainFrame();
     RefPtr mainFrameOrigin = mainFrame->frameDocumentSecurityOrigin();
+    auto mainFrameOriginData = mainFrameOrigin ? SecurityOriginData { mainFrameOrigin->data() } : WebCore::SecurityOriginData::createOpaque();
     FrameInfoData data {
         true,
         mainFrame->frameType() == Frame::FrameType::Local ? FrameType::Local : FrameType::Remote,
         ResourceRequest { URL { page->mainFrameURL() } },
-        mainFrameOrigin ? SecurityOriginData { mainFrameOrigin->data() } : WebCore::SecurityOriginData::createOpaque(),
+        mainFrameOriginData,
+        mainFrameOriginData,
         mainFrame->tree().specifiedName().string(),
         mainFrame->frameID(),
         std::nullopt,
@@ -1348,9 +1360,9 @@ Awaitable<std::optional<FrameTreeNodeData>> WebPage::getFrameTreeForBackForwardC
 void WebPage::didFinishLoadInAnotherProcess(WebCore::FrameIdentifier frameID)
 {
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
-    if (!frame)
+    if (!frame || frame->page() != this)
         return;
-    ASSERT(frame->page() == this);
+
     frame->didFinishLoadInAnotherProcess();
 }
 
@@ -1359,8 +1371,12 @@ void WebPage::frameWasRemovedInAnotherProcess(WebCore::FrameIdentifier frameID)
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
     if (!frame)
         return;
-    ASSERT(frame->page() == this);
+
     frame->markAsRemovedInAnotherProcess();
+
+    if (frame->page() != this)
+        return;
+
     frame->removeFromTree();
 }
 
@@ -1405,10 +1421,8 @@ void WebPage::allFrameTreeSyncDataChangedInAnotherProcess(FrameIdentifier frameI
     ASSERT(m_page->settings().siteIsolationEnabled());
 
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
-    if (!frame)
+    if (!frame || frame->page() != this)
         return;
-
-    ASSERT(frame->page() == this);
 
     RefPtr coreFrame = frame->coreFrame();
     if (coreFrame)
@@ -2364,19 +2378,19 @@ void WebPage::platformDidReceiveLoadParameters(const LoadParameters& loadParamet
 void WebPage::createProvisionalFrame(ProvisionalFrameCreationParameters&& parameters)
 {
     RefPtr frame = WebProcess::singleton().webFrame(parameters.frameID);
-    if (!frame)
+    if (!frame || frame->page() != this)
         return;
-    ASSERT(frame->page() == this);
+
     frame->createProvisionalFrame(WTF::move(parameters));
 }
 
-void WebPage::loadDidCommitInAnotherProcess(WebCore::FrameIdentifier frameID, std::optional<WebCore::LayerHostingContextIdentifier> layerHostingContextIdentifier, RefPtr<WebCore::DocumentSyncData>&& topDocumentSyncData)
+void WebPage::loadDidCommitInAnotherProcess(WebCore::FrameIdentifier frameID, WebCore::ProcessIdentifier hostingProcessID, std::optional<WebCore::LayerHostingContextIdentifier> layerHostingContextIdentifier, RefPtr<WebCore::DocumentSyncData>&& topDocumentSyncData)
 {
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
-    if (!frame)
+    if (!frame || frame->page() != this)
         return;
-    ASSERT(frame->page() == this);
-    frame->loadDidCommitInAnotherProcess(layerHostingContextIdentifier);
+
+    frame->loadDidCommitInAnotherProcess(hostingProcessID, layerHostingContextIdentifier);
 
     if (topDocumentSyncData) {
         if (RefPtr page = corePage())
@@ -4254,6 +4268,18 @@ Expected<bool, WebCore::RemoteFrameGeometryTransformer> WebPage::dispatchTouchEv
     CurrentEvent currentEvent(touchEvent);
     auto handleTouchEventResult = handleTouchEvent(frameID, touchEvent, m_page.get());
     updatePotentialTapSecurityOrigin(touchEvent, handleTouchEventResult.value_or(false));
+
+    if (touchEvent.type() == WebEventType::TouchEnd && handleTouchEventResult.value_or(false)) {
+        if (RefPtr localMainFrame = this->localMainFrame()) {
+            if (RefPtr document = localMainFrame->document()) {
+                FloatPoint adjustedPoint;
+                RefPtr responder = localMainFrame->nodeRespondingToClickEvents(FloatPoint(touchEvent.position()), adjustedPoint);
+                if (document->quirks().shouldAllowNativeTapsOnMediaElements(responder.get()))
+                    handleTouchEventResult = false;
+            }
+        }
+    }
+
     return handleTouchEventResult;
 }
 
@@ -6462,13 +6488,20 @@ void WebPage::setTextForActivePopupMenu(int32_t index)
 }
 #endif
 
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(WPE)
 void WebPage::failedToShowPopupMenu()
 {
     if (!m_activePopupMenu)
         return;
 
-    m_activePopupMenu->client()->popupDidHide();
+    auto activePopupMenu = std::exchange(m_activePopupMenu, nullptr);
+    if (auto* popupClient = activePopupMenu->client()) {
+#if PLATFORM(WPE)
+        popupClient->showFallbackPopupMenu();
+#else
+        popupClient->popupDidHide();
+#endif
+    }
 }
 #endif
 
@@ -8172,10 +8205,6 @@ void WebPage::didFinishLoad(WebFrame& frame)
 #if ENABLE(VIEWPORT_RESIZING)
     shrinkToFitContent(ZoomToInitialScale::Yes);
 #endif
-
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    spatialBackdropSourceChanged();
-#endif
 }
 
 void WebPage::didSameDocumentNavigationForFrame(WebFrame& frame)
@@ -8332,15 +8361,6 @@ void WebPage::flushPendingSampledPageTopColorChange()
 
     send(Messages::WebPageProxy::SampledPageTopColorChanged(protect(corePage())->sampledPageTopColor()));
 }
-
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-void WebPage::spatialBackdropSourceChanged()
-{
-    RefPtr page = m_page;
-    if (page->settings().webPageSpatialBackdropEnabled())
-        send(Messages::WebPageProxy::SpatialBackdropSourceChanged(page->spatialBackdropSource()));
-}
-#endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
 void WebPage::allowImmersiveElement(CompletionHandler<void(bool)>&& completion)
@@ -10414,8 +10434,11 @@ void WebPage::hitTestAtPoint(WebCore::FrameIdentifier frameID, WebCore::FloatPoi
     if (!nodeWebFrame)
         return completionHandler({ });
 
-    auto [handle, info] = nodeWebFrame->createAndPrepareToSendJSHandle(*node);
-    completionHandler({ WTF::move(info) });
+    auto handleAndInfo = nodeWebFrame->createAndPrepareToSendJSHandle(*node);
+    if (!handleAndInfo)
+        return completionHandler({ });
+
+    completionHandler({ WTF::move(handleAndInfo->second) });
 }
 
 void WebPage::adjustVisibilityForTargetedElements(Vector<TargetedElementAdjustment>&& adjustments, CompletionHandler<void(bool)>&& completion)

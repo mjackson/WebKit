@@ -249,7 +249,6 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case SameValue:
     case IsEmpty:
     case IsEmptyStorage:
-    case TypeOfIsUndefined:
     case IsUndefinedOrNull:
     case IsBoolean:
     case IsNumber:
@@ -257,8 +256,6 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case NumberIsInteger:
     case IsObject:
     case IsTypedArrayView:
-    case ToBoolean:
-    case LogicalNot:
     case CheckInBounds:
     case CheckInBoundsInt52:
     case DoubleRep:
@@ -273,9 +270,17 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case ValueToInt32:
     case GetExecutable:
     case BottomValue:
-    case TypeOf:
     case SymbolToString:
         def(PureValue(node));
+        return;
+
+    // These nodes are realm-dependent when MasqueradesAsUndefined is involved.
+    // Including the globalObject in the PureValue ensures nodes from different realms are not folded by CSE.
+    case TypeOfIsUndefined:
+    case ToBoolean:
+    case LogicalNot:
+    case TypeOf:
+        def(PureValue(node, graph.globalObjectFor(node->origin.semantic)));
         return;
 
     // JSCallee for Eval can change the scope field.
@@ -691,12 +696,12 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
 
     case TypeOfIsObject:
         read(MiscFields);
-        def(HeapLocation(TypeOfIsObjectLoc, MiscFields, node->child1()), LazyNode(node));
+        def(HeapLocation(TypeOfIsObjectLoc, MiscFields, node->child1(), graph.globalObjectFor(node->origin.semantic)), LazyNode(node));
         return;
 
     case TypeOfIsFunction:
         read(MiscFields);
-        def(HeapLocation(TypeOfIsFunctionLoc, MiscFields, node->child1()), LazyNode(node));
+        def(HeapLocation(TypeOfIsFunctionLoc, MiscFields, node->child1(), graph.globalObjectFor(node->origin.semantic)), LazyNode(node));
         return;
         
     case IsCallable:
@@ -2333,6 +2338,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case RegExpExec:
     case RegExpTest:
     case RegExpTestInline:
+    case RegExpSplitFast:
         // Even if we've proven known input types as RegExpObject and String,
         // accessing lastIndex is effectful if it's a global regexp.
         clobberTop();
@@ -2389,6 +2395,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         return;
 
     case StringIteratorNext:
+    case StringIteratorNextWithUndefined:
         // Reads only immutable string contents and allocates the result string, so it is pure
         // with respect to the heap. It never touches the iterator object, so the
         // GetInternalField/PutInternalField pair around it stays visible to
@@ -2414,6 +2421,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
 
         if (node->isBinaryUseKind(UntypedUse)) {
             clobberTop();
+            return;
+        }
+
+        // CompareEq is realm-dependent when MasqueradesAsUndefined is involved.
+        // Including the globalObject ensures nodes from different realms are not folded by CSE.
+        if (node->op() == CompareEq) {
+            def(PureValue(node, graph.globalObjectFor(node->origin.semantic)));
             return;
         }
 

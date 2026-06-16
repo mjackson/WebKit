@@ -46,6 +46,7 @@ import sys
 import time
 
 from Shared.steps import ShellMixin, SetBuildSummary, SetO3OptimizationLevel, WaitForDuration, InstallSwiftToolchain, SWIFT_TOOLCHAIN_NAME, SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER, SWIFT_DIR, USER_TOOLCHAINS_DIR
+from Shared import generate_s3_url
 
 if sys.version_info < (3, 9):  # noqa: UP036
     print('ERROR: Minimum supported Python version for this code is Python 3.9')
@@ -2980,9 +2981,10 @@ class Trigger(trigger.Trigger):
 
         properties_to_pass = {prop: properties.Property(prop) for prop in property_names}
         properties_to_pass['retry_count'] = properties.Property('retry_count', default=0)
-        properties_to_pass['os_version_builder'] = properties.Property('os_version', default='')
-        properties_to_pass['xcode_version_builder'] = properties.Property('xcode_version', default='')
-        properties_to_pass['deployment_target_builder'] = properties.Property('deployment_target')
+        if not self.triggers:
+            properties_to_pass['os_version_builder'] = properties.Property('os_version', default='')
+            properties_to_pass['xcode_version_builder'] = properties.Property('xcode_version', default='')
+            properties_to_pass['deployment_target_builder'] = properties.Property('deployment_target')
         properties_to_pass['parent_buildnumber'] = properties.Property('buildnumber')
         properties_to_pass['parent_builderid'] = properties.Property('builderid')
         properties_to_pass['rebuild_without_change_on_builder'] = properties.Property('rebuild_without_change_on_builder', default=False)
@@ -3894,8 +3896,13 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
                 RevertAppliedChanges(),
                 CleanWorkingDirectory(),
                 ValidateChange(verifyBugClosed=False, addURLs=False),
-                SetO3OptimizationLevel(),
-                CompileJSCWithoutChange(),
+                SetO3OptimizationLevel()
+            ]
+            if self.getProperty('rebuild_without_change_on_builder', False):
+                steps_to_add.extend([DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE), ExtractBuiltProduct()])
+            else:
+                steps_to_add.extend([CompileJSCWithoutChange()])
+            steps_to_add += [
                 ValidateChange(verifyBugClosed=False, addURLs=False),
                 KillOldProcesses(),
                 RunJSCTestsWithoutChange(),
@@ -4198,6 +4205,7 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
         self.incorrectLayoutLines = []
         self.failing_tests_filtered = []
         self.preexisting_failures_in_results_db = []
+        self.layout_test_driver = None
 
     def doStepIf(self, step):
         return not ((self.getProperty('buildername', '').lower() in ['commit-queue', 'merge-queue']) and
@@ -4207,10 +4215,9 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
         platform = self.getProperty('platform')
         self.command += customBuildFlag(platform, self.getProperty('fullPlatform'))
 
-        driver = self.getProperty('layout-test-driver', None)
-        if driver == 'DumpRenderTree':
+        if self.layout_test_driver == 'DumpRenderTree':
             self.command += ['-1']
-        elif driver == 'WebKitTestRunner':
+        elif self.layout_test_driver == 'WebKitTestRunner':
             self.command += ['-2']
 
         self.command += ['--results-directory', self.resultDirectory]
@@ -4332,10 +4339,9 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
         if style and style in ['debug', 'release']:
             configuration['style'] = style
 
-        driver = self.getProperty('layout-test-driver', None)
-        if driver == 'DumpRenderTree':
+        if self.layout_test_driver == 'DumpRenderTree':
             configuration['flavor'] = 'wk1'
-        elif driver == 'WebKitTestRunner':
+        elif self.layout_test_driver == 'WebKitTestRunner':
             configuration['flavor'] = 'wk2'
 
         yield self._addToLog(self.results_db_log_name, f'Checking Results database for failing tests. Identifier: {identifier}, configuration: {configuration}')
@@ -4482,9 +4488,9 @@ class RunWebKitTestsInStressMode(RunWebKitTests):
 
     def setLayoutTestCommand(self):
         if self.layout_test_class == RunWebKit1Tests:
-            self.setProperty('layout-test-driver', 'DumpRenderTree')
+            self.layout_test_driver = 'DumpRenderTree'
         else:
-            self.setProperty('layout-test-driver', 'WebKitTestRunner')
+            self.layout_test_driver = 'WebKitTestRunner'
         RunWebKitTests.setLayoutTestCommand(self)
 
         self.command += ['--iterations', self.num_iterations]
@@ -4547,9 +4553,9 @@ class RunWebKitTestsInSiteIsolationMode(RunWebKitTestsInStressMode):
 
     def setLayoutTestCommand(self):
         if self.layout_test_class == RunWebKit1Tests:
-            self.setProperty('layout-test-driver', 'DumpRenderTree')
+            self.layout_test_driver = 'DumpRenderTree'
         else:
-            self.setProperty('layout-test-driver', 'WebKitTestRunner')
+            self.layout_test_driver = 'WebKitTestRunner'
         RunWebKitTests.setLayoutTestCommand(self)
 
         self.command += ['--site-isolation']
@@ -5142,7 +5148,7 @@ class AnalyzeLayoutTestsResults(buildstep.BuildStep, BugzillaMixin, GitHubMixin)
 class RunWebKit1Tests(RunWebKitTests):
     @defer.inlineCallbacks
     def run(self):
-        self.setProperty('layout-test-driver', 'DumpRenderTree')
+        self.layout_test_driver = 'DumpRenderTree'
         rc = yield RunWebKitTests.run(self)
         defer.returnValue(rc)
 
@@ -5654,52 +5660,40 @@ class UploadFileToS3(shell.ShellCommand, AddToLogMixin):
         return super().getResultSummary()
 
 
-class GenerateS3URL(master.MasterShellCommand):
+class GenerateS3URL(buildstep.BuildStep, AddToLogMixin):
     name = 'generate-s3-url'
     descriptionDone = ['Generated S3 URL']
     haltOnFailure = False
     flunkOnFailure = False
 
     def __init__(self, identifier, extension='zip', additions=None, content_type=None, **kwargs):
+        super().__init__(**kwargs)
         self.identifier = identifier
         self.extension = extension
         self.additions = additions
-        kwargs['command'] = [
-            'python3', '../Shared/generate-s3-url',
-            '--change-id', WithProperties('%(change_id)s'),
-            '--identifier', self.identifier,
-        ]
-        if extension:
-            kwargs['command'] += ['--extension', extension]
-        if additions:
-            kwargs['command'] += ['--additions', additions]
-        if content_type:
-            kwargs['command'] += ['--content-type', content_type]
-        super().__init__(logEnviron=False, **kwargs)
+        self.content_type = content_type
 
     @defer.inlineCallbacks
     def run(self):
-        self.log_observer = logobserver.BufferLogObserver(wantStderr=True)
-        self.addLogObserver('stdio', self.log_observer)
-
-        rc = yield super().run()
-
         self.build.s3url = ''
         if not getattr(self.build, 's3_archives', None):
             self.build.s3_archives = []
 
-        log_text = self.log_observer.getStdout() + self.log_observer.getStderr()
-        match = re.search(r'S3 URL: (?P<url>[^\s]+)', log_text)
-        # Sample log: S3 URL: https://s3-us-west-2.amazonaws.com/ews-archives.webkit.org/ios-simulator-12-x86_64-release/123456.zip
+        change_id = self.getProperty('change_id')
+        try:
+            url = generate_s3_url.generateS3URL(
+                S3_BUCKET, self.identifier, change_id,
+                additions=self.additions,
+                extension=self.extension,
+                content_type=self.content_type,
+            )
+        except Exception as e:
+            yield self._addToLog('stdio', f'Failed to generate S3 URL: {type(e).__name__}\n')
+            return defer.returnValue(FAILURE)
 
-        build_url = f'{self.master.config.buildbotURL}#/builders/{self.build._builderid}/builds/{self.build.number}'
-        if match:
-            self.build.s3url = match.group('url')
-            self.build.s3_archives.append(S3URL + f"{S3_BUCKET}/{self.identifier}/{self.getProperty('change_id')}{f'-{self.additions}' if self.additions else ''}.{self.extension}")
-            defer.returnValue(rc)
-        else:
-            print(f'build: {build_url}, logs for GenerateS3URL:\n{log_text}')
-            defer.returnValue(FAILURE)
+        self.build.s3url = url
+        self.build.s3_archives.append(S3URL + f"{S3_BUCKET}/{self.identifier}/{change_id}{f'-{self.additions}' if self.additions else ''}.{self.extension}")
+        return defer.returnValue(SUCCESS)
 
     def hideStepIf(self, results, step):
         return results == SUCCESS

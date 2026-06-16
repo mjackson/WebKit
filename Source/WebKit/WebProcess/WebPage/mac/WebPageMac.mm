@@ -87,6 +87,7 @@
 #import <WebCore/ImmediateActionStage.h>
 #import <WebCore/KeyboardEvent.h>
 #import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/LocalFrameView.h>
 #import <WebCore/MIMETypeRegistry.h>
 #import <WebCore/NetworkStorageSession.h>
@@ -105,6 +106,7 @@
 #import <WebCore/RenderObject.h>
 #import <WebCore/RenderView.h>
 #import <WebCore/ScrollView.h>
+#import <WebCore/Settings.h>
 #import <WebCore/StyleComputedStyle.h>
 #import <WebCore/TextIterator.h>
 #import <WebCore/VisibleUnits.h>
@@ -207,6 +209,7 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
     result.canEnableAutomaticSpellingCorrection = result.isContentEditable && protect(frame.editor())->canEnableAutomaticSpellingCorrection();
     RefPtr document = frame.document();
     result.inputMethodUsesCorrectKeyEventOrder = frame.settings().inputMethodUsesCorrectKeyEventOrder() || (document && document->quirks().inputMethodUsesCorrectKeyEventOrder());
+    result.inputMethodMustUseCompositionEvents = document && document->quirks().inputMethodMustUseCompositionEvents();
 
     if (!result.hasPostLayoutAndVisualData())
         return;

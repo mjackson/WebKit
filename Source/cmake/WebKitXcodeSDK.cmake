@@ -56,6 +56,36 @@ function(WEBKIT_RESOLVE_TOOL OUTPUT_VAR _tool)
     endif ()
 endfunction()
 
+# Run Source/${PROJECT}/Scripts/process-entitlements.sh against an executable
+# target and ad-hoc codesign it with the resulting entitlements. Mirrors the
+# Xcode build's "Process Entitlements" build phase plus the signing step.
+#
+# Usage:
+#   WEBKIT_PROCESS_ENTITLEMENTS(target PROJECT name [PRODUCT_NAME name])
+#
+# PROJECT names the directory under Source/ containing Scripts/process-entitlements.sh
+# (e.g. JavaScriptCore, WebKit). PRODUCT_NAME defaults to the CMake target name;
+# set it explicitly when the script's dispatcher keys off a different name.
+function(WEBKIT_PROCESS_ENTITLEMENTS _target)
+    cmake_parse_arguments(_arg "" "PROJECT;PRODUCT_NAME" "" ${ARGN})
+    if (NOT _arg_PROJECT)
+        message(FATAL_ERROR "WEBKIT_PROCESS_ENTITLEMENTS(${_target}): PROJECT is required")
+    endif ()
+    if (NOT _arg_PRODUCT_NAME)
+        set(_arg_PRODUCT_NAME ${_target})
+    endif ()
+    set(_xcent ${CMAKE_CURRENT_BINARY_DIR}/${_target}.xcent)
+    add_custom_command(TARGET ${_target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E env
+            WK_PROCESSED_XCENT_FILE=${_xcent}
+            WK_PLATFORM_NAME=${WEBKIT_SDK_NAME}
+            PRODUCT_NAME=${_arg_PRODUCT_NAME}
+            ${CMAKE_SOURCE_DIR}/Source/${_arg_PROJECT}/Scripts/process-entitlements.sh
+        COMMAND codesign --force --sign - --entitlements ${_xcent} $<TARGET_FILE:${_target}>
+        VERBATIM
+    )
+endfunction()
+
 
 # ----------------------------------------------------------------------------
 # Initialization logic. Sets CMAKE_OSX_SYSROOT if needed, and pins compiler
@@ -64,7 +94,7 @@ endfunction()
 
 if (CMAKE_OSX_SYSROOT)
     WEBKIT_RESOLVE_SDK(${CMAKE_OSX_SYSROOT})
-elseif (PORT STREQUAL "Mac" OR PORT STREQUAL "JSCOnly")
+elseif (PORT STREQUAL "Mac" OR PORT STREQUAL "JSCOnly" OR NOT PORT)
     # FIXME: Support macosx.internal.
     WEBKIT_RESOLVE_SDK(macosx)
 elseif (PORT STREQUAL "IOS" AND CMAKE_IOS_SIMULATOR)
@@ -73,7 +103,7 @@ elseif (PORT STREQUAL "IOS" AND NOT CMAKE_IOS_SIMULATOR)
     WEBKIT_RESOLVE_SDK(iphoneos.internal iphoneos)
 else ()
     message(FATAL_ERROR "Building for an Apple platform without an SDK "
-        "directory (CMAKE_OSX_SYSROOT) or a hard-coded PORT provided.")
+        "directory (CMAKE_OSX_SYSROOT) or supported PORT variable.")
 endif ()
 
 # Subsequent use of `xcrun` or any of the system Xcode and BSD tools will

@@ -36,6 +36,7 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
     endforeach ()
 
     set(gusb_args --derived-sources-path ${_derivedSourcesPath} --source-tree-path ${CMAKE_CURRENT_SOURCE_DIR})
+    list(APPEND gusb_args --ignore-header-groups)
     # Windows needs a larger bundle size because that helps keep WebCore.lib's size below the 4GB maximum in debug builds.
     if (MSVC AND ${_framework} STREQUAL "WebCore" AND ${_framework}_LIBRARY_TYPE STREQUAL "STATIC")
         list(APPEND gusb_args --max-bundle-size 16)
@@ -71,9 +72,9 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
         unset(_sourceFileTmp)
 
         foreach (_file IN LISTS _outputTmp)
-            # rdar://177465799 (Move bare filenames in DerivedSources to logical sub-folders)
+            # Disambiguate top-level generated sources in DerivedSources vs top-level regular sources.
             get_filename_component(_fileDir "${_file}" DIRECTORY)
-            if (NOT _fileDir)
+            if (NOT _fileDir AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_file}")
                 set(_file "${_derivedSourcesPath}/${_file}")
             endif ()
             if (_file MATCHES "\\.c$")

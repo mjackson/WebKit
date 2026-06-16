@@ -478,7 +478,6 @@ webkit.org/b/112176 compositing/overflow/composited-scrolling-paint-phases.html 
 webkit.org/b/112176 compositing/overflow/scrolling-without-painting.html [ Failure Pass ]
 webkit.org/b/112176 compositing/overflow/updating-scrolling-content.html [ Failure Pass ]
 webkit.org/b/112176 fast/canvas/canvas-composite-alpha.html [ Failure Pass ]
-webkit.org/b/112176 fast/canvas/webgl/read-pixels-test.html [ Failure Pass ]
 
 # Baseline Alignment tests affected by 1px diff failures only on Mac and iOS platforms
 webkit.org/b/170293 fast/css-grid-layout/grid-align-baseline-vertical.html [ Failure ]
@@ -1215,8 +1214,6 @@ http/tests/cookies/same-site [ Pass ]
 # FIXME: Mark as Pass once <rdar://problem/47165939> is fixed.
 http/tests/cookies/only-accept-first-party-cookies.html [ Skip ]
 
-http/tests/resourceLoadStatistics/only-partitioned-cookies-after-redirect-fetch.https.html [ Skip ]
-
 # FIXME: Mark as Pass once the fix for <rdar://problem/42255251> is shipped.
 http/tests/cookies/same-site/set-first-party-cross-site-cookies.py [ Skip ]
 http/tests/cookies/same-site/set-first-party-same-site-cookies.py [ Skip ]
@@ -1453,8 +1450,6 @@ webkit.org/b/208592 svg/custom/object-sizing-explicit-height.xhtml [ Pass Failur
 webkit.org/b/209257 svg/as-object/object-box-sizing-no-width-height.html [ Pass Failure ]
 
 webkit.org/b/209072 [ Debug ] http/tests/css/shared-stylesheet-mutation-preconstruct.html [ Pass Crash Failure ]
-
-webkit.org/b/207858 fast/canvas/webgl/simulated-vertexAttrib0-invalid-indicies.html [ Skip ]
 
 webkit.org/b/209619 compositing/clipping/border-radius-async-overflow-stacking.html [ Pass ImageOnlyFailure ]
 

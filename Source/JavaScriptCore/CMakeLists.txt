@@ -379,13 +379,11 @@ set(JavaScriptCore_BUILTINS_SOURCES
     ${JAVASCRIPTCORE_DIR}/builtins/PromiseOperations.js
     ${JAVASCRIPTCORE_DIR}/builtins/ProxyHelpers.js
     ${JAVASCRIPTCORE_DIR}/builtins/ReflectObject.js
-    ${JAVASCRIPTCORE_DIR}/builtins/RegExpPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/RegExpStringIteratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/SetIteratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/SetPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/ShadowRealmPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/StringConstructor.js
-    ${JAVASCRIPTCORE_DIR}/builtins/StringIteratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/TypedArrayConstructor.js
     ${JAVASCRIPTCORE_DIR}/builtins/TypedArrayPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/WrapForValidIteratorPrototype.js
@@ -765,6 +763,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     bytecode/ToThisStatus.h
     bytecode/TrackedReferences.h
     bytecode/TypeLocation.h
+    bytecode/TypeLocationInlines.h
     bytecode/UnlinkedCodeBlock.h
     bytecode/UnlinkedCodeBlockGenerator.h
     bytecode/UnlinkedEvalCodeBlock.h
@@ -1096,6 +1095,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     parser/SyntaxChecker.h
     parser/UnlinkedSourceCode.h
     parser/VariableEnvironment.h
+    parser/VariableEnvironmentInlines.h
 
     bytecode/ParseHash.h
     bytecompiler/Label.h
@@ -1195,6 +1195,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/CellSize.h
     runtime/TopExceptionScope.h
     runtime/ClassInfo.h
+    runtime/CloneBase.h
+    runtime/CloneDeserializerBase.h
+    runtime/CloneSerializerBase.h
     runtime/ClonedArguments.h
     runtime/CodeCache.h
     runtime/CodeSpecializationKind.h
@@ -1512,6 +1515,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSRemoteFunctionInlines.h
     runtime/JSRunLoopTimer.h
     runtime/JSScope.h
+    runtime/JSScopeInlines.h
     runtime/JSSegmentedVariableObject.h
     runtime/JSSentinel.h
     runtime/JSSentinelInlines.h
@@ -1627,6 +1631,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/PropertyDescriptor.h
     runtime/PropertyName.h
     runtime/PropertyNameArray.h
+    runtime/PropertyNameInlines.h
     runtime/PropertyOffset.h
     runtime/PropertySlot.h
     runtime/PropertyStorage.h
@@ -1727,6 +1732,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/StructureRareData.h
     runtime/StructureRareDataInlines.h
     runtime/StructureTransitionTable.h
+    runtime/StructuredCloneTags.h
     runtime/SubspaceAccess.h
     runtime/SuppressedError.h
     runtime/SuppressedErrorConstructor.h
@@ -2300,7 +2306,7 @@ endif ()
 if(${JavaScriptCore_LIBRARY_TYPE} STREQUAL "OBJECT")
     list(APPEND JavaScriptCore_PRIVATE_LIBRARIES $<TARGET_OBJECTS:LowLevelInterpreterLib>)
 else()
-    list(APPEND JavaScriptCore_SOURCES $<TARGET_OBJECTS:LowLevelInterpreterLib>)
+    list(APPEND JavaScriptCore_PRIVATE_LIBRARIES LowLevelInterpreterLib)
 endif()
 
 WEBKIT_COMPUTE_SOURCES(JavaScriptCore)

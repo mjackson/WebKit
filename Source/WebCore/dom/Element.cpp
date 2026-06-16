@@ -127,6 +127,7 @@
 #include "RenderLayerScrollableArea.h"
 #include "RenderListBox.h"
 #include "RenderObjectInlines.h"
+#include "RenderSVGInline.h"
 #include "RenderSVGModelObject.h"
 #include "RenderTextControlSingleLine.h"
 #include "RenderTheme.h"
@@ -310,6 +311,11 @@ Ref<Element> Element::create(const QualifiedName& tagName, Document& document)
 Element::Element(const QualifiedName& tagName, Document& document, OptionSet<TypeFlag> typeFlags)
     : ContainerNode(document, NodeType::Element, typeFlags | TypeFlag::IsElement)
     , m_tagName(tagName)
+{
+}
+
+Element::Element(ClangVTableWorkaroundTag, const QualifiedName& tagName, Document& document)
+    : Element(tagName, document, { })
 {
 }
 
@@ -1848,7 +1854,13 @@ int Element::scrollHeight()
 inline RefPtr<const SVGElement> elementWithSVGLayoutBox(const Element& element)
 {
     RefPtr svg = dynamicDowncast<SVGElement>(element);
-    return svg && svg->hasAssociatedSVGLayoutBox() ? svg : nullptr;
+    if (!svg || !svg->hasAssociatedSVGLayoutBox())
+        return nullptr;
+
+    if (is<RenderSVGInline>(svg->renderer()))
+        return { };
+
+    return svg;
 }
 
 inline bool NODELETE shouldObtainBoundsFromBoxModel(const Element* element)
@@ -2428,6 +2440,8 @@ void Element::attributeChanged(const QualifiedName& name, const AtomString& oldV
             if (auto* map = explicitlySetAttrElementsMapIfExists())
                 map->remove(name);
         }
+        if (CheckedPtr cache = document->existingAXObjectCache(); cache && AXObjectCache::isRelationAttribute(name))
+            cache->trackRelationAttributeElement(*this);
         break;
     }
     }

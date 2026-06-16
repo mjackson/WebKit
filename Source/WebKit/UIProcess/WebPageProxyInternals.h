@@ -54,7 +54,6 @@
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/SecurityOriginData.h>
-#include <WebCore/SpatialBackdropSource.h>
 #include <pal/HysteresisActivity.h>
 #include <wtf/UUID.h>
 
@@ -260,9 +259,6 @@ public:
 #if PLATFORM(MAC)
     std::optional<WebCore::FloatBoxExtent> pendingObscuredContentInsets;
 #endif
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    std::optional<WebCore::SpatialBackdropSource> spatialBackdropSource;
-#endif
     RunLoop::Timer tryCloseTimeoutTimer;
     WebCore::Color underPageBackgroundColorOverride;
     WebCore::Color underlayColor;
@@ -424,7 +420,7 @@ public:
 #if !PLATFORM(COCOA)
     void setTextFromItemForPopupMenu(WebPopupMenuProxy*, int32_t index) final;
 #endif
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(WPE)
     void failedToShowPopupMenu() final;
 #endif
 

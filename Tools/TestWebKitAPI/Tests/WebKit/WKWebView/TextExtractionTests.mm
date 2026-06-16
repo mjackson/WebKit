@@ -26,17 +26,18 @@
 #import "config.h"
 
 #import "ClassMethodSwizzler.h"
-#import "Helpers/cocoa/HTTPServer.h"
-#import "InstanceMethodSwizzler.h"
-#import "JSHandlePlugInProtocol.h"
 #import "Helpers/PlatformUtilities.h"
-#import "SafeBrowsingSPI.h"
-#import "Helpers/cocoa/SafeBrowsingTestUtilities.h"
 #import "Helpers/Test.h"
+#import "Helpers/Utilities.h"
+#import "Helpers/cocoa/HTTPServer.h"
+#import "Helpers/cocoa/PDFTestHelpers.h"
+#import "Helpers/cocoa/SafeBrowsingTestUtilities.h"
+#import "Helpers/cocoa/ScreenTimeExtras.h"
 #import "Helpers/cocoa/TestNavigationDelegate.h"
 #import "Helpers/cocoa/TestWKWebView.h"
-#import "Helpers/Utilities.h"
 #import "Helpers/cocoa/WKWebViewConfigurationExtras.h"
+#import "InstanceMethodSwizzler.h"
+#import "SafeBrowsingSPI.h"
 #import <WebKit/WKContentWorldPrivate.h>
 #import <WebKit/WKFrameInfoPrivate.h>
 #import <WebKit/WKPreferencesPrivate.h>
@@ -65,14 +66,6 @@
 #define TestWebKitAPI_SSBLookupContext_SoftLinked
 SOFT_LINK_PRIVATE_FRAMEWORK(SafariSafeBrowsing);
 SOFT_LINK_CLASS(SafariSafeBrowsing, SSBLookupContext);
-#endif
-
-#if ENABLE(SCREEN_TIME)
-
-@interface STWebpageController ()
-@property (setter=setURLIsBlocked:) BOOL URLIsBlocked;
-@end
-
 #endif
 
 @class WKTextExtractionItem;
@@ -218,16 +211,6 @@ SOFT_LINK_CLASS(SafariSafeBrowsing, SSBLookupContext);
     return result.autorelease();
 }
 
-@end
-
-@interface JSHandleReceiver : NSObject<JSHandlePlugInProtocol>
-@property (nonatomic, copy) void (^dictionaryReceiver)(NSDictionary *);
-@end
-@implementation JSHandleReceiver
-- (void)receiveDictionaryFromWebProcess:(NSDictionary *)dictionary
-{
-    _dictionaryReceiver(dictionary);
-}
 @end
 
 namespace TestWebKitAPI {
@@ -414,7 +397,7 @@ TEST(TextExtractionTests, InteractionResultSummary)
         [interaction setText:@"squirrelfish@webkit.org"];
         RetainPtr result = [webView synchronouslyPerformInteraction:interaction.get()];
         EXPECT_NULL([result error]);
-        EXPECT_WK_STREQ("Inserted text by simulating paste with plain text", [result summary]);
+        EXPECT_WK_STREQ("Inserted text into input of type email with placeholder “Recipient address”", [result summary]);
     }
     {
         RetainPtr interaction = adoptNS([[_WKTextExtractionInteraction alloc] initWithAction:_WKTextExtractionActionSelectMenuItem]);
@@ -949,6 +932,48 @@ TEST(TextExtractionTests, RequestContainerJSHandleForSearchTextsFallsBackToBodyW
     EXPECT_FALSE([debugText containsString:@"Customer Reviews"]);
 }
 
+TEST(TextExtractionTests, RequestJSHandleForNodeInDetachedSubframe)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:^{
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        [[configuration preferences] _setTextExtractionEnabled:YES];
+        return configuration.autorelease();
+    }()]);
+
+    __block RetainPtr subframes = adoptNS([NSMutableArray new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate setDidCommitLoadWithRequestInFrame:^(WKWebView *, NSURLRequest *, WKFrameInfo *frame) {
+        if (!frame.mainFrame && ![frame.request.URL.scheme isEqualToString:@"about"])
+            [subframes addObject:frame];
+    }];
+    [webView setNavigationDelegate:navigationDelegate];
+
+    [webView loadHTMLString:@"<h1>Subframe</h1> <iframe id='child' srcdoc=\"<button id='target'>subframe target</p>\"></iframe>" baseURL:nil];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    Util::waitForConditionWithLogging([webView] {
+        return [[webView objectByEvaluatingJavaScript:@"!!document.getElementById('child').contentDocument && document.getElementById('child').contentDocument.readyState === 'complete'"] boolValue];
+    }, 3, @"Expected subframe to finish loading.");
+
+    RetainPtr extractionResult = [webView synchronouslyExtractDebugTextResult:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setAdditionalFrames:subframes];
+        return configuration.autorelease();
+    }()];
+
+    RetainPtr buttonIdentifier = extractNodeIdentifier([extractionResult textContent], @"subframe target");
+    EXPECT_NOT_NULL(buttonIdentifier);
+
+    [webView objectByEvaluatingJavaScript:@"document.querySelector('iframe').remove()"];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr buttonHandle = [extractionResult jsHandleForNodeIdentifier:buttonIdentifier searchText:nil];
+    EXPECT_NULL(buttonHandle);
+
+    RetainPtr headingText = [webView stringByEvaluatingJavaScript:@"document.querySelector('h1').textContent"];
+    EXPECT_WK_STREQ(@"Subframe", headingText);
+}
+
 TEST(TextExtractionTests, ResolveTargetNodeFromSelectorData)
 {
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
@@ -1199,31 +1224,6 @@ TEST(TextExtractionTests, SubframeOriginInDebugText)
     EXPECT_TRUE([debugText containsString:crossOriginExpected.createNSString()]);
     EXPECT_FALSE([debugText containsString:@"origin=http://localhost"]);
     EXPECT_FALSE([debugText containsString:@"origin=127.0.0.1"]);
-}
-
-TEST(TextExtractionTests, InjectedBundle)
-{
-    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"JSHandlePlugIn"];
-    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
-    RetainPtr receiver = adoptNS([JSHandleReceiver new]);
-    __block RetainPtr<_WKJSHandle> handle;
-    __block RetainPtr<_WKJSHandle> decodedHandle;
-    receiver.get().dictionaryReceiver = ^(NSDictionary *dictionary) {
-        handle = dynamic_objc_cast<_WKJSHandle>(dictionary[@"testkey"]);
-        decodedHandle = [NSKeyedUnarchiver _strictlyUnarchivedObjectOfClasses:[NSSet setWithObject:_WKJSHandle.class] fromData:dynamic_objc_cast<NSData>(dictionary[@"testdatakey"]) error:nil];
-    };
-
-    _WKRemoteObjectInterface *interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(JSHandlePlugInProtocol)];
-    [interface setClasses:[NSSet setWithObjects:NSDictionary.class, NSString.class, _WKJSHandle.class, nil] forSelector:@selector(receiveDictionaryFromWebProcess:) argumentIndex:0 ofReply:NO];
-    [[webView _remoteObjectRegistry] registerExportedObject:receiver.get() interface:interface];
-
-    [webView loadHTMLString:@"text outside <div id='testelement'> text inside </div>" baseURL:nil];
-    while (!handle)
-        Util::spinRunLoop();
-    EXPECT_NOT_NULL(handle.get().frame._documentIdentifier);
-    EXPECT_TRUE([handle.get().frame._documentIdentifier isEqual:decodedHandle.get().frame._documentIdentifier]);
-    EXPECT_TRUE([handle.get().frame._documentIdentifier isEqual:[webView mainFrame].info._documentIdentifier]);
-    EXPECT_TRUE([handle.get().frame _isSameFrame:[webView mainFrame].info]);
 }
 
 TEST(TextExtractionTests, ClickInteractionWithTextOnly)
@@ -1949,5 +1949,101 @@ TEST(TextExtractionTests, FilterExtractedStringEmptyInput)
 }
 
 #endif // ENABLE(TEXT_EXTRACTION_FILTER) && HAVE(SAFARI_SAFE_BROWSING_NAMESPACED_LISTS)
+
+#if ENABLE(UNIFIED_PDF)
+
+static RetainPtr<TestWKWebView> loadPDFInWebView()
+{
+    RetainPtr configuration = configurationForWebViewTestingUnifiedPDF();
+    [[configuration preferences] _setTextExtractionEnabled:YES];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView loadData:testPDFData() MIMEType:@"application/pdf" characterEncodingName:@"" baseURL:[NSURL URLWithString:@"https://www.example.com/test.pdf"]];
+    [webView _test_waitForDidFinishNavigation];
+    return webView;
+}
+
+TEST(TextExtractionTests, ExtractFromPDFAsMarkdown)
+{
+    RetainPtr webView = loadPDFInWebView();
+
+    RetainPtr text = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setOutputFormat:_WKTextExtractionOutputFormatMarkdown];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_TRUE([text containsString:@"Test PDF Content"]);
+    EXPECT_TRUE([text containsString:@"555-555-1234"]);
+}
+
+TEST(TextExtractionTests, ExtractFromPDFAsTextTree)
+{
+    RetainPtr webView = loadPDFInWebView();
+
+    RetainPtr text = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setOutputFormat:_WKTextExtractionOutputFormatTextTree];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_TRUE([text hasPrefix:@"root"]);
+    EXPECT_TRUE([text containsString:@"Test PDF Content"]);
+    EXPECT_TRUE([text containsString:@"555-555-1234"]);
+}
+
+TEST(TextExtractionTests, ExtractFromPDFAsHTML)
+{
+    RetainPtr webView = loadPDFInWebView();
+
+    RetainPtr text = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setOutputFormat:_WKTextExtractionOutputFormatHTML];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_TRUE([text hasPrefix:@"<body>"]);
+    EXPECT_TRUE([text hasSuffix:@"</body>"]);
+    EXPECT_TRUE([text containsString:@"Test PDF Content"]);
+    EXPECT_TRUE([text containsString:@"555-555-1234"]);
+}
+
+TEST(TextExtractionTests, ExtractFromPDFAsJSON)
+{
+    RetainPtr webView = loadPDFInWebView();
+
+    RetainPtr text = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setOutputFormat:_WKTextExtractionOutputFormatJSON];
+        return configuration.autorelease();
+    }()];
+
+    NSError *error = nil;
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:[text dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&error];
+    EXPECT_NULL(error);
+    EXPECT_WK_STREQ("root", [json objectForKey:@"type"]);
+    NSArray *children = [json objectForKey:@"children"];
+    EXPECT_EQ([children count], 1u);
+    EXPECT_WK_STREQ("text", [[children firstObject] objectForKey:@"type"]);
+    NSString *content = [[children firstObject] objectForKey:@"content"];
+    EXPECT_TRUE([content containsString:@"Test PDF Content"]);
+    EXPECT_TRUE([content containsString:@"555-555-1234"]);
+}
+
+TEST(TextExtractionTests, ExtractFromPDFAsPlainText)
+{
+    RetainPtr webView = loadPDFInWebView();
+
+    RetainPtr text = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setOutputFormat:_WKTextExtractionOutputFormatPlainText];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_TRUE([text containsString:@"Test PDF Content"]);
+    EXPECT_TRUE([text containsString:@"555-555-1234"]);
+}
+
+#endif // ENABLE(UNIFIED_PDF)
 
 } // namespace TestWebKitAPI

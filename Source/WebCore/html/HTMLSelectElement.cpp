@@ -44,6 +44,7 @@
 #include "EventHandler.h"
 #include "EventLoop.h"
 #include "EventNames.h"
+#include "FallbackPopupMenu.h"
 #include "FrameDestructionObserverInlines.h"
 #include "FormController.h"
 #include "GenericCachedHTMLCollection.h"
@@ -78,6 +79,9 @@
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SlotAssignment.h"
+#include "StyleComputedStyle+GettersInlines.h"
+#include "StyleDisplay.h"
+#include "UnicodeBidi.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -2546,6 +2550,30 @@ void HTMLSelectElement::popupDidHide()
     setPopupIsVisible(false);
 #endif
 }
+
+#if PLATFORM(WPE)
+void HTMLSelectElement::showFallbackPopupMenu()
+{
+    CheckedPtr renderer = this->renderer();
+    if (!renderer)
+        return;
+
+    RefPtr frame = document().frame();
+    if (!frame)
+        return;
+
+    RefPtr frameView = frame->view();
+    if (!frameView)
+        return;
+
+    m_popup = FallbackPopupMenu::create(*this);
+
+    FloatPoint absTopLeft = renderer->localToAbsolute(FloatPoint(), MapCoordinatesMode::UseTransforms);
+    IntRect absBounds = renderer->absoluteBoundingBoxRectIgnoringTransforms();
+    absBounds.setLocation(roundedIntPoint(absTopLeft));
+    protect(m_popup)->show(absBounds, *frameView, optionToListIndex(selectedIndex()));
+}
+#endif
 
 bool HTMLSelectElement::itemIsSeparator(unsigned listIndex) const
 {

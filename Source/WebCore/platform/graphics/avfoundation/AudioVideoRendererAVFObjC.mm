@@ -510,7 +510,7 @@ double AudioVideoRendererAVFObjC::effectiveRate() const
     if (m_startupGateObserver)
         return 0;
     // False positive see webkit.org/b/298024
-    SUPPRESS_UNRETAINED_ARG return PAL::CMTimebaseGetRate([m_synchronizer timebase]);
+    SUPPRESS_UNRETAINED_ARG return PAL::CMTimebaseGetEffectiveRate([m_synchronizer timebase]);
 }
 
 void AudioVideoRendererAVFObjC::stall()
@@ -519,24 +519,26 @@ void AudioVideoRendererAVFObjC::stall()
     setSynchronizerRate(0, { });
 }
 
-void AudioVideoRendererAVFObjC::notifyTimeReachedAndStall(const MediaTime& timeBoundary, Function<void(const MediaTime&)>&& callback)
+Ref<MediaTimePromise> AudioVideoRendererAVFObjC::notifyTimeReachedAndStall(const MediaTime& timeBoundary)
 {
     cancelTimeReachedAction();
 
     if (timeBoundary <= currentTime()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "boundary ", timeBoundary, " is behind currentTime ", currentTime(), "; stalling and firing callback immediately");
+        ALWAYS_LOG(LOGIDENTIFIER, "boundary ", timeBoundary, " is behind currentTime ", currentTime(), "; stalling and resolving immediately");
         stall();
-        callback(timeBoundary);
-        return;
+        return MediaTimePromise::createAndResolve(timeBoundary);
     }
 
-    RetainPtr<NSArray> times = @[[NSValue valueWithCMTime:PAL::toCMTime(timeBoundary)]];
+    ASSERT(!m_stallProducer);
+    m_stallProducer.emplace();
+    Ref promise = m_stallProducer->promise();
 
     auto logSiteIdentifier = LOGIDENTIFIER;
     DEBUG_LOG(logSiteIdentifier, timeBoundary);
     UNUSED_PARAM(logSiteIdentifier);
 
-    m_currentTimeObserver = [m_synchronizer addBoundaryTimeObserverForTimes:times.get() queue:mainDispatchQueueSingleton() usingBlock:makeBlockPtr([weakThis = ThreadSafeWeakPtr { *this }, timeBoundary, logSiteIdentifier, callback = WTF::move(callback)]() mutable {
+    RetainPtr<NSArray> times = @[[NSValue valueWithCMTime:PAL::toCMTime(timeBoundary)]];
+    m_currentTimeObserver = [m_synchronizer addBoundaryTimeObserverForTimes:times.get() queue:mainDispatchQueueSingleton() usingBlock:makeBlockPtr([weakThis = ThreadSafeWeakPtr { *this }, timeBoundary, logSiteIdentifier]() mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -548,12 +550,16 @@ void AudioVideoRendererAVFObjC::notifyTimeReachedAndStall(const MediaTime& timeB
         [protectedThis->m_synchronizer setRate:0 time:PAL::toCMTime(timeBoundary)];
         protectedThis->m_lastSetSyncRate = 0;
 
-        callback(timeBoundary);
+        if (auto producer = std::exchange(protectedThis->m_stallProducer, std::nullopt))
+            producer->resolve(timeBoundary);
     }).get()];
+    return promise;
 }
 
 void AudioVideoRendererAVFObjC::cancelTimeReachedAction()
 {
+    if (auto producer = std::exchange(m_stallProducer, std::nullopt))
+        producer->reject(PlatformMediaError::Cancelled);
     if (RetainPtr observer = std::exchange(m_currentTimeObserver, nullptr))
         [m_synchronizer removeTimeObserver:observer.get()];
 }
@@ -711,7 +717,7 @@ void AudioVideoRendererAVFObjC::releaseStartupGateAndForwardRate()
 {
     ASSERT(isMainThread());
     cancelStartupGateObserver();
-    SUPPRESS_UNRETAINED_ARG double liveRate = PAL::CMTimebaseGetRate([m_synchronizer timebase]);
+    SUPPRESS_UNRETAINED_ARG double liveRate = PAL::CMTimebaseGetEffectiveRate([m_synchronizer timebase]);
     m_lastForwardedEffectiveRate = liveRate;
     if (m_effectiveRateChangedCallback)
         m_effectiveRateChangedCallback(liveRate);

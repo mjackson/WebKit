@@ -28,6 +28,7 @@
 #include "RemoveFormatCommand.h"
 
 #include "ApplyStyleCommand.h"
+#include "Document.h"
 #include "EditingStyle.h"
 #include "Element.h"
 #include "FrameSelection.h"
@@ -36,7 +37,6 @@
 #include "MutableStyleProperties.h"
 #include "NodeName.h"
 #include "SimpleRange.h"
-#include "RenderObjectInlines.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RobinHoodHashSet.h>
 

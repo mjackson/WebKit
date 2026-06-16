@@ -51,6 +51,7 @@
 #include "HTMLDialogElement.h"
 #include "HTMLElement.h"
 #include "HTMLImageElement.h"
+#include "HTMLMediaElement.h"
 #include "HTMLSlotElement.h"
 #include "HTMLStyleElement.h"
 #include "InputEvent.h"
@@ -392,6 +393,11 @@ Node::Node(Document& document, NodeType type, OptionSet<TypeFlag> flags)
 #if !defined(NDEBUG) || DUMP_NODE_STATISTICS
     trackForDebugging();
 #endif
+}
+
+Node::Node(ClangVTableWorkaroundTag, Document& document)
+    : Node(document, NodeType::Element, { })
+{
 }
 
 static HashMap<WeakPtr<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>& NODELETE nodeIdentifiersMap()
@@ -1513,6 +1519,15 @@ void Node::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemo
     if (removalType.disconnectedFromDocument) {
         if (CheckedPtr cache = oldParentOfRemovedTree.document().existingAXObjectCache())
             cache->remove(*this);
+    }
+}
+
+void Node::updateShadowIncludingRootForSubtree()
+{
+    SUPPRESS_UNCOUNTED_LOCAL for (auto* current = this; current; current = NodeTraversal::next(*current, this)) {
+        current->updateShadowIncludingRoot();
+        SUPPRESS_UNCOUNTED_LOCAL if (auto* shadowRoot = current->shadowRoot())
+            shadowRoot->updateShadowIncludingRootForSubtree();
     }
 }
 
@@ -2861,6 +2876,11 @@ bool Node::willRespondToMouseClickEventsWithEditability(Editability editability)
 #endif
     if (editability != Editability::ReadOnly)
         return true;
+
+#if PLATFORM(IOS_FAMILY) && ENABLE(IOS_TOUCH_EVENTS)
+    if (document().quirks().shouldAllowNativeTapsOnMediaElements(this))
+        return true;
+#endif
 
     auto& eventNames = WebCore::eventNames();
     return eventTypes().containsIf([&](const auto& type) {

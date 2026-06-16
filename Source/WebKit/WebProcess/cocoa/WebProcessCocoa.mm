@@ -498,7 +498,6 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
     setCurrentUserInterfaceIdiom(parameters.currentUserInterfaceIdiom);
     setLocalizedDeviceModel(parameters.localizedDeviceModel);
     setContentSizeCategory(parameters.contentSizeCategory);
-    m_containerTemporaryDirectory = WTF::move(parameters.containerTemporaryDirectory);
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     setSupportsPictureInPicture(parameters.supportsPictureInPicture);
 #endif
@@ -924,24 +923,22 @@ static void registerLogClient(bool isDebugLoggingEnabled, std::unique_ptr<LogCli
         if (Thread::currentThreadIsRealtime())
             return;
 
-        auto logChannel = unsafeSpanIncludingNullTerminator(msg->subsystem);
-        if (logChannel.size() > logSubsystemMaxSize)
+        auto logChannel = unsafeSpan(msg->subsystem);
+        if (logChannel.size() >= logSubsystemMaxSize)
             return;
         if (shouldIgnoreLogMessage(logChannel))
             return;
-        auto logCategory = unsafeSpanIncludingNullTerminator(msg->category);
-        if (logCategory.size() > logCategoryMaxSize)
+        auto logCategory = unsafeSpan(msg->category);
+        if (logCategory.size() >= logCategoryMaxSize)
             return;
 
         if (type == OS_LOG_TYPE_FAULT)
             type = OS_LOG_TYPE_ERROR;
 
         if (auto messageString = adoptSystemMalloc(os_log_copy_message_string(msg))) {
-            auto logString = spanConstCast<char>(unsafeSpanIncludingNullTerminator(messageString.get()));
-            if (logString.size() > logStringMaxSize) {
-                logString = logString.first(logStringMaxSize);
-                logString.back() = 0;
-            }
+            auto logString = spanConstCast<char>(unsafeSpan(messageString.get()));
+            if (logString.size() >= logStringMaxSize)
+                logString = logString.first(logStringMaxSize - 1);
             logClient()->log(byteCast<uint8_t>(logChannel), byteCast<uint8_t>(logCategory), byteCast<uint8_t>(logString), type);
         }
     }).get());

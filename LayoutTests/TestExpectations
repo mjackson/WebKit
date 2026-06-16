@@ -256,6 +256,7 @@ fast/shapes/shape-outside-floats/shape-outside-imagedata-overflow.html [ Skip ]
 [ Debug ] fast/files/blob-stream-chunks.html [ Skip ]
 [ Debug ] security/decode-buffer-size.html [ Skip ]
 [ Debug ] security/text-decode-long-strings.html [ Skip ]
+[ Debug ] media/media-source/media-source-evict-invalid-time-crash.html [ Skip ]
 
 # Only iOS supports QuickLook
 quicklook [ Skip ]
@@ -2104,6 +2105,7 @@ webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subg
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/column-subgrid-grid-gap-012.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/column-subgrid-grid-gap-013.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/column-subgrid-grid-gap-014.html [ ImageOnlyFailure ]
+webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/column-subgrid-grid-gap-015.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/row-subgrid-grid-gap-002.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/row-subgrid-grid-gap-006.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/row-subgrid-grid-gap-007.html [ ImageOnlyFailure ]
@@ -2112,11 +2114,14 @@ webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subg
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/row-subgrid-grid-gap-012.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/row-subgrid-grid-gap-013.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/row-subgrid-grid-gap-014.html [ ImageOnlyFailure ]
+webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/gap/row-subgrid-grid-gap-015.html [ ImageOnlyFailure ]
 
+webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/column-subgrid-extra-margin-005.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/column-subgrid-extra-margin-006.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/column-subgrid-extra-margin-007.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/column-subgrid-extra-margin-008.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/column-subgrid-extra-margin-009.html [ ImageOnlyFailure ]
+webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/row-subgrid-extra-margin-005.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/row-subgrid-extra-margin-007.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/row-subgrid-extra-margin-008.html [ ImageOnlyFailure ]
 webkit.org/b/316453 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/subgrid/grid-subgridded-to-grid-lanes/track-sizing/row-subgrid-extra-margin-009.html [ ImageOnlyFailure ]
@@ -2721,6 +2726,11 @@ imported/w3c/web-platform-tests/svg/text/reftests/text-shape-inside-002.svg [ Im
 imported/w3c/web-platform-tests/svg/text/reftests/text-xml-space-001.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/text/reftests/textpath-side-001.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/text/reftests/text-font-face-load-image.html [ Skip ]
+
+# webkit.org/b/61855: textLength with lengthAdjust="spacing" and a list-valued
+# x/y attribute still produces per-chunk div-by-zero and silently drops
+# textLength. Pinned here until the spacing-mode follow-up patch lands.
+imported/w3c/web-platform-tests/svg/text/reftests/textLength-list-y-spacing.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/styling/css-linked-parameters/css-linked-parameters-precedence-1.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/styling/css-linked-parameters/css-linked-parameters-precedence-2.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/styling/css-linked-parameters/img-with-linked-parameters-1.html [ ImageOnlyFailure ]
@@ -3714,6 +3724,7 @@ http/tests/cookies/only-accept-first-party-cookies.html [ Skip ]
 http/tests/cookies/accept-partitioned-first-and-third-party-cookies.https.html [ Skip ]
 http/tests/cookies/multiple-cookies-with-partitioned.https.html [ Skip ]
 http/tests/clear-site-data/set-and-clear-cookies.https.html [ Skip ]
+imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies.tentative.https.html [ Skip ]
 
 # Disabled WPT tests
 webkit.org/b/185939 imported/w3c/web-platform-tests/css/WOFF2 [ Skip ]
@@ -3734,6 +3745,8 @@ compositing/tiling/non-visible-window-tile-coverage.html [ Skip ]
 webkit.org/b/90724 compositing/iframes/iframe-size-from-zero.html [ Failure Pass ]
 
 webkit.org/b/172961 fast/mediacapturefromelement/CanvasCaptureMediaStream-2d-events.html [ Pass Timeout ]
+
+http/tests/storageAccess/grant-with-prompt-under-general-third-party-cookie-blocking-with-partitioned-cookies.https.html [ Skip ]
 
 webkit.org/b/172378 fast/loader/recursive-before-unload-crash.html [ Skip ]
 webkit.org/b/172378 fast/repaint/table-hover-on-link.html [ Skip ]
@@ -4614,6 +4627,7 @@ imported/w3c/web-platform-tests/css/css-sizing/replaced-min-height-min-content.h
 imported/w3c/web-platform-tests/css/css-sizing/aspect-ratio/replaced-element-047.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-sizing/aspect-ratio/replaced-element-048.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-sizing/intrinsic-percent-non-replaced-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-sizing/intrinsic-percent-replaced-019.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-sizing/stretch/cache-miss-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-sizing/replaced-max-width-with-height-fit-content.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-sizing/replaced-max-width-with-height-max-content.html [ ImageOnlyFailure ]
@@ -5987,24 +6001,6 @@ imported/w3c/web-platform-tests/css/filter-effects/svg-mutation-single-to-multip
 imported/w3c/web-platform-tests/css/filter-effects/svg-mutation-url-to-function.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/svg-shorthand-drop-shadow-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/svg-shorthand-hue-rotate-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-feblend-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fecomponenttransfer-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fecomposite-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-feconvolvematrix-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fediffuselighting-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fediffuselighting-003.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fediffuselighting-dynamic.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fedisplacementmap-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fedropshadow-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fedropshadow-003.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-feflood-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-feflood-dynamic.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fegaussianblur-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-femorphology-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-feoffset-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fespecularlighting-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fespecularlighting-003.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/tainting-fetile-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-reference-filter.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/effect-reference-feimage-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/filter-function/filter-function-001.html [ ImageOnlyFailure ]
@@ -6586,13 +6582,6 @@ imported/w3c/web-platform-tests/html/browsers/browsing-the-web/navigating-across
 
 webkit.org/b/242658 http/tests/media/user-gesture-preserved-across-xmlhttprequest.html [ Slow Pass Failure ]
 
-# `overscroll` events are not supported
-webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/overscroll-deltas.tentative.html [ Skip ]
-webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/overscroll-event-fired-to-document.tentative.html [ Skip ]
-webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/overscroll-event-fired-to-element-with-overscroll-behavior.tentative.html [ Skip ]
-webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/overscroll-event-fired-to-scrolled-element.tentative.html [ Skip ]
-webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/overscroll-event-fired-to-window.tentative.html [ Skip ]
-
 # Three dom/events/scrolling WPTs are constantly timing out
 webkit.org/b/263438 imported/w3c/web-platform-tests/dom/events/scrolling/input-text-scroll-event-when-using-arrow-keys.html [ Skip ]
 webkit.org/b/293821 imported/w3c/web-platform-tests/dom/events/scrolling/wheel-event-transactions-basic.html?include=transaction-not-bound-to-scroll-frame [ Skip ]
@@ -6645,7 +6634,6 @@ webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-backdrop-filter.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-bevel-overflow-composite.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-bevel-overflow.html [ ImageOnlyFailure ]
-webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-computed.html [ Failure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-fill.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/border-shape/border-shape-clips-background.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/border-shape/border-shape-collapsed-shape-clips-background.html [ ImageOnlyFailure ]
@@ -6668,13 +6656,10 @@ webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/border-shape
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/border-shape/border-shape-overflow.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-img-border.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-inset-shadow.html [ ImageOnlyFailure ]
-webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-interpolation.html [ Failure ]
-webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-invalid.html [ Failure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-notch.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-overflow-clip-margin.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-square.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-svg-border.html [ ImageOnlyFailure ]
-webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-valid.html [ Failure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-video-border.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/corner-shape-iframe-border.html [ ImageOnlyFailure ]
 webkit.org/b/277912 imported/w3c/web-platform-tests/css/css-borders/corner-shape/render-corner-shape.html?border-radius=40&corner-shape=-1.5&shadow-spread=10 [ ImageOnlyFailure ]
@@ -8202,6 +8187,11 @@ svg/compositing/foreground-layer-composited-svg-rect-and-foreignobject-interleav
 svg/compositing/foreground-layer-mixed-svg-and-foreignobject-composited.html [ ImageOnlyFailure ]
 svg/compositing/foreground-layer-multiple-foreignobjects-composited.html [ ImageOnlyFailure ]
 
+# webkit.org/b/59346 These tests depend on this PR to be merged to become fully functional
+svg/compositing/anonymous-RenderSVGViewportContainer-no-repaints.html [ Failure ]
+svg/compositing/transform-change-repainting-no-viewBox-repaintRects.html [ Failure ]
+svg/compositing/transform-change-repainting-viewBox-repaintRects.html [ Failure ]
+
 webkit.org/b/310217 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointer_boundary_events_after_removing_last_over_element.html [ Pass Failure ]
 
 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/navigating-across-documents/form-submit-and-window-stop.html [ Skip ] # timeout
@@ -8228,3 +8218,8 @@ imported/w3c/web-platform-tests/css/css-shapes/shape-outside/supported-shapes/sh
 imported/w3c/web-platform-tests/css/css-shapes/shape-outside/supported-shapes/shape/shape-outside-shape-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-shapes/shape-outside/supported-shapes/shape/shape-outside-shape-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-shapes/shape-outside/supported-shapes/shape/shape-outside-shape-003.html [ ImageOnlyFailure ]
+
+webkit.org/b/317017 imported/w3c/web-platform-tests/largest-contentful-paint/multiple-redirects-TAO.html [ Pass Failure ]
+
+imported/w3c/web-platform-tests/preload/preload-csp.sub.html [ Skip ] # Different hash generated on each run
+imported/w3c/web-platform-tests/preload/modulepreload-multiple.html [ Failure Pass ]
