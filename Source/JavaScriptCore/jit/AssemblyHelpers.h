@@ -2275,8 +2275,20 @@ public:
         UndefinedBehavior,
     };
     void emitAllocateWithNonNullAllocator(GPRReg resultGPR, const JITAllocator&, GPRReg allocatorGPR, GPRReg scratchGPR, JumpList& slowPath, SlowAllocationResult = SlowAllocationResult::ClearToNull);
-    
+
     void emitAllocate(GPRReg resultGPR, const JITAllocator&, GPRReg allocatorGPR, GPRReg scratchGPR, JumpList& slowPath, SlowAllocationResult = SlowAllocationResult::ClearToNull);
+
+    // H-VMLITE-TLCPTR (SPEC-heap §5.3/§B.4): GIL-off lite-relative resolution
+    // of the per-thread TLC LocalAllocator for a baked TLC slot
+    // (tlcIndexBase_const + sizeClassIndex_const). Emits
+    //   loadVMLite -> bound>slot? -> [tlcTable + slot*ptr]
+    // leaving allocatorGPR = LocalAllocator* | null; the bound-miss branch
+    // appends to slowPath. Callers feed the result through
+    // JITAllocator::variable() so emitAllocate supplies the null-allocator
+    // slow-path branch. ARM64: allocatorGPR must not be the data temp (same
+    // contract as loadVMLite). gilOff-mode emission ONLY — every call site is
+    // behind a vm.gilOff() codegen gate (flag-off byte-identity).
+    void emitLoadTLCAllocatorForSlot(GPRReg allocatorGPR, unsigned tlcSlot, JumpList& slowPath);
     
     template<typename StructureType>
     void emitAllocateJSCell(GPRReg resultGPR, const JITAllocator& allocator, GPRReg allocatorGPR, StructureType structure, GPRReg scratchGPR, JumpList& slowPath, SlowAllocationResult slowAllocationResult = SlowAllocationResult::ClearToNull)
@@ -2297,6 +2309,18 @@ public:
         VM& vm, GPRReg resultGPR, StructureType structure, StorageType storage, GPRReg scratchGPR1,
         GPRReg scratchGPR2, JumpList& slowPath, size_t size, SlowAllocationResult slowAllocationResult = SlowAllocationResult::ClearToNull)
     {
+        if (vm.gilOff()) [[unlikely]] {
+            // H-VMLITE-TLCPTR: allocatorForConcurrently returns {} GIL-off
+            // (IT-9), which would emit an unconditional slow-path jump. Bake
+            // the TLC slot instead and resolve the per-thread LocalAllocator
+            // lite-relative at run time. nullopt (iso subspace, base not yet
+            // reserved, precise size) falls through to the legacy null-bake.
+            if (auto slot = tlcSlotForConcurrently<ClassType>(vm, size)) {
+                emitLoadTLCAllocatorForSlot(scratchGPR1, *slot, slowPath);
+                emitAllocateJSObject(resultGPR, JITAllocator::variable(), scratchGPR1, structure, storage, scratchGPR2, slowPath, slowAllocationResult);
+                return;
+            }
+        }
         Allocator allocator = allocatorForConcurrently<ClassType>(vm, size, AllocatorForMode::AllocatorIfExists);
         emitAllocateJSObject(resultGPR, JITAllocator::constant(allocator), scratchGPR1, structure, storage, scratchGPR2, slowPath, slowAllocationResult);
     }

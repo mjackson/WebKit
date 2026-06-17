@@ -423,26 +423,55 @@ void SpeculativeJIT::emitAllocateRawObject(GPRReg resultGPR, RegisteredStructure
     move(TrustedImmPtr(nullptr), storageGPR);
 
     VM& vm = this->vm();
+    // H-VMLITE-TLCPTR: GIL-off, server allocatorFor / allocatorForConcurrently
+    // are null (IT-9, §5.5); resolve both the auxiliary butterfly and the cell
+    // allocator lite-relative so the structured-object fast path stays inline.
     if (size) {
-        if (Allocator allocator = vm.auxiliarySpace().allocatorFor(size, AllocatorForMode::AllocatorIfExists)) {
-            emitAllocate(storageGPR, JITAllocator::constant(allocator), scratchGPR, scratch2GPR, slowCases);
-            
+        std::optional<unsigned> auxSlot;
+        if (vm.gilOff()) [[unlikely]]
+            auxSlot = tlcSlotForSubspace(&vm.auxiliarySpace(), size);
+        if (auxSlot) {
+            emitLoadTLCAllocatorForSlot(scratchGPR, *auxSlot, slowCases);
+            emitAllocate(storageGPR, JITAllocator::variable(), scratchGPR, scratch2GPR, slowCases);
+
             addPtr(
                 TrustedImm32(outOfLineCapacity * sizeof(JSValue) + sizeof(IndexingHeader)),
                 storageGPR);
-            
+
+            if (hasIndexingHeader)
+                store32(TrustedImm32(vectorLength), Address(storageGPR, Butterfly::offsetOfVectorLength()));
+        } else if (Allocator allocator = vm.auxiliarySpace().allocatorFor(size, AllocatorForMode::AllocatorIfExists)) {
+            emitAllocate(storageGPR, JITAllocator::constant(allocator), scratchGPR, scratch2GPR, slowCases);
+
+            addPtr(
+                TrustedImm32(outOfLineCapacity * sizeof(JSValue) + sizeof(IndexingHeader)),
+                storageGPR);
+
             if (hasIndexingHeader)
                 store32(TrustedImm32(vectorLength), Address(storageGPR, Butterfly::offsetOfVectorLength()));
         } else
             slowCases.append(jump());
     }
 
+    std::optional<unsigned> cellSlot;
+    if (vm.gilOff()) [[unlikely]] {
+        if (structure->typeInfo().type() == JSType::ArrayType)
+            cellSlot = tlcSlotForConcurrently<JSArray>(vm, JSArray::allocationSize(inlineCapacity));
+        else
+            cellSlot = tlcSlotForConcurrently<JSFinalObject>(vm, JSFinalObject::allocationSize(inlineCapacity));
+    }
     Allocator allocator;
-    if (structure->typeInfo().type() == JSType::ArrayType)
-        allocator = allocatorForConcurrently<JSArray>(vm, JSArray::allocationSize(inlineCapacity), AllocatorForMode::AllocatorIfExists);
-    else
-        allocator = allocatorForConcurrently<JSFinalObject>(vm, JSFinalObject::allocationSize(inlineCapacity), AllocatorForMode::AllocatorIfExists);
-    if (allocator) {
+    if (!cellSlot) {
+        if (structure->typeInfo().type() == JSType::ArrayType)
+            allocator = allocatorForConcurrently<JSArray>(vm, JSArray::allocationSize(inlineCapacity), AllocatorForMode::AllocatorIfExists);
+        else
+            allocator = allocatorForConcurrently<JSFinalObject>(vm, JSFinalObject::allocationSize(inlineCapacity), AllocatorForMode::AllocatorIfExists);
+    }
+    if (cellSlot) {
+        emitLoadTLCAllocatorForSlot(scratchGPR, *cellSlot, slowCases);
+        emitAllocateJSObject(resultGPR, JITAllocator::variable(), scratchGPR, TrustedImmPtr(structure), storageGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
+        emitInitializeInlineStorage(resultGPR, structure->inlineCapacity(), scratchGPR);
+    } else if (allocator) {
         emitAllocateJSObject(resultGPR, JITAllocator::constant(allocator), scratchGPR, TrustedImmPtr(structure), storageGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
         emitInitializeInlineStorage(resultGPR, structure->inlineCapacity(), scratchGPR);
     } else
@@ -16632,7 +16661,18 @@ void SpeculativeJIT::compileNewButterflyWithSize(Node* node)
     size_t allocationSize = Butterfly::totalSize(0, 0, hasIndexingHeader, butterflyLength * sizeof(JSValue));
 
     JumpList slowCases;
-    emitAllocate(storageGPR, JITAllocator::constant(vm().auxiliarySpace().allocatorForNonInline(allocationSize, AllocatorForMode::EnsureAllocator)), scratchGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
+    if (vm().gilOff()) [[unlikely]] {
+        // H-VMLITE-TLCPTR: server allocatorForNonInline is null under
+        // sharedGCHeap (§5.5). Resolve lite-relative; nullopt (precise size)
+        // degrades to the unconditional slow-path jump the null-constant
+        // bake would have produced.
+        if (auto slot = tlcSlotForSubspace(&vm().auxiliarySpace(), allocationSize)) {
+            emitLoadTLCAllocatorForSlot(scratchGPR, *slot, slowCases);
+            emitAllocate(storageGPR, JITAllocator::variable(), scratchGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
+        } else
+            slowCases.append(jump());
+    } else
+        emitAllocate(storageGPR, JITAllocator::constant(vm().auxiliarySpace().allocatorForNonInline(allocationSize, AllocatorForMode::EnsureAllocator)), scratchGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
 
     addSlowPathGenerator(slowPathCall(slowCases, this, operationAllocateUnitializedAuxiliaryBase, storageGPR, LinkableConstant::globalObject(*this, node), TrustedImmPtr(allocationSize)));
 
@@ -17381,14 +17421,31 @@ void SpeculativeJIT::compileNewObject(Node* node)
 
     RegisteredStructure structure = node->structure();
     size_t allocationSize = JSFinalObject::allocationSize(structure->inlineCapacity());
-    Allocator allocatorValue = allocatorForConcurrently<JSFinalObject>(vm(), allocationSize, AllocatorForMode::AllocatorIfExists);
-    if (!allocatorValue)
-        slowPath.append(jump());
-    else {
-        auto butterfly = TrustedImmPtr(nullptr);
-        emitAllocateJSObject(resultGPR, JITAllocator::constant(allocatorValue), allocatorGPR, TrustedImmPtr(structure), butterfly, scratchGPR, slowPath);
-        emitInitializeInlineStorage(resultGPR, structure->inlineCapacity(), scratchGPR);
-        mutatorFence(vm());
+    if (vm().gilOff()) [[unlikely]] {
+        // H-VMLITE-TLCPTR: allocatorForConcurrently is {} GIL-off (IT-9);
+        // resolve the per-thread LocalAllocator lite-relative so DFG
+        // NewObject keeps its inline fast path instead of taking
+        // operationNewObject every time. nullopt (base unreserved — in
+        // practice cellSpace is reserved long before DFG compiles) falls
+        // back to the unconditional slow-path jump.
+        if (auto slot = tlcSlotForConcurrently<JSFinalObject>(vm(), allocationSize)) {
+            auto butterfly = TrustedImmPtr(nullptr);
+            emitLoadTLCAllocatorForSlot(allocatorGPR, *slot, slowPath);
+            emitAllocateJSObject(resultGPR, JITAllocator::variable(), allocatorGPR, TrustedImmPtr(structure), butterfly, scratchGPR, slowPath);
+            emitInitializeInlineStorage(resultGPR, structure->inlineCapacity(), scratchGPR);
+            mutatorFence(vm());
+        } else
+            slowPath.append(jump());
+    } else {
+        Allocator allocatorValue = allocatorForConcurrently<JSFinalObject>(vm(), allocationSize, AllocatorForMode::AllocatorIfExists);
+        if (!allocatorValue)
+            slowPath.append(jump());
+        else {
+            auto butterfly = TrustedImmPtr(nullptr);
+            emitAllocateJSObject(resultGPR, JITAllocator::constant(allocatorValue), allocatorGPR, TrustedImmPtr(structure), butterfly, scratchGPR, slowPath);
+            emitInitializeInlineStorage(resultGPR, structure->inlineCapacity(), scratchGPR);
+            mutatorFence(vm());
+        }
     }
 
     addSlowPathGenerator(slowPathCall(slowPath, this, operationNewObject, resultGPR, TrustedImmPtr(&vm()), structure));
@@ -18714,8 +18771,20 @@ void SpeculativeJIT::compileMakeRope(Node* node)
     GPRReg scratch2GPR = scratch2.gpr();
 
     JumpList slowPath;
-    Allocator allocatorValue = allocatorForConcurrently<JSRopeString>(vm(), sizeof(JSRopeString), AllocatorForMode::AllocatorIfExists);
-    emitAllocateJSCell(resultGPR, JITAllocator::constant(allocatorValue), allocatorGPR, TrustedImmPtr(m_graph.registerStructure(vm().stringStructure.get())), scratchGPR, slowPath, SlowAllocationResult::UndefinedBehavior);
+    if (vm().gilOff()) [[unlikely]] {
+        // H-VMLITE-TLCPTR: stringSpace is iso (per-client GCClient::IsoSubspace)
+        // so tlcSlotForConcurrently is nullopt today; the lite-relative arm is
+        // a no-op fallthrough to the null-constant bake. Kept so a future
+        // table-addressable iso scheme need only extend tlcSlotForConcurrently.
+        if (auto slot = tlcSlotForConcurrently<JSRopeString>(vm(), sizeof(JSRopeString))) {
+            emitLoadTLCAllocatorForSlot(allocatorGPR, *slot, slowPath);
+            emitAllocateJSCell(resultGPR, JITAllocator::variable(), allocatorGPR, TrustedImmPtr(m_graph.registerStructure(vm().stringStructure.get())), scratchGPR, slowPath, SlowAllocationResult::UndefinedBehavior);
+        } else
+            emitAllocateJSCell(resultGPR, JITAllocator::constant(allocatorForConcurrently<JSRopeString>(vm(), sizeof(JSRopeString), AllocatorForMode::AllocatorIfExists)), allocatorGPR, TrustedImmPtr(m_graph.registerStructure(vm().stringStructure.get())), scratchGPR, slowPath, SlowAllocationResult::UndefinedBehavior);
+    } else {
+        Allocator allocatorValue = allocatorForConcurrently<JSRopeString>(vm(), sizeof(JSRopeString), AllocatorForMode::AllocatorIfExists);
+        emitAllocateJSCell(resultGPR, JITAllocator::constant(allocatorValue), allocatorGPR, TrustedImmPtr(m_graph.registerStructure(vm().stringStructure.get())), scratchGPR, slowPath, SlowAllocationResult::UndefinedBehavior);
+    }
 
     // This puts nullptr for the first fiber. It makes visitChildren safe even if this JSRopeString is discarded due to the speculation failure in the following path.
     storePtr(TrustedImmPtr(JSString::isRopeInPointer), Address(resultGPR, JSRopeString::offsetOfFiber0()));

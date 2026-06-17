@@ -138,6 +138,26 @@ void VMLiteRegistry::registerLite(VMLite& lite, VM& vm)
     Locker locker { lock };
     ASSERT(!lites.contains(&lite));
     ASSERT(!lite.vm); // Sole writer (§6.5.1); was null, immutable after.
+    // cl-single-mutator-sticky-skip (GILOFF-TAX #4): if this VM already has a
+    // registered MUTATOR lite, this is the second-or-later mutator for `vm`;
+    // latch the sticky bit BEFORE publishing the fresh lite (and hence before
+    // its first heap access). The registry is process-global, so scan for
+    // same-VM entries rather than testing lites.size(). m_mainVMLite is
+    // EXCLUDED: A36 — GIL-off entry never installs it (every thread, the main
+    // one included, uses a per-(thread,VM) JSLock carrier), so it is not a
+    // mutator and counting it would latch the bit at W=1 on the very first
+    // carrier registration. Monotone → never cleared in unregisterLite. The
+    // spawner-side companion store (ThreadObject.cpp, before Thread::create)
+    // is NOT YET LANDED — see VM.h everHadSecondMutator(); this store covers
+    // the JSLock carrier-entry path and is the spawnee-side fence.
+    if (!vm.everHadSecondMutator()) {
+        for (VMLite* existing : lites) {
+            if (existing->vm == &vm && existing != vm.mainVMLite()) {
+                vm.noteSecondMutatorRegistered();
+                break;
+            }
+        }
+    }
     lite.vm = &vm;
     lites.append(&lite);
 

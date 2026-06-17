@@ -3068,3 +3068,147 @@ None. The round's net contribution is the evidence pack
    regression.
 4. **intcs W=16 bimodality unchanged** — the §40 Map<string> slow-mode
    trigger is untouched (no fix landed). nomap W=16 remains monomodal.
+
+## §42 giloff-tax-bughunter
+
+Repo @ `e73a5af68ebd` + 15-file H-VMLITE-TLCPTR / H-TLS-TABLE candidate
+(922 ins / 66 del; archived `docs/threads/s42-hvmlite-tlcptr-candidate.diff`).
+The candidate addresses GILOFF-TAX-EVIDENCE.md #1 (46.6M unpatched FTL
+lazy-slow-path thunk traversals) and #2 (per-cell 3-hop C++ allocator lookup)
+by (a) baking a process-constant TLC slot index at JIT-compile time and
+loading the per-thread `LocalAllocator*` lite-relative
+(`VMLite::{tlcTable,tlcTableBound}`) instead of a null `Allocator` constant,
+(b) collapsing the C++ `CompleteSubspace::allocate` sharedGCHeap arm to two
+IE-TLS loads + one indexed load, (c) hoisting `DeferGCForAWhile` out of the
+gilOff `operationCompileFTLLazySlowPath` steady-state path, and
+(d) pre-growing the TLC table to fixed `numCompleteSubspaces × numSizeClasses`
+capacity (H-TLC-FIXEDTABLE-NOREALLOC) so cached table pointers never go
+stale. Plus per-client `GCClient::CompleteSubspaceView` infra (STAGING, no
+caller this round).
+
+**Protocol**: Debug+Release rebuilt (Release 0 targets — pre-built; Debug 209
+targets, link clean). Pinned GIL-off env. One process at a time after loadavg
+< 2.5, `/usr/bin/time -v`, 3 reps, median reported. intcs W=1 GIL-off
+re-confirmed with 7 additional reps at loadavg 0.85–1.19.
+
+### Wall ms vs §41 + GIL-on baseline + Java
+
+| arm     | W  | reps (total_ms)       | median | §41    | Δ§41    | GIL-on §42 | Java §40 | js/java |
+|---------|----|-----------------------|--------|--------|---------|------------|----------|---------|
+| intcs   | 1  | 7070 / 7142 / 7144¹   | 7142   | 7788   | **−646**| 5928       | 1899     | 3.76×   |
+| intcs   | 16 | 3038 / 3378 / 6314²   | 3378   | 3444   | −66     | —          | 977      | 3.46×   |
+| nomap   | 1  | 6016 / 6099 / 6194    | 6099   | 6527   | −428    | —          | 1208     | 5.05×   |
+| nomap   | 16 | 2686 / 2691 / 2834    | 2691   | 2854   | −163    | —          | 770      | 3.49×   |
+| default | 1  | 16705 / 17208 / 17337 | 17208  | 18328  | −1120   | —          | —        | —       |
+| flat    | 16 | 439 / 447 / 481       | 447    | 469³   | −22     | —          | —        | —       |
+| intcs **GIL-on** | 1 | 5731 / 5928 / 5928 | 5928 | (5876⁴)| +52     | —          | 1899     | 3.12×   |
+
+¹ +7 confirmatory reps at loadavg ≤ 1.19: 7031 / 7085 / 7095 / 7110 / 7115 /
+  7118 / 7152; 10-rep median **7113**. ² §40 bimodality reproduced (1/3
+  slow-mode). ³ §41 flat W=16. ⁴ §41 evidence-§(5) GIL-on baseline.
+
+**Tax recovered**: §41 tax = 7788 − 5876 = 1912 ms; §42 tax = 7142 − 5928 =
+**1214 ms**. Recovered **698 ms = 36.5%** (target ≥ 50% = 956 ms). intcs W=1
+**7142 ms > 6800 ms** — perf gate FAIL.
+
+### Peak RSS vs §41 baseline
+
+| arm     | W  | reps (peak RSS KB)             | median MB | §41 MB | Δ       | ceiling (+10%) |
+|---------|----|--------------------------------|-----------|--------|---------|----------------|
+| intcs   | 1  | 432068 / 432672 / 432824       | 423       | 433    | −2.3%   | 475 ✓          |
+| intcs   | 16 | 1202024 / 1217136 / 1223644    | 1189      | 1327   | −10.4%  | 1355 ✓         |
+| nomap   | 1  | 426660 / 428212 / 429856       | 418       | 424    | −1.4%   | 470 ✓          |
+| nomap   | 16 | 508820 / 515308 / 525212       | 503       | 498    | +1.0%   | 567 ✓          |
+| default | 1  | 433820 / 434356 / 434972       | 424       | 437    | −3.0%   | —              |
+| flat    | 16 | 288020 / 289644 / 294688       | 283       | 291    | −2.7%   | —              |
+| intcs GIL-on | 1 | 441280 / 443040 / 443260   | 433       | —      | —       | —              |
+
+H-TLC-FIXEDTABLE-NOREALLOC pre-grow adds no measurable per-thread footprint;
+intcs W=16 RSS **drops** 10.4% (all 3 reps in the fast-mode RSS band).
+
+### Checksums (all 21 reps)
+
+| arm     | tuple                                                            | match |
+|---------|------------------------------------------------------------------|-------|
+| intcs   | `e85d66e7\|4158480\|15cf18bb\|651b594b\|abc7704f`                | 9/9 ✓ (§39b ref; 6 GIL-off + 3 GIL-on) |
+| nomap   | `98972b27\|4158480\|64cd1705\|dcf4c2d2\|abc7704f`                | 6/6 ✓ (§40 ref)  |
+| default | `b3e65a6855b9bdeb\|4158957\|39c33392b2a4c5b2\|c4bdd580…\|af028188…` | 3/3 ✓ (§1.1 ref) |
+| flat    | `686d6890\|4154468\|0fbbd673\|3af6b072\|e1d22021`                | 3/3 ✓ (§38 ref)  |
+
+All 21 reps rc=0.
+
+### Mechanism verification (uprobe, intcs W=1 GIL-off, candidate applied)
+
+| symbol                                | §41 evidence | §42 candidate | Δ     |
+|---------------------------------------|-------------:|--------------:|-------|
+| `operationCompileFTLLazySlowPath`     | 46,631,032   | **36,422,494**| −22%  |
+| `CompleteSubspace::allocateForClient` | 27,816,788   | **0**         | −100% |
+
+**H-TLS-TABLE works completely** — the C++ 3-hop is gone (every
+`CompleteSubspace::allocate` hits the new TLS-indexed fast path).
+**H-VMLITE-TLCPTR works only for CompleteSubspace types** — `stringSpace` is
+iso (per-client `GCClient::IsoSubspace`, not table-addressable), so
+`tlcSlotForConcurrently<JSRopeString>` returns `nullopt` and FTL/DFG
+`MakeRope` still bakes a null `Allocator` (the diff's own comment at
+DFGSpeculativeJIT.cpp:18790 / FTLLowerDFGToB3.cpp:12501 says exactly this).
+JSRopeString + JSString = **50.5 M of 70.9 M cells (71%)** per the §41
+histogram; the JIT-side fix covers only the JSArray / JSFinalObject /
+auxiliary minority. 36.4 M residual traversals × ~25 ns thunk = ~910 ms
+still on the table.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| All 21 matrix reps rc=0, checksums stable | **PASS** |
+| `git diff Source/` empty (refuter discipline) | **PASS** (reverted post-measurement) |
+| Peak RSS W=1 within +10% baseline | **PASS** (intcs −2.3%, nomap −1.4%) |
+| Peak RSS W=16 within +10% baseline | **PASS** (intcs −10.4%, nomap +1.0%) |
+| **JS intcs W=1 < 6800 ms** (≥ 50% of 1912 ms tax) | **FAIL — 7142 ms** (36.5%) |
+
+**verified=false.** Candidate is correctness-clean (corpus + identity +
+checksums all green, RSS improved) and recovers a real 646–698 ms, but the
+50% bar needs the iso-subspace half of the JIT inline-alloc fix.
+
+### Survivors
+
+None (reverted under refuter discipline). Candidate archived at
+`docs/threads/s42-hvmlite-tlcptr-candidate.diff` — it is correctness-clean
+and the H-TLS-TABLE / H-TLC-FIXEDTABLE-NOREALLOC / defer-hoist-lazyslow
+hunks are independently landable with no perf risk; they were only reverted
+because the round's gate is all-or-nothing on the 6800 ms target.
+
+### Honest residuals
+
+1. **The remaining 1214 ms tax is now ~75% one mechanism**: 36.4 M
+   lazy-slow-path thunk traversals from iso-subspace JIT inline allocation
+   (overwhelmingly `MakeRope` — JSRopeString is 48.4% of all cells). The
+   #1/#2 root cause is correctly identified and HALF-fixed; the missing
+   half is **TLC-slot addressing for `GCClient::IsoSubspace`** so
+   `tlcSlotForConcurrently<JSRopeString/JSString/JSFunction/…>` returns a
+   bakeable slot. The DFG/FTL `MakeRope` hunks already carry the
+   lite-relative wiring ("kept so a future iso-TLC scheme need only extend
+   `tlcSlotForConcurrently`"); only the resolver + the per-client
+   IsoSubspace TLC stamp need extension. Est. additional recovery:
+   ~800–900 ms → would land intcs W=1 at ~6200–6300 ms, clearing the gate.
+2. **defer-hoist-lazyslow is real but small** at the residual 36.4 M
+   traversals — the dominant cost is the `saveAllRegisters` /
+   `restoreAllRegisters` full-scalar dump in
+   `genericGenerationThunkGenerator`, not the operation body. A
+   complementary fix (orthogonal to TLC-slot) is a **gilOff-dedicated thin
+   thunk** that does only `acquire-load m_stubCodePtr → tail-call`, no
+   register dump, no operation call on the steady-state path (the operation
+   body's only steady-state work is that one acquire-load).
+3. **GIL-on intcs W=1 +52 ms** vs §41 evidence baseline (5928 vs 5876) is
+   within run-to-run noise; the candidate's GIL-on / flag-off paths are
+   `[[unlikely]]`-gated additions only and identity is byte-clean.
+4. **default W=1 −1120 ms** is the largest absolute Δ of any arm — default
+   allocates ~similar cell counts but with more JSFinalObject /
+   auxiliary-butterfly traffic (CompleteSubspace types), so H-VMLITE-TLCPTR
+   covers a larger fraction of its JIT allocations than intcs's
+   rope-dominated mix.
+5. **intcs W=16 bimodality unchanged** (1/3 slow-mode at 6314 ms). nomap
+   W=16 monomodal.

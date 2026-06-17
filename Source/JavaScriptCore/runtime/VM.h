@@ -350,6 +350,35 @@ public:
     // §A.1.3 two-level discriminator; r27/TERM1.4), not the process byte.
     bool gilOff() const { return m_gilOff; }
 
+    // cl-single-mutator-sticky-skip (GILOFF-TAX #4, T2): monotone sticky bit
+    // recording whether a SECOND same-VM MUTATOR VMLite has EVER been
+    // registered (m_mainVMLite is excluded — A36: GIL-off entry never
+    // installs it as a carrier, so it is not a mutator). While false, exactly
+    // one mutator exists, so the gilOff-introduced INTER-MUTATOR JSCellLock
+    // acquires (I31/L5, lockProtoFuncHold fast-callee cell lock, the
+    // Spread/varargs copy lock) guard against mutators that do not exist and
+    // may be elided — `gilOffMultiMutator()` is the gate for those sites.
+    // SCOPE: gates locks the threads project ADDED for inter-mutator
+    // exclusion ONLY. NEVER use it to elide a pre-existing cellLock that
+    // also serializes mutator-vs-GC-marker or mutator-vs-compiler reads —
+    // those readers run concurrently at W=1 too.
+    // The bit is set under the registry lock in VMLiteRegistry::registerLite
+    // (VMLiteShared.cpp) BEFORE the fresh lite's first heap access. Never
+    // cleared. NOT YET set spawner-side — DO NOT gate any site on this
+    // predicate until ThreadObject.cpp constructJSThread lands the companion
+    // `vm.noteSecondMutatorRegistered()` immediately before Thread::create
+    // (closes the spawner-side TOCTOU window between bit-check and the
+    // spawnee's registerLite); the consuming sites and that store must land
+    // atomically. INFRA-ONLY in this round: zero consumers; the
+    // lockProtoFuncHold / Spread gating is the LockObject.cpp owner's charge.
+    // Relaxed load is sufficient: the bit is monotone, and the release store
+    // in registerLite (under the registry lock) happens-before the fresh
+    // lite's first heap access; a single-mutator reader observing `false`
+    // races with no other mutator's heap access by construction.
+    bool everHadSecondMutator() const { return m_everHadSecondMutator.load(std::memory_order_relaxed); }
+    bool gilOffMultiMutator() const { return m_gilOff && m_everHadSecondMutator.load(std::memory_order_relaxed); }
+    void noteSecondMutatorRegistered() { m_everHadSecondMutator.store(true, std::memory_order_release); }
+
     // C++-side equivalent of the derived JSCConfig gilOffProcess byte
     // (§A.1.3 level (i); the Config byte itself + the LLInt consumer land
     // with U-T3 and MUST stay derivation-identical to this). U0 option
@@ -899,6 +928,12 @@ private:
     // the VM ctor (before any entry/codegen); never cleared (§10D never
     // clears it — it is not heap state).
     bool m_gilOff { false };
+    // cl-single-mutator-sticky-skip: see everHadSecondMutator() above. Laid
+    // out in the m_gilOff/didEnterVM hot byte group so gilOffMultiMutator()
+    // is one cache-line load. std::atomic<bool> is 1 byte and fits in the
+    // pre-m_vmEpoch alignment padding (3 bools before an 8-aligned uint64),
+    // so no subsequent VM member offset shifts.
+    std::atomic<bool> m_everHadSecondMutator { false };
     // ANNEX A36 carrier-map staleness epoch; see vmEpoch() above.
     uint64_t m_vmEpoch { 0 };
     RefPtr<CrossTaskToken> m_crossTaskToken;
@@ -970,6 +1005,24 @@ public:
     std::unique_ptr<JITSizeStatistics> jitSizeStatistics;
 #endif
     
+    // H-GCCLIENT-COMPLETESUBSPACE-WRAPPER (SHAREDHEAP-ALLOC-EVIDENCE.md §41
+    // T1) STAGED, NOT YET FLIPPED: the per-client GCClient::CompleteSubspace
+    // wrappers (Heap::allocationClientForCurrentThread(*this,
+    // clientHeap).<name>Client) and the fixed-capacity TLC table backing
+    // their precomputed slotBase pointers are LANDED (CompleteSubspace.h /
+    // Heap.h GCClient::Heap / GCThreadLocalCache.cpp). Rerouting these
+    // accessors through them — exactly as the iso accessors below do — is
+    // DEFERRED to a round that owns the JIT-side `JSC::CompleteSubspace&` /
+    // `JSC::CompleteSubspace*` consumers: AssemblyHelpers::
+    // emitAllocateVariableSized (jit/AssemblyHelpers.h:2337), FTL
+    // allocatorForSize (ftl/FTLLowerDFGToB3.cpp:23950), DFG
+    // tlcSlotForSubspace (dfg/DFGSpeculativeJIT.cpp:432/16669) and the
+    // address-of `&vm.auxiliarySpace()` sites. Changing the return type here
+    // without those edits is a build break; the implicit `operator
+    // JSC::CompleteSubspace&` on the wrapper covers reference-taking helpers
+    // but not address-of. Until the flip, T1 is served by H-TLS-TABLE
+    // (CompleteSubspaceInlines.h, same hot path), and these accessors stay
+    // byte-identical flag-off (LAW).
     ALWAYS_INLINE CompleteSubspace& primitiveGigacageAuxiliarySpace() { return heap.primitiveGigacageAuxiliarySpace; }
     ALWAYS_INLINE CompleteSubspace& auxiliarySpace() { return heap.auxiliarySpace; }
     ALWAYS_INLINE CompleteSubspace& immutableButterflyAuxiliarySpace() { return heap.immutableButterflyAuxiliarySpace; }

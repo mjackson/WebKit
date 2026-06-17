@@ -61,6 +61,7 @@
 
 namespace JSC {
 
+class Allocator;
 class CallFrame;
 class Exception;
 class MicrotaskQueue;
@@ -314,6 +315,25 @@ public:
     // VM's single clientHeap; U-T6 replaces with per-thread clients.
     GCClient::Heap* clientHeap { nullptr };
 
+    // H-VMLITE-TLCPTR (SPEC-heap §5.3/§B.4; GILOFF-TAX #1/#2): cached mirror of
+    // this lite's GCThreadLocalCache flat table pointer + bound — the
+    // PROVISIONAL offsetOfTable/offsetOfTableBound contract (GCThreadLocalCache.h)
+    // collapsed to one lite-relative hop. Stamped by GCThreadLocalCache::growTable
+    // (owner thread, I2) and at the §10A.1 client-slot stamp
+    // (GCClient::Heap::setCurrentThreadClient — covers attach + the A36C
+    // carrier swap), so per-tier inline-allocate emitters resolve
+    // `tlcTable[tlcIndexBase_const + sizeClassIndex]` instead of baking the
+    // null Allocator that allocatorForConcurrently returns under gilOff (the
+    // IT-9 {} return) and falling to the lazy-slow-path generation thunk on
+    // EVERY allocation (operationCompileFTLLazySlowPath: 46.6M GIL-off vs 53
+    // GIL-on, intcs W=1). Same-thread program order (I11 + I2): the JIT reader
+    // is the owner thread, so no cross-thread fences; bound is stamped LAST so
+    // a bound-first reader never indexes past the published table (a stale
+    // bound is always <=, never > — grow-only, §5.3). GIL-on/flag-off: never
+    // read (every emitter is behind a vm.gilOff() codegen gate); zero-init.
+    Allocator* tlcTable { nullptr };
+    unsigned tlcTableBound { 0 };
+
     // §A.1.5 per-entry record: GIL-off, VM::entryScope/VM::isEntered() and
     // the entry-scope service bits live per-lite; VM-wide consumers iterate
     // the registry under its lock. Written by VMEntryScope::setUpSlow/
@@ -402,6 +422,8 @@ public:
     static constexpr ptrdiff_t offsetOfVM() { return OBJECT_OFFSETOF(VMLite, vm); } // Reader-side same-VM guard in the Group-3 host-call-return-value discriminators (LLIntThunks.cpp / LowLevelInterpreter64.asm).
     static constexpr ptrdiff_t offsetOfScratchSegments() { return OBJECT_OFFSETOF(VMLite, scratchSegments); } // A16 emission (U-T4).
     static constexpr ptrdiff_t offsetOfThreadContext() { return OBJECT_OFFSETOF(VMLite, threadContext); } // §A.2.1 chained-offset emission (U-T3/U-T4).
+    static constexpr ptrdiff_t offsetOfTlcTable() { return OBJECT_OFFSETOF(VMLite, tlcTable); } // H-VMLITE-TLCPTR §B.4 inline-allocate emission.
+    static constexpr ptrdiff_t offsetOfTlcTableBound() { return OBJECT_OFFSETOF(VMLite, tlcTableBound); }
 
     // TLS accessors (L4): backed by g_jscCurrentVMLite (see banner above the
     // class). Signatures frozen; the backing store is the L4-sanctioned

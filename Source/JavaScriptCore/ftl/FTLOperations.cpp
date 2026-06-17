@@ -958,7 +958,44 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationTypeOfObjectAsTypeofType, UCPUStrictI
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileFTLLazySlowPath, void*, (CallFrame* callFrame, unsigned index))
 {
     VM& vm = callFrame->deprecatedVM();
-    // Don't need an ActiveScratchBufferScope here because we DeferGCForAWhile.
+    // Don't need an ActiveScratchBufferScope here: the !gilOff arm does
+    // DeferGCForAWhile, and the gilOff fast path neither allocates nor hits a
+    // safepoint (see the §41 defer-hoist-lazyslow comment in that arm).
+
+    if (vm.gilOff()) [[unlikely]] {
+        // UNGIL U-T4b / T8: the gilOff repatch skip (FTLLazySlowPath.cpp)
+        // means EVERY traversal of this slow path lands here forever. The
+        // stub is write-once: do textbook double-checked publication so the
+        // steady state is one acquire-load and zero locks. The global
+        // generation lock is taken only for the first-compile race; losers
+        // re-check under the lock. generate() release-stores the tagged code
+        // pointer after the stub (and its executable memory) is fully
+        // constructed, so a non-null acquire-load here is safe to tail-call.
+        //
+        // SCALEBENCH §41 defer-hoist-lazyslow: at 46.6M traversals/run the
+        // steady state is just the acquire-load below — it cannot allocate
+        // and there is no safepoint on this path, so the "pointers in evil
+        // places" are safe without a DeferGCForAWhile guard. Constructing
+        // that guard up front cost 2× Heap::deferralDepthSlot() (isSharedServer
+        // atomic + client-TLS + identity compare + RMW) per traversal. Hoist
+        // it: only pay it under the generation lock for the one-time
+        // generate() call. The codeBlock/jitCode loads are pure reads (see
+        // the jitCodeRawPtr rationale in the !gilOff arm below).
+        CodeBlock* codeBlock = callFrame->codeBlock();
+        JITCode* jitCode = codeBlock->jitCodeRawPtr()->ftl();
+        LazySlowPath& lazySlowPath = *jitCode->lazySlowPaths[index];
+        if (void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently())
+            return stubCodePtr;
+        Locker locker { ftlLazySlowPathGenerationLock };
+        if (void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently())
+            return stubCodePtr;
+        // We cannot GC across generate(). We've got pointers in evil places.
+        DeferGCForAWhile deferGC(vm);
+        lazySlowPath.generate(codeBlock);
+        void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently();
+        ASSERT(stubCodePtr);
+        return stubCodePtr;
+    }
 
     // We cannot GC. We've got pointers in evil places.
     DeferGCForAWhile deferGC(vm);
@@ -975,26 +1012,6 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileFTLLazySlowPath, void*, (CallF
     JITCode* jitCode = codeBlock->jitCodeRawPtr()->ftl();
 
     LazySlowPath& lazySlowPath = *jitCode->lazySlowPaths[index];
-
-    if (vm.gilOff()) [[unlikely]] {
-        // UNGIL U-T4b / T8: the gilOff repatch skip (FTLLazySlowPath.cpp)
-        // means EVERY traversal of this slow path lands here forever. The
-        // stub is write-once: do textbook double-checked publication so the
-        // steady state is one acquire-load and zero locks. The global
-        // generation lock is taken only for the first-compile race; losers
-        // re-check under the lock. generate() release-stores the tagged code
-        // pointer after the stub (and its executable memory) is fully
-        // constructed, so a non-null acquire-load here is safe to tail-call.
-        if (void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently())
-            return stubCodePtr;
-        Locker locker { ftlLazySlowPathGenerationLock };
-        if (void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently())
-            return stubCodePtr;
-        lazySlowPath.generate(codeBlock);
-        void* stubCodePtr = lazySlowPath.stubCodePtrConcurrently();
-        ASSERT(stubCodePtr);
-        return stubCodePtr;
-    }
 
     lazySlowPath.generate(codeBlock);
 

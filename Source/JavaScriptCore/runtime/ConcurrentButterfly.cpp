@@ -2656,19 +2656,24 @@ bool ensureLengthSlowConcurrent(VM& vm, JSObjectWithButterfly* object, unsigned 
             // thread and foreign first-writers - who must flip SW first,
             // changing the word and failing the CAS below; a torn copy is
             // therefore discarded, never published (I21).
-            // V7 (TSAN): TSAN-visible relaxed word copy instead of memcpy — the
-            // source payload's words may be concurrently stored ATOMICALLY by a
-            // foreign first-writer that has not yet flipped SW (its flip changes
-            // the word and fails our CAS, so a torn copy is discarded, never
-            // published — the protocol argument above is unchanged; this only
-            // makes the racing reads defined). Flag-on-only path.
+            // V7 (TSAN): the source payload's words may be concurrently stored
+            // ATOMICALLY by a foreign first-writer whose SW flip lands after
+            // our `word` snapshot (its flip changes the word and fails our CAS,
+            // so a torn copy is discarded, never published — the protocol
+            // argument above is unchanged); the destination is fresh aux memory
+            // whose recycled address can pair with stale readers. Both make the
+            // copy a benign-but-TSAN-visible race only.
+            // butterflyConcurrentCopyWords is the established treatment
+            // (Butterfly.h): the relaxed word loop UNDER TSAN ONLY, plain
+            // vectorized memcpy in production. seg-t1-atomic-copy-loop:
+            // restores parity with flag-off ensureLengthSlow's memmove via
+            // Butterfly::resizeArray and reuses the established helper; no
+            // measured wall-time delta on x86-64 (relaxed atomics compile to
+            // plain MOV, so the prior scalar loop already paid no
+            // atomic-instruction cost — SHAREDHEAP-ALLOC-EVIDENCE.md §41).
             {
                 size_t copyBytes = propertyCapacity * sizeof(EncodedJSValue) + sizeof(IndexingHeader) + static_cast<size_t>(oldVectorLength) * sizeof(EncodedJSValue);
-                ASSERT(!(copyBytes % sizeof(uint64_t)));
-                uint64_t* dst = std::bit_cast<uint64_t*>(newButterfly->base(0, propertyCapacity));
-                uint64_t* src = std::bit_cast<uint64_t*>(butterfly->base(0, propertyCapacity));
-                for (size_t wordIndex = 0; wordIndex < copyBytes / sizeof(uint64_t); ++wordIndex)
-                    WTF::atomicStore(&dst[wordIndex], WTF::atomicLoad(&src[wordIndex], std::memory_order_relaxed), std::memory_order_relaxed); // dst store atomic too: fresh aux memory at a recycled address can pair with stale readers.
+                butterflyConcurrentCopyWords(newButterfly->base(0, propertyCapacity), butterfly->base(0, propertyCapacity), copyBytes);
             }
             if (hasDouble(type)) {
                 for (unsigned i = oldVectorLength; i < newVectorLength; ++i)

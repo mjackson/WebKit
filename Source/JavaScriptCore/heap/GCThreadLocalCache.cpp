@@ -32,6 +32,7 @@
 #include "Heap.h"
 #include "LocalAllocator.h"
 #include "Options.h"
+#include "VMLite.h"
 #include <algorithm>
 #include <wtf/FastMalloc.h>
 
@@ -64,10 +65,84 @@ namespace GCClient {
 // unchanged.
 
 thread_local Heap* Heap::s_currentThreadClient { nullptr };
+// H-TLS-TABLE (SHAREDHEAP-ALLOC-EVIDENCE.md §41 T1): direct snapshot of the
+// current thread's GCThreadLocalCache {m_table, m_tableBound} so the C++
+// non-iso allocate fast path (CompleteSubspaceInlines.h) skips both the
+// allocationClientForCurrentThread resolver and the client.threadLocalCache()
+// member chase. Restamped at the two owner-thread mutation points only:
+// setCurrentThreadClient (attach/detach/A36C swap) and growTable. Zero-init
+// → bound==0 → fast path falls through, so unstamped readers (compilation
+// threads, pre-attach bootstrap) preserve today's resolver semantics.
+thread_local Allocator* Heap::s_currentThreadTLCTable { nullptr };
+thread_local unsigned Heap::s_currentThreadTLCBound { 0 };
+
+void Heap::setCurrentThreadTLCSnapshot(Allocator* table, unsigned bound)
+{
+    // Same-thread reader (CompleteSubspace::allocate) does bound-check FIRST
+    // then indexed load; publish table BEFORE bound so a bound>0 read always
+    // sees the matching table pointer (program order on one thread; the fence
+    // is documentation of intent, not a cross-thread requirement).
+    s_currentThreadTLCTable = table;
+    WTF::compilerFence();
+    s_currentThreadTLCBound = bound;
+}
+
+// H-VMLITE-TLCPTR (§B.4 lite-mirror stamp): publish {table, bound} onto the
+// CURRENT thread's installed VMLite so the per-tier inline-allocate emitters
+// can resolve `tlcTable[tlcIndexBase + sizeClassIndex]` with one
+// lite-relative loadPtr. Owner-thread only (I2) and the JIT reader is the
+// owner thread (I11), so program order suffices; bound is published LAST so a
+// bound-first reader (the emitted bound>slot guard) never indexes past the
+// table just stored. Gated on the process-level gilOff bit so flag-off / a
+// GIL-on second VM never touch the lite (the fields are never read either).
+// `lite` may be null (pre-install bootstrap allocations, GC-helper threads):
+// the next stamp site re-stamps once the lite is installed.
+static ALWAYS_INLINE void stampTLCMirrorOnCurrentLite(Allocator* table, unsigned bound)
+{
+    if (!g_jscConfig.gilOffProcess) [[likely]]
+        return;
+    VMLite* lite = VMLite::currentIfExists();
+    if (!lite || !lite->gilOff)
+        return;
+    lite->tlcTable = table;
+    WTF::compilerFence(); // bound LAST (same-thread program-order guarantee for the bound-first JIT reader).
+    lite->tlcTableBound = bound;
+}
 
 void Heap::setCurrentThreadClient(Heap* client)
 {
     s_currentThreadClient = client;
+    // H-VMLITE-TLCPTR attach stamp: every {attach, A36C carrier swap, main-
+    // client adoption} re-stamps the §10A.1 slot here, AFTER the carrier's
+    // VMLite::setCurrent (JSLock.cpp install ordering), so the lite mirror
+    // tracks the now-current client's already-grown table without waiting for
+    // the next growTable. Detach (null client) clears the mirror so a stale
+    // table pointer is never read past the client's lifetime.
+    // H-TLS-TABLE: restamp the IE-TLS {table, bound} snapshot at the same
+    // sites — the C++ fast path's correctness depends on exactly the same
+    // "current client's table" invariant the lite mirror does. Detach clears
+    // to {nullptr, 0} so a post-detach allocate() reads bound==0 and takes
+    // the resolver slow path (which is where the I2 ASSERTs live).
+    if (client) {
+        Allocator* table = client->threadLocalCache().table();
+        unsigned bound = client->threadLocalCache().tableBound();
+        setCurrentThreadTLCSnapshot(table, bound);
+        stampTLCMirrorOnCurrentLite(table, bound);
+        // H-GCCLIENT-COMPLETESUBSPACE-WRAPPER bind: idempotent; computes each
+        // wrapper's slotBase = table + server.tlcIndexBase() now that (a) the
+        // fixed-capacity table exists (TLC ctor above) and (b) every server
+        // CompleteSubspace's tlcIndexBase is reserved (also TLC ctor). Gated
+        // on the option so a GIL-on / non-shared client never touches the
+        // wrappers (they stay default-constructed and have no caller). Runs
+        // on every {attach, A36C carrier swap, main-client adoption} — same
+        // sites as the TLS/lite restamps; first attach is the only one that
+        // changes state, the rest re-store identical pointers.
+        if (Options::useSharedGCHeap())
+            client->bindCompleteSubspaceClients();
+    } else {
+        setCurrentThreadTLCSnapshot(nullptr, 0);
+        stampTLCMirrorOnCurrentLite(nullptr, 0);
+    }
 }
 
 // --- End §10A.1 current-client TLS ---
@@ -75,6 +150,38 @@ void Heap::setCurrentThreadClient(Heap* client)
 GCThreadLocalCache::GCThreadLocalCache(JSC::Heap& server)
     : m_server(server)
 {
+    // H-TLC-FIXEDTABLE-NOREALLOC + H-GCCLIENT-COMPLETESUBSPACE-WRAPPER
+    // (SHAREDHEAP-ALLOC-EVIDENCE.md §41 T1): eagerly reserve every server
+    // CompleteSubspace's tlcIndexBase (write-once under directoryLock,
+    // idempotent across clients; NO BlockDirectory is created — see
+    // CompleteSubspace::ensureTlcIndexBaseReserved) and pre-grow m_table to
+    // its lifetime maximum so it NEVER reallocs. This makes every per-client
+    // slotBase pointer (= m_table + tlcIndexBase) and the H-TLS-TABLE /
+    // H-VMLITE-TLCPTR {table, bound} snapshots valid for the client's
+    // lifetime with no restamp-on-grow hazard. Flag-off: today's lazy
+    // {nullptr, 0} table — the branch is the only delta. RSS: 5 ×
+    // numSizeClasses × sizeof(Allocator) ≈ a few KB per client (well inside
+    // the +10% gate at W=16). Runs during GCClient::Heap construction, which
+    // for the first client (vm.clientHeap) is after JSC::Heap is fully
+    // constructed (VM member declaration order), so the server subspaces
+    // exist and directoryLock is takeable.
+    if (Options::useSharedGCHeap()) [[unlikely]] {
+        server.primitiveGigacageAuxiliarySpace.ensureTlcIndexBaseReserved();
+        server.auxiliarySpace.ensureTlcIndexBaseReserved();
+        server.immutableButterflyAuxiliarySpace.ensureTlcIndexBaseReserved();
+        server.cellSpace.ensureTlcIndexBaseReserved();
+        server.destructibleObjectSpace.ensureTlcIndexBaseReserved();
+        constexpr unsigned fixedCapacity = JSC::Heap::numCompleteSubspaces * static_cast<unsigned>(MarkedSpace::numSizeClasses);
+        // Direct allocate (NOT growTable): growTable would restamp the
+        // s_currentThreadTLCTable/Bound TLS pair and the lite mirror, but at
+        // ctor time this thread's stamped client (if any) is a DIFFERENT
+        // GCClient::Heap — the restamp would install the wrong table. The
+        // correct stamp for THIS client lands at setCurrentThreadClient
+        // (attach), which now also binds the per-client CompleteSubspace
+        // wrappers.
+        m_table = static_cast<Allocator*>(fastZeroedMalloc(static_cast<size_t>(fixedCapacity) * sizeof(Allocator)));
+        m_tableBound = fixedCapacity;
+    }
 }
 
 GCThreadLocalCache::~GCThreadLocalCache()
@@ -181,6 +288,17 @@ void GCThreadLocalCache::growTable(unsigned neededBound)
 {
     if (neededBound <= m_tableBound)
         return;
+    // H-TLC-FIXEDTABLE-NOREALLOC (§41 T1): with the fixed-capacity pre-grow
+    // in the ctor, the early-return above must always fire under
+    // Options::useSharedGCHeap() — m_table never reallocs, so the per-client
+    // slotBase pointers (GCClient::CompleteSubspace::m_slotBase) and the
+    // H-TLS-TABLE / H-VMLITE-TLCPTR snapshots never dangle. Reaching here
+    // means a tlcIndex exceeded numCompleteSubspaces × numSizeClasses, i.e. a
+    // 6th CompleteSubspace was added without bumping
+    // JSC::Heap::numCompleteSubspaces. The realloc/free leg below is retained
+    // verbatim for !useSharedGCHeap (where this whole class is inert today)
+    // and as the documented fallback shape; it is unreachable flag-on.
+    RELEASE_ASSERT_WITH_MESSAGE(!Options::useSharedGCHeap(), "GCThreadLocalCache fixed-capacity table overflow; bump JSC::Heap::numCompleteSubspaces");
     static constexpr unsigned minimumBound = 32;
     unsigned newBound = std::max(neededBound, std::max(m_tableBound * 2, minimumBound));
     Allocator* newTable = static_cast<Allocator*>(fastMalloc(static_cast<size_t>(newBound) * sizeof(Allocator)));
@@ -197,6 +315,19 @@ void GCThreadLocalCache::growTable(unsigned neededBound)
     m_table = newTable;
     WTF::storeStoreFence();
     m_tableBound = newBound; // Grow-only (§5.3).
+    // H-VMLITE-TLCPTR + H-TLS-TABLE: re-stamp both the lite mirror and the
+    // IE-TLS snapshot BEFORE freeing the old table — the readers (JIT inline
+    // emitter via lite, CompleteSubspace::allocate via TLS) are this same
+    // thread (I2/I11) so there is no concurrent dereference of oldTable, but
+    // keeping the snapshots coherent with {m_table, m_tableBound} across the
+    // free preserves the bound-first/table-second invariant unconditionally.
+    // growTable is reachable only from materializeAllocator (owner thread,
+    // under Options::useSharedGCHeap()), so the restamp installs THIS
+    // thread's allocating client's table — exactly what
+    // allocationClientForCurrentThread would have resolved to on the call
+    // that landed here.
+    Heap::setCurrentThreadTLCSnapshot(newTable, newBound);
+    stampTLCMirrorOnCurrentLite(newTable, newBound);
     if (oldTable)
         fastFree(oldTable);
 }

@@ -204,6 +204,48 @@ inline Allocator allocatorForConcurrently(VM& vm, size_t allocationSize, Allocat
     return { };
 }
 
+// H-VMLITE-TLCPTR (SPEC-heap §5.3/§B.4; GILOFF-TAX #1/#2): resolve the
+// per-thread TLC flat-table SLOT a JIT inline-allocate emitter bakes for
+// `allocationSize` in `subspace`. tlcIndexBase is per-subspace WRITE-ONCE
+// (under directoryLock), so the slot is a process-wide constant once
+// non-nullopt; the per-thread part is the lite-relative
+// `tlcTable[slot * sizeof(Allocator)]` load the emitter generates against the
+// VMLite mirror (offsetOfTlcTable / offsetOfTlcTableBound). Returns nullopt
+// for: iso subspaces (never enter m_table — m_perDirectory lookup-only,
+// §5.3); a subspace whose tlcIndexBase has not been reserved yet (first
+// directory not created — the runtime slow path will reserve it, and a later
+// recompile will see it); sizes past largeCutoff (precise path). GIL-off
+// callers only (the call is reached through a vm.gilOff() codegen gate, so
+// flag-off emission never evaluates it — flag-off byte-identity).
+inline std::optional<unsigned> tlcSlotForSubspace(Subspace* subspace, size_t allocationSize)
+{
+    if (!subspace || subspace->isIsoSubspace())
+        return std::nullopt;
+    if (allocationSize > MarkedSpace::largeCutoff)
+        return std::nullopt;
+    unsigned base = static_cast<CompleteSubspace*>(subspace)->tlcIndexBase();
+    if (base == BlockDirectory::invalidTlcIndex)
+        return std::nullopt;
+    return base + static_cast<unsigned>(MarkedSpace::sizeClassToIndex(allocationSize));
+}
+
+template<typename Type>
+inline std::optional<unsigned> tlcSlotForConcurrently(VM& vm, size_t allocationSize)
+{
+    auto* subspace = subspaceForConcurrently<Type>(vm);
+    // subspaceForConcurrently<Type> may yield CompleteSubspace*, IsoSubspace*,
+    // or GCClient::IsoSubspace* (NOT a JSC::Subspace) — the latter is the
+    // per-client iso allocator the IT-9 comment above forbids baking; it is
+    // never table-addressable.
+    if constexpr (std::is_convertible_v<decltype(subspace), Subspace*>)
+        return tlcSlotForSubspace(subspace, allocationSize);
+    else {
+        UNUSED_PARAM(subspace);
+        UNUSED_PARAM(allocationSize);
+        return std::nullopt;
+    }
+}
+
 template<typename T, AllocationFailureMode failureMode>
 ALWAYS_INLINE void* tryAllocateCellHelper(VM& vm, size_t size, GCDeferralContext* deferralContext)
 {
@@ -249,6 +291,39 @@ void* tryAllocateCell(VM& vm, GCDeferralContext* deferralContext, size_t size)
 {
     return tryAllocateCellHelper<T, AllocationFailureMode::ReturnNull>(vm, size, deferralContext);
 }
+
+// H-CALLSITE-LASTSIZE-LA: WITHDRAWN (amender, post-refute). The mechanism is
+// strictly dominated by H-TLS-TABLE already in this tree
+// (CompleteSubspaceInlines.h): that change collapses the identical 3-hop
+// (allocationClientForCurrentThread -> allocatorForSizeStep -> allocate) to
+// two IE-TLS loads + one indexed load for EVERY CompleteSubspace::allocate
+// call — a strict superset of the call sites this routed (JSCellButterfly,
+// JSLexicalEnvironment, 5 Butterfly aux funnels all reach
+// CompleteSubspace::allocate via tryAllocateCellHelper /
+// vm.auxiliarySpace().allocate). The "subspace disambiguation" premise was
+// wrong: H-TLS-TABLE keys on per-subspace tlcIndexBase(), so cellSpace sz=64
+// and auxiliarySpace sz=64 resolve to distinct table slots. Against the
+// combined tree the marginal hit-path win was {sizeStep TLS + compare} vs
+// {tlcIndexBase load + bound IE-TLS + table[slot]}: a few cycles/cell, not
+// the ~250ms attributed. Correctness defects that would survive amendment:
+// (a) per-callsite static thread_local has NO invalidation hook at
+// setCurrentThreadClient (A36C carrier swap / attach-detach,
+// GCThreadLocalCache.cpp) — a same-OS-thread client swap leaves a stale
+// LocalAllocator* → wrong-client pop / UAF after the prior client's
+// GCThreadLocalCache teardown; adding a client-generation guard makes the hit
+// path 3 TLS loads + 2 compares, worse than H-TLS-TABLE's IE-TLS path;
+// (b) function-local static thread_local in an ALWAYS_INLINE template gets
+// COMDAT/weak linkage with no tls_model attribute — risk of general-dynamic
+// __tls_get_addr per allocation (the M2-alloc-tax-residual failure mode
+// Heap.h documents), i.e. SLOWER than the path it replaces; (c) the hit path
+// dropped the I2 hasHeapAccess() tripwire that H-TLS-TABLE was already
+// required to restore (no-weakened-asserts gate). IsoSubspace types
+// (JSRopeString 1.37%, JSArray/JSString/JSFunction 0.53% of the §41 T1
+// bucket) were structurally unreachable regardless. No amendment yields a
+// mechanism that independently removes T1 tax not already removed by
+// H-TLS-TABLE; the routed call sites are reverted to their unmodified
+// allocateCell / vm.auxiliarySpace().allocate forms so flag-off is
+// byte-identical and GIL-off takes the H-TLS-TABLE fast path.
 
 // FIXME: Consider making getCallData concurrency-safe once NPAPI support is removed.
 // https://bugs.webkit.org/show_bug.cgi?id=215801

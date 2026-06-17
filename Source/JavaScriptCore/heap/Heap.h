@@ -2028,6 +2028,21 @@ public:
     CompleteSubspace cellSpace;
     CompleteSubspace destructibleObjectSpace;
 
+    // H-GCCLIENT-COMPLETESUBSPACE-WRAPPER / H-TLC-FIXEDTABLE-NOREALLOC
+    // (SHAREDHEAP-ALLOC-EVIDENCE.md §41 T1): exactly 5 CompleteSubspaces
+    // exist (the three auxiliary spaces above + cellSpace +
+    // destructibleObjectSpace); each reserves one contiguous
+    // MarkedSpace::numSizeClasses-slot range in every client's
+    // GCThreadLocalCache table, so the maximum non-iso tlcIndex is bounded by
+    // numCompleteSubspaces × numSizeClasses. GCThreadLocalCache's ctor
+    // pre-grows to that capacity under Options::useSharedGCHeap() so m_table
+    // NEVER reallocs after construction — the precomputed per-client
+    // slotBase pointers (GCClient::CompleteSubspace::m_slotBase) and the
+    // H-TLS-TABLE / H-VMLITE-TLCPTR snapshots stay valid for the client's
+    // lifetime. If a 6th CompleteSubspace is ever added, growTable() will
+    // RELEASE_ASSERT (and this constant must be bumped).
+    static constexpr unsigned numCompleteSubspaces = 5;
+
 #define DECLARE_ISO_SUBSPACE(name, heapCellType, type) \
     IsoSubspace name;
 
@@ -2398,6 +2413,27 @@ public:
     // site at attach/detach/JSLock A36C re-stamp is semantically unchanged.
     ALWAYS_INLINE static Heap* currentThreadClient() { return s_currentThreadClient; }
 
+    // H-TLS-TABLE (SHAREDHEAP-ALLOC-EVIDENCE.md §41 T1): direct IE-TLS
+    // snapshot of the current thread's GCThreadLocalCache {m_table,
+    // m_tableBound} pair so CompleteSubspace::allocate's useSharedGCHeap leg
+    // resolves `table[tlcIndexBase + sizeClassIndex]` with two %fs:@TPOFF
+    // loads + one indexed load, skipping hop-1
+    // (allocationClientForCurrentThread: gilOff gate + s_currentThreadClient
+    // + server-identity compare) and hop-2 (client.threadLocalCache() member
+    // chase) entirely on the C++ non-iso hot path. The TLC table is grow-only
+    // / write-once-per-slot and owner-thread-mutated (I2;
+    // GCThreadLocalCache.cpp:161-210), so a same-thread snapshot never
+    // observes a torn or freed table: setCurrentThreadClient() and
+    // growTable() are the ONLY two restamp sites and both run on this thread
+    // strictly before the next allocate() that could read the pair.
+    // Zero-init: an unstamped thread (compilation thread, pre-attach
+    // bootstrap) reads bound==0 and falls through to the
+    // allocationClientForCurrentThread slow path, preserving the FIX-3
+    // carve-out semantics. Only READ inside `if (Options::useSharedGCHeap())`
+    // — flag-off codegen on every hot path is byte-identical.
+    ALWAYS_INLINE static Allocator* currentThreadTLCTable() { return s_currentThreadTLCTable; }
+    ALWAYS_INLINE static unsigned currentThreadTLCBound() { return s_currentThreadTLCBound; }
+
     // GlobalGC FIXME resolved (T4): lastChanceToFinalize() relinquishes
     // memory from this client's allocators — owned non-iso TLC allocators AND
     // the IsoSubspace LocalAllocators (registered lookup-only in the TLC's
@@ -2411,6 +2447,7 @@ private:
     friend class JSC::HeapClientSet;
     friend class JSC::GCSafepointEpoch; // §11: reads/stamps m_localEpoch (T7).
     friend class JSC::JSLock; // UNGIL §A.3.6/A36C (U-T1): the carrier tuple swap re-stamps the §10A.1 client slot at install/LIFO-restore.
+    friend class GCThreadLocalCache; // H-TLS-TABLE: growTable() restamps the s_currentThreadTLCTable/Bound IE-TLS snapshot.
 
     static constexpr uint8_t noAccessState = 0; // §10A m_accessState values.
     static constexpr uint8_t hasAccessState = 1;
@@ -2435,10 +2472,19 @@ private:
     // GCThreadLocalCache.cpp includes this header).
 #if OS(LINUX)
     JS_EXPORT_PRIVATE __attribute__((tls_model("initial-exec"))) static thread_local Heap* s_currentThreadClient;
+    // H-TLS-TABLE: same IE-TLS rationale as s_currentThreadClient above
+    // (single `movq %fs:@TPOFF`; libJavaScriptCore is never dlopen()'d). The
+    // attribute on these declarations carries to the definitions in
+    // GCThreadLocalCache.cpp (same entity).
+    JS_EXPORT_PRIVATE __attribute__((tls_model("initial-exec"))) static thread_local Allocator* s_currentThreadTLCTable;
+    JS_EXPORT_PRIVATE __attribute__((tls_model("initial-exec"))) static thread_local unsigned s_currentThreadTLCBound;
 #else
     JS_EXPORT_PRIVATE static thread_local Heap* s_currentThreadClient;
+    JS_EXPORT_PRIVATE static thread_local Allocator* s_currentThreadTLCTable;
+    JS_EXPORT_PRIVATE static thread_local unsigned s_currentThreadTLCBound;
 #endif
     static void setCurrentThreadClient(Heap*); // §10A.1; defined in GCThreadLocalCache.cpp.
+    static void setCurrentThreadTLCSnapshot(Allocator*, unsigned); // H-TLS-TABLE restamp; defined in GCThreadLocalCache.cpp.
 
     // I4(b) enforcement (§10.6/I12, T6): every thread that acquires heap
     // access must first be registered with the server's MachineThreads so
@@ -2488,8 +2534,53 @@ private:
     IsoSubspace programExecutableSpace;
     IsoSubspace unlinkedFunctionExecutableSpace;
 
+    // H-GCCLIENT-COMPLETESUBSPACE-WRAPPER (§41 T1): per-client views of the 5
+    // server CompleteSubspaces, mirroring the GCClient::IsoSubspace members
+    // above. Each holds a precomputed slotBase into m_threadLocalCache.m_table
+    // so allocate() is one indexed load (eliminates hop-2 entirely; see
+    // CompleteSubspace.h). Default-constructed (slotBase=null) and bound
+    // idempotently at setCurrentThreadClient — the ctor cannot bind them
+    // itself because Heap.cpp (the GCClient::Heap ctor TU) is outside this
+    // hypothesis's owned-file set. STAGING: no caller this round; the VM.h
+    // accessor reroute lands in a round that owns the JIT-side
+    // `CompleteSubspace&` consumers (see the GCClient::CompleteSubspace class
+    // comment). Declared AFTER m_threadLocalCache so
+    // GCClient::Heap::offsetOfThreadLocalCache() (consumed by the
+    // VMLite.cpp:445 hop-2 chain) is unshifted — flag-off layout / LAW.
+    //
+    // Bind all 5 wrappers' slotBase = m_threadLocalCache.table() +
+    // server.tlcIndexBase(). Idempotent; owner thread only (I2). REQUIRES the
+    // fixed-capacity table (H-TLC-FIXEDTABLE-NOREALLOC) so the pointer never
+    // dangles. Called from Heap::setCurrentThreadClient
+    // (GCThreadLocalCache.cpp) at every {attach, A36C carrier swap,
+    // main-client adoption} — that path already has the GCClient::Heap* and
+    // runs strictly after the TLC ctor has pre-grown the table and reserved
+    // every server subspace's tlcIndexBase. A still-unreserved base (only
+    // possible when !useSharedGCHeap, which never reaches the wrapper) leaves
+    // slotBase null and allocate() takes the slow path.
+    void bindCompleteSubspaceClients()
+    {
+        ASSERT(Options::useSharedGCHeap());
+        Allocator* table = m_threadLocalCache.table();
+        ASSERT(table); // Fixed-capacity pre-grow ran in the TLC ctor.
+        auto bindOne = [&](GCClient::CompleteSubspaceView& wrapper, JSC::CompleteSubspace& server) {
+            unsigned base = server.tlcIndexBase();
+            wrapper.bind(server, *this, base != BlockDirectory::invalidTlcIndex ? table + base : nullptr);
+        };
+        bindOne(primitiveGigacageAuxiliarySpaceClient, m_server.primitiveGigacageAuxiliarySpace);
+        bindOne(auxiliarySpaceClient, m_server.auxiliarySpace);
+        bindOne(immutableButterflyAuxiliarySpaceClient, m_server.immutableButterflyAuxiliarySpace);
+        bindOne(cellSpaceClient, m_server.cellSpace);
+        bindOne(destructibleObjectSpaceClient, m_server.destructibleObjectSpace);
+    }
+
     // --- Shared heap client state (SPEC-heap.md; THREADS T2) ---
     GCThreadLocalCache m_threadLocalCache; // §5.3; initialized after the iso subspaces (declaration order).
+    GCClient::CompleteSubspaceView primitiveGigacageAuxiliarySpaceClient;
+    GCClient::CompleteSubspaceView auxiliarySpaceClient;
+    GCClient::CompleteSubspaceView immutableButterflyAuxiliarySpaceClient;
+    GCClient::CompleteSubspaceView cellSpaceClient;
+    GCClient::CompleteSubspaceView destructibleObjectSpaceClient;
     Atomic<uint8_t> m_accessState { noAccessState }; // §10A; seq_cst RMWs (F6/F8).
     Atomic<WTF::Thread*> m_accessOwner { nullptr }; // §10A; step-0 idempotency, I2 hand-off re-stamping, debug cross-checks.
     WTF::Thread* m_parkedRootSnapshotThread { nullptr }; // T5-rootscan-skip: written BEFORE the seq_cst m_parkedRootSnapshot publish; read by the conductor only when that load returns non-null (the seq_cst pair orders it). Never cleared independently (stale value is harmless — gated by the snapshot pointer).

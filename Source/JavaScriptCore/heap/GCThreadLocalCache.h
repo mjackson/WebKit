@@ -107,6 +107,13 @@ public:
     static constexpr ptrdiff_t offsetOfTable() { return OBJECT_OFFSETOF(GCThreadLocalCache, m_table); }
     static constexpr ptrdiff_t offsetOfTableBound() { return OBJECT_OFFSETOF(GCThreadLocalCache, m_tableBound); }
 
+    // H-VMLITE-TLCPTR: read-only snapshot for the lite-mirror stamp at the
+    // §10A.1 client-slot stamp site (setCurrentThreadClient). Owner thread
+    // only (I2); the pair is the same {pointer, grow-only bound} the JIT
+    // addressing contract above consumes.
+    Allocator* table() const { return m_table; }
+    unsigned tableBound() const { return m_tableBound; }
+
 private:
     Allocator materializeAllocator(BlockDirectory&); // slow path; I3 dedup.
     void growTable(unsigned neededBound); // grow-only (§5.3); owner thread.

@@ -1368,6 +1368,28 @@ void AssemblyHelpers::emitAllocateWithNonNullAllocator(GPRReg resultGPR, const J
     done.link(this);
 }
 
+void AssemblyHelpers::emitLoadTLCAllocatorForSlot(GPRReg allocatorGPR, unsigned tlcSlot, JumpList& slowPath)
+{
+    // H-VMLITE-TLCPTR (SPEC-heap §5.3/§B.4; GILOFF-TAX #1/#2): the §B.4
+    // addressing chain collapsed to the lite mirror —
+    //   lite = loadVMLite
+    //   slot < [lite + offsetOfTlcTableBound] ? : slowPath   (32-bit)
+    //   table = [lite + offsetOfTlcTable]
+    //   allocatorGPR = [table + slot * sizeof(Allocator)]    (LocalAllocator* | null)
+    // The bound is stamped LAST (GCThreadLocalCache::growTable / the §10A.1
+    // attach stamp) and grow-only, so passing the bound check guarantees both
+    // table != null and table[slot] is an initialized Allocator word; a stale
+    // (smaller) bound only over-dispatches to the slow path. Same-thread (I11
+    // reads what I2 wrote) — no fences emitted. Caller passes the result
+    // through JITAllocator::variable() so emitAllocate adds the null check.
+    static_assert(sizeof(Allocator) == sizeof(void*));
+    JIT_COMMENT(*this, "TLC lite-relative allocator for baked slot ", tlcSlot);
+    loadVMLite(allocatorGPR);
+    slowPath.append(branch32(BelowOrEqual, Address(allocatorGPR, static_cast<int32_t>(VMLite::offsetOfTlcTableBound())), TrustedImm32(static_cast<int32_t>(tlcSlot))));
+    loadPtr(Address(allocatorGPR, static_cast<int32_t>(VMLite::offsetOfTlcTable())), allocatorGPR);
+    loadPtr(Address(allocatorGPR, static_cast<int32_t>(tlcSlot * sizeof(void*))), allocatorGPR);
+}
+
 void AssemblyHelpers::emitAllocate(GPRReg resultGPR, const JITAllocator& allocator, GPRReg allocatorGPR, GPRReg scratchGPR, JumpList& slowPath, SlowAllocationResult slowAllocationResult)
 {
     switch (allocator.kind()) {

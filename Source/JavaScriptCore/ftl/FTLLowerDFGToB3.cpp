@@ -2664,6 +2664,52 @@ private:
         return patchpoint;
     }
 
+    // H-VMLITE-TLCPTR (SPEC-heap §5.3/§B.4; GILOFF-TAX #1/#2): GIL-off
+    // resolution of the per-thread TLC LocalAllocator for a baked
+    // process-wide-constant TLC slot (tlcIndexBase + sizeClassIndex). Returns
+    // a value the existing allocateHeapCell consumes EXACTLY like the legacy
+    // server m_allocatorForSizeStep load: non-constant LValue =>
+    // JITAllocator::variable() => null-checked branch to slowPath. Bound miss
+    // (table not yet grown to slot on this thread) yields intPtrZero so the
+    // same null check covers it. Same-thread reads (I11 + I2) of fields the
+    // owner mutates only in C++ (growTable / setCurrentThreadClient stamps);
+    // m_heaps.root keeps the loads from being CSE'd across calls (the table
+    // pointer is freed-and-replaced by growTable). gilOff compilations only.
+    LValue tlcAllocatorForSlot(unsigned tlcSlot)
+    {
+        ASSERT(vm().gilOff());
+        LValue lite = currentVMLitePointer();
+        LBasicBlock haveSlot = m_out.newBlock();
+        LBasicBlock noSlot = m_out.newBlock();
+        LBasicBlock continuation = m_out.newBlock();
+        LBasicBlock lastNext = m_out.insertNewBlocksBefore(haveSlot);
+        LValue bound = m_out.load32(m_out.address(m_heaps.root, lite, VMLite::offsetOfTlcTableBound()));
+        m_out.branch(m_out.above(bound, m_out.constInt32(static_cast<int32_t>(tlcSlot))), usually(haveSlot), rarely(noSlot));
+        m_out.appendTo(haveSlot, noSlot);
+        LValue table = m_out.loadPtr(m_out.address(m_heaps.root, lite, VMLite::offsetOfTlcTable()));
+        static_assert(sizeof(Allocator) == sizeof(void*));
+        ValueFromBlock fast = m_out.anchor(m_out.loadPtr(m_out.address(m_heaps.root, table, static_cast<ptrdiff_t>(tlcSlot) * static_cast<ptrdiff_t>(sizeof(void*)))));
+        m_out.jump(continuation);
+        m_out.appendTo(noSlot, continuation);
+        ValueFromBlock slow = m_out.anchor(m_out.intPtrZero);
+        m_out.jump(continuation);
+        m_out.appendTo(continuation, lastNext);
+        return m_out.phi(pointerType(), fast, slow);
+    }
+
+    // H-VMLITE-TLCPTR convenience: tlcSlotForConcurrently<ClassType> at
+    // codegen time, falling back to the legacy null-constant bake (which
+    // allocateHeapCell turns into an unconditional slow-path jump) when the
+    // slot is not table-addressable (iso, base unreserved, precise size).
+    template<typename ClassType>
+    LValue tlcAllocatorOrLegacy(size_t allocationSize)
+    {
+        ASSERT(vm().gilOff());
+        if (auto slot = tlcSlotForConcurrently<ClassType>(vm(), allocationSize))
+            return tlcAllocatorForSlot(*slot);
+        return m_out.constIntPtr(allocatorForConcurrently<ClassType>(vm(), allocationSize, AllocatorForMode::AllocatorIfExists).localAllocator());
+    }
+
     // Mode-split publish of m_callFrame as the CURRENT thread's topCallFrame
     // (direct native / custom accessor calls and callPreflight): GIL-off the
     // per-lite Group-3 word — the word the callee's frame tracers and any
@@ -12452,9 +12498,17 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock slowPath = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
 
-        Allocator allocator = allocatorForConcurrently<JSRopeString>(vm(), sizeof(JSRopeString), AllocatorForMode::AllocatorIfExists);
+        // H-VMLITE-TLCPTR: stringSpace is iso (per-client GCClient::IsoSubspace
+        // — never table-addressable), so tlcAllocatorOrLegacy degrades to the
+        // legacy null bake GIL-off; left in place so a future iso-TLC scheme
+        // need only extend tlcSlotForConcurrently.
+        LValue allocatorValue;
+        if (vm().gilOff()) [[unlikely]]
+            allocatorValue = tlcAllocatorOrLegacy<JSRopeString>(sizeof(JSRopeString));
+        else
+            allocatorValue = m_out.constIntPtr(allocatorForConcurrently<JSRopeString>(vm(), sizeof(JSRopeString), AllocatorForMode::AllocatorIfExists).localAllocator());
 
-        LValue result = allocateCell(m_out.constIntPtr(allocator.localAllocator()), vm().stringStructure.get(), slowPath);
+        LValue result = allocateCell(allocatorValue, vm().stringStructure.get(), slowPath);
 
         // This puts nullptr for the first fiber. It makes visitChildren safe even if this JSRopeString is discarded due to the speculation failure in the following path.
         m_out.storePtr(m_out.constIntPtr(JSString::isRopeInPointer), result, m_heaps.JSRopeString_fiber0);
@@ -19909,11 +19963,24 @@ IGNORE_CLANG_WARNINGS_END
             LValue butterfly;
 
             if (structure->outOfLineCapacity() || hasIndexedProperties(structure->indexingType())) {
-                Allocator cellAllocator;
-                if (structure->typeInfo().type() == JSType::ArrayType)
-                    cellAllocator = allocatorForConcurrently<JSArray>(vm(), JSArray::allocationSize(structure->inlineCapacity()), AllocatorForMode::AllocatorIfExists);
-                else
-                    cellAllocator = allocatorForConcurrently<JSFinalObject>(vm(), JSFinalObject::allocationSize(structure->inlineCapacity()), AllocatorForMode::AllocatorIfExists);
+                // H-VMLITE-TLCPTR: GIL-off, allocatorForConcurrently is {} —
+                // resolve lite-relative so the cell half of the materialize
+                // fast path is reachable (the butterfly half goes through
+                // allocatorForSize, already handled above).
+                LValue cellAllocatorValue;
+                if (vm().gilOff()) [[unlikely]] {
+                    if (structure->typeInfo().type() == JSType::ArrayType)
+                        cellAllocatorValue = tlcAllocatorOrLegacy<JSArray>(JSArray::allocationSize(structure->inlineCapacity()));
+                    else
+                        cellAllocatorValue = tlcAllocatorOrLegacy<JSFinalObject>(JSFinalObject::allocationSize(structure->inlineCapacity()));
+                } else {
+                    Allocator cellAllocator;
+                    if (structure->typeInfo().type() == JSType::ArrayType)
+                        cellAllocator = allocatorForConcurrently<JSArray>(vm(), JSArray::allocationSize(structure->inlineCapacity()), AllocatorForMode::AllocatorIfExists);
+                    else
+                        cellAllocator = allocatorForConcurrently<JSFinalObject>(vm(), JSFinalObject::allocationSize(structure->inlineCapacity()), AllocatorForMode::AllocatorIfExists);
+                    cellAllocatorValue = m_out.constIntPtr(cellAllocator.localAllocator());
+                }
 
                 bool hasIndexingHeader = hasIndexedProperties(structure->indexingType());
                 unsigned indexingHeaderSize = 0;
@@ -19971,7 +20038,7 @@ IGNORE_CLANG_WARNINGS_END
                 m_out.store32(vectorLength, fastButterflyValue, m_heaps.Butterfly_vectorLength);
 
                 LValue fastObjectValue = allocateObject(
-                    m_out.constIntPtr(cellAllocator.localAllocator()), structure, fastButterflyValue,
+                    cellAllocatorValue, structure, fastButterflyValue,
                     slowPath);
 
                 ValueFromBlock fastObject = m_out.anchor(fastObjectValue);
@@ -21308,9 +21375,19 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock lastNext = m_out.insertNewBlocksBefore(slowPath);
 
         size_t sizeInBytes = sizeInValues * sizeof(JSValue);
-        Allocator allocator = vm().auxiliarySpace().allocatorFor(sizeInBytes, AllocatorForMode::AllocatorIfExists);
-        LValue startOfStorage = allocateHeapCell(
-            m_out.constIntPtr(allocator.localAllocator()), slowPath);
+        // H-VMLITE-TLCPTR: server allocatorFor is null under sharedGCHeap
+        // (§5.5); the constIntPtr(null) sends every property-storage
+        // allocation through the lazy-slow-path generation thunk (the second
+        // GILOFF-TAX #1 contributor). Resolve lite-relative instead.
+        LValue allocatorValue;
+        if (vm().gilOff()) [[unlikely]] {
+            if (auto slot = tlcSlotForSubspace(&vm().auxiliarySpace(), sizeInBytes))
+                allocatorValue = tlcAllocatorForSlot(*slot);
+            else
+                allocatorValue = m_out.intPtrZero;
+        } else
+            allocatorValue = m_out.constIntPtr(vm().auxiliarySpace().allocatorFor(sizeInBytes, AllocatorForMode::AllocatorIfExists).localAllocator());
+        LValue startOfStorage = allocateHeapCell(allocatorValue, slowPath);
         ValueFromBlock fastButterfly = m_out.anchor(
             m_out.add(m_out.constIntPtr(sizeInBytes + sizeof(IndexingHeader)), startOfStorage));
         m_out.jump(continuation);
@@ -23774,6 +23851,11 @@ IGNORE_CLANG_WARNINGS_END
     LValue allocateObject(
         size_t size, StructureType structure, LValue butterfly, LBasicBlock slowPath)
     {
+        if (vm().gilOff()) [[unlikely]] {
+            // H-VMLITE-TLCPTR: allocatorForConcurrently is {} GIL-off (IT-9);
+            // resolve the per-thread LocalAllocator lite-relative instead.
+            return allocateObject(tlcAllocatorOrLegacy<ClassType>(size), structure, butterfly, slowPath);
+        }
         Allocator allocator = allocatorForConcurrently<ClassType>(vm(), size, AllocatorForMode::AllocatorIfExists);
         return allocateObject(
             m_out.constIntPtr(allocator.localAllocator()), structure, butterfly, slowPath);
@@ -23794,6 +23876,19 @@ IGNORE_CLANG_WARNINGS_END
         if (subspace->hasIntPtr() && size->hasIntPtr()) {
             CompleteSubspace* actualSubspace = std::bit_cast<CompleteSubspace*>(subspace->asIntPtr());
             size_t actualSize = size->asIntPtr();
+
+            if (vm().gilOff()) [[unlikely]] {
+                // H-VMLITE-TLCPTR: server m_allocatorForSizeStep is never
+                // populated under sharedGCHeap (§5.5); resolve through the
+                // per-thread TLC table mirror cached on VMLite instead.
+                if (auto slot = tlcSlotForSubspace(actualSubspace, actualSize))
+                    return tlcAllocatorForSlot(*slot);
+                LBasicBlock continuation = m_out.newBlock();
+                LBasicBlock lastNext = m_out.insertNewBlocksBefore(continuation);
+                m_out.jump(slowPath);
+                m_out.appendTo(continuation, lastNext);
+                return m_out.intPtrZero;
+            }
 
             Allocator actualAllocator = actualSubspace->allocatorFor(actualSize, AllocatorForMode::AllocatorIfExists);
             if (!actualAllocator) {
@@ -23822,6 +23917,29 @@ IGNORE_CLANG_WARNINGS_END
             rarely(slowPath), usually(continuation));
 
         m_out.appendTo(continuation, lastNext);
+
+        if (vm().gilOff()) [[unlikely]] {
+            // H-VMLITE-TLCPTR (dynamic-size leg): every caller passes a
+            // constant subspace (allocatorForSize(CompleteSubspace&, ...) or
+            // *subspaceForConcurrently), so tlcIndexBase bakes; only the
+            // sizeClassIndex is dynamic. Bound check guards the indexed load
+            // (table is grow-only, owner-thread; bound stamped LAST).
+            RELEASE_ASSERT(subspace->hasIntPtr());
+            CompleteSubspace* actualSubspace = std::bit_cast<CompleteSubspace*>(subspace->asIntPtr());
+            unsigned base = actualSubspace->tlcIndexBase();
+            if (base == BlockDirectory::invalidTlcIndex)
+                return m_out.intPtrZero; // allocateHeapCell's variable null-check -> slowPath.
+            LBasicBlock haveSlot = m_out.newBlock();
+            LBasicBlock lastNextDyn = m_out.insertNewBlocksBefore(haveSlot);
+            LValue lite = currentVMLitePointer();
+            LValue slot = m_out.add(sizeClassIndex, m_out.constIntPtr(static_cast<intptr_t>(base)));
+            LValue bound = m_out.zeroExtPtr(m_out.load32(m_out.address(m_heaps.root, lite, VMLite::offsetOfTlcTableBound())));
+            m_out.branch(m_out.aboveOrEqual(slot, bound), rarely(slowPath), usually(haveSlot));
+            m_out.appendTo(haveSlot, lastNextDyn);
+            LValue table = m_out.loadPtr(m_out.address(m_heaps.root, lite, VMLite::offsetOfTlcTable()));
+            static_assert(sizeof(Allocator) == sizeof(void*));
+            return m_out.loadPtr(m_out.baseIndex(m_heaps.root, table, slot, ScalePtr));
+        }
 
         return m_out.loadPtr(
             m_out.baseIndex(
@@ -23857,7 +23975,18 @@ IGNORE_CLANG_WARNINGS_END
     LValue allocateObject(RegisteredStructure structure)
     {
         size_t allocationSize = JSFinalObject::allocationSize(structure.get()->inlineCapacity());
-        Allocator allocator = allocatorForConcurrently<JSFinalObject>(vm(), allocationSize, AllocatorForMode::AllocatorIfExists);
+        // H-VMLITE-TLCPTR: GIL-off, allocatorForConcurrently is {} (IT-9) and
+        // the constIntPtr(null) below makes EVERY NewObject hit the
+        // operationNewObject lazy-slow-path generation thunk
+        // (operationCompileFTLLazySlowPath: 46.6M GIL-off vs 53 GIL-on, intcs
+        // W=1 — GILOFF-TAX #1). Resolve the per-thread LocalAllocator
+        // lite-relative instead; allocateHeapCell's variable null-check covers
+        // the not-yet-materialized slot.
+        LValue allocatorValue;
+        if (vm().gilOff()) [[unlikely]]
+            allocatorValue = tlcAllocatorOrLegacy<JSFinalObject>(allocationSize);
+        else
+            allocatorValue = m_out.constIntPtr(allocatorForConcurrently<JSFinalObject>(vm(), allocationSize, AllocatorForMode::AllocatorIfExists).localAllocator());
 
         // FIXME: If the allocator is null, we could simply emit a normal C call to the allocator
         // instead of putting it on the slow path.
@@ -23869,7 +23998,7 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock lastNext = m_out.insertNewBlocksBefore(slowPath);
 
         ValueFromBlock fastResult = m_out.anchor(allocateObject(
-            m_out.constIntPtr(allocator.localAllocator()), structure, m_out.intPtrZero, slowPath));
+            allocatorValue, structure, m_out.intPtrZero, slowPath));
 
         m_out.jump(continuation);
 
