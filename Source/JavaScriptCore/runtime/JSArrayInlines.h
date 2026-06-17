@@ -282,35 +282,73 @@ ALWAYS_INLINE void JSArray::pushInline(JSGlobalObject* globalObject, JSValue val
         if (isSegmentedButterfly(word)) {
             ButterflySpine* spine = butterflySpine(word);
             spine->tsanConsume(); // V7
-            uint32_t oldLength = spine->publicLength();
+            // pushinline-publen-bump-alwaysinline-defeated-ool (SCALEBENCH §37
+            // round 4): hand-expand the spine→frag0→publicLength chain and the
+            // CAS-max bump in-place. nm showed publicLength()/
+            // bumpPublicLengthToAtLeast()/pushInline as out-of-line `t` in the
+            // DFGOperations unified TU (this site at 0x438ecd was the SOLE
+            // binary-wide caller of out-of-line publicLength); the helper
+            // calls serialized two cold misses (spine header, frag0) behind
+            // call/ret and blocked CSE of outOfLineFragmentCount across the
+            // length read, slot resolve and bump (each helper re-loaded it).
+            // Load ool + frags[] base ONCE; derive frag0 (length word + CAS
+            // target) and frag[idx] (slot store) from those locals — no
+            // ButterflySpine method calls on the hot arms. Semantics are
+            // verbatim publicLength()/indexedSlot()/bumpPublicLengthToAtLeast()
+            // — see Butterfly.h for the C2/C4/I21 invariants they encode.
+            uint32_t ool = spine->outOfLineFragmentCountConcurrent();
+            ButterflyFragment* const* frags = spine->fragments();
+            RELEASE_ASSERT(spine->indexedFragmentCountConcurrent()); // C2 (hoisted; was 2× via publicLength + bump).
+            ButterflyFragment* frag0 = butterflyConcurrentLoad(&frags[ool]); // = indexedFragment(0).
+            uint32_t* lengthWord = reinterpret_cast<uint32_t*>(frag0->slots); // = headerSlotWord(0).
+            uint32_t oldLength = WTF::atomicLoad(lengthWord, std::memory_order_relaxed); // = publicLength().
             if (oldLength < spine->vectorLengthConcurrent()) [[likely]] {
+                unsigned fragmentIndex = butterflyIndexedIndexToFragment(oldLength);
+                unsigned slotIndex = butterflyIndexedIndexToSlot(oldLength);
+                ASSERT(fragmentIndex || slotIndex); // Never the frozen IndexingHeader slot.
+                ASSERT(fragmentIndex < spine->indexedFragmentCountConcurrent()); // C4.
+                WriteBarrierBase<Unknown>* slot = &butterflyConcurrentLoad(&frags[ool + fragmentIndex])->slots[slotIndex]; // = indexedSlot(oldLength).
+                uint32_t newLength = oldLength + 1;
+                bool stored = false;
                 switch (indexingMode()) {
                 case ArrayWithInt32:
                     if (value.isInt32()) [[likely]] {
-                        spine->indexedSlot(oldLength)->setWithoutWriteBarrier(value);
-                        spine->bumpPublicLengthToAtLeast(oldLength + 1);
-                        return;
+                        slot->setWithoutWriteBarrier(value);
+                        stored = true;
                     }
                     break; // shape transition → §9.5 driver / §4.7 relabel.
                 case ArrayWithContiguous:
-                    spine->indexedSlot(oldLength)->set(vm, this, value);
-                    spine->bumpPublicLengthToAtLeast(oldLength + 1);
-                    return;
+                    slot->set(vm, this, value);
+                    stored = true;
+                    break;
                 case ArrayWithDouble: {
                     ASSERT(Options::allowDoubleShape());
                     if (value.isNumber()) [[likely]] {
                         double d = value.asNumber();
                         if (d == d) [[likely]] {
                             // §4.7 raw double lane; relaxed atomic (intentionally racy JS value word).
-                            WTF::atomicStore(std::bit_cast<double*>(spine->indexedSlot(oldLength)), d, std::memory_order_relaxed);
-                            spine->bumpPublicLengthToAtLeast(oldLength + 1);
-                            return;
+                            WTF::atomicStore(std::bit_cast<double*>(slot), d, std::memory_order_relaxed);
+                            stored = true;
                         }
                     }
                     break; // NaN / non-number → §9.5 driver / §4.7 relabel.
                 }
                 default:
                     break; // Undecided / AS / SlowPut → §9.5 driver below.
+                }
+                if (stored) {
+                    // = bumpPublicLengthToAtLeast(newLength): monotone release
+                    // CAS-max (I21 publication). lengthWord already in hand —
+                    // no second frag0 walk; oldLength seeds the CAS so the
+                    // common uncontended case is one shot.
+                    uint32_t current = oldLength;
+                    while (current < newLength) {
+                        uint32_t observed = WTF::atomicCompareExchangeStrong(lengthWord, current, newLength, std::memory_order_release);
+                        if (observed == current)
+                            return;
+                        current = observed;
+                    }
+                    return;
                 }
             }
         }

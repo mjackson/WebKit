@@ -791,3 +791,283 @@ per-doc cost (≤5 ms warmup of 2800 ms phaseA; clean single tier-up;
 `sc` scratch object). Re-baseline anomaly: default W=16 reads
 **12 868 ms** on this binary (loadavg-0.35-confirmed), matching §35 not
 §36's 9 887 — §36 default-arm number needs re-verification.
+
+## Round 4
+
+Tree `94fb0ed54cf6`, Release jsc, pinned GIL-off env, 64 HW threads,
+loadavg 5-15 throughout (host moderately busy — absolute ms below are
+upper-bound; ratios and counts are load-independent). Read-only on
+`Source/`; uprobes via `perf probe` at `operationGetByIdGaveUp` (capture
+`%di`=base, `%si`=propertyCache) and `operationCompileOSRExit`. Raw
+artifacts: `/tmp/r4/{gaveup16{,b}.data, w{8,16}.perf, flatperf16.data,
+w32-50rep.jsonl, w32cont.raw, osr-{2..6}.log, bench-{describe,describe16,
+addr,flatperf,holdhoist}.js, lockmicro*.js}`. `git diff --stat Source/`
+clean at exit.
+
+### (1) `operationGetByIdGaveUp` — `sc`-dictionary REFUTED; root cause is **per-instance Lock Structure**
+
+`describe()` probe after phaseA at W=16: **all 16 `sc` objects share ONE
+StructureID** (24/24 inline, NonArray, Leaf-Watched, non-dictionary).
+Same for `counters`, `pl`, `prng`, `published`, `barrier`, `shards[s]`.
+**§37-R1's "sc goes dictionary" hypothesis is REFUTED.**
+
+`perf probe gaveup=%di:%si` at W=16: **4 677 415 calls** (W=1: 4 721 148;
+W=8: 4 701 605 — **call count is W-invariant**, ≈1.0×`hold` acquires).
+Histogram by `pic` (PropertyInlineCache*): one site = **3.70 M / 4.68 M =
+79 %**; its 119 distinct `base` addresses are **exactly the 128
+`shards[s].lock` JSLockObject instances** (cross-referenced against an
+in-process `describe()` address dump, 119/119 match).
+
+Standalone repro (`/tmp/r4/lockmicro.js`): rotate `locks[i%K].hold(body)`
+1 M times — **K≤8 ⇒ 0 gaveup; K=9 ⇒ 110 k; K=16 ⇒ 499 k; K=128 ⇒ 936 k**.
+Single-lock micro: 0 gaveup.
+
+`describe(new Lock())` ×128: **128 distinct StructureIDs** (sequential,
++128 each). Same for `new Condition()` and `new Thread()`. Root cause:
+
+| ctor | site | line |
+|---|---|---|
+| `constructLock` | `JSLockObject::createStructure(vm, …)` per call | `LockObject.cpp:795` |
+| `constructCondition` | `JSConditionObject::createStructure(vm, …)` per call | `ConditionObject.cpp:96` |
+| `constructThread` | `JSThread::createStructure(vm, …)` per call | `ThreadObject.cpp:442` |
+
+i.e. all three threading primitives allocate a **fresh Structure on every
+construction** instead of caching one on `JSGlobalObject` (the standard
+`InternalFunction::createSubclassStructure` / `LazyClassStructure`
+pattern). With K=128 shard locks, the `.hold` GetById in `ingestDocFlat`
+(bench.js:967) sees 128 base structures; after 8 AccessCases the IC would
+go megamorphic — but `MegamorphicCache::fillsDisabledUnderJSThreads()`
+(InlineCacheCompiler.cpp:4992) makes it return `GaveUp` instead, repatch
+to `operationGetByIdGaveUp` forever. Every call then walks
+`JSObject::getNonIndexPropertySlot` → `PropertyTable::findConcurrently`
+under Lock.prototype's structure lock, which is where the W-dependent
+self-% growth comes from (same call count, contended generic-get).
+
+**Quantified bench-side workaround** (`/tmp/r4/bench-holdhoist.js`: hoist
+`const __hold = Lock.prototype.hold;` once, replace bench.js:967 with
+`__hold.call(shards[s].lock, ingestHold)` — single call site only),
+3-rep, checksums unchanged:
+
+| W=16 | baseline | hold-hoisted | Δ |
+|---|---|---|---|
+| phaseA_ms | {583, 596, 615} med **596** | {417, 440, 446} med **440** | **−156 (−26 %)** |
+| total_ms | {956, 963, 979} med **963** | {764, 812, 821} med **812** | **−151** |
+| gaveup calls | 4.53–4.68 M | 783–803 k | **−83 %** |
+
+Residual 793 k gaveup is the unpatched sites (phaseB/C `.hold`, barrier,
+phaseB `.slice` proto on the writer's Int32Array geometric-grow path,
+etc.). **Engine target (round-4 #1): cache one instance Structure per
+globalObject for Lock/Condition/Thread** — flag-on-only code, zero
+flag-off impact, removes the entire 4.7 M-call gaveup family across every
+arm. The `PropertyInlineCache.cpp:278` dictionary rule named in §37-R1 is
+**not** the firing path here.
+
+### (2) Segmented `[].push` 9.8 % — arrays + pre-size feasibility
+
+Arrays: `pl.docIds.push(sc.hD)` / `pl.tfs.push(sc.hCount)` at
+**bench.js:865-866** inside `ingestHold`, 4.68 M holds × 2 ≈ **9.36 M
+pushes**. W=16 perf top (this binary, 23 K samples): `ButterflySpine::
+publicLength` 8.17 % + `bumpPublicLengthToAtLeast` 3.40 % +
+`JSArray::pushInline` 2.51 % + `operationArrayPush` 0.81 % +
+`tryGrowSegmentedVectorLength` 0.62 % + `JSArray::length` 0.40 % =
+**15.9 %** (W=8: 18.7 %). Secondary site `g.termIds/termTfs.push`
+(bench.js:908-909) is ≤65 k pushes — negligible.
+
+Pre-size: **not knowable** (per-term posting count is the Zipf draw
+outcome; range 1..~7 k). The flat arm already HAS the right-shaped
+alternative — `ingestWriterHold` (bench.js:868-885) does
+geometric-doubling-`Int32Array` appends inside the same shard lock, born
+typed. **Switching `ingestHold` to that body** removes `[].push`
+entirely, removes the segmented-butterfly read cost from
+`publicLength`/`bumpPublicLength`, removes the flatten1
+`new Int32Array(segmentedJSArray)` path (flatten1 reduces to the
+trim-slice arm at every W), AND removes the §(4) bc#223 BadIndexingType
+slow-mode attractor (Int32Array has exactly one DFG ArrayMode). This was
+the bench's ORIGINAL phaseA design (bench.js:775-786) — it was withdrawn
+for a determinism bug in the *linked-list* variant; the
+geometric-doubling variant is what phaseB has been running since round 2
+without that bug. **Bench target (round-4 #2): make `sc.ingestHold` ≡
+`sc.ingestWriterHold`** (engine-side alternative: a segmented-Int32Shape
+`push` fast path is the harder, lower-ceiling fix).
+
+### (3) flatten1 W>8 knee — perf-sliced; **Gigacage/ArrayBufferContents REFUTED**
+
+Knee re-verified on this binary (3-rep median):
+
+| W | flatten1 ms | shards/worker | ms/shard |
+|---|---|---|---|
+| 1 | 71 | 128 | 0.55 |
+| 4 | 34 | 32 | 1.06 |
+| 8 | 33 | 16 | 2.06 |
+| **16** | **74** | 8 | **9.25** (4.5× W=8) |
+| 32 | 94 | 4 | 23.5 (2.5× W=16) |
+
+flatten2 (serial, slice-only) W-flat 62-66 ms.
+
+Perf-sliced via `/tmp/r4/bench-flatperf.js`: a 30-rep
+`new Int32Array(pl.docIds)` loop (no store-back) inserted before the real
+flatten1, `perf record -F 1997 -D 600` to land inside the ~500 ms loop
+window. W=16 top self (14 K samples, ≈22.3 G cycles):
+
+| self% | symbol | reading |
+|---|---|---|
+| 16.97 | `forEachSegmentedIndexedContiguousRun<Int32 setFromArrayLike>` | the segwalk-copy work itself |
+| 6.18 | `segmentedPublicLength` | source `.length` (per `new Int32Array`) |
+| **5.89** | `JSObject::setButterflyConcurrent` | **fence/lock on the new TA's butterfly install** |
+| 2.20 | `PropertyTable::findConcurrently` | concurrent proto lookup (iterator-protocol fast-path checks in `constructGenericTypedArrayViewWithArguments`) |
+| 1.76 | `JSArrayBufferView` ctor | TA cell init |
+| 1.50 | `constructGenericTypedArrayViewImpl<Int32>` | |
+| 1.10 | `locationForOutOfLineOffsetConcurrent` | concurrent slot read |
+| 0.70 | `storeTaggedButterflyWordConcurrent` | |
+| **0.28** | `bmalloc_medium_bitfit_…try_allocate` | **only Gigacage/bmalloc symbol** |
+
+Gigacage / ArrayBufferContents / pas / bmalloc symbols **sum to <0.5 %** —
+**§37-R4's "Gigacage/ArrayBufferContents alloc?" REFUTED**. The W>8 knee
+is `setButterflyConcurrent` + `findConcurrently`/`getConcurrently`/
+`locationForOutOfLineOffsetConcurrent` (combined ≈10 %, all
+structure-lock or fence-paired) on top of the unavoidable segwalk work.
+30-rep-amortized per-shard cost grows W=8→16 **1.66×**, W=16→32 **1.71×**
+— vs the single-shot **4.5×**, so ~⅔ of the single-shot knee is
+**per-worker FTL warmup of `flattenFlatShards`** (each of W workers
+compiles it independently, paying ~13 ms each — matches §37-R1's
+"pre-warm −25 % only" partial). The §(2) bench fix obviates the entire
+question (no segmented sources → flatten1 is trim-slice ≡ flatten2
+≈64 ms serial / W).
+
+### (3b) flatten1 W>8 knee is the **`pl.X=` PutById write-back**, NOT TA construction — REFUTES §(3) above
+
+§(3)'s perf-slice was taken on `/tmp/r4/bench-flatperf.js`, a 30-rep
+`new Int32Array(pl.docIds)` loop **with no store-back** — so its 5.89 %
+`setButterflyConcurrent` + 2.20 % `findConcurrently` samples were the
+synthetic loop's own work, **not** the real `flattenFlatShards` critical
+path. Four bench-only discriminants on `94fb0ed5` (pinned GIL-off env,
+checksums-don't-care probes) isolate the knee to the three
+`pl.docIds=…; pl.tfs=…; pl.len=…` PutByIds at bench.js:1118-1120:
+
+| variant | body | W=4 | W=8 | W=16 | W=32 | knee? |
+|---|---|---|---|---|---|---|
+| **full** (ref) | `.slice(0,len)` + 3 `pl.X=` puts | — | 29 | 63 | 98 | yes |
+| (a) **noTA** | `pl.X` passthrough (no TA ctor), keep 3 puts | 18 | 22 | 64-73 | 90-97 | **FULL KNEE** |
+| (b) **sum-sink** | drop 3 puts; `__flatSink += docIds.length+tfs.length+len` | — | 10 | 10-13 | 10 | **GONE, flat** |
+| (c) **fixed-64** | `new Int32Array(64)` (FastTypedArray, no segwalk/iter), keep 3 puts | — | 30 | 72 | 88 | **FULL KNEE** |
+| (d) iter-only | puts commented, no sink | — | 2-5 | 2-5 | 2-5 | (DCE artifact) |
+
+(a) removes typed-array construction entirely → knee unchanged. (c)
+removes the segwalk + iterator-protocol path + variable-size Gigacage
+alloc → knee unchanged. (b) removes **only** the three `pl.` PutByIds
+(keeps the reads live via a global `put_to_scope` sink) → knee gone,
+flat 10 ms at W=8-32. The knee is the write-back.
+
+C++ slow-path counts via uprobe, whole run, W=16:
+
+| probe | count | reading |
+|---|---|---|
+| `putDirectInternalConcurrentOutOfLine<PutModePut>` | 165-259 | not the ~196 k flatten1 puts |
+| `llint_slow_path_put_by_id` | 1.6-5.6 k | warm-up only |
+| `operationPutByIdStrictOptimize` | 87-138 | repatch budget |
+| `operationPutByIdStrictGaveUp` | **0** | IC never gives up |
+| `Structure::getConcurrently` | 5.97 M | W-invariant (not flatten1) |
+| `findStructuresAndMapForMaterialization` | ~3.1 k | |
+| `didReplacePropertySlow` | ~100 | |
+| `stopTheWorldAndRun` | 433 (sum-sink: 491) | **STW NOT discriminant** |
+
+The ~196 k flatten1 PutByIds therefore stay on the **JIT IC fast path**
+— no C++ slow-path explosion, no STW delta. The W>8 knee is inside the
+inline-cache fast-path machine code for an existing-slot replace on a
+shared-heap object whose butterfly was allocated by a foreign thread.
+**§(3)'s `setButterflyConcurrent`/`findConcurrently` attribution is the
+wrong call-site; the §(2)-predicted "trim-slice ≡ flatten2 ≈64 ms
+serial / W" did NOT materialise** (W=16 is 63 ms, not 64/16≈4 ms).
+**Redirects all R4 flatten1 finder budget off the TA-ctor / Gigacage /
+iterator-protocol surface** and onto the PutById-replace IC fast path
+under W>8 cross-thread butterfly ownership. estMs ≈ 53 (W=16 full 63 →
+sum-sink 10).
+
+### (4) W=32 50-rep — slow rate 20 %, signature is `ingestHold` bc#223 BadIndexingType (NOT (1))
+
+50-rep sweep (`/tmp/r4/w32-50rep.jsonl`, loadavg 5.8→15.5): **clean
+two-mode**. Fast 40/50: phaseA 378-463 (med 430), total 797-898. Slow
+10/50: phaseA 682-759 (med 720), total 1089-1177. Across all batches
+(50+12+15+12+20 = 109 reps): **28/109 ≈ 26 % slow**.
+
+| mode | phaseA | parks | park/acq | `operationCompileOSRExit` calls |
+|---|---|---|---|---|
+| fast | 411-454 | 262-344 k | 5.6-7.4 % | **32-34 k** |
+| slow | 687-741 | 596-607 k | 12.7-13.0 % | **1.71-1.85 M (54×)** |
+
+`JSC_printEachOSRExit=1` slow-rep histogram (4.98 M lines):
+**1 630 899 × `bc#223 BadIndexingType` in `#AwjwZZ` (FTLFunctionCall, 230
+bc, reoptimizationRetryCounter=2)**; fast-rep same site = **818**.
+`#AwjwZZ` is the `sc.ingestHold` closure body (230 bc, called 4.68 M ×;
+bc#223 is the `pl.tfs.push(...)` ArrayPush site at bench.js:866).
+Mechanism: when FTL compiles `ingestHold` early (before cross-thread
+pushes have driven `pl.docIds`/`pl.tfs` segmented), it speculates a
+contiguous IndexingType; once segmented, every call OSR-exits at bc#223
+inside the held shard lock; after 2 reopt rounds the backoff pins the bad
+FTL for the rest of phaseA (≈35 % of holds × OSR-exit→Baseline body
+≈ +280 ms; downstream park/acq doubles).
+
+**Hold-hoist workaround does NOT collapse it** (8/20 slow at W=32 with
+`/tmp/r4/bench-holdhoist.js`, same ~1.77 M osrexit signature) — (4) is
+**independent of (1)**. The §(2) bench fix (typed-array phaseA storage)
+removes the speculation surface entirely; engine-side, the
+already-landed `forof-tdz-osr-loop` analog applies (after a
+`BadIndexingType` exit on a useJSThreads ArrayPush, recompile with the
+segmented arm widened — currently the FTL re-speculates the same thing).
+
+### (5) W=8 vs W=16 — same residuals, no W-specific term
+
+`perf -F 1997` W=8 (12 K samples) vs W=16 top self:
+
+| symbol | W=8 self% | W=16 self% |
+|---|---|---|
+| `lockProtoFuncHold` | 16.7 | 14.7 |
+| `ButterflySpine::publicLength` | 9.9 | 8.2 |
+| `operationGetByIdGaveUp` | 7.1 | 5.8 |
+| `bumpPublicLengthToAtLeast` | 4.4 | 3.4 |
+| `JSArray::pushInline` | 3.3 | 2.5 |
+| `[k] native_queued_spin_lock_slowpath` | — | 2.5 |
+| `operationCompareStrictEq` | 0.5 | 1.3 |
+
+W=8 gaveup = 4.70 M (W-invariant). **No W=8-specific residual**: the
+71 ms gap to Java is the same three families ((1) Lock-structure gaveup,
+(2) segmented `[].push`, `lockProtoFuncHold` trampoline) at slightly
+*higher* relative weight than W=16 (less futex/idle dilution). The
+W=16-only kernel-spin 2.5 % is the shard-lock collision rate growing,
+not a new mechanism.
+
+### Synthesis (round-4, 1-paragraph)
+
+The §37 `operationGetByIdGaveUp` 4.45 % residual is **not** `sc` going
+dictionary (all 16 `sc` share one non-dictionary Structure): it is
+**`constructLock`/`constructCondition`/`constructThread` allocating a
+fresh Structure on every `new`** (`LockObject.cpp:795`,
+`ConditionObject.cpp:96`, `ThreadObject.cpp:442`), so K=128 shard locks
+present 128 distinct base StructureIDs to the `.hold` GetById, the IC
+hits the 8-case ceiling, megamorphic is disabled under `useJSThreads`,
+and the site repatches to `operationGetByIdGaveUp` permanently
+(W-invariant 4.7 M calls/run, 79 % of which the uprobe traces to the
+shard-lock instances). A one-line bench workaround (`Lock.prototype.hold`
+hoist + `.call`) cuts W=16 phaseA 596→440 ms and total 963→812 ms; the
+**engine fix** is to cache the instance Structure on `JSGlobalObject`
+(flag-on-only code, zero flag-off risk). The 9.8 % segmented-`[].push`
+family is `pl.docIds/pl.tfs` (bench.js:865-866, 9.4 M pushes); it cannot
+be pre-sized but **the existing `ingestWriterHold` geometric-Int32Array
+body** is the drop-in replacement and simultaneously kills (2), the
+flatten1 `new Int32Array(segmented)` path, and the W=32 slow mode. The
+flatten1 W>8 knee perf-slice shows **<0.5 %** in Gigacage/
+ArrayBufferContents/bmalloc — **REFUTES** §37-R4; **but §(3)'s
+`setButterflyConcurrent`/`findConcurrently` attribution is itself
+REFUTED by §(3b)**: four discriminants (noTA / sum-sink / fixed-64 /
+iter-only) show the knee tracks the three `pl.X=` PutById write-backs
+(bench.js:1118-1120) exactly — present with no TA ctor at all, gone
+when only the puts are dropped — and uprobe counts place all ~196 k
+puts on the JIT IC fast path (gaveup=0, STW non-discriminant). The
+§(3) perf-slice had no store-back, so it profiled the wrong loop.
+W=32 is bimodal at **26 %** slow (10/50 in
+the clean sweep): slow-mode signature is **1.63 M `BadIndexingType` OSR
+exits at `ingestHold` bc#223** (the `pl.tfs.push` ArrayPush) vs 818 in
+fast mode — early-FTL speculates contiguous, cross-thread pushes go
+segmented, reopt backoff pins it; **independent of (1)** (hold-hoist
+does not collapse it). W=8's 71 ms-to-Java gap has **no W-specific
+residual** — same three families at higher relative weight.

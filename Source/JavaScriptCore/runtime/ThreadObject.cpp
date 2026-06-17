@@ -32,6 +32,7 @@
 #include "ErrorInstance.h"
 #include "ErrorInstanceInlines.h"
 #include "ExceptionHelpers.h"
+#include "InternalFunction.h" // SCALEBENCH §37 R1: createSubclassStructure for the constructThread newTarget!=callee arm.
 #include "ClassInfo.h"
 #include "JSArray.h"
 #include "JSArrayBufferView.h"
@@ -420,13 +421,21 @@ JSC_DEFINE_HOST_FUNCTION(constructThread, (JSGlobalObject* globalObject, CallFra
     if (callData.type == CallData::Type::None)
         return throwVMTypeError(globalObject, scope, "Thread constructor requires a callable argument"_s);
 
-    // Fetch the prototype BEFORE allocating the ThreadState: this get() can
-    // run JS / throw, and a TS allocated first would leak in
-    // ThreadManager::m_threads as a forever-Running entry (counted against
-    // maxJSThreads, I17). Everything after the allocation is infallible up
-    // to Thread::create.
-    JSValue prototype = callFrame->jsCallee()->get(globalObject, vm.propertyNames->prototype);
-    RETURN_IF_EXCEPTION(scope, { });
+    // SCALEBENCH §37 R1: per-realm cached instance Structure (set in
+    // createThreadProperty). Same fresh-Structure-per-new fix as constructLock
+    // (LockObject.cpp); the load-bearing case is K shard locks but Thread had
+    // the identical bug. The newTarget!=callee arm calls createSubclassStructure
+    // which can run JS / throw — keep it BEFORE allocateSpawnedThreadState so a
+    // throw cannot leak a forever-Running entry in ThreadManager::m_threads
+    // (counted against maxJSThreads, I17). Everything after the allocation is
+    // infallible up to Thread::create. Flag-off this function is unreachable.
+    Structure* structure = globalObject->threadObjectStructure();
+    ASSERT(structure);
+    JSValue newTarget = callFrame->newTarget();
+    if (newTarget != callFrame->jsCallee()) [[unlikely]] {
+        structure = InternalFunction::createSubclassStructure(globalObject, asObject(newTarget), structure);
+        RETURN_IF_EXCEPTION(scope, { });
+    }
 
     // UNGIL U0b (AB-11 migration): the VM-aware overload licenses spawns
     // from the m_gilOff winner VM and refuses loser VMs (null -> RangeError
@@ -439,7 +448,6 @@ JSC_DEFINE_HOST_FUNCTION(constructThread, (JSGlobalObject* globalObject, CallFra
     if (!state)
         return throwVMRangeError(globalObject, scope, "too many live Threads (or thread-ID space exhausted)"_s);
 
-    Structure* structure = JSThread::createStructure(vm, globalObject, prototype.isObject() ? prototype : jsNull());
     JSThread* thread = JSThread::create(vm, structure, Ref { *state });
 
     // Root the cell, the function, and the arguments across the spawn
@@ -657,19 +665,18 @@ JSThread* ensureJSThreadForState(JSGlobalObject* globalObject, ThreadState& stat
 
     VM& vm = globalObject->vm();
 
-    // Resolve the ordinary prototype without running any JS — this path must
+    // Resolve the instance Structure without running any JS — this path must
     // be infallible (the Thread.current getter and the 5.10 first-lazy-Strong
-    // hook both rely on that). The Thread constructor is an own DontEnum data
-    // property of the global object (SPEC-api 9.2-2) and its "prototype" is a
-    // ReadOnly | DontDelete data property, so getDirect is exact; a global
-    // without the constructor installed falls back to a null prototype.
-    JSValue prototype = jsNull();
-    JSValue constructor = globalObject->getDirect(vm, Identifier::fromString(vm, "Thread"_s));
-    if (constructor && constructor.isObject()) {
-        JSValue prototypeValue = asObject(constructor)->getDirect(vm, vm.propertyNames->prototype);
-        if (prototypeValue && prototypeValue.isObject())
-            prototype = prototypeValue;
-    }
+    // hook both rely on that). SCALEBENCH §37 R1: read the per-realm cached
+    // Structure stamped in createThreadProperty (one StructureID per realm
+    // instead of one per call). createThreadProperty is the only installer of
+    // the Thread.current getter and of every other caller of this function, so
+    // under useJSThreads the cache is always populated by the time we run; the
+    // fresh-null-prototype fallback covers the SPEC-api 9.2-2 "global without
+    // the constructor installed" defensive case only.
+    Structure* structure = globalObject->threadObjectStructure();
+    if (!structure) [[unlikely]]
+        structure = JSThread::createStructure(vm, globalObject, jsNull());
 
     // First Strong for a lazy main/embedder ThreadState (tid 0): register the
     // 5.10 finalizer hook here. The Strong pins the cell, so for lazy TSs the
@@ -677,7 +684,7 @@ JSThread* ensureJSThreadForState(JSGlobalObject* globalObject, ThreadState& stat
     // with the JSLock held (5.10 "main/embedder: ~VM" clearing point). An
     // embedder thread exiting early only drops its TLS RefPtr — the hook
     // lambda's Ref keeps the ThreadState alive until then.
-    JSThread* thread = JSThread::create(vm, JSThread::createStructure(vm, globalObject, prototype), Ref { state });
+    JSThread* thread = JSThread::create(vm, structure, Ref { state });
     state.jsThread.set(vm, thread);
     registerThreadStateFinalizer(vm, thread, state);
     return thread;
@@ -981,6 +988,11 @@ JSValue createThreadProperty(VM& vm, JSObject* globalObjectArg)
     prototype->putDirectNativeFunction(vm, globalObject, Identifier::fromString(vm, "join"_s), 0, threadProtoFuncJoin, ImplementationVisibility::Public, NoIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
     prototype->putDirectNativeFunction(vm, globalObject, Identifier::fromString(vm, "asyncJoin"_s), 0, threadProtoFuncAsyncJoin, ImplementationVisibility::Public, NoIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
     prototype->putDirectCustomAccessor(vm, Identifier::fromString(vm, "id"_s), CustomGetterSetter::create(vm, threadIdGetter, nullptr), static_cast<unsigned>(PropertyAttribute::DontEnum | PropertyAttribute::CustomAccessor | PropertyAttribute::ReadOnly));
+
+    // SCALEBENCH §37 R1: stamp the per-realm instance Structure once against
+    // the canonical prototype (mirrors createLockProperty). Only reached
+    // inside the useJSThreads install block.
+    globalObject->setThreadObjectStructure(vm, JSThread::createStructure(vm, globalObject, prototype));
 
     JSFunction* constructor = JSFunction::create(vm, globalObject, 1, "Thread"_s, callThread, ImplementationVisibility::Public, NoIntrinsic, constructThread);
     linkConstructorAndPrototype(vm, constructor, prototype, "Thread"_s);

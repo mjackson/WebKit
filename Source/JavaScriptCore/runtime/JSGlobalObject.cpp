@@ -3798,6 +3798,9 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     visitFunctionStructures(thisObject->m_ordinaryFunctions);
     visitor.append(thisObject->m_boundFunctionStructure);
     visitor.append(thisObject->m_trustedScriptStructure);
+    visitor.append(thisObject->m_lockObjectStructure);
+    visitor.append(thisObject->m_conditionObjectStructure);
+    visitor.append(thisObject->m_threadObjectStructure);
 
     thisObject->m_customGetterFunctionStructure.visit(visitor);
     thisObject->m_customSetterFunctionStructure.visit(visitor);

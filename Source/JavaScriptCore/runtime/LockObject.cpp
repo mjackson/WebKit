@@ -28,6 +28,7 @@
 
 #include "CustomGetterSetter.h"
 #include "ExceptionHelpers.h"
+#include "InternalFunction.h" // SCALEBENCH §37 R1: createSubclassStructure for the constructLock newTarget!=callee arm.
 #include "FunctionCodeBlock.h" // hold-vmEntry-trampoline fast path: codeBlockForCall()->numParameters() / jitCode().
 #include "JITCode.h" // hold-vmEntry-trampoline fast path: jitCode()->addressForCall().
 #include "JSCInlines.h"
@@ -790,9 +791,25 @@ JSC_DEFINE_HOST_FUNCTION(constructLock, (JSGlobalObject* globalObject, CallFrame
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    JSValue prototype = callFrame->jsCallee()->get(globalObject, vm.propertyNames->prototype);
-    RETURN_IF_EXCEPTION(scope, { });
-    Structure* structure = JSLockObject::createStructure(vm, globalObject, prototype.isObject() ? prototype : jsNull());
+    // SCALEBENCH §37 R1: use the per-realm cached instance Structure (set in
+    // createLockProperty). The constructor's "prototype" is ReadOnly|DontDelete
+    // (linkConstructorAndPrototype-style install below), so re-reading it via
+    // jsCallee()->get(prototype) — the old per-call shape — is observably
+    // identical to this cache; the difference is one StructureID instead of one
+    // per `new Lock()`, which keeps the bench's K=128 shard-lock `.hold` GetById
+    // monomorphic instead of permanently GaveUp. Subclassing goes through
+    // InternalFunction::createSubclassStructure so `class L extends Lock {}`
+    // gets the right prototype (the old code never honored newTarget at all —
+    // this is the standard host-constructor pattern). callFrame->newTarget() is
+    // always an object inside a [[Construct]] host function. Flag-off this
+    // function is unreachable (only installed under useJSThreads).
+    Structure* structure = globalObject->lockObjectStructure();
+    ASSERT(structure);
+    JSValue newTarget = callFrame->newTarget();
+    if (newTarget != callFrame->jsCallee()) [[unlikely]] {
+        structure = InternalFunction::createSubclassStructure(globalObject, asObject(newTarget), structure);
+        RETURN_IF_EXCEPTION(scope, { });
+    }
     return JSValue::encode(JSLockObject::create(vm, structure));
 }
 
@@ -1188,6 +1205,15 @@ JSValue createLockProperty(VM& vm, JSObject* globalObjectArg)
     prototype->putDirectNativeFunction(vm, globalObject, Identifier::fromString(vm, "hold"_s), 1, lockProtoFuncHold, ImplementationVisibility::Public, NoIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
     prototype->putDirectNativeFunction(vm, globalObject, Identifier::fromString(vm, "asyncHold"_s), 0, lockProtoFuncAsyncHold, ImplementationVisibility::Public, NoIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
     prototype->putDirectCustomAccessor(vm, Identifier::fromString(vm, "locked"_s), CustomGetterSetter::create(vm, lockLockedGetter, nullptr), static_cast<unsigned>(PropertyAttribute::DontEnum | PropertyAttribute::CustomAccessor | PropertyAttribute::ReadOnly));
+
+    // SCALEBENCH §37 R1: stamp the per-realm instance Structure once, here,
+    // against the canonical prototype just built. constructLock reads this
+    // instead of minting a fresh Structure per `new Lock()` (which made every
+    // shard lock its own StructureID and forced the §37 4.45%
+    // operationGetByIdGaveUp slow-path at the `.hold` call site). This runs
+    // only inside the `if (Options::useJSThreads())` block in
+    // JSGlobalObject::init — flag-off the slot stays null and untouched.
+    globalObject->setLockObjectStructure(vm, JSLockObject::createStructure(vm, globalObject, prototype));
 
     JSFunction* constructor = JSFunction::create(vm, globalObject, 0, "Lock"_s, callLock, ImplementationVisibility::Public, NoIntrinsic, constructLock);
     constructor->putDirect(vm, vm.propertyNames->prototype, prototype, static_cast<unsigned>(PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly));

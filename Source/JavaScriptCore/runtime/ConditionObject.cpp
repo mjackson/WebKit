@@ -27,6 +27,7 @@
 #include "ConditionObject.h"
 
 #include "ExceptionHelpers.h"
+#include "InternalFunction.h" // SCALEBENCH §37 R1: createSubclassStructure for the constructCondition newTarget!=callee arm.
 #include "JSCInlines.h"
 #include "JSLock.h"
 #include "JSPromise.h"
@@ -91,9 +92,18 @@ JSC_DEFINE_HOST_FUNCTION(constructCondition, (JSGlobalObject* globalObject, Call
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    JSValue prototype = callFrame->jsCallee()->get(globalObject, vm.propertyNames->prototype);
-    RETURN_IF_EXCEPTION(scope, { });
-    Structure* structure = JSConditionObject::createStructure(vm, globalObject, prototype.isObject() ? prototype : jsNull());
+    // SCALEBENCH §37 R1: per-realm cached instance Structure (set in
+    // createConditionProperty). See the matching comment in constructLock
+    // (LockObject.cpp) — same fresh-Structure-per-new bug, same monomorphic-IC
+    // fix, same newTarget handling via createSubclassStructure. Flag-off this
+    // function is unreachable.
+    Structure* structure = globalObject->conditionObjectStructure();
+    ASSERT(structure);
+    JSValue newTarget = callFrame->newTarget();
+    if (newTarget != callFrame->jsCallee()) [[unlikely]] {
+        structure = InternalFunction::createSubclassStructure(globalObject, asObject(newTarget), structure);
+        RETURN_IF_EXCEPTION(scope, { });
+    }
     return JSValue::encode(JSConditionObject::create(vm, structure));
 }
 
@@ -460,6 +470,11 @@ JSValue createConditionProperty(VM& vm, JSObject* globalObjectArg)
     prototype->putDirectNativeFunction(vm, globalObject, Identifier::fromString(vm, "asyncWait"_s), 1, conditionProtoFuncAsyncWait, ImplementationVisibility::Public, NoIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
     prototype->putDirectNativeFunction(vm, globalObject, Identifier::fromString(vm, "notify"_s), 0, conditionProtoFuncNotify, ImplementationVisibility::Public, NoIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
     prototype->putDirectNativeFunction(vm, globalObject, Identifier::fromString(vm, "notifyAll"_s), 0, conditionProtoFuncNotifyAll, ImplementationVisibility::Public, NoIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
+
+    // SCALEBENCH §37 R1: stamp the per-realm instance Structure once against
+    // the canonical prototype (mirrors createLockProperty). Only reached
+    // inside the useJSThreads install block.
+    globalObject->setConditionObjectStructure(vm, JSConditionObject::createStructure(vm, globalObject, prototype));
 
     JSFunction* constructor = JSFunction::create(vm, globalObject, 0, "Condition"_s, callCondition, ImplementationVisibility::Public, NoIntrinsic, constructCondition);
     constructor->putDirect(vm, vm.propertyNames->prototype, prototype, static_cast<unsigned>(PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly));

@@ -104,7 +104,12 @@ public:
     // OK to use on new arrays, but not if it might be a RegExpMatchArray or RuntimeArray.
     JS_EXPORT_PRIVATE bool setLength(JSGlobalObject*, unsigned, bool throwException = false);
 
-    void pushInline(JSGlobalObject*, JSValue);
+    // pushinline-publen-bump-alwaysinline-defeated-ool: ALWAYS_INLINE on the
+    // declaration too — the JSArrayInlines.h definition already carried it but
+    // nm showed an out-of-line `t` symbol with all 5 operationArrayPush* in the
+    // DFGOperations unified TU calling it out-of-line; the declaration/
+    // definition attribute mismatch let the unified-source TU emit a body.
+    ALWAYS_INLINE void pushInline(JSGlobalObject*, JSValue);
     JS_EXPORT_PRIVATE void push(JSGlobalObject*, JSValue);
     JS_EXPORT_PRIVATE JSValue pop(JSGlobalObject*);
     JSValue fastShift(VM&);

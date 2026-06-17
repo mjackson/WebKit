@@ -734,6 +734,22 @@ public:
     const JSGlobalObject* m_globalObjectAtDebuggerEntry { nullptr };
 #endif
 
+    // THREADS (SCALEBENCH §37 R1): per-realm cached instance Structures for the
+    // Thread/Lock/Condition host constructors. Before this cache, constructLock
+    // (and friends) called JSLockObject::createStructure on EVERY `new Lock()`,
+    // so K shard locks => K distinct base StructureIDs at the
+    // `shards[s].lock.hold(...)` GetById; after 8 AccessCases the IC hits
+    // maxAccessVariantListSize, the megamorphic fold is gated off under
+    // useJSThreads (MegamorphicCache fills are no-ops, MegamorphicCache.h), so
+    // addAccessCase returns GaveUp and Repatch.cpp permanently repatches the
+    // slow-path to operationGetByIdGaveUp (4.45% W=16 self). With one cached
+    // Structure per realm the IC stays monomorphic. Only ever set inside the
+    // `if (Options::useJSThreads())` install block in init(), so flag-off these
+    // stay null and untouched (no JIT-baked offsets live past this point).
+    WriteBarrierStructureID m_lockObjectStructure;
+    WriteBarrierStructureID m_conditionObjectStructure;
+    WriteBarrierStructureID m_threadObjectStructure;
+
     const GlobalObjectMethodTable* m_globalObjectMethodTable;
 
     inline void createRareDataIfNeeded();
@@ -1043,6 +1059,16 @@ public:
     Structure* proxyObjectStructure() const { return m_proxyObjectStructure.get(this); }
     Structure* callableProxyObjectStructure() const { return m_callableProxyObjectStructure.get(this); }
     Structure* proxyRevokeStructure() const { return m_proxyRevokeStructure.get(this); }
+    // THREADS: see m_lockObjectStructure above. Set once from
+    // create{Lock,Condition,Thread}Property under Options::useJSThreads();
+    // never read flag-off (the host constructors that read them are only
+    // installed under the same flag).
+    Structure* lockObjectStructure() const { return m_lockObjectStructure.get(); }
+    Structure* conditionObjectStructure() const { return m_conditionObjectStructure.get(); }
+    Structure* threadObjectStructure() const { return m_threadObjectStructure.get(); }
+    void setLockObjectStructure(VM& vm, Structure* structure) { m_lockObjectStructure.set(vm, this, structure); }
+    void setConditionObjectStructure(VM& vm, Structure* structure) { m_conditionObjectStructure.set(vm, this, structure); }
+    void setThreadObjectStructure(VM& vm, Structure* structure) { m_threadObjectStructure.set(vm, this, structure); }
     Structure* disposableStackStructure() const { return m_disposableStackStructure.get(this); }
     Structure* asyncDisposableStackStructure() const { return m_asyncDisposableStackStructure.get(this); }
     Structure* restParameterStructure() const { return arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous); }

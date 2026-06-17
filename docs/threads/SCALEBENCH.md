@@ -2610,3 +2610,184 @@ faster than §36's fast band).
 6. **`forof-tdz-osr-loop` still `useJSThreads()`-gated** (evidence §(5)):
    un-gating is a flag-off DFG/FTL codegen change under the byte-identical
    LAW; not chartered without an explicit reviewer ruling.
+
+## §38 flat-gap-bughunter round 4
+
+Tree `94fb0ed54cf6` + worktree delta below; Release jsc sha256
+`7b6ac702834c48b4…`, Debug `a8a0ec9a62f6f787…`. Pinned GIL-off env, 64 HW
+threads, loadavg 2.36–8.50 across the matrix. Evidence pack:
+`docs/threads/FLAT-GAP-EVIDENCE.md` round 4 (§(1) Lock-structure GaveUp
+attribution + lockmicro / §(2) segmented-push family / §(3b) flatten1-knee
+PutById-writeback discriminant / §(4) W=32 50-rep BadIndexingType / §(5)
+W=8-vs-16 same-residuals). Raw `results-v42ab-raw.jsonl` (36 records,
+**2 nonzero rc** — see correctness regression below). Driver `v42_ab.sh` /
+`v42_analyze.py`.
+
+### Survivor list (changes that landed this round)
+
+| target | file | what it does | flag-off effect |
+|---|---|---|---|
+| **lock-condition-thread-cached-instance-structure** (§37 R1) | `runtime/{LockObject,ConditionObject,ThreadObject,JSGlobalObject}.{cpp,h}` | `construct{Lock,Condition,Thread}` minted a fresh Structure on every `new`, so K=128 shard locks presented 128 distinct StructureIDs at the `.hold` GetById; >8 cases → GiveUpOnCache → permanent `operationGetByIdGaveUp` (4.45 % W=16 self, 4.7 M calls W-invariant). Now one cached Structure per realm (set in `create{Lock,Condition,Thread}Property`, visited in `visitChildrenImpl`), with `newTarget!=callee` → `InternalFunction::createSubclassStructure` for `class L extends Lock` correctness. | Members + setters only reached inside the `useJSThreads()` install block; flag-off the three `WriteBarrierStructureID`s sit null-and-unread after the last `offsetOf*` the JIT bakes — flag-off byte-identical. |
+| **operationGetByIdPerThreadMegamorphic** (AUD1.K4 II.19 / A16-ext) | `bytecode/Repatch.cpp`, `runtime/MegamorphicCache.{h,cpp}`, `bytecode/InlineCacheCompiler.cpp`, `runtime/VMLite.cpp` | Per-thread MegamorphicCache side-table (IE-TLS `thread_local` + process registry). `tryFoldToMegamorphic` STAYS refused gilOff (inline probe still bakes VM-singular addr); `appropriateGetByGaveUpFunction(ById)` routes the GaveUp slot to a C++ 2-probe-hash + offset-load against the per-thread cache. `bumpEpoch`/`age()` release-bump a singular `m_perThreadInvalidationGen`; per-thread probe acquire-refreshes before trusting an entry; Full-GC fans out a world-stopped `clearEntries` over the registry. | `useJSThreads()` predicted-false dead branch in `appropriateGetByGaveUpFunction` and `bumpEpoch`; new members sit after every `offsetOf*` the inline probe consults — flag-off byte-identical. **CORRECTNESS REGRESSION — see below.** |
+| **phaseA-ingestHold-born-int32array-kills-segpush** | `bench.js` | `sc.ingestHold` body ≡ `sc.ingestWriterHold` (geometric-doubling Int32Array appends, born typed). Removes all 9.36 M segmented `[].push` (the 15.9 % W=16 family), collapses flatten1 to the trim-slice arm only, removes the W=32 `bc#223 BadIndexingType` speculation surface. Same `{docIds,tfs,len}` inlineCapacity=3 shape → wrapper Structure-monomorphic; data identical → flat checksum unchanged. Direct A/B 3-rep med W=16 phaseA 461→350 / total 823→706; W=32 10-rep slow-mode 2/10→0/10. | Flat-arm only. |
+| **pushinline-publen-bump-alwaysinline-defeated-ool** | `runtime/JSArray.h`, `runtime/JSArrayInlines.h` | `nm` showed `pushInline`/`publicLength`/`bumpPublicLengthToAtLeast` as out-of-line `t` in the DFGOperations unified TU (declaration/definition `ALWAYS_INLINE` mismatch). Hand-expand the spine→frag0→lengthWord chain + CAS-max bump in-place, load `ool` + `frags[]` once, derive frag0/frag[idx] from locals. Semantics verbatim. | Reached only via `isSegmentedButterfly(word)` arm (useJSThreads-only); flag-off codegen byte-identical. |
+| **cs1-sum-ushr0-to-bitor0** (§37 R3) | `bench.js` | `(sum + mix32(item)) >>> 0` → `\| 0` (coerce back to uint32 once at return): the `>>> 0` emitted `op_unsigned`→`UInt32ToNumber` whose checked form Overflow-exits at bc#363 once bit 31 sets, costing 3 DFG installs + 2 reopt rounds before FTL. Bits identical mod 2^32. W=16 5-rep cs1 67→35 ms; checksumA/A2 unchanged. | Flat-arm only. |
+| **flatten2-serial-thread0-not-striped-java-pays-ze** | `bench.js` | Post-phaseB re-normalize was serial on thread 0 (62-66 ms W-flat) while flatten1 was already W-striped; same `flattenFlatShards(id, W)` between barriers. W=8 62.6→21.2; W>8 hits the same PutById-writeback knee (residual 2). | Flat-arm only. |
+
+### JS-flat wall ms vs Java / Go (3-rep medians; Go/Java from §34, Go `GOGC=off` floor from §37)
+
+| W | **JS-flat ms** | Java ms | Go ms | Go floor | JS/Java | JS/Go | JS/floor | §37 JS-flat | Δ vs §37 |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | **1681** | 1974 | 1836 | — | **0.85×** | **0.92×** | — | 3759 | **−55 %** |
+| 8 | **465** | 939 | 535 | — | **0.50×** | **0.87×** | — | 1010 | **−54 %** |
+| 16 | **485** | 976 | 422 | 354 | **0.50×** | **1.15×** | **1.37×** | 872 | **−44 %** |
+| 32 | **491** | 1022 | 378 | — | **0.48×** | 1.30× | — | 870 | **−44 %** |
+
+W=16 reps {468, 485, 491}; W=8 {463, 465, 466}; W=32 {471, 491, 503}; W=1
+{1668, 1681, 1727}. All 24 flat reps + smoke rc=0; every rep matches the
+flat reference `686d6890|4154468|0fbbd673|3af6b072|e1d22021`. Loadavg
+2.36–2.48 across the flat cells.
+
+**JS-flat now BEATS Java at every W (0.48–0.85×) and BEATS Go at W=1 and
+W=8.** At W=16 JS is 1.15× Go and 1.37× the `GOGC=off` zero-GC AOT floor
+(Java is 2.31× that floor, Go itself 1.19×). W=8→W=16 marginal scaling is
+NEGATIVE (+20 ms) — the parallel work is below the W>8 knee floor (residual
+2) plus serial cs1/cs2/buildDfSnap (~60 ms W-invariant).
+
+Residual W=16 wall composition (median rep): phaseA 179 + flatten1 50 +
+flattenGC 7 + cs1 36 + buildDfSnap ~7 + phaseB 82 + flatten2 57 + cs2 18 +
+phaseC/csC ~36 ≈ 472 ms (peak RSS 285 MB). The phaseA drop (474→179, −62 %)
+is the cached-Lock-structure fix + born-Int32Array ingestHold; the
+segmented-push family and `operationGetByIdGaveUp` are GONE from `perf`.
+
+`perf -F 1997` W=16 top self (round-4 binary, ~6 K samples):
+
+| self% | symbol | reading |
+|---|---|---|
+| 15.87 | `lockProtoFuncHold` | hold-trampoline body (uncontended tryLock + JS re-entry) |
+| ~10 | `[JIT]` (FTL hold-callback bodies) | the actual ingestHold/ingestWriterHold work |
+| 2.33 | `operationCompareStrictEq` | string `===` (term keys; Map.get internals) |
+| 2.31 | `WTF::LockAlgorithm::lockSlow` | shard-lock park (W>8 collision rate) |
+| 2.25 | `JSGenericTypedArrayView<Int32>::setFromTypedArray` | flatten1/2 `.slice` memcpy |
+| 1.71 | `Heap::writeBarrierSlowPath` | |
+| 1.35 | `Heap::addToRememberedSet` | |
+| 1.05 | `operationGetByIdPerThreadMegamorphic` | the K4.II.19 routing (was `operationGetByIdGaveUp` 4.45 %) |
+| **0** | `ButterflySpine::publicLength` / `JSArray::pushInline` / `bumpPublicLengthToAtLeast` | **§37's 9.8 % family GONE** |
+| **0** | `operationGetByIdGaveUp` | **§37 R1 GONE** |
+
+### Slower-arm re-baseline (default + intcs, GIL-off) — **CORRECTNESS REGRESSION**
+
+| arm | W | wall ms (med) | rc=0 reps | reference tuple | §37 |
+|---|---|---|---|---|---|
+| default | 1 | 18 914 | **3/3** | `b3e65a68…\|4158957\|39c33392…\|c4bdd580…\|af028188…` ✓ | 20 313 |
+| default | 16 | 11 472 † | **2/3** | ✓ (both passing reps) | 13 395 |
+| intcs | 1 | 14 480 | **3/3** | `8021f000\|4158957\|1fc7d941\|…` ✓ | 16 167 |
+| intcs | 16 | 7 817 † | **2/3** | ✓ (both passing reps) | 7 901 |
+
+† **rc=3 `RangeError: Not an integer` at `BigInt(g.df)`
+(`checksumPhaseC`, bench.js:617:23): default W=16 1/3 + intcs W=16 1/3 in
+the matrix; +5/8 in an extra default-W=16 sweep = 6/11 fail rate.** §37 had
+36/36 rc=0 — this is a round-4 engine regression.
+
+**Discriminant**: with `appropriateGetByGaveUpFunction(ById)`'s
+`operationGetByIdPerThreadMegamorphic` routing temporarily forced false
+(single-TU rebuild, sha-restored after), default W=16 passes **8/8** with
+`checksumC=af028188…`. With the routing live, **5–6/8 fail**. The
+per-thread MegamorphicCache is the cause.
+
+**Mechanism (deduced, not yet directly probed)**: `g.df += df` where
+`df = p.docIds.length` (bench.js:583). In the default arm `p.docIds`
+JSArrays present >8 StructureIDs at the `.length` GetById (cross-thread
+indexing-type/segmented transitions), the IC reaches GiveUpOnCache, routes
+to `operationGetByIdPerThreadMegamorphic`. Its miss-walk EXEMPTS
+`ArrayType` from the `overridesGetOwnPropertySlot` branch (Repatch.cpp:653,
+verbatim from `getByIdMegamorphic` in JITOperations.cpp) and falls to
+`getOwnNonIndexPropertySlot` — which does NOT see IndexingHeader `.length`.
+The walk then reaches the null proto, calls `cache.initAsMiss(S, "length")`,
+and the next probe returns `jsUndefined()`. `g.df += undefined` → NaN →
+`BigInt(NaN)` → `RangeError: Not an integer`. Upstream
+`getByIdMegamorphic` shares the same walk shape but is reached only via the
+`LoadMegamorphic` fold, which `tryFoldToMegamorphic` REFUSES when the case
+list contains `ArrayLength` cases — so upstream never feeds an array
+`.length` to that walk. Round-4's GaveUp-slot routing has no such filter.
+The flat arm is unaffected (its `.length` reads are on Int32Array, JSType
+`Int32ArrayType`, which IS caught by the `overridesGetOwnPropertySlot`
+branch and not mis-cached). **This is a wrong-value-read, not a crash —
+correctness > speed; the routing must not ship as-is.**
+
+### W=32 stability (12 reps, post-round-4)
+
+12/12 rc=0, all ref-match; total **465–498 ms (med 481, 6.9 % spread)**.
+phaseA sorted: {176, 177, 178, 187, 191, 193, 196, 197, 200, 203, 205, 206}
+— **0/12 slow-mode**, single 30 ms band. With born-Int32Array ingestHold
+the §37-R5 / evidence-§(4) `bc#223 BadIndexingType` slow mode is
+structurally removed; 15-rep total (3+12) shows 0 slow.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug `a8a0ec9a…`, pinned env) | **93 passed, 1 FAILED, 4 skipped** — `objectmodel/i03-quarantine-readd-across-gc.js` ASAN SEGV in `MachineThreads::tryCopyCooperativelyParkedThreadStack` (3/5 flaky on direct re-run); §37 was 94/0/4 |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| Default-arm reference tuple unchanged (passing reps) | **PASS** (5/5) |
+| intcs-arm reference tuple unchanged (passing reps) | **PASS** (5/5) |
+| Flat-arm checksum stable (all W, all reps incl. stability) | **PASS** (`686d6890\|4154468\|0fbbd673\|3af6b072\|e1d22021`, 24/24) |
+| W=32 stability (12 reps) | **12/12 rc=0**, 465–498 ms, 6.9 % spread, **0/12 slow-mode** |
+| All matrix reps rc=0 | **FAIL** (34/36; +5/8 extra default W=16) |
+| **JS-flat W=16 wall < 800 ms** (round-4 target) | **PASS — 485 ms** (0.50× Java, 1.15× Go) |
+| **JS-flat W=8 wall < 939 ms** (beat Java) | **PASS — 465 ms** (0.50× Java) |
+
+**Round-4 net: both perf targets cleared by ~40 % margin; two correctness
+gates RED (corpus GIL-off 1 fail; matrix 2/36 rc≠0), both attributable to
+the per-thread MegamorphicCache routing.** verified=false.
+
+### Honest residuals
+
+1. **`operationGetByIdPerThreadMegamorphic` returns wrong values for
+   non-property-table own slots on exempted JSTypes** (the regression
+   above). The GaveUp-slot routing must filter on the same conditions
+   `tryFoldToMegamorphic`'s case-list check enforces (all-Load/Miss, no
+   ArrayLength/StringLength/CustomAccessor cases) — or the miss-walk's
+   ArrayType exemption must call `getNonIndexPropertySlot` (virtual) before
+   declaring a miss. The cached-Lock-structure half of R1 stands on its
+   own; with the routing reverted the K=128 `.hold` site is monomorphic
+   anyway (0 GaveUp), so the routing's W=16 contribution is the residual
+   1.05 % at OTHER >8-structure ById sites. **Next round: gate the routing
+   behind a per-PropertyInlineCache "all cases were Load/Miss" bit set at
+   GiveUp time, or revert the routing and keep only the structure cache.**
+2. **flatten1/flatten2 W>8 PutById-writeback knee** (evidence §(3b)):
+   flatten1 {W=8 19, W=16 50, W=32 11} ms, flatten2 {17, 57, 84} ms — both
+   now W-striped, both show the W>8 knee on the three `pl.X=` existing-slot
+   replaces (foreign-thread-allocated butterfly). flatten1 W=32 is FAST
+   because the born-Int32Array fix means trim-slice is exact-sized for ~all
+   phaseA pl (no `.set` copy); flatten2 W=32 is SLOW because phaseB
+   geometric-grew. ~50 ms W=16 ceiling; no engine fix landed (the §(3b)
+   discriminant only just attributed it). All 196 k puts on the JIT IC fast
+   path (uprobe gaveup=0, STW non-discriminant) — investigation surface is
+   the inline replace-store fence/coherence under W>8 cross-thread
+   ownership.
+3. **`lockProtoFuncHold` 15.9 % W=16 self** — the host-function trampoline
+   body is now the SINGLE largest cost. The hold-callback FTL body cannot
+   inline through the native frame; the round-2 hold-vmEntry-trampoline
+   fast path already shortcuts `executeCallImpl`, so the residual is the
+   tryLock + getCallData + arg marshalling. Next lever: a `.hold` intrinsic
+   (DFG/FTL recognize `LockProtoFuncHoldIntrinsic`, emit tryLock inline,
+   fall to C only on contention) — codegen change, deferred.
+4. **W=8→W=16 negative scaling** (465→485 ms): serial cs1/cs2/buildDfSnap
+   ~60 ms W-invariant + the W>8 flatten knee (~+85 ms vs W=8) outweigh the
+   phaseA/B parallel gain (~−60 ms). Not a regression — the workload's
+   parallel fraction at W=16 is now ~40 % of wall.
+5. **Corpus `i03-quarantine-readd-across-gc.js` 3/5 SEGV** in
+   `MachineThreads::tryCopyCooperativelyParkedThreadStack` (Debug ASAN).
+   Distinct signature from the bench RangeError (GC-time stack-copy READ
+   fault, not a JS-value error). Round-4 candidates: the per-thread
+   MegamorphicCache `thread_local` holder's destructor unregistering during
+   a stack copy, OR the registry-walk in `age()` racing the world-stop
+   bookkeeping. **NOT discriminated** this round (Debug rebuild not
+   re-spun); flagged for the same revert-routing test.
+6. **cs1 35 ms vs cs2 18 ms** — the `|0` fix removed the bc#363 Overflow
+   reopt loop, but ~17 ms first-call FTL install remains. Below the
+   noise floor for further bench-side work.
+7. **`forof-tdz-osr-loop` still `useJSThreads()`-gated** per Jarred's
+   ruling; unchanged this round.
