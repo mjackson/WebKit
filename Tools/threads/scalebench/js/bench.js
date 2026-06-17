@@ -105,6 +105,28 @@ const N_BASE = isSmoke() ? N_BASE_SMOKE : N_BASE_DEFAULT;
 // spec-exact BigInt path runs and the b3e65a68… reference tuple is unchanged.
 const INTCS = shellArgs.indexOf("intcs") >= 1;
 
+// SCALEBENCH §40 bisect arms — both compose with the intcs 32-bit base
+// (next32/mix32/fnv1a32/docSeedI/qSeedI/pickTermI/shardOfI), both opt-in,
+// both produce a NEW cross-language checksum reference. Either flag forces
+// the intcs numeric base; neither composes with FLAT.
+//
+//   noconcat: is genDoc-concat → tokenize the cost? genDocTermsI returns the
+//     term STRINGS directly (skip building doc text + tokenizing it back).
+//     Everything downstream of the token list — tf Map<string>, shardOfI,
+//     shard.map.get/set, queries, phaseC — is byte-identical to intcs.
+//
+//   nomap: is Map<string>.get/set the cost? Full string round-trip KEPT
+//     (genDocTextI → tokenize), but every Map<string> lookup is replaced
+//     with a direct integer index: invTermOf(token) base26-decodes back to
+//     termId; per-doc tf is an Int32Array(V)+dirty-list (flat-arm shape);
+//     per-term storage is a global V-slot array nmPost[termId] (NOT a
+//     Map<string>); shardOf is still fnv1a32(term)%K via a precomputed
+//     nmShardOf[V] table so the lock-contention pattern matches intcs
+//     exactly. Queries/phaseC walk by termId; termOf(id) is rebuilt only
+//     for the phaseC topN join string.
+const NOCONCAT = shellArgs.indexOf("noconcat") >= 1;
+const NOMAP = shellArgs.indexOf("nomap") >= 1;
+
 // SCALEBENCH flat arm (§34 discriminant — "if TC39 stage-2 structs were
 // implemented and used effectively"): `bench.js -- W flat` runs the SAME
 // concurrency surface (W Threads, K shard Locks, the barrier, the Atomics
@@ -842,6 +864,365 @@ function phaseBI(id) {
         Atomics.add(counters, "queriesDone", 1);
     }
     partialBI[id] = cs;
+}
+
+// ---------------------------------------------------------------------------
+// §40 NOCONCAT ARM — intcs base with the genDocTextI→tokenize round-trip
+// removed: genDocTermsI emits the term strings directly.
+// ---------------------------------------------------------------------------
+function genDocTermsI(d) {
+    const p = { s: docSeedI(d) };
+    const titleLen = 5 + (next32(p) % 8);
+    const bodyLen = 80 + (next32(p) % 121);
+    const n = titleLen + bodyLen;
+    const toks = [];
+    for (let j = 0; j < n; ++j)
+        toks.push(termOf(pickTermI(p)));
+    return toks;
+}
+
+function ingestDocNC(d) {
+    const toks = genDocTermsI(d);
+    const tf = new Map();
+    for (let i = 0; i < toks.length; ++i) {
+        const t = toks[i];
+        const cur = tf.get(t);
+        tf.set(t, cur === undefined ? 1 : cur + 1);
+    }
+    for (const [term, count] of tf) {
+        const shard = shards[shardOfI(term)];
+        shard.lock.hold(() => {
+            let pl = shard.map.get(term);
+            if (pl === undefined) {
+                pl = { docIds: [], tfs: [] };
+                shard.map.set(term, pl);
+            }
+            pl.docIds.push(d);
+            pl.tfs.push(count);
+        });
+    }
+    Atomics.add(counters, "tokensProcessed", toks.length);
+    Atomics.add(counters, "docsIngested", 1);
+}
+
+function phaseANC() {
+    for (;;) {
+        const d = Atomics.add(counters, "nextDoc", 1);
+        if (d >= N_BASE)
+            break;
+        ingestDocNC(d);
+    }
+}
+
+function phaseBNC(id) {
+    const dfSnap = published.dfSnap;
+    let cs = 0;
+    for (;;) {
+        const q = Atomics.add(counters, "nextOp", 1);
+        if (q >= N_QUERIES)
+            break;
+        if (q % WRITER_MOD === 0) {
+            ingestDocNC(N_BASE + q / WRITER_MOD);
+            Atomics.add(counters, "writesDone", 1);
+            continue;
+        }
+        const p = { s: qSeedI(q) };
+        const kind = next32(p) % 10;
+        let perQueryHash;
+        if (kind <= 3)
+            perQueryHash = queryPointI(p);
+        else if (kind <= 7)
+            perQueryHash = queryAndI(p);
+        else
+            perQueryHash = queryScoredI(p, dfSnap);
+        cs = (cs + mix32(($imul(q, GOLDEN32) ^ perQueryHash) >>> 0)) >>> 0;
+        Atomics.add(counters, "queriesDone", 1);
+    }
+    partialBI[id] = cs;
+}
+
+// ---------------------------------------------------------------------------
+// §40 NOMAP ARM — intcs base with every Map<string> lookup replaced by a
+// direct integer index. Full string round-trip (genDocTextI → tokenize) KEPT.
+// ---------------------------------------------------------------------------
+
+// invTermOf: base26-decode the lowercased token back to its termId.
+// termOf(i) = "t" + base26(i) MSD-first, so strip the leading 't' and fold.
+function invTermOf(s) {
+    let r = 0;
+    for (let i = 1; i < s.length; ++i)
+        r = r * 26 + (s.charCodeAt(i) - A_CODE);
+    return r;
+}
+
+// firstLetterIdx: index (0..25) of term.charAt(1), i.e. the most-significant
+// base26 digit of termId — computed without building the string.
+function firstLetterIdx(t) {
+    let x = t;
+    while (x >= 26) x = (x / 26) | 0;
+    return x;
+}
+
+// nmShardOf[t] = fnv1a32(termOf(t)) % K, precomputed once so queries never
+// rebuild a term string just to find its shard lock. Same lock-contention
+// pattern as intcs by construction.
+const nmShardOf = NOMAP ? new Int32Array(V) : null;
+const nmPost = NOMAP ? new Array(V) : null; // nmPost[t] = {docIds:[], tfs:[]} | undefined
+if (NOMAP) {
+    for (let t = 0; t < V; ++t)
+        nmShardOf[t] = fnv1a32(termOf(t)) % K;
+}
+
+// Per-worker scratch (allocated ON the worker thread): tf accumulator +
+// dirty-list, flat-arm shape.
+const nmScratch = [];
+for (let i = 0; i < W; ++i) nmScratch.push(null);
+function makeNMScratch() {
+    return { tf: new Int32Array(V), dirty: new Int32Array(256) };
+}
+
+function ingestDocNM(d, sc) {
+    const text = genDocTextI(d);          // full string concat KEPT
+    const toks = tokenize(text);          // full tokenize KEPT
+    const tf = sc.tf, dirty = sc.dirty;
+    let nDirty = 0;
+    for (let i = 0; i < toks.length; ++i) {
+        const t = invTermOf(toks[i]);
+        if (tf[t] === 0) dirty[nDirty++] = t;
+        tf[t]++;
+    }
+    for (let k = 0; k < nDirty; ++k) {
+        const t = dirty[k];
+        const count = tf[t];
+        tf[t] = 0;
+        const shard = shards[nmShardOf[t]];
+        shard.lock.hold(() => {
+            let pl = nmPost[t];
+            if (pl === undefined) {
+                pl = { docIds: [], tfs: [] };
+                nmPost[t] = pl;
+            }
+            pl.docIds.push(d);
+            pl.tfs.push(count);
+        });
+    }
+    Atomics.add(counters, "tokensProcessed", toks.length);
+    Atomics.add(counters, "docsIngested", 1);
+}
+
+function phaseANM(id) {
+    if (nmScratch[id] === null)
+        nmScratch[id] = makeNMScratch();
+    const sc = nmScratch[id];
+    for (;;) {
+        const d = Atomics.add(counters, "nextDoc", 1);
+        if (d >= N_BASE)
+            break;
+        ingestDocNM(d, sc);
+    }
+}
+
+// checksumA over (termId, docId, tf) via mix32 — no string hash.
+function postingsChecksumNM() {
+    let sum = 0, postings = 0;
+    for (let t = 0; t < V; ++t) {
+        const pl = nmPost[t];
+        if (pl === undefined) continue;
+        const th = mix32(t);
+        const docIds = pl.docIds, tfs = pl.tfs, n = docIds.length;
+        postings += n;
+        for (let i = 0; i < n; ++i) {
+            const item = (th
+                ^ ($imul(docIds[i], 0xd6e8feb9) >>> 0)
+                ^ ($imul(tfs[i], 0xcaaf00dd) >>> 0)) >>> 0;
+            sum = (sum + mix32(item)) | 0;
+        }
+    }
+    return { sum: BigInt(sum >>> 0), postings };
+}
+
+function buildDfSnapNM() {
+    const df = new Int32Array(V);
+    for (let t = 0; t < V; ++t) {
+        const pl = nmPost[t];
+        if (pl !== undefined) df[t] = pl.docIds.length;
+    }
+    return df;
+}
+
+function copyPostingsNM(t) {
+    const shard = shards[nmShardOf[t]];
+    let docIds = null, tfs = null;
+    shard.lock.hold(() => {
+        const pl = nmPost[t];
+        if (pl !== undefined) {
+            docIds = pl.docIds.slice();
+            tfs = pl.tfs.slice();
+        }
+    });
+    return docIds === null ? { docIds: [], tfs: [] } : { docIds, tfs };
+}
+
+function queryPointNM(p) {
+    const t = pickTermI(p);
+    const shard = shards[nmShardOf[t]];
+    let df = 0, sumTf = 0;
+    shard.lock.hold(() => {
+        const pl = nmPost[t];
+        if (pl !== undefined) {
+            for (let i = 0; i < pl.docIds.length; ++i) {
+                if (pl.docIds[i] < N_BASE) { df++; sumTf += pl.tfs[i]; }
+            }
+        }
+    });
+    return mix32((mix32(t) ^ $imul(df, 0x9e37) ^ sumTf) >>> 0);
+}
+
+function queryAndNM(p) {
+    const nTerms = 2 + (next32(p) % 2);
+    const lists = [];
+    for (let i = 0; i < nTerms; ++i)
+        lists.push(copyPostingsNM(pickTermI(p)));
+    const cand = new Map();
+    const first = lists[0];
+    for (let i = 0; i < first.docIds.length; ++i) {
+        const d = first.docIds[i];
+        if (d < N_BASE) cand.set(d, 1);
+    }
+    for (let k = 1; k < nTerms; ++k) {
+        const list = lists[k];
+        for (let i = 0; i < list.docIds.length; ++i) {
+            const d = list.docIds[i];
+            if (d < N_BASE && cand.get(d) === k) cand.set(d, k + 1);
+        }
+    }
+    let matchSum = 0, matchCount = 0;
+    for (const [d, c] of cand) {
+        if (c === nTerms) { matchSum = (matchSum + mix32(d)) >>> 0; matchCount++; }
+    }
+    return (mix32(matchSum) ^ matchCount) >>> 0;
+}
+
+function queryScoredNM(p, dfSnap) {
+    const nTerms = 2 + (next32(p) % 2);
+    const cand = new Map();
+    for (let k = 0; k < nTerms; ++k) {
+        const t = pickTermI(p);
+        const df = dfSnap[t];
+        const idf = df === 0 ? 0 : ((N_BASE * 1000 / df) | 0);
+        const list = copyPostingsNM(t);
+        for (let i = 0; i < list.docIds.length; ++i) {
+            const d = list.docIds[i];
+            if (d < N_BASE) {
+                const cur = cand.get(d);
+                const add = $imul(list.tfs[i], idf) >>> 0;
+                cand.set(d, cur === undefined ? add : (cur + add) >>> 0);
+            }
+        }
+    }
+    const entries = [];
+    for (const [d, score] of cand)
+        entries.push({ d, score });
+    entries.sort((a, b) => {
+        if (a.score !== b.score) return a.score > b.score ? -1 : 1;
+        return a.d - b.d;
+    });
+    const top = entries.length < TOPN ? entries : entries.slice(0, TOPN);
+    let h = 0x811c9dc5 >>> 0;
+    for (let i = 0; i < top.length; ++i) h = fnvU32LE(h, top[i].d);
+    for (let i = 0; i < top.length; ++i) h = fnvU32LE(h, top[i].score);
+    return h;
+}
+
+function phaseBNM(id) {
+    const sc = nmScratch[id];
+    const dfSnap = published.dfSnap;
+    let cs = 0;
+    for (;;) {
+        const q = Atomics.add(counters, "nextOp", 1);
+        if (q >= N_QUERIES)
+            break;
+        if (q % WRITER_MOD === 0) {
+            ingestDocNM(N_BASE + q / WRITER_MOD, sc);
+            Atomics.add(counters, "writesDone", 1);
+            continue;
+        }
+        const p = { s: qSeedI(q) };
+        const kind = next32(p) % 10;
+        let perQueryHash;
+        if (kind <= 3)      perQueryHash = queryPointNM(p);
+        else if (kind <= 7) perQueryHash = queryAndNM(p);
+        else                perQueryHash = queryScoredNM(p, dfSnap);
+        cs = (cs + mix32(($imul(q, GOLDEN32) ^ perQueryHash) >>> 0)) >>> 0;
+        Atomics.add(counters, "queriesDone", 1);
+    }
+    partialBI[id] = cs;
+}
+
+// Phase C (nomap): claim s∈[0,K) via nextShard exactly like intcs; each s
+// owns the contiguous termId block [s*512, (s+1)*512). Same Atomics counter
+// traffic, same group-lock fan-in. Group key derived arithmetically from
+// termId (no termOf string); per-group terms list stores termId ints.
+function phaseCNM() {
+    const groups = published.groups;
+    const block = V / K; // 512
+    for (;;) {
+        const s = Atomics.add(counters, "nextShard", 1);
+        if (s >= K) break;
+        const lo = s * block, hi = lo + block;
+        for (let t = lo; t < hi; ++t) {
+            const pl = nmPost[t];
+            if (pl === undefined) continue;
+            let totalTf = 0;
+            const df = pl.docIds.length;
+            for (let i = 0; i < df; ++i) totalTf += pl.tfs[i];
+            const gk = (termLenBucket(t) - 2) * 26 + firstLetterIdx(t);
+            const g = groups[gk];
+            g.lock.hold(() => {
+                g.totalTf += totalTf;
+                g.df += df;
+                g.termIds.push(t);
+                g.termTfs.push(totalTf);
+            });
+        }
+    }
+}
+
+function makeGroupsNM() {
+    const groups = [];
+    for (let g = 0; g < 104; ++g)
+        groups.push({ lock: new Lock(), totalTf: 0, df: 0, termIds: [], termTfs: [] });
+    return groups;
+}
+
+function checksumPhaseCNM() {
+    const groups = published.groups;
+    let sum = 0;
+    for (let gk = 0; gk < 104; ++gk) {
+        const g = groups[gk];
+        const ids = g.termIds, tfv = g.termTfs, n = ids.length;
+        // Full sort by (totalTf DESC, termId ASC) — matches Go sort.Slice /
+        // Java ArrayList.sort, so the topN slice is identical across langs.
+        const idx = [];
+        for (let i = 0; i < n; ++i) idx.push(i);
+        idx.sort((a, b) => {
+            if (tfv[a] !== tfv[b]) return tfv[b] - tfv[a];
+            return ids[a] - ids[b];
+        });
+        const top = n < TOPN ? n : TOPN;
+        // termOf(id) only here — the one place a string is genuinely needed.
+        let joined = "";
+        for (let i = 0; i < top; ++i)
+            joined += termOf(ids[idx[i]]) + ":" + tfv[idx[i]] + ",";
+        const len = (gk / 26 | 0) + 2;
+        const key = len + ":" + String.fromCharCode(A_CODE + (gk % 26));
+        const item = (fnv1a32(key)
+            ^ g.totalTf
+            ^ ($imul(g.df, GOLDEN32) >>> 0)
+            ^ fnv1a32(joined)) >>> 0;
+        sum = (sum + mix32(item)) >>> 0;
+    }
+    return sum;
 }
 
 function checksumPhaseCI() {
@@ -1724,7 +2105,11 @@ function workerBody(id) {
     }
 
     // Phase A
-    if (FLAT) phaseAFlat(id); else if (INTCS) phaseAI(); else phaseA();
+    if (FLAT) phaseAFlat(id);
+    else if (NOMAP) phaseANM(id);
+    else if (NOCONCAT) phaseANC();
+    else if (INTCS) phaseAI();
+    else phaseA();
     barrier.await();
     if (id === 0) {
         results.phaseA_ms = nowMs() - t0;
@@ -1785,13 +2170,18 @@ function workerBody(id) {
             const r = postingsChecksumFlat(K);
             results.cs1_ms = nowMs() - s0;
             results.checksumA = BigInt(r.sum); results.postings = r.postings;
+        } else if (NOMAP) {
+            const r = postingsChecksumNM();
+            results.checksumA = r.sum; results.postings = r.postings;
         } else {
-            const { sum, postings } = INTCS ? postingsChecksumInt() : postingsChecksum();
+            const { sum, postings } = (INTCS || NOCONCAT) ? postingsChecksumInt() : postingsChecksum();
             results.checksumA = sum; results.postings = postings;
         }
         results.postingsChecksum1_ms = nowMs() - s0;
         s0 = nowMs();
-        published.dfSnap = FLAT ? buildDfSnapFlat() : buildDfSnap(); // frozen at the A/B barrier (§1.7)
+        published.dfSnap = FLAT ? buildDfSnapFlat()
+            : NOMAP ? buildDfSnapNM()
+            : buildDfSnap(); // frozen at the A/B barrier (§1.7)
         results.buildDfSnap_ms = nowMs() - s0;
     }
     barrier.await(); // dfSnap published
@@ -1799,7 +2189,11 @@ function workerBody(id) {
     // Phase B
     if (id === 0)
         t0 = nowMs();
-    if (FLAT) phaseBFlat(id); else if (INTCS) phaseBI(id); else phaseB(id);
+    if (FLAT) phaseBFlat(id);
+    else if (NOMAP) phaseBNM(id);
+    else if (NOCONCAT) phaseBNC(id);
+    else if (INTCS) phaseBI(id);
+    else phaseB(id);
     barrier.await();
     if (id === 0) {
         results.phaseB_ms = nowMs() - t0;
@@ -1807,7 +2201,7 @@ function workerBody(id) {
             let cs = 0;
             for (let i = 0; i < W; ++i) cs = (cs + partialBFlat[i]) >>> 0;
             results.checksumB = BigInt(cs);
-        } else if (INTCS) {
+        } else if (INTCS || NOCONCAT || NOMAP) {
             let cs = 0;
             for (let i = 0; i < W; ++i) cs = (cs + partialBI[i]) >>> 0;
             results.checksumB = BigInt(cs);
@@ -1844,12 +2238,16 @@ function workerBody(id) {
         if (FLAT) {
             results.checksumA2 = BigInt(postingsChecksumFlat(K).sum);
             results.cs2_ms = nowMs() - s0;
-        } else
-            results.checksumA2 = (INTCS ? postingsChecksumInt() : postingsChecksum()).sum;
+        } else if (NOMAP)
+            results.checksumA2 = postingsChecksumNM().sum;
+        else
+            results.checksumA2 = ((INTCS || NOCONCAT) ? postingsChecksumInt() : postingsChecksum()).sum;
         results.postingsChecksum2_ms = nowMs() - s0;
         s0 = nowMs();
         if (FLAT) {
             published.groups = makeGroupsFlat();
+        } else if (NOMAP) {
+            published.groups = makeGroupsNM();
         } else {
             const { groups, keys } = makeGroups(); // pre-populated before Phase C (§1.10)
             published.groups = groups;
@@ -1864,6 +2262,8 @@ function workerBody(id) {
         t0 = nowMs();
     if (FLAT)
         phaseCFlat(id);
+    else if (NOMAP)
+        phaseCNM();
     else if (WS_MODE)
         phaseCWS(id);
     else
@@ -1871,13 +2271,15 @@ function workerBody(id) {
     barrier.await();
     if (id === 0) {
         results.phaseC_ms = nowMs() - t0;
-        if (WS_MODE && !FLAT)
+        if (WS_MODE && !FLAT && !NOMAP)
             wsMergeLocals(); // single-threaded merge of thread-local accumulators
         let s0 = nowMs();
         if (FLAT) {
             flattenGroupsFlat(); // serial-seg-getbutterfly-osrexit (group arrays)
             results.checksumC = BigInt(checksumPhaseCFlat());
-        } else if (INTCS)
+        } else if (NOMAP)
+            results.checksumC = BigInt(checksumPhaseCNM());
+        else if (INTCS || NOCONCAT)
             results.checksumC = BigInt(checksumPhaseCI());
         else
             results.checksumC = checksumPhaseC();
@@ -1904,7 +2306,8 @@ function ms(x) {
     return Math.round(x * 1000) / 1000;
 }
 
-print('{"impl":"js"' + (INTCS ? ',"intcs":true' : '') + (FLAT ? ',"flat":true' : '') + ',"threads":' + W
+const armTag = NOMAP ? ',"arm":"nomap"' : NOCONCAT ? ',"arm":"noconcat"' : INTCS ? ',"intcs":true' : '';
+print('{"impl":"js"' + armTag + (FLAT ? ',"flat":true' : '') + ',"threads":' + W
     + (WS_MODE ? ',"mode":"ws"' : '')
     + ',"phaseA_ms":' + ms(results.phaseA_ms)
     + ',"phaseB_ms":' + ms(results.phaseB_ms)

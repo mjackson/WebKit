@@ -468,6 +468,308 @@ public final class Bench {
         return local;
     }
 
+    // ---- §40 NOCONCAT ARM — intcs base with the genDocTextI→tokenize
+    //      round-trip removed: genDocTermsI emits the term strings directly.
+    //      Everything downstream (tf HashMap<String>, shardOfI, shard.map
+    //      get/put, queries, phaseC) is byte-identical to intcs.
+    static ArrayList<String> genDocTermsI(long d) {
+        Prng32 p = new Prng32(docSeedI(d));
+        int titleLen = 5 + randBelow32(p.next(), 8);
+        int bodyLen  = 80 + randBelow32(p.next(), 121);
+        int n = titleLen + bodyLen;
+        ArrayList<String> toks = new ArrayList<>(n);
+        for (int j = 0; j < n; j++) toks.add(termString(pickTermI(p)));
+        return toks;
+    }
+
+    static void ingestDocNC(long d) {
+        ArrayList<String> toks = genDocTermsI(d);
+        HashMap<String, Integer> tf = new HashMap<>();
+        for (String t : toks) tf.merge(t, 1, Integer::sum);
+        for (var e : tf.entrySet()) {
+            Shard sh = shards[shardOfI(e.getKey())];
+            sh.lock.lock();
+            try {
+                PostingList pl = sh.map.get(e.getKey());
+                if (pl == null) { pl = new PostingList(); sh.map.put(e.getKey(), pl); }
+                pl.add(d, e.getValue());
+            } finally {
+                sh.lock.unlock();
+            }
+        }
+        tokensProcessed.addAndGet(toks.size());
+        docsIngested.incrementAndGet();
+    }
+
+    static int phaseBWorkNC() {
+        int local = 0;
+        for (;;) {
+            long q = nextOp.getAndIncrement();
+            if (q >= N_QUERIES) break;
+            if (q % WRITER_MOD == 0) {
+                ingestDocNC(N_BASE + q / WRITER_MOD);
+                writesDone.incrementAndGet();
+                continue;
+            }
+            Prng32 p = new Prng32(qSeedI(q));
+            int kind = randBelow32(p.next(), 10);
+            int h;
+            if (kind < 4)      h = pointQueryI(p);
+            else if (kind < 8) h = andQueryI(p);
+            else               h = scoredQueryI(p);
+            local += mix32((((int) q) * GOLDEN32) ^ h);
+            queriesDone.incrementAndGet();
+        }
+        return local;
+    }
+
+    // ---- §40 NOMAP ARM — intcs base with every Map<String> lookup replaced
+    //      by a direct integer index. Full string round-trip (genDocTextI →
+    //      tokenize) KEPT.
+    static int invTermOf(String s) {
+        int r = 0;
+        for (int i = 1; i < s.length(); i++)
+            r = r * 26 + (s.charAt(i) - 'a');
+        return r;
+    }
+    static int firstLetterIdx(int t) {
+        while (t >= 26) t /= 26;
+        return t;
+    }
+    static int termLenBucket(int t) {
+        return t < 26 ? 2 : t < 676 ? 3 : t < 17576 ? 4 : 5;
+    }
+
+    static int[] nmShardOf;       // nmShardOf[t] = fnv1a32(termString(t)) % K
+    static PostingList[] nmPost;  // V slots; null == empty
+    static int[] nmDfSnap;
+
+    static final class NmScratch {
+        final int[] tf = new int[V];
+        final int[] dirty = new int[256];
+    }
+
+    static void initNM() {
+        nmShardOf = new int[V];
+        for (int t = 0; t < V; t++)
+            nmShardOf[t] = Integer.remainderUnsigned(fnv1a32(termString(t)), K);
+        nmPost = new PostingList[V];
+    }
+
+    static void ingestDocNM(long d, NmScratch sc) {
+        String text = genDocTextI(d);
+        ArrayList<String> toks = tokenize(text);
+        int nDirty = 0;
+        for (String w : toks) {
+            int t = invTermOf(w);
+            if (sc.tf[t] == 0) sc.dirty[nDirty++] = t;
+            sc.tf[t]++;
+        }
+        for (int k = 0; k < nDirty; k++) {
+            int t = sc.dirty[k];
+            int c = sc.tf[t];
+            sc.tf[t] = 0;
+            Shard sh = shards[nmShardOf[t]];
+            sh.lock.lock();
+            try {
+                PostingList pl = nmPost[t];
+                if (pl == null) { pl = new PostingList(); nmPost[t] = pl; }
+                pl.add(d, c);
+            } finally {
+                sh.lock.unlock();
+            }
+        }
+        tokensProcessed.addAndGet(toks.size());
+        docsIngested.incrementAndGet();
+    }
+
+    static long[] indexChecksumNM() {
+        int sum = 0;
+        long count = 0;
+        for (int t = 0; t < V; t++) {
+            PostingList pl = nmPost[t];
+            if (pl == null) continue;
+            int th = mix32(t);
+            for (int i = 0; i < pl.size; i++) {
+                int item = th ^ (((int) pl.docIds[i]) * 0xd6e8feb9)
+                              ^ (pl.tfs[i] * 0xcaaf00dd);
+                sum += mix32(item);
+                count++;
+            }
+        }
+        return new long[] { ((long) sum) & 0xFFFFFFFFL, count };
+    }
+
+    static void buildDfSnapNM() {
+        nmDfSnap = new int[V];
+        for (int t = 0; t < V; t++) {
+            PostingList pl = nmPost[t];
+            if (pl != null) nmDfSnap[t] = pl.size;
+        }
+    }
+
+    static Snap snapshotNM(int t) {
+        Shard sh = shards[nmShardOf[t]];
+        Snap s = new Snap();
+        sh.lock.lock();
+        try {
+            PostingList pl = nmPost[t];
+            if (pl == null) {
+                s.d = new long[0]; s.tf = new int[0];
+            } else {
+                s.d = Arrays.copyOf(pl.docIds, pl.size);
+                s.tf = Arrays.copyOf(pl.tfs, pl.size);
+                s.n = pl.size;
+            }
+        } finally {
+            sh.lock.unlock();
+        }
+        return s;
+    }
+
+    static int pointQueryNM(Prng32 p) {
+        int t = pickTermI(p);
+        int df = 0, sumTf = 0;
+        Shard sh = shards[nmShardOf[t]];
+        sh.lock.lock();
+        try {
+            PostingList pl = nmPost[t];
+            if (pl != null) {
+                for (int i = 0; i < pl.size; i++) {
+                    if (pl.docIds[i] < N_BASE) { df++; sumTf += pl.tfs[i]; }
+                }
+            }
+        } finally {
+            sh.lock.unlock();
+        }
+        return mix32(mix32(t) ^ (df * 0x9e37) ^ sumTf);
+    }
+
+    static int andQueryNM(Prng32 p) {
+        int nTerms = 2 + randBelow32(p.next(), 2);
+        Snap[] snaps = new Snap[nTerms];
+        for (int i = 0; i < nTerms; i++) snaps[i] = snapshotNM(pickTermI(p));
+        HashMap<Long, Integer> cand = new HashMap<>();
+        for (int i = 0; i < snaps[0].n; i++) {
+            if (snaps[0].d[i] < N_BASE) cand.put(snaps[0].d[i], 1);
+        }
+        for (int li = 1; li < nTerms; li++) {
+            Snap s = snaps[li];
+            for (int i = 0; i < s.n; i++) {
+                if (s.d[i] >= N_BASE) continue;
+                Integer c = cand.get(s.d[i]);
+                if (c != null && c == li) cand.put(s.d[i], li + 1);
+            }
+        }
+        int sum = 0, matchCount = 0;
+        for (var e : cand.entrySet()) {
+            if (e.getValue() == nTerms) { sum += mix32(e.getKey().intValue()); matchCount++; }
+        }
+        return mix32(sum) ^ matchCount;
+    }
+
+    static int scoredQueryNM(Prng32 p) {
+        int nTerms = 2 + randBelow32(p.next(), 2);
+        HashMap<Long, Integer> scores = new HashMap<>();
+        for (int li = 0; li < nTerms; li++) {
+            int t = pickTermI(p);
+            int df = nmDfSnap[t];
+            int idf = df == 0 ? 0 : (int) (N_BASE * 1000L / df);
+            Snap s = snapshotNM(t);
+            for (int i = 0; i < s.n; i++) {
+                if (s.d[i] < N_BASE) scores.merge(s.d[i], s.tf[i] * idf, Integer::sum);
+            }
+        }
+        ArrayList<long[]> list = new ArrayList<>(scores.size());
+        for (var e : scores.entrySet())
+            list.add(new long[] { e.getKey(), ((long) e.getValue()) & 0xFFFFFFFFL });
+        list.sort((a, b) -> {
+            int c = Long.compare(b[1], a[1]);
+            return c != 0 ? c : Long.compare(a[0], b[0]);
+        });
+        int n = Math.min(TOPN, list.size());
+        int h = 0x811c9dc5;
+        for (int i = 0; i < n; i++) h = fnvU32LE(h, (int) list.get(i)[0]);
+        for (int i = 0; i < n; i++) h = fnvU32LE(h, (int) list.get(i)[1]);
+        return h;
+    }
+
+    static int phaseBWorkNM(NmScratch sc) {
+        int local = 0;
+        for (;;) {
+            long q = nextOp.getAndIncrement();
+            if (q >= N_QUERIES) break;
+            if (q % WRITER_MOD == 0) {
+                ingestDocNM(N_BASE + q / WRITER_MOD, sc);
+                writesDone.incrementAndGet();
+                continue;
+            }
+            Prng32 p = new Prng32(qSeedI(q));
+            int kind = randBelow32(p.next(), 10);
+            int h;
+            if (kind < 4)      h = pointQueryNM(p);
+            else if (kind < 8) h = andQueryNM(p);
+            else               h = scoredQueryNM(p);
+            local += mix32((((int) q) * GOLDEN32) ^ h);
+            queriesDone.incrementAndGet();
+        }
+        return local;
+    }
+
+    static final class NmGroup {
+        final ReentrantLock lock = new ReentrantLock();
+        long totalTf, df;
+        final ArrayList<int[]> terms = new ArrayList<>(); // {termId, totalTf}
+    }
+    static NmGroup[] nmGroups;
+
+    static void phaseCWorkNM() {
+        int block = V / K; // 512
+        for (;;) {
+            long s = nextShard.getAndIncrement();
+            if (s >= K) return;
+            int lo = (int) s * block, hi = lo + block;
+            for (int t = lo; t < hi; t++) {
+                PostingList pl = nmPost[t];
+                if (pl == null) continue;
+                long tot = 0;
+                for (int i = 0; i < pl.size; i++) tot += pl.tfs[i];
+                int gk = (termLenBucket(t) - 2) * 26 + firstLetterIdx(t);
+                NmGroup g = nmGroups[gk];
+                g.lock.lock();
+                try {
+                    g.totalTf += tot;
+                    g.df += pl.size;
+                    g.terms.add(new int[] { t, (int) tot });
+                } finally {
+                    g.lock.unlock();
+                }
+            }
+        }
+    }
+
+    static int finalizeCNM() {
+        int sum = 0;
+        for (int gk = 0; gk < 104; gk++) {
+            NmGroup g = nmGroups[gk];
+            g.terms.sort((a, b) -> {
+                if (a[1] != b[1]) return Integer.compare(b[1], a[1]);
+                return Integer.compare(a[0], b[0]);
+            });
+            int n = Math.min(TOPN, g.terms.size());
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < n; i++) {
+                int[] e = g.terms.get(i);
+                sb.append(termString(e[0])).append(':').append(e[1]).append(',');
+            }
+            int len = gk / 26 + 2;
+            String key = len + ":" + (char) ('a' + gk % 26);
+            sum += mix32(fnv1a32(key) ^ ((int) g.totalTf)
+                ^ (((int) g.df) * GOLDEN32) ^ fnv1a32(sb.toString()));
+        }
+        return sum;
+    }
+
     static int finalizeCI() {
         int sum = 0;
         for (var ge : groups.entrySet()) {
@@ -644,6 +946,8 @@ public final class Bench {
     //     unchanged.
     static boolean WS_MODE;
     static boolean INTCS;
+    static boolean NOCONCAT;
+    static boolean NOMAP;
 
     static final class WsDeque {
         final ReentrantLock lock = new ReentrantLock();
@@ -764,6 +1068,7 @@ public final class Bench {
 
     // ---- worker ----
     static void worker(int tid) {
+        NmScratch nmSc = NOMAP ? new NmScratch() : null;
         barrier.await();                                  // start line: all threads spawned
         if (tid == 0) tStartA = System.nanoTime();
 
@@ -771,17 +1076,25 @@ public final class Bench {
         for (;;) {
             long d = nextDoc.getAndIncrement();
             if (d >= N_BASE) break;
-            if (INTCS) ingestDocI(d); else ingestDoc(d);
+            if (NOMAP) ingestDocNM(d, nmSc);
+            else if (NOCONCAT) ingestDocNC(d);
+            else if (INTCS) ingestDocI(d);
+            else ingestDoc(d);
         }
         barrier.await();
         if (tid == 0) {
             tEndA = System.nanoTime();
-            HashMap<String, Long> snap = new HashMap<>();
-            for (Shard sh : shards) {
-                for (var e : sh.map.entrySet()) snap.put(e.getKey(), (long) e.getValue().size);
+            if (NOMAP) {
+                buildDfSnapNM();
+            } else {
+                HashMap<String, Long> snap = new HashMap<>();
+                for (Shard sh : shards) {
+                    for (var e : sh.map.entrySet()) snap.put(e.getKey(), (long) e.getValue().size);
+                }
+                dfSnap = snap;                            // published by the barrier below
             }
-            dfSnap = snap;                                // published by the barrier below
-            long[] r = INTCS ? indexChecksum32() : indexChecksum();
+            long[] r = NOMAP ? indexChecksumNM()
+                     : (INTCS || NOCONCAT) ? indexChecksum32() : indexChecksum();
             checksumA = r[0];
             postingsCount = r[1];
         }
@@ -789,7 +1102,13 @@ public final class Bench {
         if (tid == 0) tStartB = System.nanoTime();
 
         // Phase B — QUERY (90% read / 10% write)
-        if (INTCS) {
+        if (NOMAP) {
+            int localB = phaseBWorkNM(nmSc);
+            checksumB.addAndGet(((long) localB) & 0xFFFFFFFFL);
+        } else if (NOCONCAT) {
+            int localB = phaseBWorkNC();
+            checksumB.addAndGet(((long) localB) & 0xFFFFFFFFL);
+        } else if (INTCS) {
             int localB = phaseBWorkI();
             checksumB.addAndGet(((long) localB) & 0xFFFFFFFFL);
         } else {
@@ -816,13 +1135,16 @@ public final class Bench {
         barrier.await();
         if (tid == 0) {
             tEndB = System.nanoTime();
-            checksumA2 = (INTCS ? indexChecksum32() : indexChecksum())[0];
+            checksumA2 = (NOMAP ? indexChecksumNM()
+                        : (INTCS || NOCONCAT) ? indexChecksum32() : indexChecksum())[0];
         }
         barrier.await();
         if (tid == 0) tStartC = System.nanoTime();
 
         // Phase C — ANALYTICS
-        if (WS_MODE)
+        if (NOMAP)
+            phaseCWorkNM();
+        else if (WS_MODE)
             phaseCWS(tid);
         else
         for (;;) {
@@ -849,8 +1171,13 @@ public final class Bench {
         barrier.await();
         if (tid == 0) {
             tEndC = System.nanoTime();
-            if (WS_MODE) wsMergeLocals(); // single-threaded merge of thread-local accumulators
-            if (INTCS) {
+            if (WS_MODE && !NOMAP) wsMergeLocals(); // single-threaded merge of thread-local accumulators
+            if (NOMAP) {
+                checksumC = ((long) finalizeCNM()) & 0xFFFFFFFFL;
+                tEnd = System.nanoTime();
+                return;
+            }
+            if (INTCS || NOCONCAT) {
                 checksumC = ((long) finalizeCI()) & 0xFFFFFFFFL;
                 tEnd = System.nanoTime();
                 return;
@@ -910,17 +1237,26 @@ public final class Bench {
         N_QUERIES = N_BASE;
         WS_MODE = "1".equals(System.getenv("SCALEBENCH_WS"));
         INTCS = "1".equals(System.getenv("SCALEBENCH_INTCS"));
-        for (int i = 1; i < args.length; i++)
+        for (int i = 1; i < args.length; i++) {
             if ("intcs".equals(args[i])) INTCS = true;
+            if ("noconcat".equals(args[i])) NOCONCAT = true;
+            if ("nomap".equals(args[i])) NOMAP = true;
+        }
 
         selfTestPrng();
 
         shards = new Shard[K];
         for (int i = 0; i < K; i++) shards[i] = new Shard();
 
-        groups = new HashMap<>();
-        for (int len = 2; len <= 5; len++) {
-            for (char c = 'a'; c <= 'z'; c++) groups.put(len + ":" + c, new Group());
+        if (NOMAP) {
+            initNM();
+            nmGroups = new NmGroup[104];
+            for (int i = 0; i < 104; i++) nmGroups[i] = new NmGroup();
+        } else {
+            groups = new HashMap<>();
+            for (int len = 2; len <= 5; len++) {
+                for (char c = 'a'; c <= 'z'; c++) groups.put(len + ":" + c, new Group());
+            }
         }
 
         if (WS_MODE) initWS();
@@ -936,7 +1272,9 @@ public final class Bench {
 
         StringBuilder out = new StringBuilder(512);
         out.append("{\"impl\":\"java\"");
-        if (INTCS) out.append(",\"intcs\":true");
+        if (NOMAP) out.append(",\"arm\":\"nomap\"");
+        else if (NOCONCAT) out.append(",\"arm\":\"noconcat\"");
+        else if (INTCS) out.append(",\"intcs\":true");
         out.append(",\"threads\":").append(W);
         if (WS_MODE) out.append(",\"mode\":\"ws\"");
         out.append(",\"phaseA_ms\":").append(ms(tStartA, tEndA))
@@ -946,7 +1284,7 @@ public final class Bench {
            .append(",\"checksumA\":\"").append(hex16(checksumA)).append('"')
            .append(",\"postings\":").append(postingsCount)
            .append(",\"checksumA2\":\"").append(hex16(checksumA2)).append('"')
-           .append(",\"checksumB\":\"").append(hex16(INTCS ? (checksumB.get() & 0xFFFFFFFFL) : checksumB.get())).append('"')
+           .append(",\"checksumB\":\"").append(hex16((INTCS || NOCONCAT || NOMAP) ? (checksumB.get() & 0xFFFFFFFFL) : checksumB.get())).append('"')
            .append(",\"checksumC\":\"").append(hex16(checksumC)).append('"')
            .append(",\"docsIngested\":").append(docsIngested.get())
            .append(",\"tokensProcessed\":").append(tokensProcessed.get())

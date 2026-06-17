@@ -648,6 +648,414 @@ func finalizeCI() uint32 {
 	return sum
 }
 
+// ---------------------------------------------------------------------------
+// §40 NOCONCAT ARM — intcs base with the buildText→tokenize round-trip
+// removed: genDocTermsI emits the term strings directly. Everything
+// downstream (tf map[string], shardForI, shard.m get/put, queries, phaseC)
+// is byte-identical to intcs.
+// ---------------------------------------------------------------------------
+
+func genDocTermsI(d uint64) []string {
+	p := prng32{s: docSeedI(d)}
+	titleLen := 5 + p.next()%8
+	bodyLen := 80 + p.next()%121
+	n := int(titleLen + bodyLen)
+	toks := make([]string, n)
+	for j := 0; j < n; j++ {
+		toks[j] = termString(pickTermI(&p))
+	}
+	return toks
+}
+
+func ingestDocNC(d uint64) {
+	words := genDocTermsI(d)
+	tf := make(map[string]uint32)
+	for _, w := range words {
+		tf[w]++
+	}
+	for term, c := range tf {
+		sh := shardForI(term)
+		sh.mu.Lock()
+		pl := sh.m[term]
+		if pl == nil {
+			pl = &posting{}
+			sh.m[term] = pl
+		}
+		pl.docIds = append(pl.docIds, d)
+		pl.tfs = append(pl.tfs, c)
+		sh.mu.Unlock()
+	}
+	tokensProcessed.Add(uint64(len(words)))
+	docsIngested.Add(1)
+}
+
+func phaseAWorkNC() {
+	for {
+		d := nextDoc.Add(1) - 1
+		if d >= nBase {
+			return
+		}
+		ingestDocNC(d)
+	}
+}
+
+func phaseBWorkNC() {
+	var local uint32
+	for {
+		q := nextOp.Add(1) - 1
+		if q >= nQueries {
+			break
+		}
+		if q%WRITERMOD == 0 {
+			ingestDocNC(nBase + q/WRITERMOD)
+			writesDone.Add(1)
+			continue
+		}
+		p := prng32{s: qSeedI(q)}
+		kind := p.next() % 10
+		var h uint32
+		switch {
+		case kind < 4:
+			h = pointQueryI(&p)
+		case kind < 8:
+			h = andQueryI(&p)
+		default:
+			h = scoredQueryI(&p)
+		}
+		local += mix32((uint32(q) * GOLDEN32) ^ h)
+		queriesDone.Add(1)
+	}
+	checksumBAcc.Add(uint64(local))
+}
+
+// ---------------------------------------------------------------------------
+// §40 NOMAP ARM — intcs base with every map[string] lookup replaced by a
+// direct integer index. Full string round-trip (buildText→tokenize) KEPT.
+// ---------------------------------------------------------------------------
+
+// invTermOf: base26-decode the lowercased token back to its termId.
+func invTermOf(s string) int {
+	r := 0
+	for i := 1; i < len(s); i++ {
+		r = r*26 + int(s[i]-'a')
+	}
+	return r
+}
+
+func firstLetterIdx(t int) int {
+	for t >= 26 {
+		t /= 26
+	}
+	return t
+}
+
+func termLenBucket(t int) int {
+	switch {
+	case t < 26:
+		return 2
+	case t < 676:
+		return 3
+	case t < 17576:
+		return 4
+	default:
+		return 5
+	}
+}
+
+var (
+	nmShardOf []int32   // nmShardOf[t] = fnv1a32(termString(t)) % K
+	nmPost    []posting // V slots; nmPost[t].docIds==nil means empty
+	nmDfSnap  []int32
+)
+
+type nmLocal struct {
+	tf    [V]int32
+	dirty [256]int32
+}
+
+func initNM() {
+	nmShardOf = make([]int32, V)
+	for t := 0; t < int(V); t++ {
+		nmShardOf[t] = int32(fnv1a32(termString(uint64(t))) % uint32(K))
+	}
+	nmPost = make([]posting, V)
+}
+
+func ingestDocNM(d uint64, sc *nmLocal) {
+	toks := genDocTokensI(d)
+	text := buildText(toks)
+	words := tokenize(text)
+	nDirty := 0
+	for _, w := range words {
+		t := invTermOf(w)
+		if sc.tf[t] == 0 {
+			sc.dirty[nDirty] = int32(t)
+			nDirty++
+		}
+		sc.tf[t]++
+	}
+	for k := 0; k < nDirty; k++ {
+		t := sc.dirty[k]
+		c := sc.tf[t]
+		sc.tf[t] = 0
+		sh := shards[nmShardOf[t]]
+		sh.mu.Lock()
+		pl := &nmPost[t]
+		pl.docIds = append(pl.docIds, d)
+		pl.tfs = append(pl.tfs, uint32(c))
+		sh.mu.Unlock()
+	}
+	tokensProcessed.Add(uint64(len(words)))
+	docsIngested.Add(1)
+}
+
+func phaseAWorkNM(sc *nmLocal) {
+	for {
+		d := nextDoc.Add(1) - 1
+		if d >= nBase {
+			return
+		}
+		ingestDocNM(d, sc)
+	}
+}
+
+func indexChecksumNM() (sum uint64, count uint64) {
+	var s uint32
+	for t := 0; t < int(V); t++ {
+		pl := &nmPost[t]
+		if len(pl.docIds) == 0 {
+			continue
+		}
+		th := mix32(uint32(t))
+		for i, d := range pl.docIds {
+			item := th ^ (uint32(d) * 0xd6e8feb9) ^ (pl.tfs[i] * 0xcaaf00dd)
+			s += mix32(item)
+			count++
+		}
+	}
+	sum = uint64(s)
+	return
+}
+
+func buildDfSnapNM() {
+	nmDfSnap = make([]int32, V)
+	for t := 0; t < int(V); t++ {
+		nmDfSnap[t] = int32(len(nmPost[t].docIds))
+	}
+}
+
+func copyPostingsNM(t int) ([]uint64, []uint32) {
+	sh := shards[nmShardOf[t]]
+	sh.mu.Lock()
+	pl := &nmPost[t]
+	var ids []uint64
+	var tfs []uint32
+	if len(pl.docIds) > 0 {
+		ids = append([]uint64(nil), pl.docIds...)
+		tfs = append([]uint32(nil), pl.tfs...)
+	}
+	sh.mu.Unlock()
+	return ids, tfs
+}
+
+func pointQueryNM(p *prng32) uint32 {
+	t := int(pickTermI(p))
+	sh := shards[nmShardOf[t]]
+	var df, sumTf uint32
+	sh.mu.Lock()
+	pl := &nmPost[t]
+	for i, d := range pl.docIds {
+		if d < nBase {
+			df++
+			sumTf += pl.tfs[i]
+		}
+	}
+	sh.mu.Unlock()
+	return mix32(mix32(uint32(t)) ^ (df * 0x9e37) ^ sumTf)
+}
+
+func andQueryNM(p *prng32) uint32 {
+	nTerms := int(2 + p.next()%2)
+	lists := make([][]uint64, nTerms)
+	for i := range lists {
+		lists[i], _ = copyPostingsNM(int(pickTermI(p)))
+	}
+	m := make(map[uint64]int)
+	for _, d := range lists[0] {
+		if d < nBase {
+			m[d] = 1
+		}
+	}
+	for i := 1; i < nTerms; i++ {
+		for _, d := range lists[i] {
+			if d < nBase && m[d] == i {
+				m[d] = i + 1
+			}
+		}
+	}
+	var sum, count uint32
+	for d, c := range m {
+		if c == nTerms {
+			sum += mix32(uint32(d))
+			count++
+		}
+	}
+	return mix32(sum) ^ count
+}
+
+func scoredQueryNM(p *prng32) uint32 {
+	nTerms := int(2 + p.next()%2)
+	score := make(map[uint64]uint32)
+	for i := 0; i < nTerms; i++ {
+		t := int(pickTermI(p))
+		ids, tfs := copyPostingsNM(t)
+		var idf uint32
+		if df := nmDfSnap[t]; df != 0 {
+			idf = uint32(nBase) * 1000 / uint32(df)
+		}
+		for j, d := range ids {
+			if d < nBase {
+				score[d] += tfs[j] * idf
+			}
+		}
+	}
+	type cand struct {
+		d uint64
+		s uint32
+	}
+	cands := make([]cand, 0, len(score))
+	for d, s := range score {
+		cands = append(cands, cand{d, s})
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].s != cands[j].s {
+			return cands[i].s > cands[j].s
+		}
+		return cands[i].d < cands[j].d
+	})
+	if len(cands) > TOPN {
+		cands = cands[:TOPN]
+	}
+	h := uint32(0x811c9dc5)
+	for _, c := range cands {
+		h = fnvU32LE(h, uint32(c.d))
+	}
+	for _, c := range cands {
+		h = fnvU32LE(h, c.s)
+	}
+	return h
+}
+
+func phaseBWorkNM(sc *nmLocal) {
+	var local uint32
+	for {
+		q := nextOp.Add(1) - 1
+		if q >= nQueries {
+			break
+		}
+		if q%WRITERMOD == 0 {
+			ingestDocNM(nBase+q/WRITERMOD, sc)
+			writesDone.Add(1)
+			continue
+		}
+		p := prng32{s: qSeedI(q)}
+		kind := p.next() % 10
+		var h uint32
+		switch {
+		case kind < 4:
+			h = pointQueryNM(&p)
+		case kind < 8:
+			h = andQueryNM(&p)
+		default:
+			h = scoredQueryNM(&p)
+		}
+		local += mix32((uint32(q) * GOLDEN32) ^ h)
+		queriesDone.Add(1)
+	}
+	checksumBAcc.Add(uint64(local))
+}
+
+type nmGroup struct {
+	mu      sync.Mutex
+	totalTf uint64
+	df      uint64
+	termIds []int
+	termTfs []uint64
+}
+
+var nmGroups []*nmGroup
+
+func initNMGroups() {
+	nmGroups = make([]*nmGroup, 104)
+	for i := range nmGroups {
+		nmGroups[i] = &nmGroup{}
+	}
+}
+
+func phaseCWorkNM() {
+	block := int(V) / int(K) // 512
+	for {
+		s := nextShard.Add(1) - 1
+		if s >= K {
+			return
+		}
+		lo := int(s) * block
+		hi := lo + block
+		for t := lo; t < hi; t++ {
+			pl := &nmPost[t]
+			df := len(pl.docIds)
+			if df == 0 {
+				continue
+			}
+			var tot uint64
+			for _, tf := range pl.tfs {
+				tot += uint64(tf)
+			}
+			gk := (termLenBucket(t)-2)*26 + firstLetterIdx(t)
+			g := nmGroups[gk]
+			g.mu.Lock()
+			g.totalTf += tot
+			g.df += uint64(df)
+			g.termIds = append(g.termIds, t)
+			g.termTfs = append(g.termTfs, tot)
+			g.mu.Unlock()
+		}
+	}
+}
+
+func finalizeCNM() uint32 {
+	var sum uint32
+	for gk := 0; gk < 104; gk++ {
+		g := nmGroups[gk]
+		n := len(g.termIds)
+		idx := make([]int, n)
+		for i := range idx {
+			idx[i] = i
+		}
+		sort.Slice(idx, func(a, b int) bool {
+			if g.termTfs[idx[a]] != g.termTfs[idx[b]] {
+				return g.termTfs[idx[a]] > g.termTfs[idx[b]]
+			}
+			return g.termIds[idx[a]] < g.termIds[idx[b]]
+		})
+		top := n
+		if top > TOPN {
+			top = TOPN
+		}
+		var sb strings.Builder
+		for i := 0; i < top; i++ {
+			sb.WriteString(termString(uint64(g.termIds[idx[i]])))
+			sb.WriteByte(':')
+			sb.WriteString(strconv.FormatUint(g.termTfs[idx[i]], 10))
+			sb.WriteByte(',')
+		}
+		l := gk/26 + 2
+		key := string([]byte{byte('0' + l), ':', byte('a' + gk%26)})
+		sum += mix32(fnv1a32(key) ^ uint32(g.totalTf) ^ (uint32(g.df) * GOLDEN32) ^ fnv1a32(sb.String()))
+	}
+	return sum
+}
+
 // indexChecksum: order-independent mod-2^64 sum over every posting (SPEC §1.8).
 func indexChecksum() (sum uint64, count uint64) {
 	for k := range shards {
@@ -943,6 +1351,8 @@ type wsLocalGroup struct {
 var (
 	wsMode      bool
 	intcs       bool
+	noconcat    bool
+	nomap       bool
 	wsDeques    []*wsDeque
 	wsLocals    []map[string]*wsLocalGroup
 	wsRemaining atomic.Int64
@@ -1072,63 +1482,92 @@ func msSince(t time.Time) float64 {
 }
 
 func worker(id int, done chan<- struct{}) {
+	var nmSc *nmLocal
+	if nomap {
+		nmSc = &nmLocal{}
+	}
 	bar.await() // all workers spawned; clock starts
 	if id == 0 {
 		tTotal0 = time.Now()
 		tPhase = tTotal0
 	}
 
-	if intcs {
+	switch {
+	case nomap:
+		phaseAWorkNM(nmSc)
+	case noconcat:
+		phaseAWorkNC()
+	case intcs:
 		phaseAWorkI()
-	} else {
+	default:
 		phaseAWork()
 	}
 	bar.await() // Phase A done
 	if id == 0 {
 		phaseAms = msSince(tPhase)
-		if intcs {
+		switch {
+		case nomap:
+			checksumA, postingsCount = indexChecksumNM()
+			buildDfSnapNM()
+		case noconcat, intcs:
 			checksumA, postingsCount = indexChecksum32()
-		} else {
+			buildDfSnap()
+		default:
 			checksumA, postingsCount = indexChecksum() // after the barrier, thread 0
+			buildDfSnap()                              // frozen df snapshot, published before B
 		}
-		buildDfSnap() // frozen df snapshot, published before B
 		tPhase = time.Now()
 	}
 	bar.await() // dfSnap published; Phase B starts
 
-	if intcs {
+	switch {
+	case nomap:
+		phaseBWorkNM(nmSc)
+	case noconcat:
+		phaseBWorkNC()
+	case intcs:
 		phaseBWorkI()
-	} else {
+	default:
 		phaseBWork()
 	}
 	bar.await() // Phase B done
 	if id == 0 {
 		phaseBms = msSince(tPhase)
 		checksumB = checksumBAcc.Load()
-		if intcs {
+		switch {
+		case nomap:
+			checksumB &= 0xFFFFFFFF
+			checksumA2, _ = indexChecksumNM()
+		case noconcat, intcs:
 			checksumB &= 0xFFFFFFFF // §39b: per-goroutine uint32 partials, summed mod-2^32
 			checksumA2, _ = indexChecksum32()
-		} else {
+		default:
 			checksumA2, _ = indexChecksum() // base + writer docs
 		}
 		tPhase = time.Now()
 	}
 	bar.await() // Phase C starts
 
-	if wsMode {
+	switch {
+	case nomap:
+		phaseCWorkNM()
+	case wsMode:
 		phaseCWSWork(id)
-	} else {
+	default:
 		phaseCWork()
 	}
 	bar.await() // Phase C done
 	if id == 0 {
 		phaseCms = msSince(tPhase)
-		if wsMode {
+		if wsMode && !nomap {
 			wsMergeLocals() // single-threaded merge of thread-local accumulators
 		}
-		if intcs {
+		switch {
+		case nomap:
+			checksumC = uint64(finalizeCNM())
+		case noconcat, intcs:
 			checksumC = uint64(finalizeCI())
-		} else {
+		default:
 			checksumC = finalizeC()
 		}
 		totalms = msSince(tTotal0)
@@ -1148,9 +1587,17 @@ func main() {
 			intcs = true
 			continue
 		}
+		if a == "noconcat" {
+			noconcat = true
+			continue
+		}
+		if a == "nomap" {
+			nomap = true
+			continue
+		}
 		w, err := strconv.Atoi(a)
 		if err != nil || w < 1 {
-			fmt.Fprintf(os.Stderr, "usage: bench-go <W> [intcs]\n")
+			fmt.Fprintf(os.Stderr, "usage: bench-go <W> [intcs|noconcat|nomap]\n")
 			os.Exit(2)
 		}
 		workers = w
@@ -1168,7 +1615,12 @@ func main() {
 	}
 
 	initShards()
-	initGroups()
+	if nomap {
+		initNM()
+		initNMGroups()
+	} else {
+		initGroups()
+	}
 	if wsMode {
 		initWS()
 	}
@@ -1186,11 +1638,16 @@ func main() {
 	if wsMode {
 		mode = "\"mode\":\"ws\","
 	}
-	intcsTag := ""
-	if intcs {
-		intcsTag = "\"intcs\":true,"
+	armTag := ""
+	switch {
+	case nomap:
+		armTag = "\"arm\":\"nomap\","
+	case noconcat:
+		armTag = "\"arm\":\"noconcat\","
+	case intcs:
+		armTag = "\"intcs\":true,"
 	}
-	fmt.Printf("{\"impl\":\"go\","+intcsTag+"\"threads\":%d,"+mode+
+	fmt.Printf("{\"impl\":\"go\","+armTag+"\"threads\":%d,"+mode+
 		"\"phaseA_ms\":%.3f,\"phaseB_ms\":%.3f,\"phaseC_ms\":%.3f,\"total_ms\":%.3f,"+
 		"\"checksumA\":\"%016x\",\"postings\":%d,\"checksumA2\":\"%016x\","+
 		"\"checksumB\":\"%016x\",\"checksumC\":\"%016x\","+

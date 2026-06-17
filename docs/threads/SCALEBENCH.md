@@ -2886,3 +2886,80 @@ Against §39: JS W=1 14761→8212 (-44%, the BigInt PRNG/hash floor removed from
 phaseA/B/C); Go/Java essentially unchanged (their u64 was already native). The
 residual JS gap is now the string/Map/allocation/STW-GC cost under shared-heap,
 not 64-bit-arithmetic premium.
+
+## §40 intcs bisect: noconcat + nomap
+
+§39b removed BigInt and left the residual JS gap as "strings + Map<string> +
+alloc/GC". §40 bisects WHICH, with two opt-in arms that compose with the intcs
+32-bit base. Both keep K=128 shard locks, the barrier, the Thread structure,
+and the Atomics counters byte-identical.
+
+**`noconcat`** — is genDoc-concat→tokenize the cost? `genDocTermsI` returns
+the term strings directly (`termOf(pickTermI())` per token); the doc-text
+build + tokenize round-trip is skipped. tf `Map<string>`, `shardOfI =
+fnv1a32(term)%K`, shard `Map<string>.get/set`, queries, phaseC: byte-identical
+to intcs. Tokenize is lossless (caps→lower, punctuation stripped), so the
+checksum tuple is **identical to the §39b intcs reference**.
+
+**`nomap`** — is `Map<string>.get/set` the cost? Full string round-trip KEPT
+(`genDocTextI` → `tokenize`), but every `Map<string>` lookup is replaced with
+a direct integer index: `invTermOf(token)` base26-decodes back to termId;
+per-doc tf is an `Int32Array(V)`+dirty-list; per-term storage is a global
+V-slot array `nmPost[termId]` (NOT `Map<string>`); `shardOf` is still
+`fnv1a32(term)%K` via a precomputed `nmShardOf[V]` table so the
+lock-contention pattern matches intcs. Queries/phaseC walk by termId;
+`termOf(id)` is rebuilt only for the phaseC topN join string. checksumA folds
+`mix32(termId)` (not `fnv1a32(term)`).
+
+**Cross-language references** (full workload, N_BASE=28000, any W; all 12 gate
+cells {go,java,js}×{W=1,W=4} and all 54 ladder cells matched):
+
+| arm      | checksumA | postings | checksumA2 | checksumB | checksumC |
+|----------|-----------|----------|------------|-----------|-----------|
+| noconcat | `e85d66e7`| 4158480  | `15cf18bb` | `651b594b`| `abc7704f`|
+| nomap    | `98972b27`| 4158480  | `64cd1705` | `dcf4c2d2`| `abc7704f`|
+
+(noconcat == §39b intcs reference; nomap checksumC == intcs checksumC because
+within a group all terms share length+first-letter so termId order ≡ term-lex
+order on ties.)
+
+**Protocol**: Release jsc `7e46605fe252`, GIL-off env (`JSC_useJSThreads=1
+JSC_useThreadGIL=0 JSC_useVMLite=1 JSC_useSharedAtomStringTable=1
+JSC_useSharedGCHeap=1 JSC_useThreadGILOffUnsafe=1`); Go 1.24.13; OpenJDK
+21.0.10. One process at a time, 3 reps, median `total_ms`. Invocation:
+`./go/bench-go W <arm>`, `java Bench W <arm>`, `jsc js/bench.js -- W <arm>`.
+
+| language | arm      | W=1    | W=16   |
+|----------|----------|--------|--------|
+| go       | intcs    | 1782.3 |  412.1 |
+| go       | noconcat | 1468.6 |  356.7 |
+| go       | nomap    |  996.7 |  255.2 |
+| java     | intcs    | 1898.6 |  976.5 |
+| java     | noconcat | 1596.5 |  841.7 |
+| java     | nomap    | 1207.5 |  769.5 |
+| js       | intcs    | 7866.8 | 3369.6 |
+| js       | noconcat | 5865.0 | 2949.1 |
+| js       | nomap    | 6574.9 | 2783.5 |
+
+**Verdict — neither arm closes the single-thread ratio; `nomap` kills the W=16
+bimodal mode:**
+
+- W=1 js/java ratio: intcs 4.14× → noconcat 3.67× → nomap 5.45×. `noconcat`
+  shaves a similar ~16-18% off all three (concat→tokenize is real work
+  everywhere). `nomap` helps Go/Java MORE than JS at W=1 (java −36%, go −44%,
+  js −16%): the per-doc `Map<string>` tf accumulator + shard `Map<string>`
+  get/set is a bigger fraction of Go/Java's W=1 wall than JS's.
+
+- W=16: the JS intcs/noconcat phaseA is **bimodal** — 8-rep intcs phaseA
+  {1506,1566,4486,4507,4570,…}; 8-rep noconcat phaseA {1261,1311,1312,3176,
+  3569,…}. The §39b table's 6383 ms is the slow mode. `nomap` phaseA is
+  **monomodal** at ~1150 ms (8/8 reps in [1146,1194]). The shared-heap
+  `Map<string>` under shard locks is the bimodal trigger; removing it
+  stabilizes JS W=16 at ~2780 ms (3.6× java) vs the §39b 6383 ms (6.8× java).
+
+So: the §39b "6.8× Java" headline is the `Map<string>` slow mode. With it
+removed (`nomap`) the gap is 3.6× — still not closed, and the residual is NOT
+strings (noconcat helps everyone equally) and NOT `Map<string>` lookups. The
+remaining ~2000 ms at W=16 is the alloc/GC + lock.hold trampoline cost
+(consistent with the §38 `flat` arm reaching ~500 ms at W=16 by removing
+those too).
