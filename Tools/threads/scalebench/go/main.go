@@ -359,13 +359,24 @@ func phaseAWork() {
 }
 
 // ---------------------------------------------------------------------------
-// intcs arm (§39 cross-language): same loop shape as indexChecksum but with
-// 32-bit wrap-around arithmetic. fnv1a32/mix32 are byte-identical to bench.js
-// fnv1a32/mix32 (Math.imul + >>>0) and Bench.java's int-based versions, so
-// checksumA/A2 match across all three languages bit-for-bit. Everything else
-// (genDoc, tokenize, sharding, locking, phaseB/C) is unchanged — only the
-// §1.8 postings checksum is rerouted. Default OFF.
+// intcs arm (§39b full-workload 32-bit, supersedes the §39 checksum-only
+// reroute): SAME work shape as the spec arm — string concat → tokenize →
+// map[string].get/set under shard locks → 90/10 query mix → Phase C group-by
+// — but EVERY numeric operation is uint32: splitmix32 PRNG, docSeedI/qSeedI =
+// mix32(seed^d), pickTermI, shardForI = fnv1a32%K, mix32 everywhere, fnv1a32
+// for all string hashing, uint32 per-goroutine partialB. Produces DIFFERENT
+// documents than the spec u64 arm (different PRNG output) and so a NEW
+// cross-language reference tuple — recorded in docs/threads/SCALEBENCH.md
+// §39b. bench.js (Math.imul + >>>0) and Bench.java (int + >>>) implement
+// byte-identical arithmetic. Default OFF: no `intcs` arg / SCALEBENCH_INTCS
+// unset ⇒ the spec u64 path runs and the b3e65a68… reference is unchanged.
 // ---------------------------------------------------------------------------
+
+const (
+	GSEED32  uint32 = 0x5ca1ab1e
+	QSEED32  uint32 = 0xfacefeed
+	GOLDEN32 uint32 = 0x9e3779b9
+)
 
 func fnv1a32(s string) uint32 {
 	h := uint32(0x811c9dc5)
@@ -382,6 +393,83 @@ func mix32(x uint32) uint32 {
 	return z ^ (z >> 16)
 }
 
+type prng32 struct{ s uint32 }
+
+func (p *prng32) next() uint32 {
+	p.s += GOLDEN32
+	z := p.s
+	z = (z ^ (z >> 16)) * 0x85ebca6b
+	z = (z ^ (z >> 13)) * 0xc2b2ae35
+	return z ^ (z >> 16)
+}
+
+func docSeedI(d uint64) uint32 { return mix32(GSEED32 ^ uint32(d)) }
+func qSeedI(q uint64) uint32   { return mix32(QSEED32 ^ uint32(q)) }
+func shardForI(term string) *shard {
+	return shards[fnv1a32(term)%uint32(K)]
+}
+func pickTermI(p *prng32) uint64 {
+	a := p.next() & uint32(V-1)
+	b := p.next() & uint32(V-1)
+	if a < b {
+		return uint64(a)
+	}
+	return uint64(b)
+}
+func fnvU32LE(h, x uint32) uint32 {
+	for i := 0; i < 4; i++ {
+		h = (h ^ (x & 0xff)) * 0x01000193
+		x >>= 8
+	}
+	return h
+}
+
+func genDocTokensI(d uint64) []uint64 {
+	p := prng32{s: docSeedI(d)}
+	titleLen := 5 + p.next()%8
+	bodyLen := 80 + p.next()%121
+	n := int(titleLen + bodyLen)
+	toks := make([]uint64, n)
+	for j := 0; j < n; j++ {
+		toks[j] = pickTermI(&p)
+	}
+	return toks
+}
+
+func ingestDocI(d uint64) {
+	toks := genDocTokensI(d)
+	text := buildText(toks)
+	words := tokenize(text)
+	tf := make(map[string]uint32)
+	for _, w := range words {
+		tf[w]++
+	}
+	for term, c := range tf {
+		sh := shardForI(term)
+		sh.mu.Lock()
+		pl := sh.m[term]
+		if pl == nil {
+			pl = &posting{}
+			sh.m[term] = pl
+		}
+		pl.docIds = append(pl.docIds, d)
+		pl.tfs = append(pl.tfs, c)
+		sh.mu.Unlock()
+	}
+	tokensProcessed.Add(uint64(len(words)))
+	docsIngested.Add(1)
+}
+
+func phaseAWorkI() {
+	for {
+		d := nextDoc.Add(1) - 1
+		if d >= nBase {
+			return
+		}
+		ingestDocI(d)
+	}
+}
+
 func indexChecksum32() (sum uint64, count uint64) {
 	var s uint32
 	for k := range shards {
@@ -396,6 +484,168 @@ func indexChecksum32() (sum uint64, count uint64) {
 	}
 	sum = uint64(s)
 	return
+}
+
+func copyPostingsI(term string) ([]uint64, []uint32) {
+	sh := shardForI(term)
+	sh.mu.Lock()
+	pl := sh.m[term]
+	var ids []uint64
+	var tfs []uint32
+	if pl != nil {
+		ids = append([]uint64(nil), pl.docIds...)
+		tfs = append([]uint32(nil), pl.tfs...)
+	}
+	sh.mu.Unlock()
+	return ids, tfs
+}
+
+func pointQueryI(p *prng32) uint32 {
+	term := termString(pickTermI(p))
+	sh := shardForI(term)
+	var df, sumTf uint32
+	sh.mu.Lock()
+	if pl := sh.m[term]; pl != nil {
+		for i, d := range pl.docIds {
+			if d < nBase {
+				df++
+				sumTf += pl.tfs[i]
+			}
+		}
+	}
+	sh.mu.Unlock()
+	return mix32(fnv1a32(term) ^ (df * 0x9e37) ^ sumTf)
+}
+
+func andQueryI(p *prng32) uint32 {
+	nTerms := int(2 + p.next()%2)
+	terms := make([]string, nTerms)
+	for i := range terms {
+		terms[i] = termString(pickTermI(p))
+	}
+	lists := make([][]uint64, nTerms)
+	for i, t := range terms {
+		lists[i], _ = copyPostingsI(t)
+	}
+	m := make(map[uint64]int)
+	for _, d := range lists[0] {
+		if d < nBase {
+			m[d] = 1
+		}
+	}
+	for i := 1; i < nTerms; i++ {
+		for _, d := range lists[i] {
+			if d < nBase && m[d] == i {
+				m[d] = i + 1
+			}
+		}
+	}
+	var sum, count uint32
+	for d, c := range m {
+		if c == nTerms {
+			sum += mix32(uint32(d))
+			count++
+		}
+	}
+	return mix32(sum) ^ count
+}
+
+func scoredQueryI(p *prng32) uint32 {
+	nTerms := int(2 + p.next()%2)
+	score := make(map[uint64]uint32)
+	for i := 0; i < nTerms; i++ {
+		term := termString(pickTermI(p))
+		ids, tfs := copyPostingsI(term)
+		var idf uint32
+		if df := dfSnap[term]; df != 0 {
+			idf = uint32(nBase) * 1000 / uint32(df)
+		}
+		for j, d := range ids {
+			if d < nBase {
+				score[d] += tfs[j] * idf
+			}
+		}
+	}
+	type cand struct {
+		d uint64
+		s uint32
+	}
+	cands := make([]cand, 0, len(score))
+	for d, s := range score {
+		cands = append(cands, cand{d, s})
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].s != cands[j].s {
+			return cands[i].s > cands[j].s
+		}
+		return cands[i].d < cands[j].d
+	})
+	if len(cands) > TOPN {
+		cands = cands[:TOPN]
+	}
+	h := uint32(0x811c9dc5)
+	for _, c := range cands {
+		h = fnvU32LE(h, uint32(c.d))
+	}
+	for _, c := range cands {
+		h = fnvU32LE(h, c.s)
+	}
+	return h
+}
+
+func phaseBWorkI() {
+	var local uint32
+	for {
+		q := nextOp.Add(1) - 1
+		if q >= nQueries {
+			break
+		}
+		if q%WRITERMOD == 0 {
+			ingestDocI(nBase + q/WRITERMOD)
+			writesDone.Add(1)
+			continue
+		}
+		p := prng32{s: qSeedI(q)}
+		kind := p.next() % 10
+		var h uint32
+		switch {
+		case kind < 4:
+			h = pointQueryI(&p)
+		case kind < 8:
+			h = andQueryI(&p)
+		default:
+			h = scoredQueryI(&p)
+		}
+		local += mix32((uint32(q) * GOLDEN32) ^ h)
+		queriesDone.Add(1)
+	}
+	checksumBAcc.Add(uint64(local))
+}
+
+func finalizeCI() uint32 {
+	var sum uint32
+	for _, key := range groupKeys {
+		g := groups[key]
+		sort.Slice(g.terms, func(i, j int) bool {
+			if g.terms[i].totalTf != g.terms[j].totalTf {
+				return g.terms[i].totalTf > g.terms[j].totalTf
+			}
+			return g.terms[i].term < g.terms[j].term
+		})
+		n := len(g.terms)
+		if n > TOPN {
+			n = TOPN
+		}
+		var sb strings.Builder
+		for i := 0; i < n; i++ {
+			sb.WriteString(g.terms[i].term)
+			sb.WriteByte(':')
+			sb.WriteString(strconv.FormatUint(g.terms[i].totalTf, 10))
+			sb.WriteByte(',')
+		}
+		sum += mix32(fnv1a32(key) ^ uint32(g.totalTf) ^ (uint32(g.df) * GOLDEN32) ^ fnv1a32(sb.String()))
+	}
+	return sum
 }
 
 // indexChecksum: order-independent mod-2^64 sum over every posting (SPEC §1.8).
@@ -828,7 +1078,11 @@ func worker(id int, done chan<- struct{}) {
 		tPhase = tTotal0
 	}
 
-	phaseAWork()
+	if intcs {
+		phaseAWorkI()
+	} else {
+		phaseAWork()
+	}
 	bar.await() // Phase A done
 	if id == 0 {
 		phaseAms = msSince(tPhase)
@@ -842,12 +1096,17 @@ func worker(id int, done chan<- struct{}) {
 	}
 	bar.await() // dfSnap published; Phase B starts
 
-	phaseBWork()
+	if intcs {
+		phaseBWorkI()
+	} else {
+		phaseBWork()
+	}
 	bar.await() // Phase B done
 	if id == 0 {
 		phaseBms = msSince(tPhase)
 		checksumB = checksumBAcc.Load()
 		if intcs {
+			checksumB &= 0xFFFFFFFF // §39b: per-goroutine uint32 partials, summed mod-2^32
 			checksumA2, _ = indexChecksum32()
 		} else {
 			checksumA2, _ = indexChecksum() // base + writer docs
@@ -867,7 +1126,11 @@ func worker(id int, done chan<- struct{}) {
 		if wsMode {
 			wsMergeLocals() // single-threaded merge of thread-local accumulators
 		}
-		checksumC = finalizeC()
+		if intcs {
+			checksumC = uint64(finalizeCI())
+		} else {
+			checksumC = finalizeC()
+		}
 		totalms = msSince(tTotal0)
 	}
 	done <- struct{}{}

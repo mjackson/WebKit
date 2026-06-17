@@ -2830,3 +2830,59 @@ intcs`, `jsc js/bench.js -- W intcs` (or `SCALEBENCH_INTCS=1`).
 | js       | 8  | 8081.6  |
 | js       | 16 | 7868.6  |
 | js       | 32 | 7993.5  |
+
+## §39b intcs full-workload 32-bit (supersedes §39)
+
+§39 rerouted only the §1.8 postings checksum to 32-bit; phaseA/B/C still ran
+the spec u64 PRNG/hash, so JS still paid heap-BigInt for every `next()`, every
+`mix()`, every `fnv1a()` in genDoc/shardOf/queries/phaseC — Go/Java paid
+native `uint64`/`long` for the same ops. The §39 table above measures that
+asymmetry, not "concurrency cost with the BigInt floor removed".
+
+§39b reruns the **whole workload** with ZERO BigInt/u64/long arithmetic in any
+language. The work shape is spec-exact (string concat → tokenize →
+Map<string>.get/set under K=128 shard locks → 90/10 query mix → Phase C
+group-by over 104 groups) but EVERY numeric operation is 32-bit:
+
+- PRNG: splitmix32 (`next32`: `s+=0x9e3779b9; z=s; z=(z^(z>>>16))*0x85ebca6b;
+  z=(z^(z>>>13))*0xc2b2ae35; return z^(z>>>16)`). JS Number + `Math.imul`/
+  `>>>0`; Go `uint32`; Java `int` + `>>>`.
+- `docSeedI(d) = mix32(0x5ca1ab1e ^ d)`; `qSeedI(q) = mix32(0xfacefeed ^ q)`.
+- `pickTermI`: two `next32` draws masked `& (V-1)`, min.
+- `shardOfI(term) = fnv1a32(term) % K`.
+- `mix32`/`fnv1a32` everywhere (genDoc lengths, queryPoint/And/Scored,
+  checksumA/A2/B/C).
+- partialB: per-thread `uint32`, summed mod-2^32.
+
+This produces DIFFERENT documents than the spec u64 arm (different PRNG
+output), so a new cross-language reference. Default OFF: no `intcs` arg ⇒ the
+spec u64 path runs and the §1.1 reference tuple (`b3e65a68…`) is unchanged
+(verified W=2 smoke, all three languages, 2026-06-17).
+
+**Cross-language intcs reference** (full workload, N_BASE=28000, any W; all 9
+gate cells {go,java,js}×{W=1, W=4×2} and all 36 ladder cells matched):
+
+| field     | value      |
+|-----------|------------|
+| checksumA | `e85d66e7` |
+| postings  | `4158480`  |
+| checksumA2| `15cf18bb` |
+| checksumB | `651b594b` |
+| checksumC | `abc7704f` |
+
+**Protocol**: Release jsc `dab17169eb61`, GIL-off env (`JSC_useJSThreads=1
+JSC_useThreadGIL=0 JSC_useVMLite=1 JSC_useSharedAtomStringTable=1
+JSC_useSharedGCHeap=1 JSC_useThreadGILOffUnsafe=1`); Go 1.24.13; OpenJDK
+21.0.10. One process at a time, 3 reps, median `total_ms`. Invocation:
+`./go/bench-go W intcs`, `java Bench W intcs`, `jsc js/bench.js -- W intcs`.
+
+| language | W=1    | W=8    | W=16   | W=32   |
+|----------|--------|--------|--------|--------|
+| go       | 1905.5 |  524.5 |  399.9 |  377.5 |
+| java     | 1968.4 |  987.6 |  942.2 | 1078.6 |
+| js       | 8212.0 | 6998.7 | 6382.6 | 6674.4 |
+
+Against §39: JS W=1 14761→8212 (-44%, the BigInt PRNG/hash floor removed from
+phaseA/B/C); Go/Java essentially unchanged (their u64 was already native). The
+residual JS gap is now the string/Map/allocation/STW-GC cost under shared-heap,
+not 64-bit-arithmetic premium.

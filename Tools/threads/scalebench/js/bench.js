@@ -91,16 +91,18 @@ function isSmoke() {
 }
 const N_BASE = isSmoke() ? N_BASE_SMOKE : N_BASE_DEFAULT;
 
-// SCALEBENCH intcs arm (§29 fairness amendment, discriminating experiment):
-// `bench.js -- W intcs` runs the §1.8 postings checksum with allocation-free
-// 32-bit Number arithmetic (Math.imul / >>>0) instead of heap-BigInt mod-2^64.
-// Everything else (phaseA/B/C workload, locking, the Map/array shapes) is
-// identical. Produces a DIFFERENT checksum tuple (32-bit, not the spec's
-// 64-bit reference) — record it as its own reference; the point of this arm is
-// to disambiguate "BigInt allocation under shared-heap" from "concurrency
-// cost" by removing the serial allocation floor. Default OFF: no arg => the
-// spec-exact BigInt path runs and the checksumA/A2 reference tuple is
-// unchanged.
+// SCALEBENCH intcs arm (§39b full-workload 32-bit, supersedes the §29/§39
+// checksum-only reroute): `bench.js -- W intcs` runs the SAME work shape as
+// the spec arm — string concat → tokenize → Map<string>.get/set under shard
+// locks → 90/10 query mix → Phase C group-by — but EVERY numeric operation is
+// 32-bit Number arithmetic (Math.imul / >>>0): splitmix32 PRNG (next32),
+// docSeedI/qSeedI = mix32(seed^d), pickTermI, shardOfI = fnv1a32%K, mix32
+// everywhere, fnv1a32 for all string hashing, 32-bit per-thread partialB.
+// ZERO BigInt on the intcs path. This produces DIFFERENT documents than the
+// spec u64 arm (different PRNG output) and so a NEW cross-language reference
+// tuple — recorded in docs/threads/SCALEBENCH.md §39b. Go (uint32) and Java
+// (int + >>>) implement byte-identical arithmetic. Default OFF: no arg ⇒ the
+// spec-exact BigInt path runs and the b3e65a68… reference tuple is unchanged.
 const INTCS = shellArgs.indexOf("intcs") >= 1;
 
 // SCALEBENCH flat arm (§34 discriminant — "if TC39 stage-2 structs were
@@ -617,6 +619,252 @@ function checksumPhaseC() {
             ^ ((BigInt(g.df) * GOLDEN) & MASK)
             ^ fnv1a(joined);
         sum = (sum + mix(item)) & MASK;
+    }
+    return sum;
+}
+
+// ---------------------------------------------------------------------------
+// intcs ARM — §39b full-workload 32-bit (see the INTCS comment near the top
+// of the file). Reuses next32/mix32/fnv1a32 (defined above and in the flat
+// arm; function declarations are hoisted), termOf, tokenize, shards, counters,
+// buildDfSnap, makeGroups, phaseC (none of which touch BigInt). Everything
+// below is gated on INTCS; when INTCS is false none of this is reachable and
+// the spec-exact u64 path runs unchanged. Go (uint32) and Java (int + >>>)
+// must implement byte-identical arithmetic for every function here.
+// ---------------------------------------------------------------------------
+const GSEED32 = 0x5ca1ab1e >>> 0;
+const QSEED32 = 0xfacefeed >>> 0;
+const GOLDEN32 = 0x9e3779b9 >>> 0;
+
+function docSeedI(d) { return mix32((GSEED32 ^ d) >>> 0); }
+function qSeedI(q)   { return mix32((QSEED32 ^ q) >>> 0); }
+function shardOfI(term) { return fnv1a32(term) % K; }
+function pickTermI(p) {
+    const a = next32(p) & (V - 1);
+    const b = next32(p) & (V - 1);
+    return a < b ? a : b;
+}
+// Feed a u32 as 4 little-endian bytes into a running FNV-1a-32 hash.
+function fnvU32LE(h, x) {
+    for (let i = 0; i < 4; ++i) {
+        h = $imul(h ^ (x & 0xff), 0x01000193) >>> 0;
+        x = x >>> 8;
+    }
+    return h;
+}
+
+function genDocTextI(d) {
+    const p = { s: docSeedI(d) };
+    const titleLen = 5 + (next32(p) % 8);
+    const bodyLen = 80 + (next32(p) % 121);
+    const n = titleLen + bodyLen;
+    const parts = [];
+    for (let j = 0; j < n; ++j) {
+        const tok = termOf(pickTermI(p));
+        if (j > 0)
+            parts.push(" ");
+        if (j % 7 === 0) {
+            parts.push(String.fromCharCode(tok.charCodeAt(0) - 32));
+            parts.push(tok.substring(1));
+        } else {
+            parts.push(tok);
+        }
+        if (j % 11 === 3)
+            parts.push(",");
+        if (j % 13 === 12)
+            parts.push(".");
+    }
+    return parts.join("");
+}
+
+function ingestDocI(d) {
+    const text = genDocTextI(d);
+    const toks = tokenize(text);
+    const tf = new Map();
+    for (let i = 0; i < toks.length; ++i) {
+        const t = toks[i];
+        const cur = tf.get(t);
+        tf.set(t, cur === undefined ? 1 : cur + 1);
+    }
+    for (const [term, count] of tf) {
+        const shard = shards[shardOfI(term)];
+        shard.lock.hold(() => {
+            let pl = shard.map.get(term);
+            if (pl === undefined) {
+                pl = { docIds: [], tfs: [] };
+                shard.map.set(term, pl);
+            }
+            pl.docIds.push(d);
+            pl.tfs.push(count);
+        });
+    }
+    Atomics.add(counters, "tokensProcessed", toks.length);
+    Atomics.add(counters, "docsIngested", 1);
+}
+
+function phaseAI() {
+    for (;;) {
+        const d = Atomics.add(counters, "nextDoc", 1);
+        if (d >= N_BASE)
+            break;
+        ingestDocI(d);
+    }
+}
+
+function copyPostingsI(term) {
+    const shard = shards[shardOfI(term)];
+    let docIds = null, tfs = null;
+    shard.lock.hold(() => {
+        const p = shard.map.get(term);
+        if (p !== undefined) {
+            docIds = p.docIds.slice();
+            tfs = p.tfs.slice();
+        }
+    });
+    return docIds === null ? { docIds: [], tfs: [] } : { docIds, tfs };
+}
+
+function queryPointI(p) {
+    const term = termOf(pickTermI(p));
+    const shard = shards[shardOfI(term)];
+    let df = 0, sumTf = 0;
+    shard.lock.hold(() => {
+        const pl = shard.map.get(term);
+        if (pl !== undefined) {
+            for (let i = 0; i < pl.docIds.length; ++i) {
+                if (pl.docIds[i] < N_BASE) {
+                    df++;
+                    sumTf += pl.tfs[i];
+                }
+            }
+        }
+    });
+    return mix32((fnv1a32(term) ^ $imul(df, 0x9e37) ^ sumTf) >>> 0);
+}
+
+function queryAndI(p) {
+    const nTerms = 2 + (next32(p) % 2);
+    const terms = [];
+    for (let i = 0; i < nTerms; ++i)
+        terms.push(termOf(pickTermI(p)));
+    const lists = [];
+    for (let i = 0; i < nTerms; ++i)
+        lists.push(copyPostingsI(terms[i]));
+    const cand = new Map();
+    const first = lists[0];
+    for (let i = 0; i < first.docIds.length; ++i) {
+        const d = first.docIds[i];
+        if (d < N_BASE)
+            cand.set(d, 1);
+    }
+    for (let k = 1; k < nTerms; ++k) {
+        const list = lists[k];
+        for (let i = 0; i < list.docIds.length; ++i) {
+            const d = list.docIds[i];
+            if (d < N_BASE && cand.get(d) === k)
+                cand.set(d, k + 1);
+        }
+    }
+    let matchSum = 0;
+    let matchCount = 0;
+    for (const [d, c] of cand) {
+        if (c === nTerms) {
+            matchSum = (matchSum + mix32(d)) >>> 0;
+            matchCount++;
+        }
+    }
+    return (mix32(matchSum) ^ matchCount) >>> 0;
+}
+
+function queryScoredI(p, dfSnap) {
+    const nTerms = 2 + (next32(p) % 2);
+    const terms = [];
+    for (let i = 0; i < nTerms; ++i)
+        terms.push(termOf(pickTermI(p)));
+    const cand = new Map();
+    for (let k = 0; k < nTerms; ++k) {
+        const term = terms[k];
+        const df = dfSnap.get(term);
+        const idf = df === undefined ? 0 : ((N_BASE * 1000 / df) | 0);
+        const list = copyPostingsI(term);
+        for (let i = 0; i < list.docIds.length; ++i) {
+            const d = list.docIds[i];
+            if (d < N_BASE) {
+                const cur = cand.get(d);
+                const add = $imul(list.tfs[i], idf) >>> 0;
+                cand.set(d, cur === undefined ? add : (cur + add) >>> 0);
+            }
+        }
+    }
+    const entries = [];
+    for (const [d, score] of cand)
+        entries.push({ d, score });
+    entries.sort((a, b) => {
+        if (a.score !== b.score)
+            return a.score > b.score ? -1 : 1; // score DESC (unsigned u32)
+        return a.d - b.d;                      // docId ASC
+    });
+    const top = entries.length < TOPN ? entries : entries.slice(0, TOPN);
+    let h = 0x811c9dc5 >>> 0;
+    for (let i = 0; i < top.length; ++i)
+        h = fnvU32LE(h, top[i].d);
+    for (let i = 0; i < top.length; ++i)
+        h = fnvU32LE(h, top[i].score);
+    return h;
+}
+
+const partialBI = [];
+for (let i = 0; i < W; ++i)
+    partialBI.push(0);
+
+function phaseBI(id) {
+    const dfSnap = published.dfSnap;
+    let cs = 0;
+    for (;;) {
+        const q = Atomics.add(counters, "nextOp", 1);
+        if (q >= N_QUERIES)
+            break;
+        if (q % WRITER_MOD === 0) {
+            ingestDocI(N_BASE + q / WRITER_MOD);
+            Atomics.add(counters, "writesDone", 1);
+            continue;
+        }
+        const p = { s: qSeedI(q) };
+        const kind = next32(p) % 10;
+        let perQueryHash;
+        if (kind <= 3)
+            perQueryHash = queryPointI(p);
+        else if (kind <= 7)
+            perQueryHash = queryAndI(p);
+        else
+            perQueryHash = queryScoredI(p, dfSnap);
+        cs = (cs + mix32(($imul(q, GOLDEN32) ^ perQueryHash) >>> 0)) >>> 0;
+        Atomics.add(counters, "queriesDone", 1);
+    }
+    partialBI[id] = cs;
+}
+
+function checksumPhaseCI() {
+    const groups = published.groups;
+    const keys = published.groupKeys;
+    let sum = 0;
+    for (let i = 0; i < keys.length; ++i) {
+        const key = keys[i];
+        const g = groups.get(key);
+        g.terms.sort((a, b) => {
+            if (a.totalTf !== b.totalTf)
+                return b.totalTf - a.totalTf;
+            return a.term < b.term ? -1 : (a.term > b.term ? 1 : 0);
+        });
+        const top = g.terms.length < TOPN ? g.terms : g.terms.slice(0, TOPN);
+        let joined = "";
+        for (let j = 0; j < top.length; ++j)
+            joined += top[j].term + ":" + top[j].totalTf + ",";
+        const item = (fnv1a32(key)
+            ^ g.totalTf
+            ^ ($imul(g.df, GOLDEN32) >>> 0)
+            ^ fnv1a32(joined)) >>> 0;
+        sum = (sum + mix32(item)) >>> 0;
     }
     return sum;
 }
@@ -1476,7 +1724,7 @@ function workerBody(id) {
     }
 
     // Phase A
-    if (FLAT) phaseAFlat(id); else phaseA();
+    if (FLAT) phaseAFlat(id); else if (INTCS) phaseAI(); else phaseA();
     barrier.await();
     if (id === 0) {
         results.phaseA_ms = nowMs() - t0;
@@ -1551,13 +1799,17 @@ function workerBody(id) {
     // Phase B
     if (id === 0)
         t0 = nowMs();
-    if (FLAT) phaseBFlat(id); else phaseB(id);
+    if (FLAT) phaseBFlat(id); else if (INTCS) phaseBI(id); else phaseB(id);
     barrier.await();
     if (id === 0) {
         results.phaseB_ms = nowMs() - t0;
         if (FLAT) {
             let cs = 0;
             for (let i = 0; i < W; ++i) cs = (cs + partialBFlat[i]) >>> 0;
+            results.checksumB = BigInt(cs);
+        } else if (INTCS) {
+            let cs = 0;
+            for (let i = 0; i < W; ++i) cs = (cs + partialBI[i]) >>> 0;
             results.checksumB = BigInt(cs);
         } else {
             let cs = 0n;
@@ -1625,7 +1877,9 @@ function workerBody(id) {
         if (FLAT) {
             flattenGroupsFlat(); // serial-seg-getbutterfly-osrexit (group arrays)
             results.checksumC = BigInt(checksumPhaseCFlat());
-        } else
+        } else if (INTCS)
+            results.checksumC = BigInt(checksumPhaseCI());
+        else
             results.checksumC = checksumPhaseC();
         results.checksumPhaseC_ms = nowMs() - s0;
         results.total_ms = nowMs() - tStart;
