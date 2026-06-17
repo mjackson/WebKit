@@ -100,3 +100,4 @@ vgcore.*
 xcuserdata
 /Tools/threads/scan/
 /Tools/threads/scalebench/go/bench-go
+Tools/threads/scalebench/*.class
