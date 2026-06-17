@@ -2963,3 +2963,108 @@ strings (noconcat helps everyone equally) and NOT `Map<string>` lookups. The
 remaining ~2000 ms at W=16 is the alloc/GC + lock.hold trampoline cost
 (consistent with the §38 `flat` arm reaching ~500 ms at W=16 by removing
 those too).
+
+## §41 sharedheap-alloc-bughunter
+
+Round outcome: **no Source/ change landed** (`git diff Source/` empty at HEAD
+`42f50113c0c1`). The bughunter produced SHAREDHEAP-ALLOC-EVIDENCE.md (perf
+attribution, 70.9 M-cell histogram, refill-branch counts, GIL-on discriminant)
+but every candidate fix was reverted under refuter discipline; this section is
+therefore a clean-tree re-baseline confirming §40 + the evidence-§(4) RSS
+table, plus the now-enforced RSS constraint.
+
+**Protocol**: Debug+Release rebuilt at `42f50113c0c1` (Release: 207 targets,
+Debug: 212 targets, both link clean; one `-Wunused-variable` in
+VMTraps.cpp:1129). Pinned GIL-off env. One process at a time after loadavg
+< 4.0, `/usr/bin/time -v`, 3 reps, median reported.
+
+### Wall ms vs Java (§40 baselines)
+
+| arm     | W  | reps (total_ms)             | median | §40 JS | Java §40 | js/java |
+|---------|----|-----------------------------|--------|--------|----------|---------|
+| intcs   | 1  | 7788 / 7669 / 7892          | 7788   | 7867   | 1899     | 4.10×   |
+| intcs   | 16 | 3444 / 6271 / 3290 (bimodal)| 3444   | 3370   | 977      | 3.53×   |
+| nomap   | 1  | 6546 / 6493 / 6527          | 6527   | 6575   | 1208     | 5.40×   |
+| nomap   | 16 | 2806 / 3139 / 2854          | 2854   | 2784   | 770      | 3.71×   |
+| default | 1  | 18328 / 18341 / 18202       | 18328  | —      | —        | —       |
+| default | 16 | 12565 / 12671 / 12666       | 12666  | —      | —        | —       |
+| flat    | 16 | 442 / 474 / 469             | 469    | 485¹   | —        | —       |
+
+¹ §38 flat W=16. All cells within ±3% of their §40/§38 prior — expected
+(tree unchanged). intcs W=16 bimodality reproduced (1/3 slow-mode at 6271 ms,
+the §40 Map<string> phaseA mode).
+
+### Peak RSS vs evidence-§(4) baseline
+
+| arm     | W  | reps (peak RSS KB)                | median MB | §(4) MB | Δ      | ceiling (+10%) |
+|---------|----|-----------------------------------|-----------|---------|--------|----------------|
+| intcs   | 1  | 431784 / 432752 / 433100          | 433       | 432     | +0.2%  | 475 ✓          |
+| intcs   | 16 | 1327152 / 1229480 / 1338856       | 1327      | 1232    | +7.7%  | 1355 ✓         |
+| nomap   | 1  | 423712 / 427844 / 424452          | 424       | 427     | −0.7%  | 470 ✓          |
+| nomap   | 16 | 519480 / 496916 / 498276          | 498       | 516     | −3.5%  | 567 ✓          |
+| default | 1  | 439120 / 435384 / 437116          | 437       | 436     | +0.2%  | —              |
+| default | 16 | 1416456 / 1412952 / 1414320       | 1414      | 1392    | +1.6%  | —              |
+| flat    | 16 | 289540 / 292792 / 291132          | 291       | ~285²   | +2.1%  | —              |
+
+² §38 flat baseline. intcs W=16 +7.7% is run-to-run noise on the bimodal arm
+(the slow-mode rep is the LOW-RSS one — 1229 MB at 6271 ms vs 1327/1339 MB at
+3290/3444 ms — so RSS variance is mode-correlated, not a leak).
+
+### Checksums (all 21 reps)
+
+| arm     | tuple                                                            | match |
+|---------|------------------------------------------------------------------|-------|
+| intcs   | `e85d66e7\|4158480\|15cf18bb\|651b594b\|abc7704f`                | 6/6 ✓ (§39b ref) |
+| nomap   | `98972b27\|4158480\|64cd1705\|dcf4c2d2\|abc7704f`                | 6/6 ✓ (§40 ref)  |
+| default | `b3e65a68…\|4158957\|39c33392…\|c4bdd580…\|af028188…`            | 6/6 ✓ (§1.1 ref) |
+| flat    | `686d6890\|4154468\|0fbbd673\|3af6b072\|e1d22021`                | 3/3 ✓ (§38 ref)  |
+
+All 21 reps rc=0 (no §38-style RangeError; that regression's routing was
+already reverted before `42f50113c0c1`).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| All 21 matrix reps rc=0, checksums stable | **PASS** |
+| `git diff Source/` empty (refuter discipline) | **PASS** |
+| Peak RSS W=1 within +10% baseline | **PASS** (intcs +0.2%, nomap −0.7%) |
+| Peak RSS W=16 within +10% baseline | **PASS** (intcs +7.7%, nomap −3.5%) |
+| **JS intcs W=1 < 6000 ms** (round target) | **FAIL — 7788 ms** |
+
+**verified=false.** No fix survived; the perf target cannot be met on an
+unchanged tree.
+
+### Survivors
+
+None. The round's net contribution is the evidence pack
+(SHAREDHEAP-ALLOC-EVIDENCE.md), not a code change.
+
+### Honest residuals
+
+1. **Evidence-§(5) decomposition stands as the round's finding**: of the
+   intcs W=1 +5889 ms gap vs Java, only **~1912 ms (33%)** is the
+   sharedGCHeap+GIL-off tax that any allocator-side fix can address. The
+   remaining **~3937 ms (67%)** is the no-shared-heap "plain JSC" floor
+   (`WTF::equal` Map-key compare 4.7%, `lockProtoFuncHold` 4.3%/29.6%c,
+   rope-resolve, IC-miss, CellLock/DeferTermination/traps overhead). The
+   < 6000 ms target therefore needs BOTH an allocator fix AND a non-alloc
+   floor reduction; an allocator-only round was never going to clear it.
+2. **Evidence-§(6) redirects the TLAB hypothesis**: 99.67% of 70.9 M cells
+   already hit interval-bump; refills are 0.33% and ~4.1% of wall. The
+   measurable per-cell tax is the **3-hop allocator lookup**
+   (`allocationClientForCurrentThread` → `allocatorForSizeStep` →
+   `allocateForClient`, ~250 ms C++-visible + a JIT-inlined slice). The
+   "per-thread fresh-block cache" candidate from the §40 brief targets the
+   wrong lever (refill, not lookup) and carries RSS risk; the
+   higher-leverage, zero-RSS candidate is **caching the LocalAllocator\*
+   per (thread, size-class)** to skip the dispatch.
+3. **intcs W=16 RSS noise is mode-correlated** (slow-mode rep = low-RSS
+   rep). Any future RSS-gate failure on intcs W=16 must be checked against
+   which phaseA mode the rep landed in before being treated as a
+   regression.
+4. **intcs W=16 bimodality unchanged** — the §40 Map<string> slow-mode
+   trigger is untouched (no fix landed). nomap W=16 remains monomodal.
