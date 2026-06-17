@@ -3488,3 +3488,130 @@ W=1 where main is the only thread).
    `tf.get/set(string)` + `WTF::equal` key compare, 16.5% of fast-mode is
    `getByIdMegamorphic` per Round-1 perf). That's the real `Map<string>`
    tax, now measurable without the mode noise.
+
+## §45 engine-side: no-segment property-only + handleGetById backstop
+
+Closes the §44 hazard class in the engine and **removes** the §44 bench
+prewarm (`String.fromCharCode(97)` at `bench.js` module init) so the bench
+no longer needs to know which thread reifies a constructor's lazy statics.
+
+### Change
+
+Two cooperating fixes (the §44 residual (1) candidates (a)+(b)):
+
+1. **`ConcurrentButterfly.cpp` §4.2 noseg-property-only `StayFlatShared`
+   gate** (`trySegmentedTransition`): a foreign-TID / SW=1 property
+   transition on a Flat butterfly with **no indexing header** and **no
+   `outOfLineCapacity` growth** reuses the existing flat allocation under
+   the cell lock — release-store the value into the live slot, then
+   nuke + DCAS `{newStructure, (installerTID, SW=1)}` — instead of
+   `convertToSegmentedButterfly`. The R7 read protocol is satisfied by the
+   same M2/M5 ordering the owner StayFlat reuse path already relies on
+   (payload unchanged, slot address data-dependent on the same word). I12
+   holds because the step-0 F2 fire invalidated `writeThreadLocal` /
+   `transitionThreadLocal` on source AND target before the SW=1
+   publication. Gated `!useThreadGIL()` (the perf hazard is multi-mutator
+   only; GIL-on corpus baseline preserved).
+2. **`DFGByteCodeParser::handleGetById` BadIndexingType backstop**: under
+   `useJSThreads()`, before the simple `CheckStructure + GetButterfly +
+   GetByOffset` / `MultiGetByOffset` lowering, consult
+   `m_exitProfile.hasExitSite(m_currentIndex, BadIndexingType)` and on a
+   hit fall back to the `GetById` IC node. Mirrors the existing
+   BadCache/BadConstantCache idiom; converges in **one** recompile when
+   the gate above cannot apply (capacity grows) and the base segments
+   anyway. Flag-off the block is dead and codegen is byte-identical.
+
+`bench.js`: §44 comment block + prewarm replaced with a §45 pointer (net
+−9 lines, no executable code at that site).
+
+### §44 discriminants re-run WITHOUT bench prewarm
+
+Release jsc, pinned GIL-off env, intcs W=16:
+
+| variant | n | phaseA_ms sorted | mode | §44 result |
+|---|---|---|---|---|
+| (i) no prewarm (race) | 15 | [1568,1575,1575,1578,1583,1588,1593,1594,1594,1611,1616,1638,1640,1671,1692] | **15/15 fast**, max/min 1.079 | was bimodal 12f/18s |
+| (ii) `(new Thread(()=>String.fromCharCode(97))).join()` at init (worker reifies) | 12 | [1563,1567,1611,1615,1616,1624,1628,1641,1645,1647,1648,1650] | **12/12 fast**, max/min 1.056 | was **12/12 slow** [4441,4691] |
+
+**(ii) is the load-bearing flip**: forcing worker reification was
+deterministically slow (Segmented StringConstructor → recompile loop); now
+deterministically fast.
+
+### Butterfly regime after worker reification (`describe`)
+
+| ctor | pre | post (worker reify) | path |
+|---|---|---|---|
+| `String` | `(3/4){…name:66}` Flat 0x…5528 | `(4/4){…raw:67}` **Flat, same butterfly 0x…5528**, NonArray | StayFlatShared (cap 4→4) |
+| `Object` | `(14/16){…groupBy:77}` Flat 0x…c668 | `(15/16){…keys:78}` **Flat, same butterfly 0x…c668**, NonArray | StayFlatShared (cap 16→16) |
+| `Array` | `(8/8){…fromAsync:71}` Flat | `(9/16){…from:72}` **tagged butterfly word** (Segmented) | gate not applicable (cap 8→16) → backstop |
+
+String stays Flat/NonArray as required. Array still segments (capacity
+growth) but the backstop converges it (see compile counts below).
+
+### intcs W=16 30-rep distribution (no prewarm)
+
+| | n | phaseA min | med | max | max/min | slow-mode | cs tuple |
+|---|---|---|---|---|---|---|---|
+| §44 baseline (race, no engine fix) | 30 | 1512 | 4518 | 4746 | 3.14 | 18/30 (60%) | `e85d66e7\|4158480\|15cf18bb\|651b594b\|abc7704f` 30/30 |
+| §44 prewarm | 30 | 1531 | 1624 | 1696 | 1.11 | 0/30 | same |
+| **§45 engine fix, no prewarm** | 30 | **1548** | **1625** | **1672** | **1.080** | **0/30 (0%)** | same, 30/30 |
+
+total_ms 30-rep: min 3104 / med 3317 / max 3877 (max/min 1.249).
+
+### Regression checks (3-rep, Release, pinned env)
+
+| arm | W | total_ms reps | median | §44 | Δ | cs match |
+|---|---|---|---|---|---|---|
+| nomap | 16 | 2883 / 2541 / 2573 | 2573 | 2750 | −177 | 3/3 ✓ §40 ref |
+| flat | 16 | 468 / 454 / 468 | 468 | 471 | −3 | 3/3 ✓ §38 ref |
+| intcs | 1 | 6451 / 6221 / 6260 | 6260 | 6278 | −18 | 3/3 ✓ §39b ref |
+| default | 1 | 15795 / 16011 / 15865 | 15865 | — | — | 3/3 stable |
+
+All within run-to-run noise; nomap improved (its main-thread `termOf()`
+prewarm is now redundant).
+
+### Targeted test
+
+`JSTests/threads/jit/foreign-reify-getbyid-converges.js`: worker-reifies
+`Array.from` / `Object.keys` / `String.raw`, then drives `noInline`d
+`typeof Ctor.prop` to FTL under `useConcurrentJIT=0` and asserts
+`numberOfDFGCompiles ≤ 4` for each (pre-§45 String alone was 8-15).
+Observed (Debug+Release, pinned GIL-off): **String=1 Object=1 Array=2** —
+exactly the predicted split (gate path = 1 compile, backstop path = 2).
+GIL-on: 2/2/2 (gate is GIL-off-only; backstop converges all three).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug, pinned env) | **95 passed, 0 failed, 4 skipped** (+1 new) |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **96 passed, 0 failed, 3 skipped** (+1 new) |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| **intcs W=16 30-rep monomodal (max/min < 1.5×) WITHOUT prewarm** | **PASS — 1.080** |
+| **intcs W=16 slow-mode rate < 10% WITHOUT prewarm** | **PASS — 0/30 (0%)** |
+| **force-worker-reify discriminant fast** | **PASS — 12/12 in [1563,1650]** |
+| All 63 reps rc=0, checksums stable per arm | **PASS** |
+
+**verified=true.**
+
+### Honest residuals
+
+1. **Capacity-growing foreign reification still segments** (Array 8/8→9/16).
+   The backstop converges it in one recompile, so there is no perf cliff;
+   but the second DFG body uses the generic `GetById` IC, not
+   `GetByOffset`. If a future workload is bottlenecked on a
+   capacity-growing constructor static, the gate could be extended to a
+   locked copy-grow (`StayFlatSharedGrow`) — same M2/M5 argument plus the
+   §3 owner copy-grow allocation path. Not done here: the bench hot
+   constructors (String, Object) hit the no-growth gate.
+2. **Duplicate-property-name structures pre-exist §45**: `Object` already
+   shows `hasOwn:75, hasOwn:76` BEFORE any worker runs; after worker reify
+   it gains a second `keys:78` and Array a second `from:72`. This is a
+   lazy-static-property reification re-adding an already-installed name
+   (orthogonal to butterfly regime; visible under GIL-on too). Tracked
+   separately; no correctness effect observed (property reads return the
+   right function, all checksums stable).
+3. **GIL-on path unchanged**: the StayFlatShared gate is `!useThreadGIL()`
+   so under the GIL a foreign reify still converts (preserving the GIL-on
+   corpus baseline). The backstop is `useJSThreads()` and applies in both
+   modes — GIL-on `numberOfDFGCompiles` is 2/2/2.

@@ -6651,6 +6651,25 @@ void ByteCodeParser::handleGetById(
         }
     }
 
+    if (Options::useJSThreads()) [[unlikely]] {
+        // THREADS-INTEGRATE(jit) SPEC-jit section 5.5 / SCALEBENCH.md §44
+        // backstop: compileGetButterfly under useJSThreads routes the
+        // segmented-butterfly check to speculationCheck(BadIndexingType)
+        // (DFGSpeculativeJIT.cpp compileGetButterfly). If a foreign-TID
+        // structure transition has segmented the base's butterfly for life,
+        // the CheckStructure + GetButterfly + GetByOffset fast path below
+        // OSR-exits forever and the recompile re-emits the same body. Mirror
+        // the BadCache/BadConstantCache exit-site idiom: once this bytecode
+        // has recorded a BadIndexingType exit, fall back to the GetById IC
+        // node so the next compile converges in one shot. Covers both the
+        // single-variant load() path and MultiGetByOffset. Flag-off this
+        // block is dead and codegen is byte-identical.
+        if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadIndexingType)) {
+            set(destination, addToGraph(getById, OpInfo(data), OpInfo(prediction), base));
+            return;
+        }
+    }
+
     ASSERT(type == AccessType::GetById || type == AccessType::GetByIdDirect ||  !getByStatus.makesCalls());
     if (!getByStatus.isSimple() || !getByStatus.numVariants() || !Options::useAccessInlining()) {
         set(destination,

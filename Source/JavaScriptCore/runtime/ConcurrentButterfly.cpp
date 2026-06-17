@@ -1032,6 +1032,7 @@ void fireTTLSetsForSharedTransition(VM& vm, Structure* source, Structure* target
 enum class TransitionFlavor : uint8_t {
     FirstInstall, // §2.1 N3: butterfly word 0 -> first flat butterfly, tag (currentButterflyTID(), 0)
     StayFlat, // §3: owner, SW=0, E4 failed - locked flat transition (reuse or copy-grow)
+    StayFlatShared, // §4.2 noseg-property-only: foreign/SW transition on a property-only flat butterfly with no capacity growth - locked reuse, publish (installerTID, SW=1)
     Segmented, // §4.3 proper: spine reuse or replacement spine
 };
 
@@ -1081,10 +1082,48 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
         }
     }
 
+    size_t oldOutOfLineCapacity = source->outOfLineCapacity();
+    size_t newOutOfLineCapacity = newStructure->outOfLineCapacity();
+    RELEASE_ASSERT(newOutOfLineCapacity >= oldOutOfLineCapacity); // Live storage never shrinks (I18/I30; deletes quarantine).
+    bool hasIndexingHeader = source->hasIndexingHeader(object);
+    RELEASE_ASSERT(newStructure->hasIndexingHeader(object) == hasIndexingHeader); // Header-ness changes re-fragment (C2): §4.4 / Task 8.
+
+    // §4.2 noseg-property-only gate (SCALEBENCH §44 / MAP-BIMODAL-EVIDENCE.md
+    // root cause (g)): a foreign-TID or SW=1 property transition on a Flat
+    // butterfly normally converts (§4.2) and the object stays Segmented for
+    // life - which makes DFG compileGetButterfly's segmented predicate
+    // (DFGSpeculativeJIT.cpp:12086) BadIndexingType-exit forever on every
+    // out-of-line GetById against it (handleGetById doesn't consult that exit
+    // site). When the butterfly carries NO indexed storage and the transition
+    // does not grow outOfLineCapacity, segmentation buys nothing: the slot
+    // already exists in the live flat allocation, fragments would alias the
+    // exact same bytes, and there is no concurrent indexed growth to enable.
+    // So a foreign/SW transitioner can take the SAME locked reuse path the
+    // owner StayFlat case takes - release-store the value into the existing
+    // slot, then nuke + DCAS {new structure, (installerTID, SW=1)} - and keep
+    // the butterfly Flat. The R7 read protocol (structureID re-load + address-
+    // dependent butterfly load + slot load) is satisfied by the same M2/M5
+    // ordering the owner StayFlat reuse path already relies on (the value
+    // release-store happens-before the seq_cst DCAS that publishes the un-
+    // nuked new ID; the butterfly payload is unchanged so every reader's slot
+    // address is data-dependent on the SAME word it always was). I12 holds
+    // because the step-0 F2 fire (above) invalidated writeThreadLocal on the
+    // source AND target before any (installerTID, SW=1) publication.
+    // GIL-off only (the perf hazard is a multi-mutator reify race; under the
+    // GIL the conversion path is reached but the recompile loop never bites at
+    // scale, and keeping it unchanged preserves the GIL-on corpus baseline).
+    const bool canStayFlatShared = !Options::useThreadGIL()
+        && !hasIndexingHeader
+        && newOutOfLineCapacity == oldOutOfLineCapacity
+        && source->indexingModeIncludingHistory() == newStructure->indexingModeIncludingHistory()
+        && !forceSegmentedButterfliesEnabled();
+
     // §3 dispatch: a FLAT instance transitioned by a foreign thread, or by the
-    // owner with SW=1, converts (§4.2) and goes segmented (I10). The
-    // conversion is its own protocol (it takes the cell lock itself; b2's
-    // prohibition is structural - never convert holding the lock).
+    // owner with SW=1, converts (§4.2) and goes segmented (I10) - UNLESS the
+    // noseg-property-only gate above holds, in which case it falls through to
+    // the StayFlatShared flavor below. The conversion is its own protocol (it
+    // takes the cell lock itself; b2's prohibition is structural - never
+    // convert holding the lock).
     {
         ButterflyRegime planningRegime = butterflyRegimeForWord(planningWord);
         // §9.6 (Task 10): forceSegmentedButterflies makes EVERY flat transition
@@ -1094,7 +1133,8 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
         // still-valid TTL sets (monotone) before publishing (notTTLTID, 1).
         if ((planningRegime == ButterflyRegime::Flat || planningRegime == ButterflyRegime::FlatShared)
             && (butterflyTID(planningWord) != currentButterflyTID() || butterflySharedWrite(planningWord)
-                || forceSegmentedButterfliesEnabled())) {
+                || forceSegmentedButterfliesEnabled())
+            && !canStayFlatShared) {
             if (source->indexingModeIncludingHistory() == newStructure->indexingModeIncludingHistory())
                 return !!convertToSegmentedButterfly(vm, object, source, newStructure, offset, value);
             // T4 indexing-shape transition on a shared flat object: convert in
@@ -1104,12 +1144,6 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
             return false;
         }
     }
-
-    size_t oldOutOfLineCapacity = source->outOfLineCapacity();
-    size_t newOutOfLineCapacity = newStructure->outOfLineCapacity();
-    RELEASE_ASSERT(newOutOfLineCapacity >= oldOutOfLineCapacity); // Live storage never shrinks (I18/I30; deletes quarantine).
-    bool hasIndexingHeader = source->hasIndexingHeader(object);
-    RELEASE_ASSERT(newStructure->hasIndexingHeader(object) == hasIndexingHeader); // Header-ness changes re-fragment (C2): §4.4 / Task 8.
 
     const bool isPA = object->isPreciseAllocation(); // I36
     JSCellLock& cellLock = object->cellLock();
@@ -1152,9 +1186,18 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
         case ButterflyRegime::Flat:
         case ButterflyRegime::FlatShared: {
             // Owner, SW=0 stay-flat path (§3); foreign/SW=1 was dispatched to
-            // §4.2 above - if the word changed since, RESTART re-dispatches.
-            if (butterflyTID(planningWord) != currentButterflyTID() || butterflySharedWrite(planningWord))
-                return false;
+            // §4.2 above (or fell through to StayFlatShared when the noseg-
+            // property-only gate held) - if the word changed since, RESTART
+            // re-dispatches.
+            if (butterflyTID(planningWord) != currentButterflyTID() || butterflySharedWrite(planningWord)) {
+                if (!canStayFlatShared)
+                    return false;
+                // §4.2 noseg-property-only: locked reuse of the existing flat
+                // butterfly; no allocation (the slot already exists -
+                // newOutOfLineCapacity == oldOutOfLineCapacity by the gate).
+                flavor = TransitionFlavor::StayFlatShared;
+                break;
+            }
             if (forceSegmentedButterfliesEnabled()) [[unlikely]]
                 return false; // §9.6 (Task 10): stay-flat suppressed - RESTART; the re-dispatch routes through the §3 conversion block above.
             flavor = TransitionFlavor::StayFlat;
@@ -1279,6 +1322,41 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
                     storedValue = true;
                 }
                 desiredWord = encodeButterfly(storage, currentButterflyTID(), false); // Stays (t, 0) - I27-compatible.
+            } else if (flavor == TransitionFlavor::StayFlatShared) {
+                if (regime != ButterflyRegime::Flat && regime != ButterflyRegime::FlatShared) {
+                    restart = true; // Someone converted (or removed) it: re-dispatch onto §4.3/None.
+                    break;
+                }
+                ASSERT(canStayFlatShared);
+                ASSERT(!hasIndexingHeader && newOutOfLineCapacity == oldOutOfLineCapacity);
+                Butterfly* flat = untaggedButterfly(expectedWord);
+                if (offset != invalidOffset) {
+                    unsigned outOfLineIndex = outOfLineButterflyIndex(offset);
+                    RELEASE_ASSERT(outOfLineIndex < newOutOfLineCapacity);
+                    reinterpret_cast<Atomic<uint64_t>*>(flat->propertyStorage() - (outOfLineIndex + 1))->store(JSValue::encode(value), std::memory_order_release); // Step 4 (M2/I9)
+                    storedValue = true;
+                }
+                // Preserve the original installer's TID (we are NOT taking
+                // ownership); set SW=1 - this IS a foreign/shared write. The
+                // payload is the SAME flat allocation, so I27 (no payload-
+                // preserving tag-only flips outside ensureSharedWriteBit) is
+                // not violated: this is the §3.0 SW DCAS plus a structure
+                // publish, fused into one nuke+DCAS under the cell lock.
+                desiredWord = encodeButterfly(flat, butterflyTID(expectedWord), true);
+                // I12/I11: F2 fired at step 0 (foreign/SW => trigger=true), so
+                // both writeThreadLocal and transitionThreadLocal are invalid on
+                // the source AND target before any (installerTID, SW=1)
+                // publication.
+                ASSERT(!source->transitionThreadLocalIsStillValid());
+                ASSERT(!newStructure->transitionThreadLocalIsStillValid());
+                ASSERT(!source->writeThreadLocalIsStillValid());
+                ASSERT(!newStructure->writeThreadLocalIsStillValid());
+                if (verifyConcurrentButterflyEnabled()) [[unlikely]] {
+                    RELEASE_ASSERT(!source->transitionThreadLocalIsStillValid());
+                    RELEASE_ASSERT(!newStructure->transitionThreadLocalIsStillValid());
+                    RELEASE_ASSERT(!source->writeThreadLocalIsStillValid());
+                    RELEASE_ASSERT(!newStructure->writeThreadLocalIsStillValid());
+                }
             } else {
                 if (regime != ButterflyRegime::Segmented) {
                     refit = true;
