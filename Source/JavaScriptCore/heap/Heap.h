@@ -2369,11 +2369,11 @@ public:
     // conductor / Mode-stop representative — unreachable with a single
     // thread; the fields stay zero-initialised and the scan-side path is
     // gated on isSharedServer() (false flag-off).
-    void publishParkedRootSnapshot(WTF::Thread& thread, CurrentThreadState* snapshot)
-    {
-        m_parkedRootSnapshotThread = &thread;
-        m_parkedRootSnapshot.store(snapshot, std::memory_order_seq_cst);
-    }
+    // Out-of-line in Heap.cpp (CurrentThreadState is forward-declared here;
+    // the body validates snapshot->stackTop / stackOrigin against
+    // thread.stack() — see the CVE-AUDIT A3 residual / SCAN-RESULTS.md
+    // residual #2 comment there).
+    JS_EXPORT_PRIVATE void publishParkedRootSnapshot(WTF::Thread&, CurrentThreadState*);
     void clearParkedRootSnapshot() { m_parkedRootSnapshot.store(nullptr, std::memory_order_seq_cst); }
     CurrentThreadState* parkedRootSnapshot() const { return m_parkedRootSnapshot.load(std::memory_order_seq_cst); }
     WTF::Thread* parkedRootSnapshotThread() const { return m_parkedRootSnapshotThread; }

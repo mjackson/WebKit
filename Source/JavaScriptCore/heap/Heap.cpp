@@ -8520,6 +8520,69 @@ void gcClientWillParkForThreadGranularStop()
 // or the Mode-stop representative (or to have a pending GSP set by another
 // conductor) — unreachable with a single thread; the helpers themselves are
 // no-ops without an attached client.
+void GCClient::Heap::publishParkedRootSnapshot(WTF::Thread& thread, CurrentThreadState* snapshot)
+{
+    // CVE-AUDIT A3 residual / SCAN-RESULTS.md residual #2
+    // (MachineStackMarker copyMemory SEGV via
+    // tryCopyCooperativelyParkedThreadStack; reproduced 5/5 by
+    // JSTests/threads/cve/mc-gc-weakgcmap-registry-vs-prune.js after
+    // d6cba037's m_weakGCHashTables registry lock landed — the lock DID
+    // close the K4.VIII.9 HashSet rehash race, but the gate test then fell
+    // through to this pre-existing signature, also the SCALEBENCH §37
+    // i03-quarantine-readd-across-gc.js 3/5 and the gcAtEnd ×
+    // property-wait-termination.js sweeps-01b/04/06 finding):
+    //
+    // The LockObject.cpp GILDroppedSection spawned-arm publish site captures
+    // `stackTop = static_cast<void*>(this)` — the RAII object's address.
+    // Under ASAN with detect_stack_use_after_return enabled (the default on
+    // recent clang), that local lives on a heap-backed FAKE-STACK frame, NOT
+    // inside thread.stack()'s [end, origin]; the conductor's
+    // tryCopyCooperativelyParkedThreadStack then computes a multi-MB
+    // (begin - end) span and copyMemory reads off the mapped stack
+    // (SUPPRESS_ASAN there → real hardware SEGV; observed fault addresses
+    // page-aligned at the OS-stack guard boundary). Confirmed by direct
+    // discrimination: ASAN_OPTIONS=detect_stack_use_after_return=0 makes the
+    // gate pass with no other change. The DECLARE_AND_COMPUTE_CURRENT_
+    // THREAD_STATE sites were not affected in the captured runs (their
+    // frames carry the inline-asm ALLOCATE_AND_GET_REGISTER_STATE spill and
+    // were observed on the real stack), but the same hazard applies in
+    // principle to ANY publish site whose captured stackTop escapes the
+    // real-stack bounds.
+    //
+    // Validate at the single publish chokepoint: a snapshot whose
+    // [stackTop, stackOrigin] is not a sub-range of the publishing thread's
+    // real stack is UNUSABLE for the cooperative copy (the consumer would
+    // compute a wrong span). Decline to publish — store null seq_cst so the
+    // conductor's gatherStackRoots coopParkedSnapshotLookup re-load sees
+    // null and falls back to the SIGUSR2 suspend path, which captures the
+    // REAL SP from the signal context (correctness-equivalent to the
+    // pre-T5-optimisation behaviour; the coop snapshot is a perf
+    // optimisation only). m_parkedRootSnapshotThread is still recorded so
+    // the field-pair invariant ("thread written before the seq_cst snapshot
+    // store; gated by the snapshot pointer") holds across the decline.
+    //
+    // Flag-off / non-ASAN: every publish call site is inside a vm.gilOff()
+    // [[unlikely]] branch (unreachable flag-off — byte-identical), and on a
+    // non-fake-stack build the bounds check is a tautology (`this` /
+    // `&state` are on the real stack), so no publish is ever declined and
+    // the T5 optimisation stays fully effective. ASSERT_ENABLED-and-not-
+    // ASAN dataLog so an unexpected non-ASAN out-of-bounds publish is loud
+    // in Debug without weakening any release-build invariant.
+    if (snapshot
+        && (snapshot->stackOrigin != thread.stack().origin()
+            || snapshot->stackTop < thread.stack().end()
+            || snapshot->stackTop > thread.stack().origin())) [[unlikely]] {
+#if ASSERT_ENABLED && !ASAN_ENABLED
+        dataLogLn("[SharedGC T5-rootscan] declining coop root snapshot publish: stackTop ", RawPointer(snapshot->stackTop), " / stackOrigin ", RawPointer(snapshot->stackOrigin), " outside thread.stack() [", RawPointer(thread.stack().end()), ", ", RawPointer(thread.stack().origin()), "] — falling back to suspend()");
+#endif
+        m_parkedRootSnapshotThread = &thread;
+        m_parkedRootSnapshot.store(nullptr, std::memory_order_seq_cst);
+        return;
+    }
+    m_parkedRootSnapshotThread = &thread;
+    m_parkedRootSnapshot.store(snapshot, std::memory_order_seq_cst);
+}
+
 void gcClientPublishParkedRootSnapshot(CurrentThreadState* snapshot)
 {
     GCClient::Heap* client = GCClient::Heap::currentThreadClient();

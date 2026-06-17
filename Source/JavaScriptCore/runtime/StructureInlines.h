@@ -339,6 +339,67 @@ inline PropertyOffset Structure::add(VM& vm, PropertyName propertyName, unsigned
     m_propertyHash = m_propertyHash ^ rep->existingSymbolAwareHash();
     m_seenProperties.add(CompactPtr<UniquedStringImpl>::encode(rep));
 
+    // CVE A5 (MC-DF S4; mc-df-delete-reuse.CRASH.log — SPEC-objectmodel
+    // I9/I34/L6): flag-on, the ShouldPin::Yes form mutates a PINNED table that
+    // lock-free readers (Structure::getConcurrently's seqlock fast path AND the
+    // m_lock chain walk's table->get under the SAME m_lock) probe between
+    // edits. The flag-off order below — table->add() FIRST, func() SECOND —
+    // publishes the entry@newOffset with an even editCount BEFORE func() has
+    // grown the butterfly (the JSObject "without transition" callers'
+    // growOutOfLineStorageForConcurrentLockedAdd) and BEFORE the value is
+    // stored. A lock-free dictionary reader then resolves uid@newOffset and
+    // does getDirect(newOffset) on the OLD butterfly — one word past its
+    // out-of-line allocation, i.e. an adjacent free auxiliary cell whose
+    // SCRIBBLE_WORD bits decode as a JSCell* and SEGV inside the M7(c) probe's
+    // value.asCell()->type() (rdi=0xbadbeef5). The dictionary structureID is
+    // never re-tagged, so M7(c)'s structureID().decode()==structure recheck
+    // cannot detect the in-flight add (decode() decontaminates the nuke bit).
+    //
+    // Fix flag-on: invert to func() FIRST, table->add() SECOND. func() grows
+    // the butterfly (zeroing the fresh slack — Butterfly::createOrGrowProperty-
+    // Storage), sets maxOffset, and on the putDirectWithoutTransitionConcurrent
+    // path stores the VALUE itself, all under m_lock. The table entry then
+    // publishes via PropertyTable::addAfterFind whose closing
+    // bumpConcurrentEditCount is a RELEASE store: the seqlock fast path's
+    // ACQUIRE editCount read (Structure.cpp T3 fast path step 2) orders every
+    // store func() made BEFORE the reader's getDirect(newOffset). The slot is
+    // therefore observed as either the value (I9) or, on the
+    // putDirectInternal-dictionary path that stores the value just AFTER this
+    // function returns under the still-held cell lock, encoded EMPTY — which
+    // M7(c)'s `!!value` clause already treats as inconsistent and re-spins;
+    // the writer's poll-free DeferGC'd cell-locked window is bounded so the
+    // spin terminates. Locked-walk readers serialize on m_lock (held here) and
+    // see only the post-add table; the same release/EMPTY argument applies.
+    //
+    // ShouldPin::No callers (addNewPropertyTransition, the NoTransition-type
+    // overload above) operate on a PRIVATE not-yet-published transition: no
+    // racing reader exists for its table, but the same order is harmless and
+    // keeps a single flag-on body.
+    //
+    // Flag-off: today's table->add → func order, byte-identical (I22).
+    //
+    // F1 residual (AB17g / V5b): outlined into a NEVER_INLINE IIFE — same
+    // convention and rationale as addOrReplacePropertyWithoutTransition's
+    // flag-on arm below — so flag-off instantiations of this inline template
+    // (notably the bench-transition-regress (V5B-1) hot site at
+    // JSObject::putDirectWithoutTransition) carry only the predicted-false
+    // option byte test + a never-taken call, not a second copy of the
+    // table->add machinery inlined into every put site. Pure code placement;
+    // identical instruction sequence executes flag-on.
+    if (Options::useJSThreads()) [[unlikely]] {
+        return ([&]() NEVER_INLINE -> PropertyOffset {
+        auto newMaxOffset = std::max(newOffset, maxOffset());
+        func(locker, newOffset, newMaxOffset);
+        ASSERT(maxOffset() == newMaxOffset);
+        auto [offset, attribute, result] = table->add(vm, PropertyTableEntry(rep, newOffset, attributes));
+        ASSERT_UNUSED(result, result);
+        ASSERT_UNUSED(offset, offset == newOffset);
+        UNUSED_VARIABLE(attribute);
+        checkConsistency();
+        return newOffset;
+        })();
+    }
+
     auto [offset, attribute, result] = table->add(vm, PropertyTableEntry(rep, newOffset, attributes));
     ASSERT_UNUSED(result, result);
     ASSERT_UNUSED(offset, offset == newOffset);
@@ -553,15 +614,29 @@ ALWAYS_INLINE auto Structure::addOrReplacePropertyWithoutTransition(VM& vm, Prop
         m_propertyHash = m_propertyHash ^ rep->existingSymbolAwareHash();
         m_seenProperties.add(CompactPtr<UniquedStringImpl>::encode(rep));
 
-        auto [offset, attributes, result] = table->addAfterFind(vm, PropertyTableEntry(rep, newOffset, newAttributes), WTF::move(findResult));
-        ASSERT_UNUSED(result, result);
-        ASSERT_UNUSED(offset, offset == newOffset);
-        UNUSED_VARIABLE(attributes);
+        // CVE A5 (MC-DF S4; mc-df-delete-reuse.CRASH.log — see the matching
+        // block in Structure::add<> above for the full release-order proof):
+        // this is the dictionary putDirectInternal leg's pinned-table edit.
+        // func() FIRST (grow butterfly + zero fresh slack + setMaxOffset under
+        // m_lock), THEN addAfterFind whose closing release-store on the edit
+        // stamp publishes the entry — so the seqlock fast path in
+        // getConcurrently never returns newOffset before the slot exists in
+        // the (zeroed) butterfly. M7(c) in JSObject.h spins on the EMPTY slot
+        // for the bounded poll-free cell-locked window until the caller's
+        // putDirectOffset (JSObjectInlines.h dictionary leg) lands the value.
+        // findResult was computed under this same m_lock with no intervening
+        // table mutation (nextOffset() touches only the deleted-offset lists,
+        // never the index vector), so it remains valid for addAfterFind.
         auto newMaxOffset = std::max(newOffset, maxOffset());
 
         func(locker, newOffset, newMaxOffset);
 
         ASSERT(maxOffset() == newMaxOffset);
+
+        auto [offset, attributes, result] = table->addAfterFind(vm, PropertyTableEntry(rep, newOffset, newAttributes), WTF::move(findResult));
+        ASSERT_UNUSED(result, result);
+        ASSERT_UNUSED(offset, offset == newOffset);
+        UNUSED_VARIABLE(attributes);
 
         checkConsistency();
         return std::tuple { newOffset, newAttributes, true };
