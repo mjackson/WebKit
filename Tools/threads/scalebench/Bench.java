@@ -239,6 +239,42 @@ public final class Bench {
         docsIngested.incrementAndGet();
     }
 
+    // ---- §39 intcs arm (cross-language 32-bit checksum) ----
+    // fnv1a32/mix32 are byte-identical to bench.js fnv1a32/mix32 (Math.imul +
+    // >>>0) and Go's uint32 versions: Java int is signed two's-complement so
+    // *, +, ^ wrap mod-2^32 exactly like uint32; >>> is logical shift. Only
+    // the §1.8 postings checksum is rerouted — phaseA/B/C unchanged. Default
+    // OFF (no `intcs` arg / SCALEBENCH_INTCS unset => spec 64-bit path).
+    static int fnv1a32(String s) {
+        int h = 0x811c9dc5;
+        for (int i = 0; i < s.length(); i++)
+            h = (h ^ s.charAt(i)) * 0x01000193;
+        return h;
+    }
+    static int mix32(int x) {
+        int z = x + 0x9e3779b9;
+        z = (z ^ (z >>> 16)) * 0x85ebca6b;
+        z = (z ^ (z >>> 13)) * 0xc2b2ae35;
+        return z ^ (z >>> 16);
+    }
+    static long[] indexChecksum32() {
+        int sum = 0;
+        long count = 0;
+        for (Shard sh : shards) {
+            for (var e : sh.map.entrySet()) {
+                int th = fnv1a32(e.getKey());
+                PostingList pl = e.getValue();
+                for (int i = 0; i < pl.size; i++) {
+                    int item = th ^ (((int) pl.docIds[i]) * 0xd6e8feb9)
+                                  ^ (pl.tfs[i] * 0xcaaf00dd);
+                    sum += mix32(item);
+                    count++;
+                }
+            }
+        }
+        return new long[] { ((long) sum) & 0xFFFFFFFFL, count };
+    }
+
     // ---- §1.8 index checksum: returns {checksum, postingsCount} ----
     static long[] indexChecksum() {
         long sum = 0, count = 0;
@@ -394,6 +430,7 @@ public final class Bench {
     //     Phase C barrier, then the naive sort/topN/checksumC code runs
     //     unchanged.
     static boolean WS_MODE;
+    static boolean INTCS;
 
     static final class WsDeque {
         final ReentrantLock lock = new ReentrantLock();
@@ -531,7 +568,7 @@ public final class Bench {
                 for (var e : sh.map.entrySet()) snap.put(e.getKey(), (long) e.getValue().size);
             }
             dfSnap = snap;                                // published by the barrier below
-            long[] r = indexChecksum();
+            long[] r = INTCS ? indexChecksum32() : indexChecksum();
             checksumA = r[0];
             postingsCount = r[1];
         }
@@ -561,7 +598,7 @@ public final class Bench {
         barrier.await();
         if (tid == 0) {
             tEndB = System.nanoTime();
-            checksumA2 = indexChecksum()[0];
+            checksumA2 = (INTCS ? indexChecksum32() : indexChecksum())[0];
         }
         barrier.await();
         if (tid == 0) tStartC = System.nanoTime();
@@ -649,6 +686,9 @@ public final class Bench {
         N_BASE = smoke ? 2000 : CFG_N_BASE;
         N_QUERIES = N_BASE;
         WS_MODE = "1".equals(System.getenv("SCALEBENCH_WS"));
+        INTCS = "1".equals(System.getenv("SCALEBENCH_INTCS"));
+        for (int i = 1; i < args.length; i++)
+            if ("intcs".equals(args[i])) INTCS = true;
 
         selfTestPrng();
 
@@ -672,7 +712,9 @@ public final class Bench {
         for (Thread t : ts) t.join();
 
         StringBuilder out = new StringBuilder(512);
-        out.append("{\"impl\":\"java\",\"threads\":").append(W);
+        out.append("{\"impl\":\"java\"");
+        if (INTCS) out.append(",\"intcs\":true");
+        out.append(",\"threads\":").append(W);
         if (WS_MODE) out.append(",\"mode\":\"ws\"");
         out.append(",\"phaseA_ms\":").append(ms(tStartA, tEndA))
            .append(",\"phaseB_ms\":").append(ms(tStartB, tEndB))

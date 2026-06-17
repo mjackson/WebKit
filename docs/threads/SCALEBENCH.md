@@ -2791,3 +2791,42 @@ the per-thread MegamorphicCache routing.** verified=false.
    noise floor for further bench-side work.
 7. **`forof-tdz-osr-loop` still `useJSThreads()`-gated** per Jarred's
    ruling; unchanged this round.
+
+## §39 intcs cross-language
+
+The `intcs` arm (32-bit allocation-free postings checksum, §29) is now ported
+to Go (`main.go`) and Java (`Bench.java`) with byte-identical constants and
+shifts: FNV-1a-32 (offset `0x811c9dc5`, prime `0x01000193`), splitmix32-style
+`mix32` (`+0x9e3779b9`, `*0x85ebca6b` xs16, `*0xc2b2ae35` xs13, xs16), and
+posting-item fold `th ^ (docId*0xd6e8feb9) ^ (tf*0xcaaf00dd)` summed mod-2^32.
+Java uses signed-int two's-complement wrap (`*`/`+`/`^` mod-2^32, `>>>` for
+logical shift); Go uses native `uint32`. Only `indexChecksum` (§1.8,
+checksumA/A2) is rerouted — phaseA ingest, phaseB queries, phaseC analytics,
+sharding, and locking are unchanged, so the default-arm spec u64 reference
+tuple (`b3e65a68…`) is preserved when `intcs` is off.
+
+**Cross-language intcs reference** (full workload, N_BASE=28000, any W):
+`checksumA = 000000008021f000`, `checksumA2 = 000000001fc7d941`,
+`postings = 4158957`. All 36 ladder cells (3 langs × 4 W × 3 reps) matched.
+
+**Protocol**: Release jsc `f980fd63c125`, GIL-off env (`JSC_useJSThreads=1
+JSC_useThreadGIL=0 JSC_useVMLite=1 JSC_useSharedAtomStringTable=1
+JSC_useSharedGCHeap=1 JSC_useThreadGILOffUnsafe=1`); Go 1.24.13; OpenJDK as
+installed. One process at a time, `/usr/bin/time -v`, 3 reps, median
+`total_ms` reported. Invocation: `./go/bench-go W intcs`, `java Bench W
+intcs`, `jsc js/bench.js -- W intcs` (or `SCALEBENCH_INTCS=1`).
+
+| language | W  | wall ms |
+|----------|----|---------|
+| go       | 1  | 1851.6  |
+| go       | 8  | 529.3   |
+| go       | 16 | 422.3   |
+| go       | 32 | 370.3   |
+| java     | 1  | 2010.9  |
+| java     | 8  | 1000.7  |
+| java     | 16 | 1029.2  |
+| java     | 32 | 989.5   |
+| js       | 1  | 14761.4 |
+| js       | 8  | 8081.6  |
+| js       | 16 | 7868.6  |
+| js       | 32 | 7993.5  |

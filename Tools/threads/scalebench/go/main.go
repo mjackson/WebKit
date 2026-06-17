@@ -358,6 +358,46 @@ func phaseAWork() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// intcs arm (§39 cross-language): same loop shape as indexChecksum but with
+// 32-bit wrap-around arithmetic. fnv1a32/mix32 are byte-identical to bench.js
+// fnv1a32/mix32 (Math.imul + >>>0) and Bench.java's int-based versions, so
+// checksumA/A2 match across all three languages bit-for-bit. Everything else
+// (genDoc, tokenize, sharding, locking, phaseB/C) is unchanged — only the
+// §1.8 postings checksum is rerouted. Default OFF.
+// ---------------------------------------------------------------------------
+
+func fnv1a32(s string) uint32 {
+	h := uint32(0x811c9dc5)
+	for i := 0; i < len(s); i++ {
+		h = (h ^ uint32(s[i])) * 0x01000193
+	}
+	return h
+}
+
+func mix32(x uint32) uint32 {
+	z := x + 0x9e3779b9
+	z = (z ^ (z >> 16)) * 0x85ebca6b
+	z = (z ^ (z >> 13)) * 0xc2b2ae35
+	return z ^ (z >> 16)
+}
+
+func indexChecksum32() (sum uint64, count uint64) {
+	var s uint32
+	for k := range shards {
+		for term, pl := range shards[k].m {
+			th := fnv1a32(term)
+			for i, d := range pl.docIds {
+				item := th ^ (uint32(d) * 0xd6e8feb9) ^ (pl.tfs[i] * 0xcaaf00dd)
+				s += mix32(item)
+				count++
+			}
+		}
+	}
+	sum = uint64(s)
+	return
+}
+
 // indexChecksum: order-independent mod-2^64 sum over every posting (SPEC §1.8).
 func indexChecksum() (sum uint64, count uint64) {
 	for k := range shards {
@@ -652,6 +692,7 @@ type wsLocalGroup struct {
 
 var (
 	wsMode      bool
+	intcs       bool
 	wsDeques    []*wsDeque
 	wsLocals    []map[string]*wsLocalGroup
 	wsRemaining atomic.Int64
@@ -791,8 +832,12 @@ func worker(id int, done chan<- struct{}) {
 	bar.await() // Phase A done
 	if id == 0 {
 		phaseAms = msSince(tPhase)
-		checksumA, postingsCount = indexChecksum() // after the barrier, thread 0
-		buildDfSnap()                              // frozen df snapshot, published before B
+		if intcs {
+			checksumA, postingsCount = indexChecksum32()
+		} else {
+			checksumA, postingsCount = indexChecksum() // after the barrier, thread 0
+		}
+		buildDfSnap() // frozen df snapshot, published before B
 		tPhase = time.Now()
 	}
 	bar.await() // dfSnap published; Phase B starts
@@ -802,7 +847,11 @@ func worker(id int, done chan<- struct{}) {
 	if id == 0 {
 		phaseBms = msSince(tPhase)
 		checksumB = checksumBAcc.Load()
-		checksumA2, _ = indexChecksum() // base + writer docs
+		if intcs {
+			checksumA2, _ = indexChecksum32()
+		} else {
+			checksumA2, _ = indexChecksum() // base + writer docs
+		}
 		tPhase = time.Now()
 	}
 	bar.await() // Phase C starts
@@ -832,9 +881,13 @@ func main() {
 		if a == "--" {
 			continue
 		}
+		if a == "intcs" {
+			intcs = true
+			continue
+		}
 		w, err := strconv.Atoi(a)
 		if err != nil || w < 1 {
-			fmt.Fprintf(os.Stderr, "usage: bench-go <W>\n")
+			fmt.Fprintf(os.Stderr, "usage: bench-go <W> [intcs]\n")
 			os.Exit(2)
 		}
 		workers = w
@@ -847,6 +900,9 @@ func main() {
 	nQueries = nBase
 
 	wsMode = os.Getenv("SCALEBENCH_WS") == "1"
+	if os.Getenv("SCALEBENCH_INTCS") == "1" {
+		intcs = true
+	}
 
 	initShards()
 	initGroups()
@@ -867,7 +923,11 @@ func main() {
 	if wsMode {
 		mode = "\"mode\":\"ws\","
 	}
-	fmt.Printf("{\"impl\":\"go\",\"threads\":%d,"+mode+
+	intcsTag := ""
+	if intcs {
+		intcsTag = "\"intcs\":true,"
+	}
+	fmt.Printf("{\"impl\":\"go\","+intcsTag+"\"threads\":%d,"+mode+
 		"\"phaseA_ms\":%.3f,\"phaseB_ms\":%.3f,\"phaseC_ms\":%.3f,\"total_ms\":%.3f,"+
 		"\"checksumA\":\"%016x\",\"postings\":%d,\"checksumA2\":\"%016x\","+
 		"\"checksumB\":\"%016x\",\"checksumC\":\"%016x\","+
