@@ -3356,3 +3356,135 @@ no butterfly (JSRopeString/JSString) or a null-butterfly inline path
    GIL-on). The −116 vs §42's 5928 is load noise, not a real Δ.
 5. **flat W=16 +15 ms** (462 vs 447) — within run-to-run noise; flat
    allocates orders-of-magnitude fewer cells.
+
+
+## §44 Map-bimodal root cause
+
+Repo @ `0666c87d35bd`, Release+Debug rebuilt (Release 0 targets, Debug 206
+targets — Heap.{h,cpp} mtime touch only, `git diff Source/` empty). Pinned
+GIL-off env. **`git diff Source/` empty** (refuter discipline; the fix is a
+1-line `Tools/threads/scalebench/js/bench.js` change, not engine code).
+
+### Mechanism (corrects §40)
+
+The §40 verdict "shared-heap `Map<string>` under shard locks is the bimodal
+trigger" is **wrong**. `nomap` is monomodal because its `nmShardOf[]`
+precompute (bench.js:988-991) calls `termOf()` on the **main thread at module
+init** — which lazy-reifies `String.fromCharCode` at TID=0. `intcs`/`noconcat`
+have no main-thread `termOf()` call before workers, so the first
+`String.fromCharCode` access is a 16-thread race from `phaseAI → ingestDocI →
+genDocTextI → termOf`. Removing `Map<string>` was incidental.
+
+**Causal chain** (MAP-BIMODAL-EVIDENCE.md Round 2):
+
+1. `String.fromCharCode` is a lazy static property on StringConstructor
+   (initial structure `{prototype:64,length:65,name:66}`, butterfly Flat
+   TID=0). First access reifies it as a 4th out-of-line property.
+2. If a **worker** (TID≠0) wins the reify race: foreign-TID structure
+   transition on a Flat butterfly → `convertToSegmentedButterfly`
+   (ConcurrentButterfly.cpp:1095-1099, "Flat + foreign transition →
+   segment"). StringConstructor's butterfly is now **Segmented** for the
+   process lifetime.
+3. DFG `get_by_id String "fromCharCode"` lowers to `CheckStructure +
+   GetButterfly + GetByOffset(67)`. `compileGetButterfly` under
+   `useJSThreads()` (DFGSpeculativeJIT.cpp:12086) emits the segmented check
+   (`branch64(AboveOrEqual, butterflyWord, 0xffff<<48)`) and routes it to
+   `speculationCheck(BadIndexingType, …)` — **OSR-exit, not slow-path**.
+4. Every DFG-compiled call to `termOf` (bc#22) / `tokenize` (bc#266) /
+   `genDocTextI` (bc#254) hits the segmented branch → BadIndexingType exit.
+   `handleGetById` doesn't consult `hasExitSite(BadIndexingType)` for
+   get_by_id, so the recompile re-emits the **same body**: termOf 15× /
+   genDocTextI 8× / tokenize 9× recompile loop = the 4600 ms slow-mode
+   (3.2× user-CPU, +74% instructions, IPC 0.52 vs 0.96).
+5. If **main** (TID=0) wins the reify race: owner-TID transition keeps
+   butterfly Flat → DFG GetButterfly never exits → termOf 1× / genDocTextI
+   2× / tokenize 3× = the 1600 ms fast-mode.
+
+The race is decided at the `barrier.await()` start line: main is the last
+arriver (it spawned 15 threads first) so it returns from `await()` already
+running while workers are parked → main has a few-µs head start ≈ 40% win
+rate. Explains §34(C): `JSC_logGC=1` adds main-thread `dataLog()` latency at
+the first GC → main loses the race → 0/15 fast.
+
+**Discriminating tests** (Release jsc, pinned env, intcs W=16):
+
+| variant | n | phaseA_ms | mode |
+|---|---|---|---|
+| baseline (race) | 30 | 12 in [1512,1791], 18 in [4364,4746] | bimodal 40% fast |
+| `String.fromCharCode(97)` at module init (main reifies) | 15 | [1517,1672] | **15/15 fast** |
+| `(new Thread(()=>String.fromCharCode(97))).join()` at init (worker reifies) | 12 | [4441,4691] | **12/12 slow** |
+| `JSC_reportDFGCompileTimes=1` | 12 | fast n=3: termOf=1, genDocTextI=2, tokenize=3; slow n=9: **termOf=15, genDocTextI=8, tokenize=9** | matches modes |
+| `JSC_verboseOSR=1` exit kinds | 6 | termOf bc#22 / tokenize bc#266 / genDocTextI bc#254 = **`BadIndexingType` at `GetButterfly(String)`** (D@40, DFG dump verified) | — |
+| 16-thread `describe({docIds:[],tfs:[]})` Structure test | 1 | **all 17 threads same StructureID** | refutes (d) |
+
+### Fix (bench-level; engine-side residual below)
+
+`bench.js` +1 effective line at module init: `String.fromCharCode(97);` —
+reifies on main before workers. No-op call: zero checksum effect on every
+arm; Go/Java have no lazy-reification analogue (fairness-neutral, same class
+as the `$imul = Math.imul` hoist at line 47).
+
+### intcs W=16 30-rep distribution before/after
+
+| | n | phaseA min | med | max | max/min | slow-mode | cs tuple |
+|---|---|---|---|---|---|---|---|
+| **before** (race) | 30 | 1512 | **4518** | 4746 | **3.14** | **18/30 (60%)** | `e85d66e7\|4158480\|15cf18bb\|651b594b\|abc7704f` 30/30 |
+| **after** (prewarm) | 30 | 1531 | **1624** | 1696 | **1.11** | **0/30 (0%)** | `e85d66e7\|4158480\|15cf18bb\|651b594b\|abc7704f` 30/30 |
+
+intcs W=16 30-rep total_ms after: median **3359** [3050,3754], max/min 1.23.
+All 60 reps rc=0.
+
+### Regression checks (3-rep, Release, pinned env)
+
+| arm | W | total_ms reps | median | §43 | Δ | cs match |
+|---|---|---|---|---|---|---|
+| nomap | 16 | 2442 / 2750 / 2758 | 2750 | 2684 | +66 | 3/3 ✓ §40 ref |
+| flat | 16 | 471 / 471 / 477 | 471 | 462 | +9 | 3/3 ✓ §38 ref |
+| intcs | 1 | 6261 / 6278 / 6312 | 6278 | 6381 | −103 | 3/3 ✓ §39b ref |
+
+All within run-to-run noise (the prewarm is a no-op for nomap/flat and for
+W=1 where main is the only thread).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| All 69 reps rc=0, checksums stable per arm | **PASS** |
+| `git diff Source/` empty (refuter discipline) | **PASS** |
+| **intcs W=16 30-rep monomodal (max/min < 1.5×)** | **PASS — 1.11** |
+| **intcs W=16 slow-mode rate < 10%** | **PASS — 0/30 (0%)** |
+
+**verified=true.**
+
+### Honest residuals
+
+1. **Engine-side bug remains**: any GIL-off program that first touches a
+   lazy static property (`String.fromCharCode/fromCodePoint/raw`,
+   `Array.of/from/isArray`, `Object.assign/keys/…`, etc.) from a worker
+   thread segments that constructor's butterfly, and DFG `GetButterfly` for
+   any out-of-line property on it then OSR-exits forever (the recompile
+   doesn't learn — `handleGetById` ignores `BadIndexingType`). Two
+   candidate engine fixes (out of scope this round, recorded for §45):
+   **(a)** `DFGByteCodeParser::handleGetById` checks
+   `hasExitSite(m_currentIndex, BadIndexingType)` and falls back to the
+   `getById` IC node (1-compile convergence; ~generic perf); **(b)** the
+   ConcurrentButterfly §4.2 foreign-transition rule special-cases
+   property-only NonArray butterflies whose `outOfLineCapacity` doesn't grow
+   (cell-lock the put + structure publish, stay Flat — segmentation only
+   buys concurrent INDEXED growth).
+2. **§40 nomap interpretation corrected**: nomap is monomodal because of an
+   incidental main-thread `termOf` call, not because `Map<string>` was
+   removed. The §40 W=1 result (nomap helps Go/Java more than JS) stands
+   unchanged — that IS the Map cost.
+3. **§34(C) "logGC suppresses fast-mode"** is now mechanistically explained
+   (main-thread stall → loses reify race), and the §34(C) "JIT tier is not
+   the discriminant" finding is corrected: the discriminant IS the DFG body
+   (per Round-1 (4b)/exp2b), selected by which thread wins reification.
+4. **intcs W=16 fast-band median 1624 ms** vs nomap W=16 phaseA ~1100 ms:
+   the residual ~500 ms IS the `Map<string>` cost (per-doc `new Map()` +
+   `tf.get/set(string)` + `WTF::equal` key compare, 16.5% of fast-mode is
+   `getByIdMegamorphic` per Round-1 perf). That's the real `Map<string>`
+   tax, now measurable without the mode noise.

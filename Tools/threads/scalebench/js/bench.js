@@ -46,6 +46,24 @@
 // fairness correction, not a JS-only cheat.
 const $imul = Math.imul;
 
+// SCALEBENCH §44 Map-bimodal root cause: pre-reify String.fromCharCode on the
+// MAIN thread. Under GIL-off + sharedGCHeap, lazy static-property reification
+// from a WORKER thread is a foreign-TID structure transition on the
+// StringConstructor → its butterfly converts to Segmented (SPEC-objectmodel
+// §4.2). DFG GetButterfly then OSR-exits BadIndexingType on EVERY
+// String.fromCharCode lookup (termOf bc#22, tokenize bc#266, genDocTextI
+// bc#254), and the recompile re-emits the same body (handleGetById doesn't
+// consult BadIndexingType) → 8-15× recompile loop = the §40 intcs/noconcat
+// W=16 phaseA slow-mode (~4600 ms, 3.2× user-CPU). The §40 nomap arm is
+// monomodal NOT because Map<string> was removed but because its nmShardOf[]
+// precompute calls termOf() on the main thread at init, reifying fromCharCode
+// at TID=0 (Flat). The race for which thread reifies first IS the bistability:
+// prewarm-on-main 15/15 fast, prewarm-on-worker 12/12 slow, baseline 12/30
+// fast (MAP-BIMODAL-EVIDENCE.md Round 2). Pure no-op call: zero checksum
+// effect on any arm; Go/Java have no lazy-reification analogue
+// (fairness-neutral). Engine-side residual: docs/threads/SCALEBENCH.md §44.
+String.fromCharCode(97);
+
 // ---------------------------------------------------------------------------
 // §1.1 Constants
 // ---------------------------------------------------------------------------
