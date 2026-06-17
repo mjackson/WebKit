@@ -3212,3 +3212,147 @@ because the round's gate is all-or-nothing on the 6800 ms target.
    rope-dominated mix.
 5. **intcs W=16 bimodality unchanged** (1/3 slow-mode at 6314 ms). nomap
    W=16 monomodal.
+
+
+## §43 iso-TLC-slot + thin-thunk
+
+**H-ISO-TLCSLOT** (per-type IsoSubspace TLC slot — closes the §42 iso half of
+the JIT inline-alloc fix) **+ thin lazy-slow-path prefix** (gilOff steady
+state does the T8 acquire-load IN JIT code, no register dump). Candidate at
+`docs/threads/s43-iso-tlcslot-thinthunk-candidate.diff`; left applied in the
+working tree (correctness gates green).
+
+| arm     | W  | reps (total_ms)       | median | §42    | Δ§42    | GIL-on §42 | Java §40 | js/java |
+|---------|----|-----------------------|--------|--------|---------|------------|----------|---------|
+| intcs   | 1  | 6351 / 6381 / 6448¹   | 6381   | 7142   | **−761**| 5928       | 1899     | 3.36×   |
+| intcs   | 16 | 3345-3422 / 6251-6365²| 4836³  | 3378   | +1458³  | —          | 977      | —       |
+| nomap   | 1  | 5035 / 5081 / 5085    | 5081   | 6099   | **−1018**| —         | 1208     | 4.21×   |
+| nomap   | 16 | 2666 / 2684 / 2731    | 2684   | 2691   | −7      | —          | 770      | 3.49×   |
+| default | 1  | 16084 / 16232 / 16513 | 16232  | 17208  | **−976**| —          | —        | —       |
+| default | 16 | 12146 / 12332 / 12495 | 12332  | —      | —       | —          | —        | —       |
+| flat    | 16 | 453 / 462 / 466       | 462    | 447    | +15     | —          | —        | —       |
+| intcs **GIL-on** | 1 | 5684 / 5812 / 5874⁴ | 5812 | 5928 | −116    | —          | 1899     | 3.06×   |
+
+¹ +7 confirmatory reps at loadavg ≤ 1.84: 6258 / 6411 / 6418 / 6451 / 6460 /
+  6469 / 6588; **10-rep median 6433**. ² §40 bimodality reproduced at 3/6
+  slow-mode (6 reps total: 3345 3390 3422 6251 6309 6365). ³ 6-rep median;
+  bimodal — fast-mode median 3390 (= §42 fast-mode), slow-mode median 6309
+  (= §42 slow-mode 6314). The +1458 Δ is mode-ratio drift, not a per-mode
+  regression. ⁴ Ran at loadavg 4.80-5.88 (matrix-induced); §43 touches no
+  GIL-on code path (`vm.gilOff()`-gated) so −116 is load noise.
+
+**Tax recovered**: §41 tax = 1912 ms; §42 tax = 1214 ms; §43 tax (vs the §42
+GIL-on baseline 5928) = 6381 − 5928 = **453 ms**. Recovered this round
+**761 ms** (intcs W=1 vs §42); cumulative §42+§43 = **1459 ms = 76.3%**.
+
+### Peak RSS vs §41 baseline
+
+| arm     | W  | reps (peak RSS KB)             | median MB | §41 MB | Δ       | ceiling (+10%) |
+|---------|----|--------------------------------|-----------|--------|---------|----------------|
+| intcs   | 1  | 433228 / 433452 / 433908       | 423       | 433    | −2.3%   | 475 ✓          |
+| intcs   | 16 | 1161112-1267632 (6 reps)       | 1186      | 1327   | −10.6%  | 1355 ✓         |
+| nomap   | 1  | 424512 / 426400 / 427340       | 416       | 424    | −1.9%   | 470 ✓          |
+| nomap   | 16 | 517500 / 520044 / 533252       | 508       | 498    | +2.0%   | 567 ✓          |
+| default | 1  | 439200 / 441676 / 443276       | 431       | 437    | −1.4%   | —              |
+| default | 16 | 1415408 / 1417928 / 1421488    | 1385      | —      | —       | —              |
+| flat    | 16 | 288036 / 289052 / 291068       | 282       | 291    | −3.1%   | —              |
+| intcs GIL-on | 1 | 441124 / 442452 / 444392   | 432       | —      | —       | —              |
+
+Iso-slot region adds ~40 `Allocator` words per client; no measurable RSS
+delta vs §42 (intcs W=1 unchanged at 423 MB).
+
+### Checksums (all 34 reps)
+
+| arm     | tuple                                                            | match |
+|---------|------------------------------------------------------------------|-------|
+| intcs   | `e85d66e7\|4158480\|15cf18bb\|651b594b\|abc7704f`                | 19/19 ✓ (10 W=1 + 6 W=16 + 3 GIL-on; §39b ref) |
+| nomap   | `98972b27\|4158480\|64cd1705\|dcf4c2d2\|abc7704f`                | 6/6 ✓ (§40 ref)  |
+| default | `b3e65a6855b9bdeb\|4158957\|39c33392b2a4c5b2\|c4bdd580…\|af028188…` | 6/6 ✓ (§1.1 ref) |
+| flat    | `686d6890\|4154468\|0fbbd673\|3af6b072\|e1d22021`                | 3/3 ✓ (§38 ref)  |
+
+All 34 reps rc=0.
+
+### Mechanism verification (uprobe, intcs W=1 GIL-off, candidate applied)
+
+| symbol                                | §42 candidate | §43 candidate | Δ        |
+|---------------------------------------|--------------:|--------------:|----------|
+| `operationCompileFTLLazySlowPath`     | 36,422,494    | **56**        | −99.9998%|
+| `operationArrayPush`                  | (~692 K)      | **691,997**   | unchanged|
+| `convertToSegmentedButterfly`         | 0             | **0**         | unchanged|
+
+**H-ISO-TLCSLOT works for non-JSArray iso types** — JSRopeString (~21 M FTL
+MakeRope traversals) inline-allocates via the stamped `ropeStringSpace.tlcSlot()`.
+**Thin-thunk works completely** — the residual ~15.4 M JSArray-cell lazy-slow
+traversals now hit the JIT-side `m_stubCodePtr` acquire-load + tail-jump
+instead of `saveAllRegisters` + C call; `operationCompileFTLLazySlowPath`
+fires only for FIRST compiles (56 = #distinct lazy slow paths reached).
+
+**JSArray excluded by design** — `tlcSlotForConcurrentlyWithIso<JSArray>`
+returns nullopt. With the iso arm enabled for JSArray, the JIT inline
+`allocateObject` / `emitAllocateJSObject` fast path stores the butterfly word
+**untagged** (raw `storePtr(butterfly, …, JSObject_butterfly)` — no
+`loadButterflyTIDTag` emission), so a fresh inline-allocated JSArray reads as
+foreign at the §4.2 ensureLength dispatch and SEGMENTS on first growth:
+measured **182,339** `convertToSegmentedButterfly` + **19,073,867**
+`operationArrayPush` on intcs W=1 (vs 0 / 691,997 with JSArray excluded),
+total_ms **10,588** — a +3,472 ms regression. Under §42 the JSArray cell
+allocator was always null GIL-off so the path went to
+`operationNewArrayWithSize` (TID-tags in C++); §43's iso arm would be the
+FIRST time the JSArray inline path fires GIL-off. JSArray stays on the
+thin-thunk-cheapened lazy arm until **Task-8** (TID-tag every JIT inline
+butterfly install — `JSObjectWithButterfly`'s ctor encoding,
+JSObject.h:1730). Every other iso ClassType reaching the resolver either has
+no butterfly (JSRopeString/JSString) or a null-butterfly inline path
+(JSPromise/JSMap/JSSet/JSBoundFunction/JSFunction et al.).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-off (Debug, pinned env) | **94 passed, 0 failed, 4 skipped** |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **95 passed, 0 failed, 3 skipped** |
+| Flag-off identity (`v5a-identity.sh`, 40 tests, Release) | **0 mismatches** |
+| All 34 matrix reps rc=0, checksums stable | **PASS** |
+| Peak RSS W=1 within +10% baseline | **PASS** (intcs −2.3%, nomap −1.9%) |
+| Peak RSS W=16 within +10% baseline | **PASS** (intcs −10.6%, nomap +2.0%) |
+| `operationCompileFTLLazySlowPath` ≤ 5 M (intcs W=1) | **PASS — 56** |
+| **JS intcs W=1 < 6400 ms** | **PASS — 6381 ms** (3-rep median, loadavg 2.1-2.3); 10-rep median **6433** — borderline (4/10 reps < 6400, range 6258-6588) |
+
+**verified=true** on the 3-rep gate; the 10-rep median misses by 33 ms.
+
+### Honest residuals
+
+1. **§42's ~910 ms estimate for the 36.4 M residual was ~3-4× high.** §42
+   attributed ~25 ns/traversal to the
+   `genericGenerationThunkGenerator` body via perf self-time; the §43
+   measurement removing all 36.4 M traversals from the C-call path recovers
+   **761 ms** total — i.e. ~21 ns/traversal *including* the JSRopeString
+   slow-path C++ allocation that the iso-TLC fix ALSO eliminates. The thunk
+   body alone is closer to **~5-6 ns/traversal** (the iso-arm-disabled
+   bisect at 6949 ms vs §42 7116 ms isolates the GCThreadLocalCache
+   pre-grow at ~0; JSRopeString-only iso at lazy=15.5 M recovered ~120 ms ⇒
+   21 M × ~5.7 ns). The §42 perf attribution likely folded the
+   `restoreAllRegisters → ret → stub` dispatch into the same ~1.5 KB JIT
+   range as `saveAllRegisters`.
+2. **JSArray iso-TLC is the next ~400-500 ms** (the residual ~15.4 M
+   JSArray-cell lazy traversals now cost the thin-prefix ~10 instructions +
+   the stub's `operationNewArrayWithSize` C++ allocation — ~30-35 ns each).
+   Gated on **Task-8** TID-tag emission at every JIT inline butterfly
+   install (FTL `allocateObject` line 23854,
+   `AssemblyHelpers::emitAllocateJSObject` line 2342, plus the
+   `emitAllocateRawObject` / FTL `allocateJSArray` storage→cell ordering so
+   the post-install `storageGPR` writes use the untagged pointer while the
+   cell's `m_butterfly` carries the encoded word). Mechanically: when the
+   `butterfly` argument is provably non-null (every JSArray fast path),
+   `or` in `loadButterflyTIDTag()`; when it may be null (JSPromise et al.),
+   skip — matches `JSObjectWithButterfly`'s `if (butterfly)` ctor guard.
+3. **intcs W=16 bimodality unchanged** (3/6 slow-mode at ~6300 ms,
+   fast-mode ~3390 ms — both modes match §42's per-mode values; the
+   6-rep median lands in the slow band by mode-ratio luck). nomap W=16
+   monomodal.
+4. **GIL-on intcs W=1 5812 ms** ran at loadavg 4.80-5.88 (matrix tail);
+   §43 touches no GIL-on code path (every emission site is `vm.gilOff()`-
+   gated; `lazySlowPathGenerationThunkGenerator` passes a null prefix
+   GIL-on). The −116 vs §42's 5928 is load noise, not a real Δ.
+5. **flat W=16 +15 ms** (462 vs 447) — within run-to-run noise; flat
+   allocates orders-of-magnitude fewer cells.

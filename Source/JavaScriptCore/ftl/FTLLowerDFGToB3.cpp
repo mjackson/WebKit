@@ -2697,15 +2697,22 @@ private:
         return m_out.phi(pointerType(), fast, slow);
     }
 
-    // H-VMLITE-TLCPTR convenience: tlcSlotForConcurrently<ClassType> at
-    // codegen time, falling back to the legacy null-constant bake (which
-    // allocateHeapCell turns into an unconditional slow-path jump) when the
-    // slot is not table-addressable (iso, base unreserved, precise size).
+    // H-VMLITE-TLCPTR + H-ISO-TLCSLOT convenience:
+    // tlcSlotForConcurrentlyWithIso<ClassType> at codegen time, falling back
+    // to the legacy null-constant bake (which allocateHeapCell turns into an
+    // unconditional slow-path jump) when the slot is not table-addressable
+    // (unreserved CompleteSubspace base, precise size, unstamped iso). The
+    // iso arm is the §42 follow-on: JSRopeString/JSString/JSFunction et al.
+    // resolve their server JSC::IsoSubspace::tlcSlot — a per-type
+    // process-wide constant — so MakeRope / NewFunction inline-allocate emit
+    // the same lite-relative `tlcTable[slot]` load instead of the IT-9
+    // null-bake → operationCompileFTLLazySlowPath on EVERY allocation
+    // (36.4M intcs W=1).
     template<typename ClassType>
     LValue tlcAllocatorOrLegacy(size_t allocationSize)
     {
         ASSERT(vm().gilOff());
-        if (auto slot = tlcSlotForConcurrently<ClassType>(vm(), allocationSize))
+        if (auto slot = AssemblyHelpers::tlcSlotForConcurrentlyWithIso<ClassType>(vm(), allocationSize))
             return tlcAllocatorForSlot(*slot);
         return m_out.constIntPtr(allocatorForConcurrently<ClassType>(vm(), allocationSize, AllocatorForMode::AllocatorIfExists).localAllocator());
     }
@@ -12498,10 +12505,11 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock slowPath = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
 
-        // H-VMLITE-TLCPTR: stringSpace is iso (per-client GCClient::IsoSubspace
-        // — never table-addressable), so tlcAllocatorOrLegacy degrades to the
-        // legacy null bake GIL-off; left in place so a future iso-TLC scheme
-        // need only extend tlcSlotForConcurrently.
+        // H-VMLITE-TLCPTR + H-ISO-TLCSLOT: ropeStringSpace is iso; the §42
+        // follow-on stamps every static iso with a fixed TLC slot, so
+        // tlcAllocatorOrLegacy<JSRopeString> emits the lite-relative
+        // `tlcTable[slot]` load GIL-off (closing the 36.4M MakeRope thunk
+        // traversals on intcs W=1).
         LValue allocatorValue;
         if (vm().gilOff()) [[unlikely]]
             allocatorValue = tlcAllocatorOrLegacy<JSRopeString>(sizeof(JSRopeString));

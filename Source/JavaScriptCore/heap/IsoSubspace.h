@@ -56,6 +56,36 @@ public:
     void* tryAllocateLowerTierPrecise(size_t cellSize);
     void destroyLowerTierPreciseFreeList();
 
+    // H-ISO-TLCSLOT (GILOFF-TAX §42 follow-on; iso analogue of
+    // CompleteSubspace::tlcIndexBase): one fixed slot in every client's
+    // GCThreadLocalCache flat table holding that client's LocalAllocator* for
+    // this iso subspace. Stamped write-once by the first GCThreadLocalCache
+    // ctor (under Options::useSharedGCHeap(); the first client is constructed
+    // serially during VM ctor so the stamp is race-free); subsequent clients
+    // observe the same value (asserted). The slot value is
+    //   JSC::Heap::numCompleteSubspaces × MarkedSpace::numSizeClasses + ordinal
+    // where `ordinal` is this subspace's FOR_EACH_JSC_ISO_SUBSPACE position —
+    // a per-type process-wide constant, so JIT inline-allocate emitters bake it
+    // and resolve `lite->tlcTable[slot]` exactly as the §42 CompleteSubspace
+    // arm does (the IT-9 "iso → null Allocator → unconditional thunk" hole:
+    // 36.4M MakeRope lazy-slow-path traversals on intcs W=1, ~910ms). Iso
+    // subspaces NOT enumerated by FOR_EACH_JSC_ISO_SUBSPACE (the 4 SpaceAndSet
+    // statics, every dynamic iso) keep invalidTlcIndex and stay lookup-only via
+    // m_perDirectory — they are never on a JIT inline-allocate path. The
+    // BlockDirectory's own m_tlcIndex is deliberately left invalidTlcIndex
+    // (the §5.3 "iso = lookup-only" predicate in GCThreadLocalCache::
+    // allocatorFor / materializeAllocator remains intact). Flag-off /
+    // !useSharedGCHeap: never stamped, never read (every reader is behind a
+    // vm.gilOff() codegen gate); the field is one trailing unsigned with no
+    // JIT-consumed-offset effect.
+    unsigned tlcSlot() const { return m_tlcSlot; }
+    void stampTlcSlot(unsigned slot)
+    {
+        ASSERT(slot != BlockDirectory::invalidTlcIndex);
+        ASSERT(m_tlcSlot == BlockDirectory::invalidTlcIndex || m_tlcSlot == slot);
+        m_tlcSlot = slot;
+    }
+
 private:
     void* tryAllocateLowerTierPreciseImpl(size_t); // T7-mspl-per-directory: factored body; caller takes the registry lock when shared.
 public:
@@ -76,6 +106,7 @@ private:
     std::unique_ptr<AlignedMemoryAllocator> m_allocator;
     SentinelLinkedList<PreciseAllocation, BasicRawSentinelNode<PreciseAllocation>> m_lowerTierPreciseFreeList;
     SentinelLinkedList<IsoCellSet, BasicRawSentinelNode<IsoCellSet>> m_cellSets;
+    unsigned m_tlcSlot { BlockDirectory::invalidTlcIndex }; // H-ISO-TLCSLOT (see tlcSlot()).
 };
 
 
@@ -102,6 +133,17 @@ public:
     // GCThreadLocalCache m_perDirectory at materialization (covers iso for
     // the §10A.1 ownership predicate and §5.3 teardown).
     LocalAllocator& localAllocator() LIFETIME_BOUND { return m_localAllocator; }
+
+    // H-ISO-TLCSLOT: server's stamped table slot, reached via the shared
+    // BlockDirectory (m_localAllocator.directory().subspace() is the server
+    // JSC::IsoSubspace; LocalAllocator binds it at ctor, IsoSubspace.cpp). Read
+    // by tlcSlotForConcurrentlyWithIso<T> on JIT compilation threads — the
+    // value is process-wide constant once stamped (first-client TLC ctor) and
+    // identical across every client of the same server, so the IT-9 carve-out
+    // (compile thread → vm.clientHeap's view) is harmless: any client's view
+    // returns the same slot. Out-of-line (IsoSubspace.cpp) so this header need
+    // not pull LocalAllocator.h.
+    JS_EXPORT_PRIVATE unsigned tlcSlot() const;
 
 private:
     LocalAllocator m_localAllocator;

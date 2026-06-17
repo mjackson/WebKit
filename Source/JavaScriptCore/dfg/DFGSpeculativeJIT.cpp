@@ -455,10 +455,17 @@ void SpeculativeJIT::emitAllocateRawObject(GPRReg resultGPR, RegisteredStructure
 
     std::optional<unsigned> cellSlot;
     if (vm.gilOff()) [[unlikely]] {
+        // H-ISO-TLCSLOT: JSFinalObject (cellSpace, CompleteSubspace) resolves
+        // through the §42 tlcIndexBase+sizeClass arm unchanged. JSArray
+        // (arraySpace, iso) is EXCLUDED by tlcSlotForConcurrentlyWithIso —
+        // this fast path stores storageGPR untagged into JSObject_butterfly,
+        // so a fresh inline-allocated JSArray would read as foreign and
+        // segment on first growth (see the resolver's JSArray comment); JSArray
+        // stays on the slow-path arm until Task-8 lands TID-tag emission here.
         if (structure->typeInfo().type() == JSType::ArrayType)
-            cellSlot = tlcSlotForConcurrently<JSArray>(vm, JSArray::allocationSize(inlineCapacity));
+            cellSlot = tlcSlotForConcurrentlyWithIso<JSArray>(vm, JSArray::allocationSize(inlineCapacity));
         else
-            cellSlot = tlcSlotForConcurrently<JSFinalObject>(vm, JSFinalObject::allocationSize(inlineCapacity));
+            cellSlot = tlcSlotForConcurrentlyWithIso<JSFinalObject>(vm, JSFinalObject::allocationSize(inlineCapacity));
     }
     Allocator allocator;
     if (!cellSlot) {
@@ -18772,11 +18779,12 @@ void SpeculativeJIT::compileMakeRope(Node* node)
 
     JumpList slowPath;
     if (vm().gilOff()) [[unlikely]] {
-        // H-VMLITE-TLCPTR: stringSpace is iso (per-client GCClient::IsoSubspace)
-        // so tlcSlotForConcurrently is nullopt today; the lite-relative arm is
-        // a no-op fallthrough to the null-constant bake. Kept so a future
-        // table-addressable iso scheme need only extend tlcSlotForConcurrently.
-        if (auto slot = tlcSlotForConcurrently<JSRopeString>(vm(), sizeof(JSRopeString))) {
+        // H-VMLITE-TLCPTR + H-ISO-TLCSLOT: ropeStringSpace is iso; the §42
+        // follow-on stamps every static iso with a fixed TLC slot, so the
+        // lite-relative arm now fires (slot is the per-type constant
+        // server.ropeStringSpace.tlcSlot()) — closing the 36.4M MakeRope thunk
+        // traversals on intcs W=1.
+        if (auto slot = tlcSlotForConcurrentlyWithIso<JSRopeString>(vm(), sizeof(JSRopeString))) {
             emitLoadTLCAllocatorForSlot(allocatorGPR, *slot, slowPath);
             emitAllocateJSCell(resultGPR, JITAllocator::variable(), allocatorGPR, TrustedImmPtr(m_graph.registerStructure(vm().stringStructure.get())), scratchGPR, slowPath, SlowAllocationResult::UndefinedBehavior);
         } else

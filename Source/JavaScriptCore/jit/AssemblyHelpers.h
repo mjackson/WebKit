@@ -2278,6 +2278,66 @@ public:
 
     void emitAllocate(GPRReg resultGPR, const JITAllocator&, GPRReg allocatorGPR, GPRReg scratchGPR, JumpList& slowPath, SlowAllocationResult = SlowAllocationResult::ClearToNull);
 
+    // H-ISO-TLCSLOT (GILOFF-TAX §42 follow-on): tlcSlotForConcurrently<Type>
+    // extended to per-type IsoSubspaces. tlcSlotForConcurrently
+    // (JSCellInlines.h) returns nullopt for any Type whose
+    // subspaceForConcurrently<Type> yields a GCClient::IsoSubspace* (the IT-9
+    // "iso → never table-addressable" comment) — that is JSRopeString /
+    // JSString / JSFunction / every static iso, which is exactly the 36.4M
+    // residual MakeRope thunk traversals at intcs W=1. The else-if arm reads
+    // the server JSC::IsoSubspace's stamped one-slot index (write-once at
+    // first-client TLC ctor; process-wide constant), so the per-tier
+    // emitLoadTLCAllocatorForSlot / FTL tlcAllocatorForSlot lite-relative
+    // sequence applies unchanged. Any GCClient::IsoSubspace* observed here is
+    // SOME client's view — the slot is server-stamped and identical across all
+    // clients, so the IT-9 carve-out (compilation thread → vm.clientHeap's
+    // view) is harmless. nullopt remains for: subspace not yet constructed
+    // (Concurrently access on a dynamic iso), an unstamped iso (SpaceAndSet
+    // statics, dynamic iso — none on a JIT inline-allocate path today), and
+    // every existing tlcSlotForConcurrently nullopt case. Called only behind a
+    // vm.gilOff() codegen gate (flag-off byte-identity: never evaluated).
+    template<typename Type>
+    static std::optional<unsigned> tlcSlotForConcurrentlyWithIso(VM& vm, size_t allocationSize)
+    {
+        if (auto slot = tlcSlotForConcurrently<Type>(vm, allocationSize))
+            return slot;
+        // H-ISO-TLCSLOT exclusion: JSArray's JIT inline-allocate fast path
+        // stores the butterfly word UNTAGGED (storePtr(butterfly, …,
+        // JSObject::butterflyOffset()) — no TID-tag emission), so a fresh
+        // inline-allocated JSArray reads as foreign (butterflyTID(word) !=
+        // currentButterflyTID()) and the FIRST ensureLength growth segments it
+        // (ConcurrentButterfly.cpp ensureLength T1/T2 dispatch) — measured at
+        // 182,339 convertToSegmentedButterfly + 19,073,867 operationArrayPush
+        // on intcs W=1 (vs 0 / ~692 K with JSArray excluded). Under §42 the
+        // JSArray cell allocator was always null GIL-off (iso → IT-9 nullopt)
+        // so the path went to operationNewArrayWithSize / operationNewRawObject,
+        // which TID-tags in C++; the iso arm here would be the FIRST time the
+        // JSArray inline path fires GIL-off. The proper fix is Task-8
+        // (loadButterflyTIDTag-tag the butterfly word at every JIT inline
+        // allocateObject / emitAllocateJSObject store site) — out of scope for
+        // §43; until that lands JSArray stays on the §42 lazy-slow-path arm
+        // where the §43 thin-thunk reduces the per-traversal cost. Every other
+        // iso ClassType reaching this resolver either has no butterfly
+        // (JSRopeString / JSString) or stores a null butterfly on its inline
+        // path (JSPromise / JSMap / JSSet / JSBoundFunction / JSFunction et
+        // al.), so the TID-tag question never arises.
+        if constexpr (std::is_same_v<Type, JSArray>)
+            return std::nullopt;
+        auto* subspace = subspaceForConcurrently<Type>(vm);
+        if constexpr (std::is_same_v<std::remove_cv_t<decltype(subspace)>, GCClient::IsoSubspace*>) {
+            UNUSED_PARAM(allocationSize); // Iso has exactly one size class; the LocalAllocator cellSize() RELEASE_ASSERT (allocatorFor) covers a mismatched size at run time.
+            if (!subspace)
+                return std::nullopt;
+            unsigned slot = subspace->tlcSlot();
+            if (slot == BlockDirectory::invalidTlcIndex)
+                return std::nullopt;
+            return slot;
+        } else {
+            UNUSED_PARAM(subspace);
+            return std::nullopt;
+        }
+    }
+
     // H-VMLITE-TLCPTR (SPEC-heap §5.3/§B.4): GIL-off lite-relative resolution
     // of the per-thread TLC LocalAllocator for a baked TLC slot
     // (tlcIndexBase_const + sizeClassIndex_const). Emits
@@ -2310,12 +2370,16 @@ public:
         GPRReg scratchGPR2, JumpList& slowPath, size_t size, SlowAllocationResult slowAllocationResult = SlowAllocationResult::ClearToNull)
     {
         if (vm.gilOff()) [[unlikely]] {
-            // H-VMLITE-TLCPTR: allocatorForConcurrently returns {} GIL-off
-            // (IT-9), which would emit an unconditional slow-path jump. Bake
-            // the TLC slot instead and resolve the per-thread LocalAllocator
-            // lite-relative at run time. nullopt (iso subspace, base not yet
-            // reserved, precise size) falls through to the legacy null-bake.
-            if (auto slot = tlcSlotForConcurrently<ClassType>(vm, size)) {
+            // H-VMLITE-TLCPTR + H-ISO-TLCSLOT: allocatorForConcurrently
+            // returns {} GIL-off (IT-9), which would emit an unconditional
+            // slow-path jump. Bake the TLC slot instead and resolve the
+            // per-thread LocalAllocator lite-relative at run time.
+            // tlcSlotForConcurrentlyWithIso covers BOTH CompleteSubspace
+            // (tlcIndexBase + sizeClassIndex) and per-type iso (server
+            // JSC::IsoSubspace::tlcSlot — JSRopeString/JSString/JSFunction et
+            // al.); nullopt (unreserved base, precise size, unstamped iso)
+            // falls through to the legacy null-bake.
+            if (auto slot = tlcSlotForConcurrentlyWithIso<ClassType>(vm, size)) {
                 emitLoadTLCAllocatorForSlot(scratchGPR1, *slot, slowPath);
                 emitAllocateJSObject(resultGPR, JITAllocator::variable(), scratchGPR1, structure, storage, scratchGPR2, slowPath, slowAllocationResult);
                 return;

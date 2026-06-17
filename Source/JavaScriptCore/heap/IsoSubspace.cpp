@@ -168,6 +168,23 @@ IsoSubspace::IsoSubspace(JSC::IsoSubspace& server)
 {
 }
 
+unsigned IsoSubspace::tlcSlot() const
+{
+    // H-ISO-TLCSLOT: server reach-through. m_localAllocator.directory() is the
+    // server's single BlockDirectory (bound at ctor above); its subspace() is
+    // the server JSC::IsoSubspace. The slot is write-once (stamped by the
+    // first GCThreadLocalCache ctor, serially during VM construction) and read
+    // here only at JIT compile time behind a vm.gilOff() codegen gate, so a
+    // plain load suffices — the first client's stamp happens-before any
+    // concurrent compile (compilation requires an entered VM; entry implies
+    // the stamping client exists). Subspaces never enumerated by
+    // FOR_EACH_JSC_ISO_SUBSPACE return invalidTlcIndex and the caller
+    // degrades to the legacy null-bake.
+    Subspace* server = m_localAllocator.directory().subspace();
+    ASSERT(server && server->isIsoSubspace());
+    return static_cast<const JSC::IsoSubspace*>(server)->tlcSlot();
+}
+
 } // namespace GCClient
 
 } // namespace JSC

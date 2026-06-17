@@ -30,6 +30,7 @@
 #include "CompleteSubspace.h"
 #include "FreeList.h"
 #include "Heap.h"
+#include "IsoSubspace.h"
 #include "LocalAllocator.h"
 #include "Options.h"
 #include "VMLite.h"
@@ -171,7 +172,36 @@ GCThreadLocalCache::GCThreadLocalCache(JSC::Heap& server)
         server.immutableButterflyAuxiliarySpace.ensureTlcIndexBaseReserved();
         server.cellSpace.ensureTlcIndexBaseReserved();
         server.destructibleObjectSpace.ensureTlcIndexBaseReserved();
-        constexpr unsigned fixedCapacity = JSC::Heap::numCompleteSubspaces * static_cast<unsigned>(MarkedSpace::numSizeClasses);
+        constexpr unsigned nonIsoCapacity = JSC::Heap::numCompleteSubspaces * static_cast<unsigned>(MarkedSpace::numSizeClasses);
+        // H-ISO-TLCSLOT (GILOFF-TAX §42 follow-on): one fixed slot per static
+        // server iso subspace, contiguous after the non-iso region. The slot is
+        // a per-type compile-time constant (nonIsoCapacity + macro ordinal) so
+        // JIT inline-allocate emitters bake it exactly as they bake a
+        // CompleteSubspace tlcIndexBase — closing the IT-9 hole for iso types
+        // (MakeRope: 36.4M lazy-slow-path traversals on intcs W=1). Stamping is
+        // idempotent: the first client (vm.clientHeap, constructed serially
+        // during the VM ctor after every server subspace is complete) writes
+        // each slot once; later per-thread clients re-observe the same value
+        // (asserted in stampTlcSlot). The 4 SpaceAndSet-backed statics and all
+        // dynamic iso subspaces are NOT enumerated — they keep
+        // invalidTlcIndex and stay m_perDirectory lookup-only (none is on a JIT
+        // inline-allocate path). The BlockDirectory's own m_tlcIndex stays
+        // invalidTlcIndex so allocatorFor / materializeAllocator's "iso =
+        // lookup-only" predicates are unchanged.
+        constexpr unsigned numStaticIsoSlots = 0
+#define THREADS_COUNT_STATIC_ISO(name, heapCellType, type) + 1
+            FOR_EACH_JSC_ISO_SUBSPACE(THREADS_COUNT_STATIC_ISO)
+#undef THREADS_COUNT_STATIC_ISO
+            ;
+        {
+            unsigned slot = nonIsoCapacity;
+#define THREADS_STAMP_ISO_TLC_SLOT(name, heapCellType, type) \
+            server.name.stampTlcSlot(slot++);
+            FOR_EACH_JSC_ISO_SUBSPACE(THREADS_STAMP_ISO_TLC_SLOT)
+#undef THREADS_STAMP_ISO_TLC_SLOT
+            ASSERT_UNUSED(slot, slot == nonIsoCapacity + numStaticIsoSlots);
+        }
+        constexpr unsigned fixedCapacity = nonIsoCapacity + numStaticIsoSlots;
         // Direct allocate (NOT growTable): growTable would restamp the
         // s_currentThreadTLCTable/Bound TLS pair and the lite mirror, but at
         // ctor time this thread's stamped client (if any) is a DIFFERENT
@@ -336,9 +366,29 @@ void GCThreadLocalCache::registerExternalAllocator(LocalAllocator* allocator)
 {
     ASSERT(allocator);
     // Lookup-only (§5.3): NOT appended to m_ownedAllocators — the
-    // GCClient::IsoSubspace owns it by value; never entered in m_table.
+    // GCClient::IsoSubspace owns it by value. m_perDirectory stays the
+    // I3-authoritative owner set (forEachLocalAllocator / ownsLocalAllocator /
+    // teardown).
     auto addResult = m_perDirectory.add(&allocator->directory(), allocator);
     ASSERT_UNUSED(addResult, addResult.isNewEntry);
+    // H-ISO-TLCSLOT: ALSO publish into the flat table when the server iso
+    // subspace carries a stamped slot (FOR_EACH_JSC_ISO_SUBSPACE statics). The
+    // ctor stamped every such slot and pre-grew m_table to cover them BEFORE
+    // this runs (GCClient::Heap declares m_threadLocalCache after the iso
+    // members; registerIsoSubspaceLocalAllocators is called from the ctor
+    // BODY). Owner thread only (I2). Iso subspaces with no stamped slot
+    // (SpaceAndSet statics, dynamic iso) and non-iso external allocators (none
+    // exist today) skip the table write — m_perDirectory remains the
+    // §10A.1/§5.3 source of truth either way.
+    Subspace* subspace = allocator->directory().subspace();
+    if (subspace && subspace->isIsoSubspace()) {
+        unsigned slot = static_cast<JSC::IsoSubspace*>(subspace)->tlcSlot();
+        if (slot != BlockDirectory::invalidTlcIndex) {
+            ASSERT(slot < m_tableBound);
+            ASSERT(!m_table[slot]);
+            m_table[slot] = Allocator(allocator);
+        }
+    }
 }
 
 bool GCThreadLocalCache::ownsLocalAllocator(const LocalAllocator* allocator) const
