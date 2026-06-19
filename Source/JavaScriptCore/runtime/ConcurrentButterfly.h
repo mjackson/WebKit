@@ -628,6 +628,22 @@ Structure* visitSegmentedButterfly(Visitor&, JSObjectWithButterfly*, ButterflySp
 // transition replaced it would drop the racer's property (I21).
 JS_EXPORT_PRIVATE bool trySegmentedTransition(VM&, JSObjectWithButterfly*, Structure* expectedSource, Structure* newStructure, PropertyOffset, JSValue);
 
+// §4.6 (I31) out-of-line property transition on an ArrayStorage-shaped
+// object. AS never segments (I31), so the §4.3 / §4.2 protocols above are
+// excluded (their entry RELEASE_ASSERTs trip). E4 is also excluded
+// (Structure::mayTransitionLockFreeFromThisStructure rejects AS shapes). So
+// every AS out-of-line property add lands here: cell-locked AS-COPY (T3/I17,
+// publishArrayStorageButterflyLocked) when capacity grows, or a cell-locked
+// in-place slot store when it does not, then a nuke-bracketed structure
+// publish (M5/M8). A foreign first WRITE first runs the §4.6 per-event SW
+// stop (ensureSharedWriteBit) and RESTARTs (I12). Same false=RESTART contract
+// as trySegmentedTransition. FUZZ r3-001 routing: pre-existing - not §45 -
+// non-dictionary AS objects with out-of-line property adds (e.g. an object
+// literal with a sparse-index integer key plus enough named properties to
+// spill out of line) had no route between the E4 AS exclusion and the §4.3
+// I31 entry assert.
+JS_EXPORT_PRIVATE bool tryArrayStoragePropertyTransition(VM&, JSObjectWithButterfly*, Structure* expectedSource, Structure* newStructure, PropertyOffset, JSValue);
+
 // tryStructureOnlyTransition is the restartable N2 (§2.1) locked core for
 // butterfly-untouched transitions (inline adds, attribute/brand/structure-only
 // reshapes): step-0 F2 firing for foreign/shared triggers, cell lock,

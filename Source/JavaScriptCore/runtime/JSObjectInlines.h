@@ -940,10 +940,41 @@ inline NEVER_INLINE bool JSObject::tryPutDirectTransitionConcurrent(VM& vm, Stru
         // butterfly is discarded unreferenced; take the locked protocols.
     }
 
-    // ---- Locked protocols (§4.3 / N2). false => caller RESTART (fresh §2
-    // dispatch: fresh target derivation, fresh F1/F2 checks).
-    if (isOutOfLineOffset(offset))
+    // ---- Locked protocols (§4.3 / §4.6 / N2). false => caller RESTART (fresh
+    // §2 dispatch: fresh target derivation, fresh F1/F2 checks).
+    //
+    // I35 (FUZZ r3b CoW family): a CoW source reaching the locked protocols
+    // (E4 ineligible: TTL fired, foreign TID, or PreciseAllocation) would trip
+    // trySegmentedTransition / convertToSegmentedButterfly's I35 entry assert.
+    // Materialize-first (§4.8) and RESTART so the re-dispatch sees the
+    // non-CoW source and re-derives newStructure (addNewPropertyTransition
+    // already strips CoW from newStructure - Structure.cpp:971 - but the
+    // SOURCE structure is what the locked protocols assert on). The E4 owner
+    // path above handles CoW correctly without this (allocateMoreOutOfLine-
+    // Storage copies the immortal payload into the published growth
+    // butterfly), so the materialize is only paid on the rare locked
+    // fallback. CoW and AS are mutually exclusive (IndexingType.h), so
+    // ordering with the I31 check below is immaterial; CoW checked first to
+    // match the §4.8-precedes-§4.6 ordering at every other dispatch site
+    // (classifyConcurrentLockedAdd above, convertToSegmentedButterfly).
+    if (isCopyOnWrite(expectedSource->indexingMode())) [[unlikely]] {
+        materializeCopyOnWriteButterflyConcurrent(vm, static_cast<JSObjectWithButterfly*>(this));
+        return false; // RESTART: structure moved (CoW bit dropped).
+    }
+    if (isOutOfLineOffset(offset)) {
+        // I31 (FUZZ r3-001): ArrayStorage shapes are excluded from BOTH E4
+        // (Structure::mayTransitionLockFreeFromThisStructure rejects AS) AND
+        // §4.3/§4.2 (trySegmentedTransition / convertToSegmentedButterfly
+        // entry-assert !AS - AS never segments). Route them to the §4.6
+        // cell-locked AS-COPY transition instead. Shape is read from the
+        // expectedSource STRUCTURE (the StructureID snapshot the target was
+        // derived from), not the racy indexing byte; a racing §4.6 INTO-AS
+        // relayout changes the structureID and the locked re-validate inside
+        // either callee returns false => RESTART re-derives the route.
+        if (hasAnyArrayStorage(expectedSource->indexingType())) [[unlikely]]
+            return tryArrayStoragePropertyTransition(vm, static_cast<JSObjectWithButterfly*>(this), expectedSource, newStructure, offset, value);
         return trySegmentedTransition(vm, static_cast<JSObjectWithButterfly*>(this), expectedSource, newStructure, offset, value);
+    }
     return tryStructureOnlyTransition(vm, this, expectedSource, newStructure, offset, value);
 }
 #endif // USE(JSVALUE64)

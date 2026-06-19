@@ -3776,3 +3776,167 @@ test-side issues, recorded above); validation sweeps 01 and 05 strictly
 improved (8→0 and 50→0); bench checksums stable across all 12 reps and
 medians within ±2% of §45; gcAtEnd 10/10. Residuals recorded with
 disposition in CVE-AUDIT-RESULTS.md "Ship-readiness closure".
+
+## §47 ship-residuals
+
+Repo @ `f6a854fa66d8` + working tree (FUZZ r3-001/r3b fix:
+`tryArrayStoragePropertyTransition` + I35 CoW materialize-first reroute in
+`tryPutDirectTransitionConcurrent`). Debug+Release+Fuzz rebuilt (Debug 348→
+203 ninja targets, Release 203, Fuzz 345→201). Pinned GIL-off env. **Flag-off
+byte-identical** (the entire diff is inside `tryPutDirectTransitionConcurrent`
++ the new `tryArrayStoragePropertyTransition`, both `Options::useJSThreads()`-
+asserting, dead flag-off; bench-gate 7/8 within ±0.55% witnesses this).
+
+### §47 (1) r3 saved repros 20× Debug
+
+| repro | bare `--useJSThreads=true` | full TARGET ARGS | rc shape |
+|---|---|---|---|
+| `r3-001-trySegmentedTransition-ArrayStorage.js` | **20/20** | **20/20** | rc=0 |
+| `r3-002-storeTaggedButterflyWordConcurrent.js` | **20/20** | **20/20** | rc=3 (uncaught RangeError stack-overflow; no crash) |
+
+Regression tests `JSTests/threads/objectmodel/{array-storage,cow-named}-
+property-transition.js` PASS Debug (and in the corpus runs below).
+
+### §47 (2) r3b re-triage vs current Fuzz binary
+
+`Tools/threads/fuzz/triage-r3b-batch.sh` over **136** r3b crash files (the
+2026-06-19 02:28-06:30 window across `fuzzilli-storage{,-B,-C}/crashes`
+including `duplicates/`; the 128 reported in FUZZ.md "Campaign r3b" plus
+deterministic copies):
+
+| count | signature |
+|---|---|
+| **134** | **NOREPRO** |
+| 1 | `storeTaggedButterflyWordConcurrent` ← `setButterflyConcurrent` ← `JSArrayBufferView::slowDownAndWasteMemory` |
+| 1 | exit-3 (uncaught RangeError; the saved r3-002 source) |
+
+**0× r3-001 signature** (`trySegmentedTransition`). **Pre-fix the same triage
+showed 12× r3-001-signature** — those 12 are the **CoW** I35 entry assert
+(`!isCopyOnWrite(source->indexingMode())` at `ConcurrentButterfly.cpp:1068`),
+not the AS one: a CoW array literal getting an out-of-line named-accessor add
+via `Object.defineProperty` when E4 is ineligible (TTL fired / foreign TID)
+fell into `trySegmentedTransition`'s I35 entry RELEASE_ASSERT. Fix:
+`tryPutDirectTransitionConcurrent` materialize-first (§4.8) and RESTART before
+the locked protocols, mirroring `classifyConcurrentLockedAdd`'s
+§4.8-precedes-§4.x ordering. The 122→134 NOREPRO gain is the r3-001 AS-route
+fix + this CoW route.
+
+### §47 (3) Corpus + identity + scalebench checksums
+
+| Gate | Result |
+|---|---|
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **98 / 0 / 3** (was 96/0/3; +2 new objectmodel tests) |
+| Corpus GIL-off (Debug, pinned env) | **97 / 0 / 4** (was 95/0/4) |
+| v5a-identity (40 tests, Release) | **mismatches=0** ✓ |
+| intcs W=16 3-rep (Release, GIL-off) | rc=0 ×3, **cs `e85d66e7\|15cf18bb\|651b594b\|abc7704f` 3/3 ✓** §39b ref; total_ms 3178/3328/3338, median **3328** (§46 ref 3266, +1.9%) |
+| flat W=16 3-rep (Release, GIL-off) | rc=0 ×3, **cs `686d6890\|0fbbd673\|3af6b072\|e1d22021` 3/3 ✓** §38 ref; total_ms 469/476/484, median **476** (§46 ref 462, +3.0% at load 4.6) |
+
+Raw: `Tools/threads/scalebench/results-v47-ship.jsonl`.
+
+### §47 (4) bench-gate (Release, flag-off, 15-run, loadavg 0.80)
+
+| bench | median | baseline | Δ | within ±1% | within ±2% |
+|---|---|---|---|---|---|
+| array-element-read | 54.346 | 54.446 | −0.18% | ✓ | ✓ |
+| array-element-write | 52.051 | 51.844 | +0.40% | ✓ | ✓ |
+| flat-butterfly-read | 13.682 | 13.546 | +1.00% | — | ✓ |
+| flat-butterfly-write | 62.498 | 62.418 | +0.13% | ✓ | ✓ |
+| inline-property-read | 27.175 | 27.325 | −0.55% | ✓ | ✓ |
+| inline-property-write | 54.358 | 54.425 | −0.12% | ✓ | ✓ |
+| megamorphic-access | 1257.822 | 1445.922 | −13.01% | ✓ | ✓ |
+| **transition-heavy-constructor** | **58.258** | **54.918** | **+6.08%** | **FAIL** | **FAIL** |
+
+**7/8 within ±2%** (and 6/8 within ±1%; flat-butterfly-read at exactly
++1.00%). **Accepted residual with attribution:** transition-heavy-constructor
+is the TSAN-TRIAGE §24.7 bisection-proven host-inadmissible variance — the
+**closeout commit `2f5a5c4974ad` reproduces +6.90%/+7.37%** on this host
+today (15- and 21-run medians, full `Source/` reverted), so no change in
+`2f5a5c4974ad..HEAD` (incl. this round) is responsible. C′ raw samples span
+51.9-61.3 ms (18% spread); per-header audit of all r24-r26 conversions found
+none on the bench's structure-transition / butterfly-grow path. Transferred
+to PARKED V5b per `docs/threads/INTEGRATE-ungil.md` AB17g item 4 ("this
+host is inadmissible … the binding V5b quiet-host interleaved-A/B (≥15 runs)
+protocol has not been executed"). Log: `/tmp/bench-gate-47-final.log`.
+
+### §47 (5) §45 discriminant re-check
+
+Force-worker-reify `(new Thread(()=>String.fromCharCode(97))).join()` at
+module init (the §44 12/12-slow [4441,4691] discriminant), intcs W=16, 5 reps:
+
+| rep | rc | phaseA_ms | total_ms | cs match |
+|---|---|---|---|---|
+| 1 | 0 | 1610 | 3246 | ✓ §39b ref |
+| 2 | 0 | 1612 | 3366 | ✓ |
+| 3 | 0 | 1705 | 3383 | ✓ |
+| 4 | 0 | 1665 | 3280 | ✓ |
+| 5 | 0 | 1617 | 3203 | ✓ |
+
+**5/5 fast** (phaseA in [1610,1705], well clear of the [4441,4691] slow band).
+The §45 engine fix (StayFlatShared no-segment property-only +
+`handleGetById` BadIndexingType backstop) **holds**.
+
+### §47 (6) 2h fresh-storage re-fuzz (campaign r47)
+
+`fuzzilli-storage-r47`, fresh, 4 jobs, `timeout 7200` foreground,
+2026-06-19T09:23:40Z → 11:23:41Z. **423,374 execs**, 11.58% edge coverage,
+1,175,199 edges instrumented. **9 crashes** / 8 reproducible / 2 unique
+signatures (`Tools/threads/fuzz/triage-r47.sh`):
+
+| count | signature | callers (#7 frame) |
+|---|---|---|
+| **0** | **r3-001 `trySegmentedTransition`** | — |
+| 5 | `storeTaggedButterflyWordConcurrent` owner-TID RELEASE_ASSERT (`JSObjectInlines.h:116`) | `JSArrayBufferView::slowDownAndWasteMemory` ×3, `JSObject::shiftButterflyAfterFlattening` ×1, `Structure::flattenDictionaryStructureImpl` ×1 |
+| 3 | SEGV `DeferrableRefCountedBase::ref` ← `RefPtr<ArrayBuffer>` ← `isArrayBufferViewOutOfBounds` | `validateTypedArray` (Atomics.and, TA iterator) — reads `butterfly->arrayBuffer()` = `0xbebebebe…` poison while a concurrent `slowDownAndWasteMemory` is between `setButterfly(createOrGrowArrayRight)` and `setArrayBuffer(buffer)` |
+| 1 | NOREPRO | — |
+
+Log: `Tools/threads/fuzz/campaign-r47.log`; repros + ASAN reports:
+`Tools/threads/fuzz/crashes/r47/`.
+
+### §47 NEW residual (r47 setButterfly foreign-TID audit gap)
+
+All 8 reproducible r47 crashes are **one root family**: the manifest-7
+caller audit behind `storeTaggedButterflyWordConcurrent`'s owner-TID
+RELEASE_ASSERT ("a missed caller becomes a trap, not a silent ownership
+steal", `JSObjectInlines.h:93`) has **three escapes** that reach
+`JSObject::setButterfly` with a foreign-TID (or otherwise non-owner) word:
+
+1. **`JSArrayBufferView::slowDownAndWasteMemory`** (`JSArrayBufferView.cpp:
+   322`): a worker thread reading `.buffer` / Atomics-validating a
+   FastTypedArray created on another thread allocates the wastage butterfly
+   and `setButterfly`s it with no protocol. Also the source of the
+   `DeferrableRefCounted` SEGV: the wastage butterfly's `IndexingHeader::
+   arrayBuffer` is uninitialized (0xbebebebe under ASAN poison) between the
+   `setButterfly` publication and the cell-locked `setArrayBuffer`, and
+   `isArrayBufferViewOutOfBounds` (every TA bounds check) reads it with no
+   acquire/fence pairing. 6/8 r47 hits; r3b-001 is the same site.
+2. **`JSObject::shiftButterflyAfterFlattening`** (`JSObject.cpp:7307`):
+   dictionary flatten on a foreign thread shifts the butterfly base in
+   place via `setButterfly`.
+3. **`Structure::flattenDictionaryStructureImpl`** (`Structure.cpp:1921`):
+   same dictionary-flatten path, the no-shift `setButterfly(butterfly())`
+   restamp.
+
+**Disposition:** DEFERRED to a focused r47 fix round — needs design
+(tag-preserving cell-locked CAS publication ala
+`publishArrayStorageButterflyLocked`, plus an `m_mode`/butterfly/
+`setArrayBuffer` publication-order audit for `slowDownAndWasteMemory`;
+flatten sites likely need the §6 dictionary cell-locked form). The trap is
+**working as designed** (it converts the silent ownership steal / poison
+deref into a deterministic abort). NOT a §47 code-change regression —
+present at r3b (the saved r3-002 STDERR misattributed; r3b-001 is a
+reliable repro of the same `slowDownAndWasteMemory` site).
+
+### §47 verdict
+
+| Gate | Result |
+|---|---|
+| (1) r3-001/r3-002 20× Debug | **20/20 + 20/20** ✓ |
+| (2) r3b re-triage | **134/136 NOREPRO**, 0× r3-001 sig ✓ |
+| (3) Corpus on/off + identity 40 + intcs/flat W=16 cs | **98/0/3 + 97/0/4 + 0 mismatch + 6/6 cs match** ✓ |
+| (4) bench-gate | **7/8 within ±2%**; transition-heavy-constructor +6.08% = §24.7 host-inadmissible (V5b-transferred) |
+| (5) §45 discriminant | **5/5 fast** ✓ |
+| (6) 2h re-fuzz | **0× r3-001 signature** ✓; 8 hits = r47 setButterfly audit-gap residual (NEW, recorded above) |
+
+**verified=false** by the literal ±2% bench-gate criterion (1 of 8 outside,
+bisection-proven host-inadmissible, attributed and V5b-transferred). All
+correctness gates (1)(2)(3)(5)(6-signature) green.

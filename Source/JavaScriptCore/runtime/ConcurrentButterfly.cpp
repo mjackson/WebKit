@@ -1059,8 +1059,10 @@ bool trySegmentedTransition(VM& vm, JSObjectWithButterfly* object, Structure* ex
     Structure* source = expectedSource;
 
     // I31: ArrayStorage never segments and its shared transitions are
-    // per-event STW that publish FLAT (§4.6; Task 8). I35: CoW materializes a
-    // private flat butterfly (§4.8; Task 7) before any §3/§4 protocol.
+    // per-event STW that publish FLAT (§4.6; Task 8) - the caller routes AS
+    // shapes to tryArrayStoragePropertyTransition (FUZZ r3-001), so reaching
+    // here with an AS source is a routing bug. I35: CoW materializes a private
+    // flat butterfly (§4.8; Task 7) before any §3/§4 protocol.
     RELEASE_ASSERT(!hasAnyArrayStorage(source->indexingType()));
     RELEASE_ASSERT(!hasAnyArrayStorage(newStructure->indexingType()));
     RELEASE_ASSERT(!isCopyOnWrite(source->indexingMode()));
@@ -2427,6 +2429,124 @@ void publishArrayStorageButterflyLocked(VM& vm, JSObjectWithButterfly* object, B
     // §4.4 CASes never target AS words. Failure = logic error.
     RELEASE_ASSERT(ok);
     vm.writeBarrier(object); // Superseded storage is never written again (AS-COPY); stale readers see a frozen snapshot (I7: conservative scan keeps it alive).
+}
+
+// §4.6 (I31) AS out-of-line property transition; see the header comment.
+// FUZZ r3-001: non-dictionary AS objects (object literal with a sparse-index
+// integer key + out-of-line named properties) had no route between the E4 AS
+// exclusion (StructureInlines.h I31 review-round-3 carve-out) and the
+// trySegmentedTransition I31 entry assert. This is the §4.6 analogue of the
+// dictionary AS growth leg in JSObjectInlines.h
+// growOutOfLineStorageForConcurrentLockedAdd, with a structure publish.
+bool tryArrayStoragePropertyTransition(VM& vm, JSObjectWithButterfly* object, Structure* expectedSource, Structure* newStructure, PropertyOffset offset, JSValue value)
+{
+    RELEASE_ASSERT(Options::useJSThreads());
+    ASSERT(vm.currentThreadIsHoldingAPILock());
+    ASSERT(expectedSource && newStructure);
+    RELEASE_ASSERT(isOutOfLineOffset(offset)); // Inline AS adds are N2 (tryStructureOnlyTransition); attribute-only reshapes are N2 too.
+    RELEASE_ASSERT(hasAnyArrayStorage(expectedSource->indexingType()));
+    RELEASE_ASSERT(hasAnyArrayStorage(newStructure->indexingType())); // Property adds preserve indexing shape.
+    RELEASE_ASSERT(expectedSource->indexingModeIncludingHistory() == newStructure->indexingModeIncludingHistory()); // §4.6: AS shape changes are Task 8 STW relayouts, never this entry.
+
+    StructureID sourceID = object->structureID(); // RAW bits (M5).
+    if (sourceID.isNuked() || sourceID != expectedSource->id())
+        return false; // RESTART: a racing publication is mid-flight or the source settled away.
+    Structure* source = expectedSource;
+
+    // ---- Step 0: F2 firing (I10b/I13). AS shapes always carry a butterfly
+    // (the ArrayStorage payload), so the §5 F2 trigger is the instance tag.
+    uint64_t planningWord = butterflyWordAtomic(object)->load(std::memory_order_seq_cst);
+    RELEASE_ASSERT(planningWord & butterflyPointerMask);
+    RELEASE_ASSERT(!isSegmentedButterfly(planningWord)); // I31: AS never segments.
+    {
+        bool trigger = butterflyTID(planningWord) != currentButterflyTID() || butterflySharedWrite(planningWord);
+        if (trigger && anyTTLSetStillValid(source, newStructure)) {
+            fireTTLSetsForSharedTransition(vm, source, newStructure, "F2: shared ArrayStorage property transition (§4.6)");
+            return false; // RESTART after the stop (§4.2 rule).
+        }
+    }
+
+    // §4.6 (I12): a foreign first WRITE to an SW=0 AS instance runs the
+    // per-event SW stop FIRST - F1 fire + (installerTID, 1) flat publication
+    // inside ensureSharedWriteBit's AS carve-out. Called with NO lock held
+    // (GT11 veneer contract). RESTART so the re-dispatch sees SW=1 and the
+    // AS-COPY below preserves the (installerTID, 1) tag verbatim (I27/T3).
+    if (!butterflySharedWrite(planningWord) && butterflyWriterIsForeign(planningWord)) {
+        ensureSharedWriteBit(vm, object);
+        return false;
+    }
+
+    size_t oldOutOfLineCapacity = source->outOfLineCapacity();
+    size_t newOutOfLineCapacity = newStructure->outOfLineCapacity();
+    RELEASE_ASSERT(newOutOfLineCapacity >= oldOutOfLineCapacity); // I18/I30: live storage never shrinks.
+
+    // I31/L5: every AS access AND transition is cell-locked flag-on (E4
+    // excludes AS), so the under-lock allocate + copy cannot race lock-free
+    // stores; SW flips are per-event stops, other AS relayouts hold this lock,
+    // and lock-free §4.4 CASes never target AS words - the locked window owns
+    // the {structureID lane, butterfly word, AS payload} outright. DeferGC so
+    // allocateMoreOutOfLineStorage cannot poll/park while we hold the cell
+    // lock (O2; matches growOutOfLineStorageForConcurrentLockedAdd's caller
+    // contract).
+    DeferGC deferGC(vm);
+    JSCellLock& cellLock = object->cellLock();
+    lockCellChecked(cellLock); // O3/I20 depth witness (Task 10)
+
+    // Re-validate under the lock: a racing locked AS transition / per-event
+    // stop may have moved the structure between step 0 and the lock.
+    if (structureIDAtomic(object)->load(std::memory_order_seq_cst) != sourceID.bits()) {
+        unlockCellChecked(cellLock);
+        return false; // RESTART
+    }
+    uint64_t lockedWord = butterflyWordAtomic(object)->load(std::memory_order_seq_cst);
+    RELEASE_ASSERT(lockedWord & butterflyPointerMask);
+    RELEASE_ASSERT(!isSegmentedButterfly(lockedWord)); // I31
+    // The §4.6 SW stop above + I4 (SW monotonic) + every AS word mutation
+    // being cell-locked / per-event-stopped means the tag cannot have moved
+    // foreign+SW=0 here (the only lock-free AS word actor is the SW stop's
+    // own publication, which sets SW=1).
+    ASSERT(butterflySharedWrite(lockedWord) || !butterflyWriterIsForeign(lockedWord));
+
+    Butterfly* targetButterfly = untaggedButterfly(lockedWord);
+    if (newOutOfLineCapacity > oldOutOfLineCapacity) {
+        // AS-COPY (T3): allocateMoreOutOfLineStorage copies the AS payload
+        // (out-of-line slots + IndexingHeader + ArrayStorage) verbatim; the
+        // tag is preserved by publishArrayStorageButterflyLocked below.
+        targetButterfly = object->allocateMoreOutOfLineStorage(vm, oldOutOfLineCapacity, newOutOfLineCapacity);
+    }
+
+    // Step 4 (M2/I9): release-store the value BEFORE the new StructureID is
+    // visible (no holes). Under the cell lock no AS reader can dereference the
+    // slot meanwhile (every AS out-of-line read is cell-locked,
+    // getDirectConcurrent I31/L5).
+    unsigned outOfLineIndex = outOfLineButterflyIndex(offset);
+    RELEASE_ASSERT(outOfLineIndex < newOutOfLineCapacity);
+    reinterpret_cast<Atomic<uint64_t>*>(targetButterfly->propertyStorage() - (outOfLineIndex + 1))->store(JSValue::encode(value), std::memory_order_release);
+
+    // Step 5 (M5/M8): nuke-bracketed publication. Under the AS cell lock the
+    // structureID lane is ours (E4 excludes AS, every AS transition is locked
+    // or STW), so the nuke CAS must succeed.
+    uint32_t previousIDBits = structureIDAtomic(object)->compareExchangeStrong(sourceID.bits(), sourceID.nuke().bits());
+    RELEASE_ASSERT(previousIDBits == sourceID.bits());
+    WTF::storeStoreFence();
+    if (targetButterfly != untaggedButterfly(lockedWord)) {
+        // T3/I17 publication form: tag preserved verbatim; CAS cannot lose
+        // (RELEASE_ASSERTed inside).
+        publishArrayStorageButterflyLocked(vm, object, targetButterfly);
+    }
+    // Remaining semantic header bytes + the un-nuked new ID. Property adds
+    // change neither type, indexing mode, nor (here) the inline flags - the
+    // helper is the established M8 byte-lane sequence (CAS-merges the volatile
+    // perCellBit / lock-bit lanes), so it is safe even when every byte is
+    // unchanged.
+    storeRemainingSemanticHeaderBytesAndStructureID(object, newStructure);
+
+    unlockCellChecked(cellLock);
+
+    vm.writeBarrier(object);
+    vm.writeBarrier(object, newStructure);
+    vm.writeBarrier(object, value);
+    return true;
 }
 
 namespace {

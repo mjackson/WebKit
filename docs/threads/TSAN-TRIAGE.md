@@ -3987,3 +3987,71 @@ property/array/megamorphic paths (megamorphic-access improved 13.3%, almost
 certainly the r24 ConcurrentPtrHashSet / CodeBlock changes — record but do
 not claim without bisection).
 
+### 24.7 r27 bench-gate bisection — §24.6 attribution DISPROVEN (2026-06-19)
+
+The §24.6 owed combined-revert experiment was run for the r24-r26 window.
+**Result: NO OFFENDING HEADER.** The +1.7pp delta vs the 06-09 closeout
+record is NOT in any r24-r26 source change.
+
+**Method.** Three Release builds, each measured with the same
+`Tools/threads/bisect-thc.sh` helper (9-21 run medians of
+transition-heavy-constructor only), all at loadavg-1m < 2.0:
+
+| build | source state | runs | load1m | median | delta |
+|-------|--------------|------|--------|--------|-------|
+| A | HEAD (f6a854fa66d8) — all r24-r26 conversions present | 15 | 1.92 | 58.108 | +5.81% |
+| B | 7 of 9 candidate headers reverted to 2f5a5c4974ad (CodeBlock.h + DFGJITCode.h kept; their reverts break the build on `jitDataStoreOrder` / `exitCodePtrConcurrent` consumers) | 15 | 1.93 | 58.140 | +5.87% |
+| C | **entire `Source/` reverted to 2f5a5c4974ad** (the closeout commit itself) | 15 | 1.93 | 58.708 | +6.90% |
+| C′ | same as C, re-measured after settling to load 1.18/1.53 | 21 | 1.18 | 58.966 | +7.37% |
+
+A, B, C, C′ are statistically indistinguishable. **The closeout commit
+reproduces the r27 number on this host today**, so no change in the
+2f5a5c4974ad..HEAD window is responsible for the §24.6-reported +1.7pp.
+
+Full bench-gate at the restored tree (HEAD + the in-flight FUZZ r3-001
+working changes; load 1.95, 9-run): 7/8 within ±0.3%,
+transition-heavy-constructor +6.20%. The other 7 benches sitting at
+baseline rules out whole-machine drift; the variance is bench-specific
+(C′ raw samples span 51.9-61.3 ms, an 18% spread on a 58 ms median —
+GC/tier-up timing on the butterfly-reallocation path).
+
+**Per-header audit (why no flag-off codegen moved).** Of the 9 §24.6
+candidates:
+- TSAN-gated only (flag-off Release codegen byte-identical by `#if
+  TSAN_ENABLED`): `WTF/wtf/Atomics.h` (Dependency::loadAndFence acquire
+  arm), `WTF/wtf/ConcurrentPtrHashSet.h` (`tableConcurrently`),
+  `WTF/wtf/BitSet.h::concurrentCopyFrom`, `heap/MarkedBlockInlines.h`
+  (uses `concurrentCopyFrom`), `bytecode/CodeBlock.h`
+  (`jitDataLoadOrder`/`jitDataStoreOrder` are `relaxed` in non-TSAN).
+- Unconditional but off-hot-path: `heap/IsoSubspace.h` `tlcSlot`/
+  `stampTlcSlot` (flag-off never reads the field — its own comment),
+  `heap/Heap.h` `parkedRootSnapshotThread` (GC-conductor read only),
+  `heap/MarkedBlock.h` `isMarkedRaw` → `concurrentGet` (sole caller is
+  `sharedGCWindowWitnessSnapshot`, GC-only), `WTF/wtf/BitSet.h`
+  `concurrentFilter` own-side relaxed loads (sweep prologue, not the
+  per-object transition path).
+- Cold-path only: `dfg/DFGJITCode.h` `setExitCode` (once per OSR-exit
+  compile).
+
+None sits on the structure-transition / butterfly-grow path the bench
+exercises; the A=B measurement confirms this empirically.
+
+**Disposition.** No fix is owed to the r24-r26 wave. The §24.6
+"attribution (recorded, not proven)" is now **proven false** for this
+window; the 06-09 +3.9% closeout record cannot be reproduced from its own
+source on this host. The full residual (+5.8-7.4% on this host) transfers
+to the PARKED V5b item per docs/threads/TSAN-RESULTS.md ("METHODOLOGY
+CAVEAT") and docs/threads/INTEGRATE-ungil.md AB17g item 4 ("this host is
+inadmissible … the binding V5b quiet-host interleaved-A/B (>=15 runs)
+protocol has not been executed"). The TSAN gate (24.2: 0 unsuppressed)
+stands; the bench gate stays RED with the V5b transfer recorded, not
+silently parked. TSAN remains intact (no header was modified; tree is at
+HEAD).
+
+The owed COMBINED revert from TSAN-RESULTS.md (closeout-era unconditional
+conversions: STT relaxed snapshot, PropertyTable ctor stores,
+WriteBarrierBase setEarlyValue / WriteBarrierStructureID, GC visit
+counters, JSObject.cpp `lastArraySize` std::atomic) is the remaining
+attribution experiment for the +3.1%→current gap and is V5b-owned, out of
+this campaign's scope.
+

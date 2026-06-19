@@ -270,3 +270,48 @@ of essentially one repro shape. Debug repros deterministically.
 
 **Prior-campaign re-triage** (same tree): 292/292 NOREPRO — all 06-07/06-10
 crashes closed by §46+TSAN.
+
+## r3b closure + campaign r47 (2026-06-19, post-§47 tree)
+
+Fuzz jsc rebuilt against the §47 working tree (`tryArrayStoragePropertyTransition`
++ I35 CoW materialize-first reroute in `tryPutDirectTransitionConcurrent`;
+`build-jsc-fuzz.sh` 201 ninja targets, exit 0, Thread API check OK).
+
+**r3b re-triage** (`Tools/threads/fuzz/triage-r3b-batch.sh`, 136 files,
+`fuzzilli-storage{,-B,-C}/crashes` 2026-06-19 02:28-06:30 incl.
+`duplicates/`):
+
+| count | signature |
+|---|---|
+| **134** | **NOREPRO** |
+| 1 | `storeTaggedButterflyWordConcurrent` ← `JSArrayBufferView::slowDownAndWasteMemory` (= r3b-001; r3-002 family, see r47 below) |
+| 1 | exit-3 (uncaught RangeError; the saved r3-002 source — no crash) |
+
+**0× r3-001 signature** (`trySegmentedTransition`). Pre-fix the same triage
+showed 12× r3-001-signature: those 12 are the **CoW** I35 entry assert
+(`!isCopyOnWrite` at `ConcurrentButterfly.cpp:1068`, NOT the AS one) — a CoW
+literal getting an out-of-line `Object.defineProperty` add when E4 is
+ineligible. Closed by the I35 materialize-first reroute. INDEX:
+`Tools/threads/fuzz/crashes/r3b/INDEX.tsv`; full per-file table:
+`WebKitBuild/Fuzz/triage-r3b/all.tsv`.
+
+**Saved r3 repros 20× Debug `--useJSThreads=true`**: r3-001 20/20 (rc=0),
+r3-002 20/20 (rc=3 uncaught RangeError stack-overflow, no crash). Regression
+tests: `JSTests/threads/objectmodel/array-storage-property-transition.js`,
+`JSTests/threads/objectmodel/cow-named-property-transition.js`.
+
+**Campaign r47** (2h fresh-storage, 4 jobs, 09:23:40Z-11:23:41Z):
+423,374 execs, 11.58% edge coverage. **9 crashes / 8 reproducible / 2 unique
+signatures, 0× r3-001**:
+
+| count | signature | #7 caller |
+|---|---|---|
+| 5 | `storeTaggedButterflyWordConcurrent` owner-TID assert | `JSArrayBufferView::slowDownAndWasteMemory` ×3, `shiftButterflyAfterFlattening` ×1, `Structure::flattenDictionaryStructureImpl` ×1 |
+| 3 | SEGV `DeferrableRefCounted::ref` ← `RefPtr<ArrayBuffer>` ← `isArrayBufferViewOutOfBounds` | `validateTypedArray` (poison `arrayBuffer()` mid-wastage) |
+| 1 | NOREPRO | — |
+
+One root family: the manifest-7 `setButterfly` caller audit has three
+foreign-TID escapes (slowDownAndWasteMemory; the two dictionary-flatten
+sites). DEFERRED — needs a tag-preserving cell-locked publication design
+(SCALEBENCH.md §47 "NEW residual"). Repros + ASAN reports:
+`Tools/threads/fuzz/crashes/r47/`; log: `Tools/threads/fuzz/campaign-r47.log`.
