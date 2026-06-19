@@ -1066,6 +1066,30 @@ VM::~VM()
         // is retired only when m_lock actually drops, by willReleaseLock's
         // lock-keyed retirement (JSLock.cpp, retireEntryTokenForLock).
         ASSERT(currentThreadIsHoldingAPILock());
+        // MC-TDWN S1 (B12) RELEASE FAIL-STOP, threads-on only (flag-off
+        // byte-identical: m_mainVMLite is null, this block is unreachable;
+        // the pre-existing debug ASSERT above remains the sole check there).
+        // If a spawned JS Thread's lambda Ref<VM> (ThreadObject.cpp) is the
+        // FINAL reference — embedder dropped its ref without join-under-lock
+        // — ~VM runs HERE on that spawned thread after threadMain returned,
+        // with NO API lock held and NO entry token. The §F.2 premise above
+        // ("destroying thread's token survives teardown") is then FALSE;
+        // step (1) uninstalls a carrier this thread never had, and every
+        // teardown step that asserts the predicate (DWT stopRunningTasks,
+        // traps().willDestroyVM, the EXIT1.9 fence/walk) runs in an
+        // undefined state. The documented embedder contract is
+        // join-then-destroy under the API lock (SPEC-api §teardown,
+        // map-MC-TDWN.md S1); this is a PROTOCOL VIOLATION, not a
+        // recoverable state — fail-stop in release rather than silently
+        // proceed (the JDK-6805108/CVE-2020-12387 shape: destructor
+        // inherits a context the protocol assumed was the owner's).
+        if (Options::useJSThreads()) [[unlikely]] {
+            RELEASE_ASSERT_WITH_MESSAGE(currentThreadIsHoldingAPILock(),
+                "MC-TDWN S1: ~VM reached without the API lock — last Ref<VM> "
+                "dropped on a spawned JS Thread (or embedder destroyed the VM "
+                "off-lock). Embedder contract: join all Threads, then destroy "
+                "the VM while holding the API lock (SPEC-api / UNGIL §F.2).");
+        }
         m_apiLock->uninstallVMLiteForVMDestruction(); // step (1)
         ASSERT(VMLite::currentIfExists() != m_mainVMLite.get());
         if (m_gilOff) [[unlikely]] {

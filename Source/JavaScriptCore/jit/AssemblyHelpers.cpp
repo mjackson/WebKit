@@ -33,6 +33,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "AccessCase.h"
 #include "AssemblyHelpersSpoolers.h"
 #include "BaselineJITCode.h"
+#include "ConcurrentButterflyOperations.h"
 #include "JITOperations.h"
 #include "JSArrayBufferView.h"
 #include "JSCConfig.h"
@@ -245,6 +246,49 @@ void AssemblyHelpers::loadVMLite(GPRReg destGPR)
     JSC::loadVMLite(*this, destGPR);
 }
 #endif
+
+// SPEC-jit App. R5: hoisted from CCallHelpers so emitTagInstalledButterflyWithTID
+// (and the emitAllocateJSObject* templates) can call it. Mechanics are the
+// loadVMLite precedent above (ELF IE-TLS / Darwin TSD, offset baked at
+// emission via butterflyTIDTagELFTLSOffset / butterflyTIDTagTLSKey from
+// ConcurrentButterflyOperations.h). CCallHelpers / SpeculativeJIT inherit it
+// unchanged, so every existing call site (loadButterflyForWrite, the DFG/FTL
+// §5.5 predicate emitters, the FTL loadButterflyTIDTag patchpoint generator)
+// keeps compiling.
+void AssemblyHelpers::loadButterflyTIDTag(GPRReg destGPR)
+{
+#if OS(LINUX) && (CPU(X86_64) || CPU(ARM64))
+    loadFromELFTLS64(butterflyTIDTagELFTLSOffset(), destGPR);
+#elif OS(DARWIN) && ENABLE(FAST_TLS_JIT)
+    loadFromTLS64(fastTLSOffsetForKey(butterflyTIDTagTLSKey()), destGPR);
+#else
+    // D8/App. R5: no JIT-visible TLS mechanism; useJSThreads is unsupported
+    // on this platform, so emission must never get here.
+    UNUSED_PARAM(destGPR);
+    RELEASE_ASSERT_NOT_REACHED();
+#endif
+}
+
+// Task-8 (SPEC-objectmodel §2.1): see the declaration's comment. Kept
+// out-of-line so AssemblyHelpers.h doesn't need ConcurrentButterflyOperations.h.
+void AssemblyHelpers::emitTagInstalledButterflyWithTID(GPRReg resultGPR, GPRReg storageGPR, GPRReg scratchGPR)
+{
+#if USE(JSVALUE64)
+    ASSERT(scratchGPR != resultGPR);
+    ASSERT(scratchGPR != storageGPR);
+    loadButterflyTIDTag(scratchGPR);
+    // scratchGPR := (currentButterflyTID() << 48) | storageGPR — i.e.
+    // encodeButterfly(storageGPR, currentButterflyTID(), false). storageGPR is
+    // left untagged for the caller's post-install header/element writes.
+    or64(storageGPR, scratchGPR);
+    storePtr(scratchGPR, Address(resultGPR, JSObject::butterflyOffset()));
+#else
+    UNUSED_PARAM(resultGPR);
+    UNUSED_PARAM(storageGPR);
+    UNUSED_PARAM(scratchGPR);
+    RELEASE_ASSERT_NOT_REACHED(); // flag-on requires 64-bit (D8)
+#endif
+}
 
 AssemblyHelpers::Jump AssemblyHelpers::branchIfFastTypedArray(GPRReg baseGPR)
 {

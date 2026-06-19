@@ -39,7 +39,32 @@ the 18:55 binary; see tree-stability caveat.)
 
 ## Per-scanner re-run
 
-### 1. TSAN (tsan-deep, CLoop no-JIT) — **BLOCKED: build broken by a fix**
+### 1. TSAN (tsan-deep, CLoop no-JIT) — build break repaired; r1 re-run staged
+
+**[SCAN-TSAN-REVERIFY, 2026-06-18]** The build break below is resolved:
+`icConcurrentRelaxed{Load,Store}` are now declared UNCONDITIONALLY at the top
+of `bytecode/PropertyInlineCache.h:46-66`, outside the `#if ENABLE(JIT)` guard
+(the helpers are generic relaxed-load/store templates with no JIT dependency).
+`CodeBlock.cpp:80` includes the header unconditionally and the
+`InterpreterThunk` arm at `CodeBlock.cpp:1569-1570` compiles in the
+ENABLE_JIT=OFF / ENABLE_C_LOOP=ON config. Mtime evidence: the TSan binary
+relinked at 19:18 (33s after the header edit), confirming the lift compiles;
+the binary is since stale against later edits and must be rebuilt for r1.
+
+The r0 logs are archived (`gil-{off,on}-r0/`, `families-gil-{off,on}-r0.txt`)
+and a one-shot r1 driver is staged at
+`Tools/threads/scan/tsan-deep/r1-reverify.sh` (runs `run.sh both`, extracts
+families via `Tools/threads/tsan/dedup.py`, gates via `compare-families.py`:
+r1 family count ≤ r0 with zero new keys, per mode). **Builder step:**
+`ninja -C WebKitBuild/TSan jsc && Tools/threads/scan/tsan-deep/r1-reverify.sh`.
+
+The `WTF::WeakRandom::advance` family (268 GIL-off / 263 GIL-on r0) is now
+addressed in code (relaxed-atomic conversion, see ACCEPTED below) rather than
+suppressed; expected r1 outcome is ≤13/≤11 families.
+
+---
+
+*Original r0 record preserved below for the audit trail:*
 
 Re-verification was attempted (`ninja -C WebKitBuild/TSan jsc`) and **FAILS
 to compile**:
@@ -167,15 +192,13 @@ the respective sanitizer binaries could not be re-exercised; see RESIDUALS.)
 
 ## RESIDUALS (still failing / open after the fix round)
 
-1. **TSAN target build break (BLOCKER)** —
-   `bytecode/CodeBlock.cpp:1569-1570` calls `icConcurrentRelaxedLoad()`
-   (declared inside `#if ENABLE(JIT)` in `PropertyInlineCache.h`) from the
-   `InterpreterThunk` arm of `propagateTransitions`, which compiles with
-   ENABLE_JIT=OFF. `ninja -C WebKitBuild/TSan jsc` fails. **All tsan-deep
-   re-verification blocked.** Fix shape: lift `icConcurrentRelaxedLoad`
-   outside the JIT guard (it is a generic relaxed-load helper with no JIT
-   dependency), or `#if ENABLE(JIT)`-guard the propagateTransitions hunk
-   and use the plain reads otherwise.
+1. **TSAN target build break** — *RESOLVED (SCAN-TSAN-REVERIFY).*
+   `icConcurrentRelaxed{Load,Store}` lifted outside the `#if ENABLE(JIT)`
+   guard in `PropertyInlineCache.h:46-66`; `ninja -C WebKitBuild/TSan jsc`
+   compiles (binary relinked 19:18 post-lift). r1 re-run staged via
+   `Tools/threads/scan/tsan-deep/r1-reverify.sh`; gate = r1 families ≤ r0
+   with zero new keys. **tsan-deep re-verification unblocked; pending
+   builder execution.**
 
 2. **`gcAtEnd` × `property-wait-termination.js` MachineStackMarker SEGV** —
    present unchanged in sweeps 01b/04/06 (every sweep that sets
@@ -239,9 +262,25 @@ the respective sanitizer binaries could not be re-exercised; see RESIDUALS.)
    addressed.
 
 7. **UBSAN `UnlinkedFunctionExecutable.cpp:275` signed-integer-overflow** —
-   source file was modified post-scan but the fix is **not dynamically
-   verified** (UBSan binary stale). Carried as open until a UBSan rebuild
-   + `arrays/` spot run.
+   *FIX LANDED (SCAN-UBSAN-UFE-OVERFLOW), pending builder verify.* The
+   18:54:55 post-scan mtime bump was a no-op (file byte-identical to
+   43fd5fb), so the r0 report was still live. Root cause: `oneBasedInt()`
+   returns `int` and `m_firstLineOffset` is `unsigned : 31`, which
+   integral-promotes to `int` (all values representable), giving `int +
+   int`; the r0 trigger was `1 + 2147483647`. Fix: cast the LHS to
+   `unsigned` so the addition is unsigned (result was already stored to
+   `unsigned`). The adjacent `:274` `startOffset()` line has the identical
+   `int + (unsigned:31 → int)` shape (`UnlinkedSourceCode.h:266` returns
+   `int`); same cast applied pre-emptively so the gate cannot resurface one
+   line up. No flag-off behavior change — defined wraparound replaces UB
+   that compiled to the same wraparound. The `2147483647` operand traces to
+   `:176` (negative `node->firstLine() - parentSource.firstLine()`
+   truncating into the 31-bit field); pre-existing upstream behavior, not
+   threads-introduced, left unchanged. **Gate (builder):** `ninja -C
+   WebKitBuild/UBSan jsc` then spot-run `JSTests/threads/arrays/` (and
+   `semantics/private-fields-shared.js`, the r0 trigger) under UBSan; grep
+   the output for `UnlinkedFunctionExecutable.cpp:` — no site (any line)
+   may appear.
 
 ---
 
@@ -299,10 +338,18 @@ the respective sanitizer binaries could not be re-exercised; see RESIDUALS.)
   safepoint-jitter sites. The value is non-semantic (jitter only); a torn
   state degrades to a different random seed. Accepted per the standing
   TSAN ruling for "racy words whose value is non-semantic" (TSAN-TRIAGE
-  §15 relaxed-atomic class). **Caveat:** acceptance is documented here,
-  not yet in `Tools/tsan/suppressions.txt`; once the TSAN target rebuilds,
-  either a relaxed-atomic conversion or a one-line suppression with this
-  rationale should land.
+  §15 relaxed-atomic class). **Landed (SCAN-TSAN-REVERIFY):** the
+  relaxed-atomic conversion (NOT a suppression — the interleaving is
+  threads-introduced, so suppressions.txt rule 1 disqualifies it).
+  `WeakRandom::advance()` and `setSeed()` now access `m_low`/`m_high` via
+  `__atomic_{load,store}_n(..., __ATOMIC_RELAXED)` over the existing plain
+  `uint64_t` storage (`Source/WTF/wtf/WeakRandom.h:50-61,129-152`).
+  Single-word relaxed atomics compile to the identical mov/ldr/str the
+  plain accesses did (flag-off byte-identical preserved; same shape as the
+  `icConcurrentRelaxed{Load,Store}` precedent). `m_low`/`m_high` remain
+  plain `uint64_t` so `lowOffset()`/`highOffset()` and the manually-inlined
+  JIT codegen are unchanged; the JIT path is not compiled in the
+  ENABLE_JIT=OFF TSAN config that observes this family.
 
 ---
 
@@ -310,8 +357,8 @@ the respective sanitizer binaries could not be re-exercised; see RESIDUALS.)
 
 | Scanner | r0 findings | Fixed (verified) | Residual | Accepted | Re-run status |
 |---|---|---|---|---|---|
-| TSAN (tsan-deep) | 14 fam GIL-off / 12 GIL-on | 0 verified | **all open + build broken** | WeakRandom (1 fam) | **BLOCKED** (CodeBlock.cpp fix breaks ENABLE_JIT=OFF) |
-| UBSAN | 54 threads-scope | 0 verified | 1 (UnlinkedFunctionExecutable overflow, source touched) | 53 (BytecodeStructs misaligned) | not re-run (binary stale) |
+| TSAN (tsan-deep) | 14 fam GIL-off / 12 GIL-on | 0 verified | build break **resolved**; r0 families pending r1 | WeakRandom (1 fam, **landed** as relaxed-atomic) | **r1 staged** (`r1-reverify.sh`; pending builder) |
+| UBSAN | 54 threads-scope | 0 verified | 1 (UnlinkedFunctionExecutable overflow — **fix landed**, pending rebuild+spot-run) | 53 (BytecodeStructs misaligned) | not re-run (binary stale) |
 | clang-tidy/analyze | ~80 lines | **1** (JSLock.cpp:1781 null-ptr) | 1 (Structure.cpp branch-clone) | rest (idioms/alpha/RAII) | spot re-run |
 | semgrep | 33 | — | 0 | 33 (all FP) | not re-run (0 confirmed) |
 | CodeQL | — | — | — | skipped | skipped |

@@ -21,6 +21,12 @@
 //   throttles, or gates the property-atomics fast path, this assertion or
 //   the gating shape fails and forces the SPEC-api §4.5 conversation.
 //
+// CVE-AUDIT Tier-B B15 disposition: EMBEDDER OBLIGATION — no engine code
+// change. PASS here means the timer capability is present as designed; the
+// deliverable is docs/threads/INTEGRATE-api.md 9.2-11 + the OptionsList.h
+// useJSThreads help text (treat the flag as native-code-equivalent for
+// confidentiality; multi-tenant = multi-process).
+//
 // WRITTEN DURING BRING-UP: do not execute until the GIL-off ladder is up.
 // Under the phase-1 cooperative GIL the spinner may starve the observer;
 // post-ungil both run in parallel and the witness is robust.

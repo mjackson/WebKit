@@ -2219,8 +2219,22 @@ GIL-off = token meaning. (b) heap finalizers clearing Strongs (api
 5.10/D5-companion addFinalizer lambdas — they need m_strongLock +
 access) run entered-with-access OUTSIDE the stop window (heap §10B(5)
 JS-finalizer ban respected; the conductor runs them after resume,
-before releasing its own client's access). U-T7
-dead-lock-object-with-pending-asyncHold sweep-storm amplifier.
+before releasing its own client's access). LANDED (CVE-AUDIT B7 /
+MC-GC S5): Heap::LambdaFinalizerOwner::finalize defers the lambda
+body when WSAC is set (gilOff-gated; flag-off byte-identical) into
+Heap::m_deferredLambdaFinalizers, drained by
+Heap::drainDeferredLambdaFinalizers at the conductSharedCollection
+tail (after closeSharedGCStopWindow + acquireHeapAccess). The
+WeakImpl is freed in-stop (lock-free); the deferred lambda receives
+a null JSCell* (its block may already be reclaimed) — the 5.10
+lambda captures by Ref and ignores the argument; any future
+LambdaFinalizer needing the cell must capture by value. WSAC is
+set/cleared only by open/closeSharedGCStopWindow, both reachable
+only from conductSharedCollection, so every deferred lambda has a
+matching same-thread drain. The WS(ii) closed list stays closed:
+this body no longer mutates HandleSet/joinLock from inside a stop.
+U-T7 dead-lock-object-with-pending-asyncHold sweep-storm amplifier;
+gate test JSTests/threads/cve/mc-gc-thread-shell-finalizer-storm.js.
 
 ### F.4 DropAllLocks GIL-off (IA D1; ANNEX DAL2, BINDING — full
 text)

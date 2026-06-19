@@ -271,8 +271,8 @@ SourceCode UnlinkedFunctionExecutable::linkedSourceCode(const SourceCode& passed
 {
     const SourceCode& parentSource = !m_isBuiltinDefaultClassConstructor ? passedParentSource : BuiltinExecutables::defaultConstructorSourceCode(constructorKind());
     unsigned startColumn = linkedStartColumn(parentSource.startColumn().oneBasedInt());
-    unsigned startOffset = parentSource.startOffset() + m_startOffset;
-    unsigned firstLine = parentSource.firstLine().oneBasedInt() + m_firstLineOffset;
+    unsigned startOffset = static_cast<unsigned>(parentSource.startOffset()) + m_startOffset;
+    unsigned firstLine = static_cast<unsigned>(parentSource.firstLine().oneBasedInt()) + m_firstLineOffset;
     return SourceCode(parentSource.provider(), startOffset, startOffset + m_sourceLength, firstLine, startColumn);
 }
 

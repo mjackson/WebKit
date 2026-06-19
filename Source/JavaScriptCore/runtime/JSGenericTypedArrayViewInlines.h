@@ -410,23 +410,69 @@ void JSGenericTypedArrayView<Adaptor>::copyFromInt32ShapeArray(size_t offset, JS
     ASSERT((length + objectOffset) <= array->length());
     ASSERT(array->isIteratorProtocolFastAndNonObservable());
 
+#if USE(JSVALUE64)
+    // CVE-AUDIT MC-DF S10b / Tier-B B2 (round-4 single-snapshot): callers
+    // gate on a §10.7 mayBeSegmentedButterfly() check (setFromArrayLike) or
+    // none at all (genericTypedArrayViewPrivateFuncFromFast, which has an
+    // allocation safepoint between its shape check and this call). Once a
+    // shape family's TTL sets are fired, a foreign §4.2 flat→segmented
+    // conversion needs only the cell lock + DCAS — NO stop — so it can land
+    // between the caller's check and any butterfly() re-load here (round-4
+    // finding, JSArray.cpp:1752); the flat-only decode would then read the
+    // ButterflySpine* payload as a Butterfly* and feed spine innards to
+    // copyElements (attacker-observable heap bytes into the destination TA).
+    // Close the window by deriving every source deref from ONE tagged-word
+    // load; a segmented/null/short snapshot routes through the regime-safe
+    // tryGetIndexQuickly (handles every regime, never OOBs). A post-snapshot
+    // §4.2 conversion stays sound: it aliases the same memory and the local
+    // pointer pins the superseded flat allocation for the conservative scan
+    // (I7); flat vectorLengths are immutable flag-on. R-DOUBLE relabels
+    // touching Double on a shared word are per-event STW (§4.7/§10.6); the
+    // residual Int32→Contiguous (§4.3, lock-free) race is the round-4
+    // accepted one — garbage-decoded lanes are at worst reinterpreted
+    // numbers in TA elements, never followed as cell pointers. Flag-off all
+    // tag bits are zero (I22): the snapshot is exactly array->butterfly()
+    // and the [[unlikely]] arm is dead — byte-identical to the original.
+    Butterfly* sourceButterfly;
+    if (Options::useJSThreads()) [[unlikely]] {
+        uint64_t snapshotWord = array->taggedButterflyWord();
+        if (isSegmentedButterfly(snapshotWord) || !(snapshotWord & butterflyPointerMask)
+            || (objectOffset + length) > untaggedButterfly(snapshotWord)->vectorLength()) [[unlikely]] {
+            for (size_t i = 0; i < length; ++i) {
+                JSValue value = array->tryGetIndexQuickly(static_cast<unsigned>(i + objectOffset));
+                if (value && value.isInt32()) [[likely]]
+                    setIndexQuicklyToNativeValue(offset + i, Adaptor::toNativeFromInt32(value.asInt32()));
+                else if (value && value.isNumber())
+                    setIndexQuicklyToNativeValue(offset + i, Adaptor::toNativeFromDouble(value.asNumber()));
+                else
+                    setIndexQuicklyToNativeValue(offset + i, Adaptor::toNativeFromUndefined());
+            }
+            return;
+        }
+        sourceButterfly = untaggedButterfly(snapshotWord);
+    } else
+        sourceButterfly = array->butterfly();
+#else
+    Butterfly* sourceButterfly = array->butterfly();
+#endif
+
     // If the destination is uint32_t or int32_t, we can use copyElements.
     // 1. int32_t -> uint32_t conversion does not change any bit representation. So we can simply copy them.
     // 2. Hole is represented as JSEmpty in Int32Shape, which lower 32bits is zero. And we expect 0 for undefined, thus this copying simply works.
     if constexpr (Adaptor::typeValue == TypeUint8 || Adaptor::typeValue == TypeInt8) {
-        WTF::copyElements(byteCast<uint8_t>(typedSpan().subspan(offset)), std::span { std::bit_cast<const uint64_t*>(array->butterfly()->contiguous().data() + objectOffset), length });
+        WTF::copyElements(byteCast<uint8_t>(typedSpan().subspan(offset)), std::span { std::bit_cast<const uint64_t*>(sourceButterfly->contiguous().data() + objectOffset), length });
         return;
     }
     if constexpr (Adaptor::typeValue == TypeUint16 || Adaptor::typeValue == TypeInt16) {
-        WTF::copyElements(spanReinterpretCast<uint16_t>(typedSpan().subspan(offset)), std::span { std::bit_cast<const uint64_t*>(array->butterfly()->contiguous().data() + objectOffset), length });
+        WTF::copyElements(spanReinterpretCast<uint16_t>(typedSpan().subspan(offset)), std::span { std::bit_cast<const uint64_t*>(sourceButterfly->contiguous().data() + objectOffset), length });
         return;
     }
     if constexpr (Adaptor::typeValue == TypeUint32 || Adaptor::typeValue == TypeInt32) {
-        WTF::copyElements(spanReinterpretCast<uint32_t>(typedSpan().subspan(offset)), std::span { std::bit_cast<const uint64_t*>(array->butterfly()->contiguous().data() + objectOffset), length });
+        WTF::copyElements(spanReinterpretCast<uint32_t>(typedSpan().subspan(offset)), std::span { std::bit_cast<const uint64_t*>(sourceButterfly->contiguous().data() + objectOffset), length });
         return;
     }
     for (size_t i = 0; i < length; ++i) {
-        JSValue value = array->butterfly()->contiguous().at(array, static_cast<unsigned>(i + objectOffset)).get();
+        JSValue value = sourceButterfly->contiguous().at(array, static_cast<unsigned>(i + objectOffset)).get();
         if (!!value) [[likely]]
             setIndexQuicklyToNativeValue(offset + i, Adaptor::toNativeFromInt32(value.asInt32()));
         else
@@ -443,13 +489,42 @@ void JSGenericTypedArrayView<Adaptor>::copyFromDoubleShapeArray(size_t offset, J
     ASSERT((length + objectOffset) <= array->length());
     ASSERT(array->isIteratorProtocolFastAndNonObservable());
 
+#if USE(JSVALUE64)
+    // CVE-AUDIT MC-DF S10b / Tier-B B2 (round-4 single-snapshot): same
+    // root cause as copyFromInt32ShapeArray above — every source deref goes
+    // through ONE tagged-word load; segmented/null/short snapshot routes
+    // through the regime-safe tryGetIndexQuickly. R-DOUBLE Double→Contiguous
+    // relabels on a shared word are per-event STW (§4.7/§10.6), so the
+    // raw-double read of the snapshot's lanes never follows a cell pointer.
+    // Flag-off byte-identical (I22).
+    Butterfly* sourceButterfly;
+    if (Options::useJSThreads()) [[unlikely]] {
+        uint64_t snapshotWord = array->taggedButterflyWord();
+        if (isSegmentedButterfly(snapshotWord) || !(snapshotWord & butterflyPointerMask)
+            || (objectOffset + length) > untaggedButterfly(snapshotWord)->vectorLength()) [[unlikely]] {
+            for (size_t i = 0; i < length; ++i) {
+                JSValue value = array->tryGetIndexQuickly(static_cast<unsigned>(i + objectOffset));
+                if (value && value.isNumber()) [[likely]]
+                    setIndexQuicklyToNativeValue(offset + i, Adaptor::toNativeFromDouble(value.asNumber()));
+                else
+                    setIndexQuicklyToNativeValue(offset + i, Adaptor::toNativeFromUndefined());
+            }
+            return;
+        }
+        sourceButterfly = untaggedButterfly(snapshotWord);
+    } else
+        sourceButterfly = array->butterfly();
+#else
+    Butterfly* sourceButterfly = array->butterfly();
+#endif
+
     if constexpr (Adaptor::typeValue == TypeFloat64 || Adaptor::typeValue == TypeFloat32) {
-        WTF::copyElements(typedSpan().subspan(offset), std::span<const double> { array->butterfly()->contiguousDouble().data() + objectOffset, length });
+        WTF::copyElements(typedSpan().subspan(offset), std::span<const double> { sourceButterfly->contiguousDouble().data() + objectOffset, length });
         return;
     }
 
     for (size_t i = 0; i < length; ++i) {
-        double d = array->butterfly()->contiguousDouble().at(array, static_cast<unsigned>(i + objectOffset));
+        double d = sourceButterfly->contiguousDouble().at(array, static_cast<unsigned>(i + objectOffset));
         setIndexQuicklyToNativeValue(offset + i, Adaptor::toNativeFromDouble(d));
     }
 }
@@ -485,6 +560,17 @@ bool JSGenericTypedArrayView<Adaptor>::setFromArrayLike(JSGlobalObject* globalOb
             // bodies per run. Flag-off mayBeSegmentedButterfly() is constant
             // false (I22) so the else-arm is dead and the flat path is the
             // unchanged byte-identical original.
+            //
+            // CVE-AUDIT MC-DF S10b / Tier-B B2: the mayBeSegmentedButterfly()
+            // check below is a check-then-reload §10.7 gate, which the
+            // round-4 finding (JSArray.cpp:1752) showed is unsound vs a
+            // cell-lock-only §4.2 conversion. It is therefore now ONLY a
+            // dispatch hint between the flat-helper and segmented-walk arms;
+            // BOTH arms are individually authoritative — copyFrom*ShapeArray
+            // re-snapshots the tagged word once and routes a raced-segmented
+            // snapshot through a regime-safe loop, and the segmented arm
+            // re-loads and re-checks (raced-flat falls through to the
+            // generic JSArray loop further below, also regime-safe).
             if (safeLength == length && (safeLength + objectOffset) <= array->length() && array->isIteratorProtocolFastAndNonObservable()) {
                 IndexingType indexingType = array->indexingType() & IndexingShapeMask;
                 if (!array->mayBeSegmentedButterfly()) {

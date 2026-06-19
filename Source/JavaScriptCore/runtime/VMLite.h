@@ -416,6 +416,20 @@ public:
     static ptrdiff_t offsetOfDoesGC() { UNREACHABLE_FOR_PLATFORM(); return 0; }
 #endif
 
+    // B14 / MC-DOS S7 amendment note: a per-lite observedRetireEpoch slot was
+    // proposed here as an "explicit per-LITE witness regardless of the
+    // lite<->client mapping" for GCSafepointEpoch (SPEC-jit §4.4). Dropped at
+    // adversarial review: bumpAndReclaim()'s min scan reads ONLY
+    // GCClient::Heap::m_localEpoch (GCSafepointEpoch.cpp:148), so a per-lite
+    // slot with no reader is dead code, and its in-stop stamping walk was a
+    // new release-build lock-site (VMLiteRegistry::lock) inside the conductor
+    // window for zero functional gain. The §4.4 soundness rests on U-T6
+    // (per-thread clients: every JS-executing lite has its own GCClient::Heap
+    // registered in clientSet()) — see epochCoversEveryJSThread() in
+    // RetiredJITArtifacts.cpp for the full argument and the standing
+    // obligation on any future change that lets a lite execute without a
+    // distinct registered client.
+
     static constexpr ptrdiff_t offsetOfPrimitives() { return OBJECT_OFFSETOF(VMLite, primitives); }
     static constexpr ptrdiff_t offsetOfTID() { return OBJECT_OFFSETOF(VMLite, tid); }
     static constexpr ptrdiff_t offsetOfGilOff() { return OBJECT_OFFSETOF(VMLite, gilOff); } // LLInt level-2 byte (U-T3).

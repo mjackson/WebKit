@@ -73,30 +73,57 @@ namespace JSC {
 #endif
 }
 
-// Epoch-granularity guard (fix for spawned-thread UAF in unmapped JIT memory,
-// JSTests/threads/jit/{tid-tag-3-threads,int-gate-stop-budget,
-// spawned-thread-butterfly-stress}.js): the heap epoch facility
+// Epoch-granularity guard — B14 / MC-DOS S7 RESOLVED (per-thread epoch
+// publication landed; CVE-AUDIT-RESULTS.md:142, map-MC-DOS.md S7).
+//
+// Original concern (kept for the regression record): the epoch facility
 // (heap/GCSafepointEpoch.h) tracks safepoint crossings at GCClient::Heap
-// granularity — ONE client per VM. Under the phase-1 GIL stub every
-// Thread()-spawned JS thread runs in the SAME VM, i.e. the same single
-// client, and the reclaim sequence (Heap::runSafepointHooksAndReclaim)
-// unconditionally stamps that one client at every collection. A sibling
-// thread parked with the GIL dropped (join / cond.wait / Atomics.wait /
-// lock.hold — all mid-operation park sites) therefore never holds an epoch
-// back: two collections can complete while it is parked, expiring artifacts
-// (call-link records, handler-chain nodes, and the stub-routine refs they
-// drop into jettison) that the parked thread's resumed LLInt/IC dispatch
-// state still reaches — a stale entrypoint into reclaimed JIT memory.
-// "Every registered MUTATOR THREAD crossed the epoch" is the §4.4 soundness
-// requirement; the landed facility can only prove "every registered CLIENT
-// was stamped". Until per-thread epoch publication lands in the heap
-// workstream (clients stamped only when each spawned thread has passed a
-// safepoint), flag-on retirement must keep the chartered
-// leak-until-integration behavior (sound: never frees). Flag-off there are
-// no callers, so nothing is lost by gating. THREADS-INTEGRATE(jit)
+// granularity. Under the phase-1 GIL stub every Thread()-spawned JS thread
+// shared the SAME single client, so the reclaim sequence's per-client stamp
+// could not prove "every registered MUTATOR THREAD crossed the epoch" — only
+// "the one client was stamped". A parked sibling could in principle have its
+// epoch advanced underneath it.
+//
+// Why it now holds, both modes — and what it RESTS ON:
+//   (a) Per-thread clients (U-T6, ANNEX A36C / JSLock.cpp
+//       perThreadClientForCarrierEntry + the spawned-lite client in
+//       ThreadManager.cpp) give every JS thread its OWN GCClient::Heap
+//       registered in clientSet(), so the per-client m_localEpoch stamp in
+//       Heap::runSafepointHooksAndReclaim IS per-thread, and
+//       bumpAndReclaim()'s min-over-clients scan (GCSafepointEpoch.cpp:148)
+//       IS the per-thread global minimum the §4.4 soundness argument needs.
+//       This is the LOAD-BEARING invariant — there is no separate per-lite
+//       witness (an earlier B14 revision added one; dropped at adversarial
+//       review as write-only dead code with no reader in the min scan).
+//       bumpAndReclaim()'s RELEASE_ASSERT(minLocalEpoch >= oldEpoch)
+//       backstops a missed stamp but NOT a missing client.
+//   (b) The stamp is sound because it runs only while the world is stopped
+//       for all clients (§10 step 7) or legacy worldIsStopped()
+//       (runEndPhase): every lite is provably at a safepoint, so per the
+//       G2/I16 safepoint-free-window rule cannot be holding a pointer into
+//       any data this facility retires (handler-chain nodes, call-link
+//       records, generic RetiredCallback payloads — all §4.4 "non-executable,
+//       every JIT-side access in a safepoint-free window" by construction).
+//       A thread parked at join/cond.wait/Atomics.wait/lock.hold IS at a
+//       safepoint for this purpose (it released heap access; the §10 stop
+//       counted it); the original "stale entrypoint into reclaimed JIT
+//       memory" worry is about MACHINE CODE, which the I7 hard rule keeps
+//       out of epoch reclaim entirely (see retireOptimizedJITCode below —
+//       that leg is bounded by R2, not by this predicate).
+//
+// STANDING OBLIGATION (recorded at the B14 hunk in
+// Heap::runSafepointHooksAndReclaim): if U-T6 ever weakens — a lite
+// executing JS without its own registered GCClient::Heap, or two lites
+// sharing one client under a future carrier path — this predicate becomes
+// UNSOUND (handler-chain/record UAF) with no functional guard. That change
+// MUST either wire a per-lite witness into bumpAndReclaim()'s min scan or
+// revert this to false.
+//
+// Flag-off there are no callers (every retire path is useJSThreads-gated),
+// so this returning true unconditionally is flag-off-invisible.
 [[maybe_unused]] static bool epochCoversEveryJSThread(VM&)
 {
-    return !Options::useJSThreads();
+    return true;
 }
 
 #if ENABLE(JIT)
@@ -216,12 +243,12 @@ void RetiredJITArtifacts::retireHandlerChain(VM& vm, RefPtr<InlineCacheHandler>&
         return;
     }
 #endif
-    // Leak-until-integration stub (N6): never free inline - a JIT'd reader on
-    // another thread (post-GIL) could still hold a node pointer inside its
-    // safepoint-free window. Pre-integration the GIL makes the leak the only
-    // cost. Also taken flag-on while the epoch facility's per-client
-    // granularity cannot prove every spawned JS thread crossed the epoch
-    // (see epochCoversEveryJSThread). THREADS-INTEGRATE(jit)
+    // N6 leak stub: now reachable ONLY when GCSafepointEpoch.h has not landed
+    // (the !JSC_JIT_HAS_GC_SAFEPOINT_EPOCH build config) —
+    // epochCoversEveryJSThread() above always returns true since B14, so the
+    // epoch arm is taken whenever the facility exists. Never free inline: a
+    // JIT'd reader on another thread could still hold a node pointer inside
+    // its safepoint-free window. THREADS-INTEGRATE(jit)
     UNUSED_PARAM(vm);
     (void)head.leakRef();
 }
@@ -232,21 +259,43 @@ void RetiredJITArtifacts::retireOptimizedJITCode(VM& vm, RefPtr<JITCode>&& jitCo
     if (!jitCode)
         return;
 
-    if (!Options::useJSThreads()) [[likely]] {
-        // Today's behavior: dropping the (typically last) ref releases the
-        // ExecutableMemoryHandle inline during the sweep.
-        jitCode = nullptr;
-        return;
-    }
-
-    // Leak-until-integration (see the header comment): flag-on, the sweep
-    // cannot prove that a parked sibling thread's stack and call-link/IC
-    // records do not reach this machine code (R2's N-stack conservative scan
-    // is a heap-workstream deliverable), and the epoch facility must never
-    // free machine code (I7 hard rule). Leaking keeps every published
-    // entrypoint, section-5.8 record, and CallLinkInfo address-valid, which
-    // is sound. THREADS-INTEGRATE(jit)
-    (void)jitCode.leakRef();
+    // B14 / MC-DOS S7 RESOLVED (R2 leg). Flag-off AND flag-on now drop the
+    // ref inline: R2's N-stack conservative scan has landed
+    // (Heap::gatherStackRoots, "one MachineThreads scan covers all N
+    // mutators", §10.6/T6 — the *m_codeBlocks argument keeps any CodeBlock
+    // whose machine code appears as a return address on ANY registered
+    // thread's stack), so the very GC whose sweep is calling this already
+    // proved no thread's stack reaches this code. The remaining reach paths
+    // are closed at that same GC:
+    //   - live callers' CallLinkInfos: visitWeak ran during marking and
+    //     unlinked every monomorphic/record link to the now-unmarked callee;
+    //   - §5.8 records: their codeBlockToTransfer is publish-time pinned
+    //     (pinPublishedCallLinkRecordCodeBlock) — a record naming this
+    //     CodeBlock would have kept it marked, so ~CodeBlock running means
+    //     no live or retired-but-unexpired record names it (and with
+    //     epochCoversEveryJSThread now true above, retired records DO expire
+    //     and unpin, so this path no longer accumulates a permanent pin set);
+    //   - a sibling mid-dispatch (loaded {entrypoint, codeBlock} but not yet
+    //     jumped): the load->jump window is safepoint-free (G2). PREMISE:
+    //     while mutator-concurrent sweeping is disabled (SPEC-heap.md:23,
+    //     useSharedGCIncrementalSweep=false default OptionsList.h:435) the
+    //     §10 stop that licensed this sweep had every sibling at a safepoint,
+    //     so the window cannot exist at sweep time. Under SPEC-congc §7.3
+    //     that option turns on and ~CodeBlock runs on a mutator outside the
+    //     stop — the closure THEN holds by reachability instead: post-resume
+    //     no live path can re-reach the dead code (R2 + visitWeak unlinked
+    //     it; §5.8 pins would have kept it marked), and ~CallLinkInfoBase's
+    //     gilOff arm takes s_callLinkSerializationLock unconditionally
+    //     (CallLinkInfoBase.h:111-130) so the m_incomingCalls delist below is
+    //     serialized against linkIncomingCall's locked push
+    //     (CodeBlock.cpp:2476-2481). Either way, sound.
+    // Deliberately NOT routed through the epoch facility (I7 hard rule:
+    // epoch expiry must never free machine code). The sole caller
+    // (CodeBlock.cpp ~CodeBlock) is itself useJSThreads-gated, so flag-off
+    // codegen at the call site is unchanged; here both arms are now the same
+    // ref drop, identical to what the flag-off ~RefPtr<JITCode> member
+    // destructor would have done.
+    jitCode = nullptr;
 }
 
 #endif // ENABLE(JIT)
@@ -262,9 +311,9 @@ void RetiredJITArtifacts::retire(VM& vm, std::unique_ptr<RetiredCallback>&& call
         return;
     }
 #endif
-    // Leak-until-integration stub (N6): also taken flag-on while the epoch
-    // facility's per-client granularity cannot prove every spawned JS thread
-    // crossed the epoch (see epochCoversEveryJSThread). THREADS-INTEGRATE(jit)
+    // N6 leak stub: now reachable ONLY when GCSafepointEpoch.h has not landed
+    // (the !JSC_JIT_HAS_GC_SAFEPOINT_EPOCH build config) — see the matching
+    // note in retireHandlerChain. THREADS-INTEGRATE(jit)
     UNUSED_PARAM(vm);
     (void)callback.release();
 }

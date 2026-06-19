@@ -134,5 +134,19 @@ racy by design, since it survives refactors and is visible in review.
 - TSAN and ASAN cannot be combined in one build; the existing
   `ENABLE_SANITIZERS=address` debug default in `build.ts` is replaced, not
   augmented, by this configuration.
+- **ASAN lane pin (CVE-AUDIT B9 / MC-GC S2a):** when running the threads
+  corpus under the ASAN Debug build (NOT this TSAN target — but documented
+  here because it is the other half of the sanitizer-lane contract), set
+  `ASAN_OPTIONS=detect_stack_use_after_return=0`. UAR's heap fake-stack
+  relocates address-taken locals outside `thread.stack()`; the T5
+  cooperative parked-root scan (`MachineStackMarker.cpp
+  tryCopyCooperativelyParkedThreadStack`) then either (a) declines every
+  snapshot via the publish/consumer bounds-checks (so the optimisation is
+  never exercised) or (b) — for a frame that escaped UAR instrumentation —
+  computes a span off the mapped OS stack and SEGVs at `copyMemory`
+  (`JSTests/threads/cve/mc-gc-s2a-uar-fakestack.crash.txt`; the
+  SCAN-RESULTS.md residual-#2 `gcAtEnd × property-wait-termination.js`
+  signature). `Tools/threads/run-tests.sh` exports this pin for every run;
+  any ad-hoc ASAN driver that bypasses it must do the same.
 - MSVC/Windows is unsupported (`WebKitCompilerFlags.cmake` only wires
   `thread` for non-MSVC); use Linux or macOS.

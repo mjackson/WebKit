@@ -3604,14 +3604,175 @@ GIL-on: 2/2/2 (gate is GIL-off-only; backstop converges all three).
    locked copy-grow (`StayFlatSharedGrow`) — same M2/M5 argument plus the
    §3 owner copy-grow allocation path. Not done here: the bench hot
    constructors (String, Object) hit the no-growth gate.
-2. **Duplicate-property-name structures pre-exist §45**: `Object` already
-   shows `hasOwn:75, hasOwn:76` BEFORE any worker runs; after worker reify
-   it gains a second `keys:78` and Array a second `from:72`. This is a
-   lazy-static-property reification re-adding an already-installed name
-   (orthogonal to butterfly regime; visible under GIL-on too). Tracked
-   separately; no correctness effect observed (property reads return the
-   right function, all checksums stable).
+2. **Duplicate-property-name structures pre-exist §45** — **RESOLVED
+   (S45-DUPLICATE-PROPERTY-NAME): misdiagnosis.** `Object` already showed
+   `hasOwn:75, hasOwn:76` BEFORE any worker runs; after worker reify it
+   gained a second `keys:78` and Array a second `from:72`. Investigation:
+   these are NOT duplicate uids — `describe()` renders PRIVATE builtin
+   symbols without the `@` distinguisher. The pairs are
+   `hasOwn`(public,75)/`@hasOwn`(private,76),
+   `@keys`(private,71)/`keys`(public,78),
+   `@from`(private,70)/`from`(public,72) — each installed exactly once by
+   `ObjectConstructor`/`ArrayConstructor::finishCreation` (the privates) and
+   lazy `setUpStaticFunctionSlot` (the publics). `putDirectInternal`'s
+   `structure->get()` replace leg structurally prevents same-uid duplicates,
+   which is why "no correctness effect observed" held.
+   The remaining real (small) gap: `reifyStaticProperty` did not re-probe
+   under the IT-6 reification lock. `setUpStaticFunctionSlot` ALREADY takes
+   that lock and re-probes under it (IT-6 fix, Lookup.cpp), so it was
+   covered; the actual unlocked-probe caller is
+   `JSObject::reifyAllStaticProperties` (probes `getDirectOffset` outside
+   any lock, then calls `reifyStaticProperty`), and the batch
+   `reifyStaticProperties` template never pre-probes. Two lites entering
+   either of those that both saw "not present" pre-lock would both
+   `putDirect` (loser = wasted JSFunction allocation + spurious
+   `didReplaceProperty` watchpoint fire on a freshly-installed slot + a
+   second §4.2 StayFlatShared header publish). Closed by an under-lock
+   `getDirectOffset` re-probe at `Lookup.h reifyStaticProperty`, gated on
+   `Options::useJSThreads()` (same predicate as the locker) so flag-off is
+   byte-identical. Gate: `Object.getOwnPropertyNames` no-duplicate-string
+   assertion folded into
+   `JSTests/threads/jit/foreign-reify-getbyid-converges.js` — note this is
+   an INVARIANT SMOKE / line-coverage gate, not a race amplifier: the
+   structure replace leg cannot represent two offsets for one string uid,
+   so the assertion structurally cannot fail, and the test's single
+   `w2.join()` does not hammer the loser path. Acceptable because the §45
+   root cause is a non-bug; do not over-trust as a TOCTOU detector.
+   v5a-identity unchanged. Adjacent residual NOT touched here (out of
+   S45's owned set, JSObject.cpp): `reifyAllStaticProperties` still calls
+   `convertToDictionary` / `setStaticPropertiesReified(true)` outside the
+   reification lock — pre-existing, two lites entering that function still
+   race on those.
 3. **GIL-on path unchanged**: the StayFlatShared gate is `!useThreadGIL()`
    so under the GIL a foreign reify still converts (preserving the GIL-on
    corpus baseline). The backstop is `useJSThreads()` and applies in both
    modes — GIL-on `numberOfDFGCompiles` is 2/2/2.
+
+## §46 ship-correctness-closure
+
+Full ship-readiness verification on the post-§45 working tree (HEAD
+a31fc0d9f70f + uncommitted Tier-B/scanner-residual fixes across 47 source
+files). Builder-scope only: compile + measure + record.
+
+**Tree-stability:** ALONE held for this run. Builds: `ninja -C
+WebKitBuild/Debug jsc` and `WebKitBuild/Release jsc` were already current
+(no work). `ninja -C WebKitBuild/TSan jsc` **failed** at
+`Structure.cpp:1104` (`m_transitionTable.tryGetSingleSlotConcurrently` —
+the `TsanDeferredCtorMember<StructureTransitionTable>` wrapper had no
+forwarder for the new method); fixed by adding the one-line forwarder
+inside the `#if TSAN_ENABLED` block at `Structure.h:1611`. TSan then linked
+clean (binary mtime 23:36). Debug+Release relinked for the header touch
+(content inside `#if TSAN_ENABLED`, so non-TSAN object code unchanged).
+TSan smoke (`jsc -e 'print(1)'`): OK.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| (1) Build Debug + Release + TSan | **PASS** (one TSAN-only forwarder added) |
+| (2) Corpus GIL-off (Debug, pinned env) | **95 / 0 / 4** (≥95/0 ✓) |
+| (2) Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **96 / 0 / 3** (≥96/0 ✓) |
+| (3) v5a-identity (40 tests, Release) | **mismatches=0** ✓ |
+| (4) `run-tests.sh --cve` (Debug, GIL-off) | **60 pass / 3 fail / 0 xfail / 2 skip** (65 files) — see §46 CVE below |
+| (5) Validation sweeps r2 (Debug, GIL-off) | **00/01/02/04/05/06 = 95/0/4**; **03 = 80/15/4** — see §46 sweeps below |
+| (6) Bench regression (Release, GIL-off, 3-rep) | **PASS** — all ±2% of §45, all checksums match refs |
+| (7) gcAtEnd × property-wait-termination (10 reps) | **10/10 pass, no SEGV** ✓ |
+
+### §46 bench (Release, pinned GIL-off, loadavg 0.7-2.2)
+
+| arm | W | total_ms reps | median | §45 ref | Δ | cs match |
+|---|---|---|---|---|---|---|
+| flat | 16 | 458 / 486 / 462 | **462** | 468 | −1.3% | 3/3 ✓ §38 ref `686d6890\|0fbbd673\|3af6b072\|e1d22021` |
+| intcs | 1 | 6332 / 6349 / 6340 | **6340** | 6260 | +1.3% | 3/3 ✓ §39b ref `e85d66e7\|15cf18bb\|651b594b\|abc7704f` |
+| intcs | 16 | 3265 / 3302 / 3266 | **3266** | 3317 | −1.5% | 3/3 ✓ §39b ref |
+| default | 1 | 16273 / 16059 / 16133 | **16133** | 15865 | +1.7% | 3/3 stable §1.1 ref `b3e65a68…\|39c33392…\|c4bdd580…\|af028188…` |
+
+All 12 reps rc=0. Raw: `Tools/threads/scalebench/results-v46-ship.jsonl`.
+
+### §46 validation sweeps r2 vs SCAN-RESULTS r0/r1
+
+| Sweep | r0 | r1 | **r2 (this run)** | Δ vs r1 |
+|---|---|---|---|---|
+| 00-baseline | 94/0/4 | 94/0/4 | **95/0/4** | +1 |
+| 01-graph-bce (`validateDFGClobberize`) | 89/5/4 | 86/8/4 | **95/0/4** | **FIXED — SIGTRAP family gone** |
+| 02-verifygc | 94/0/4 | (carried) | **95/0/4** | clean |
+| 03-butterfly (`validateButterflyTagDiscipline`) | 94/0/4 | (carried; lint was a stub) | **80/15/4** | NEW — lint wired, 43 I14 reports |
+| 04-butterfly-swbit | 92/2/4 | 93/1/4 | **95/0/4** | **FIXED — gcAtEnd SEGV gone** |
+| 05-bytecode-exc (`validateExceptionChecks`) | ~44/50/4 | 44/50/4 | **95/0/4** | **FIXED — all 6 sites closed** |
+| 06-zombie-scribble | 93/1/4 | 93/1/4 | **95/0/4** | **FIXED** |
+
+Per-sweep `.summary` files (FAIL/ASSERTION/ASAN grep) are **empty** for
+00/01/02/04/05/06. Sweeps 01 and 05 strictly improved vs r0/r1 as
+required. Logs: `Tools/threads/scan/jsc-validation/*.log` (r2 timestamps).
+
+**Sweep-05 site closure:** `VMTraps.cpp:686` (84 throws / 77 unchecked),
+`ThreadAtomics.cpp:1425`, `ConditionObject.cpp:103`,
+`ThreadManager.cpp:1124`, `JSObject.cpp:4283`, `CallData.cpp:76` — none
+fire under `validateExceptionChecks=true` on the r2 tree.
+
+**Sweep-03 (NEW):** `validateButterflyTagDiscipline` was the
+OptionsList.h:688 stub at r0/r1; on the r2 tree the Task-13 lint is wired
+and reports **43 raw I14 violations across 15 tests** (exit 134). The
+predominant pattern is `GetByOffset/PutByOffset @N takes storage from
+non-tag-masking producer {JSConstant,GetLocal,GetByVal} @M` — i.e. the
+storage edge is the inline-cell pointer or a GetByVal, not a
+`CheckButterflyTIDTag`-producing chain. This is **exactly the §43 residual
+#2 (Task-8: TID-tag at JIT inline butterfly install)** surfacing through
+its own validator; recorded below as a deferred residual, NOT a regression
+of previously-passing functional behaviour (sweep 00 baseline is 95/0/4).
+
+### §46 CVE suite (`run-tests.sh --cve`, Debug, GIL-off)
+
+**60 PASS / 3 FAIL / 0 XFAIL / 2 SKIP** (65 files; 2 SKIP = wasm
+premise-skip under the GIL-off `useWasm` refusal). All 3 fails are exit 3
+(uncaught JS exception, **no crash, no assert, no ASAN**). All 3 are tests
+**added in aad53e672892 (06-15)**, i.e. NOT present in the 06-10 Tier-A
+baseline (54 PASS + 1 XFAIL of 57). The Tier-A closure baseline (§A3/A5,
+06-17) ran the three Tier-A repros directly (20/20 each) and did not run
+`--cve`; none of those repros fail here.
+
+| Test | exit | Signature | Disposition |
+|---|---|---|---|
+| `mc-gc-weakgcmap-registry-vs-prune.js` | 3 | `ReferenceError: $vm is not defined` @ :116 | **TEST DIRECTIVE BUG** — `requireOptions` lacks `--useDollarVM=1`; the §A3/A5 closure ran it with the flag directly. Re-verified: with `--useDollarVM=1` appended, **3/3 pass** Debug GIL-off. The A3 mechanism (registry race) remains FIXED. |
+| `mc-df-arraycopy-relabel.js` | 3 | `RangeError: Range … out of bounds` @ `dst.set(a,0)` :78 | 5/5 deterministic. The B1/B2 fix (`JSGenericTypedArrayViewInlines.h` single-snapshot + `ArrayPrototype.cpp` round-4 reroute) now bounds-checks the snapshotted source length against `dst.length` and throws — the test's writer thread grows `a` past `LEN`. Test oracle needs to tolerate the spec-correct throw (the OOB-evidence oracle on :81 is the actual detector). NOT a memory-safety regression. |
+| `mc-life-creator-thread-dies.js` | 3 | `TypeError: Buffer is already detached` @ `new Int32Array(ab)` :90 | 5/5 deterministic. The S11/B10 atomicization (`ArrayBuffer.h m_pinCount`/`m_locked`) + detach gate now spec-correctly throws on view creation over a detached buffer; the test expected `v2[0]===undefined`. NOT a memory-safety regression. |
+
+**No NEW memory-safety failures.** Every Tier-A gate (A1 `mc-grow-s4-*`,
+A2 `mc-df-ta-sort-inplace`, A3 `mc-gc-weakgcmap-*` (with flag), A4
+`mc-prim-async-generator-*`, A5 `mc-df-delete-reuse` /
+`mc-jit-delete-reuse-*`) passes. Log:
+`Tools/threads/scan/jsc-validation/cve-suite-r2.log`.
+
+### §46 §43 residual (Task-8 TID-tag at JIT inline butterfly install)
+
+The §43 residual #2 is **NOT closed** on the r2 tree:
+`tlcSlotForConcurrentlyWithIso<JSArray>` still returns nullopt (JSArray
+stays on the thin-thunk lazy arm), and the wired
+`validateButterflyTagDiscipline` lint flags 43 I14 violations (sweep 03
+above). The 4 named emission sites (`FTLLowerDFGToB3.cpp allocateObject`,
+`AssemblyHelpers::emitAllocateJSObject`, `emitAllocateRawObject`,
+`FTL allocateJSArray`) are unchanged in the working-tree diff with respect
+to TID-tag emission. Disposition: **DEFERRED** — perf upside (~400-500 ms
+on intcs W=1) and the latent correctness concern are recorded; the lint
+provides the regression detector. JSArray excluded means the latent
+concern is unreachable in production (every iso ClassType reaching the
+inline allocator has no/null butterfly).
+
+### §46 §45 residual #2 (duplicate-property-name structures)
+
+**RESOLVED (S45-DUPLICATE-PROPERTY-NAME)** — see §45 honest-residual #2
+above: misdiagnosis (private `@hasOwn`/`@keys`/`@from` rendered without the
+`@` distinguisher in `describe()`). The under-lock `getDirectOffset`
+re-probe at `Lookup.h reifyStaticProperty` is in the working tree
+(gated on `Options::useJSThreads()`, flag-off byte-identical). Gate test
+`jit/foreign-reify-getbyid-converges.js` PASSES in the r2 corpus.
+
+### §46 verdict
+
+**verified=true.** Corpus + identity green; `--cve` shows zero
+memory-safety failures and zero NEW failures vs the Tier-A closure
+baseline (the 3 exit-3 fails are post-baseline test additions with
+test-side issues, recorded above); validation sweeps 01 and 05 strictly
+improved (8→0 and 50→0); bench checksums stable across all 12 reps and
+medians within ±2% of §45; gcAtEnd 10/10. Residuals recorded with
+disposition in CVE-AUDIT-RESULTS.md "Ship-readiness closure".

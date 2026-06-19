@@ -99,4 +99,62 @@ for (const key in shared) {
 }
 shouldBe(foreignProperties, 3, "all 3 foreign-thread property additions must be visible");
 
+// Task-8 (SCALEBENCH §43 residual #2): JIT-hot owner-thread JSArray
+// inline-allocate + push growth. With JSArray iso-TLC enabled GIL-off,
+// the DFG/FTL inline-allocate fast path stores the butterfly word; this
+// loop drives both tiers (per-tier forcing covered by run-jit-tests.sh)
+// so the §4.2 ensureLength dispatch sees a TID-tagged owner word and
+// stays on the contiguous fast path. Functional oracle here is exact
+// element correctness across growth; the convertToSegmentedButterfly==0
+// invariant is the external uprobe gate.
+function jitHotArrayBuildAndGrow(seed) {
+    const a = [];
+    for (let j = 0; j < 48; ++j)
+        a.push(seed + j);
+    // Literal form (NewArray / NewArrayBuffer fast path).
+    const b = [seed, seed + 1, seed + 2, seed + 3];
+    for (let j = 4; j < 48; ++j)
+        b[j] = seed + j;
+    // NewArrayWithSize fast path.
+    const c = new Array(8);
+    for (let j = 0; j < 48; ++j)
+        c[j] = seed + j;
+    let sum = 0;
+    for (let j = 0; j < 48; ++j) {
+        if (a[j] !== seed + j)
+            throw new Error("Task-8: a[" + j + "] = " + a[j] + " want " + (seed + j));
+        if (b[j] !== seed + j)
+            throw new Error("Task-8: b[" + j + "] = " + b[j] + " want " + (seed + j));
+        if (c[j] !== seed + j)
+            throw new Error("Task-8: c[" + j + "] = " + c[j] + " want " + (seed + j));
+        sum += a[j] + b[j] + c[j];
+    }
+    return sum;
+}
+noInline(jitHotArrayBuildAndGrow);
+
+function task8Workout(label) {
+    let acc = 0;
+    for (let i = 0; i < 20000; ++i)
+        acc += jitHotArrayBuildAndGrow(i);
+    // Closed form: sum over i of 3 * sum_{j=0}^{47}(i+j) = 3 * (48*i + 1128).
+    let expect = 0;
+    for (let i = 0; i < 20000; ++i)
+        expect += 3 * (48 * i + 1128);
+    shouldBe(acc, expect, "Task-8 " + label + " checksum");
+}
+
+// Main thread (TID 0): the §43 baseline already had this on the lazy slow
+// path; with Task-8 the inline path fires and must stay owner.
+task8Workout("main");
+
+// Spawned threads: each has a distinct nonzero TID, so the inline-installed
+// butterfly word must carry THAT thread's tag (not 0, not stale).
+const task8 = spawnN(3, (index) => {
+    task8Workout("t" + index);
+    return Thread.current.id;
+});
+const task8Ids = joinAll(task8);
+shouldBe(new Set(task8Ids).size, 3);
+
 print("tid-tag-3-threads: PASS");

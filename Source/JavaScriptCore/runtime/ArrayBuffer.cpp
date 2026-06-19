@@ -310,19 +310,23 @@ void unregisterDetachedArrayBufferGILOff(ArrayBuffer* buffer)
         s_gilOffDetachedPendingCount.fetch_sub(1, std::memory_order_release);
 }
 
-// ===== GIL-off stale wasm mapping keepalive (annex N6 arm 4, partial) =====
+// ===== GIL-off stale wasm mapping keepalive (annex N6 arm 4) =====
 //
 // Annex N6 arm 4: a no-reservation (BoundsChecking-without-VA) wasm grow
 // RELOCATES, and must do so under a heap §10 stop with the OLD mapping
-// quarantined to the NEXT stop. The stop conduction belongs to the wasm grow
-// path (Wasm::Memory::grow's MemoryMode::BoundsChecking arm), which is NOT in
-// this slice's owned files and does NOT yet conduct it — see the comment in
-// ArrayBufferContents::refreshAfterWasmMemoryGrow. What THIS file can own is
-// the quarantine half: the replaced handle is kept alive here and released
-// only inside a stop, so a racing reader's torn {pre-grow length, pre-grow
-// base} pair never dereferences an unmapped base. (The complementary torn
-// pair {post-grow length, pre-grow base} is only excluded by the missing stop
-// conduction — OPEN DEPENDENCY, blocks U-T13 sign-off.)
+// quarantined to the NEXT stop. The stop conduction lives in the wasm grow
+// path (Wasm::Memory::grow's MemoryMode::BoundsChecking arm,
+// wasm/WasmMemory.cpp) and IS NOW ESTABLISHED there — the handle swap +
+// per-instance cache + this file's refreshAfterWasmMemoryGrow run inside a
+// JSThreadsSafepoint::stopTheWorldAndRun closure (CVE-AUDIT Tier-B B4;
+// discharges the U-T13 dependency). With every other mutator parked at a
+// safepoint during publication, no reader can pair a post-grow length with
+// the pre-grow base. THIS quarantine remains the second half of the
+// invariant: the replaced handle is kept alive and released only at a LATER
+// stop, so a captured/hoisted base that survives one stop window (a reader
+// resumed past the grow's stop still holding a pre-stop snapshot, or
+// JIT-hoisted bases pending the S8 jettison discipline) never dereferences
+// an unmapped base — its paired length is necessarily pre-grow and in-bounds.
 //
 // Drained by arrayBufferQuarantineSafepointHook below, i.e. at any heap's
 // stop; under gilOffProcess there is exactly one sticky server heap (annex
@@ -895,13 +899,13 @@ void ArrayBuffer::makeShared()
     // detach->stop window (annex N6 arm 1); !m_data alone would miss it.
     ASSERT(!isArrayBufferDetachedGILOff(this));
     m_contents.makeShared();
-    m_locked = true;
+    m_locked.store(true, std::memory_order_relaxed);
     ASSERT(!isDetached());
 }
 
 void ArrayBuffer::makeWasmMemory()
 {
-    m_locked = true;
+    m_locked.store(true, std::memory_order_relaxed);
     m_isWasmMemory = true;
 }
 
@@ -1398,8 +1402,8 @@ Expected<int64_t, GrowFailReason> ArrayBuffer::resize(VM& vm, size_t newByteLeng
         // handle's lock itself, and annex N6 arm 4 requires a relocating
         // BoundsChecking grow to run under a heap §10 stop — neither may
         // happen under our hold of the same lock. (The stop conduction on the
-        // wasm side is an OPEN DEPENDENCY — see
-        // ArrayBufferContents::refreshAfterWasmMemoryGrow.)
+        // wasm side is now established in Wasm::Memory::grow's BoundsChecking
+        // arm — see ArrayBufferContents::refreshAfterWasmMemoryGrow.)
         if (Options::useWasmMemoryToBufferAPIs()) {
             if (maxByteLength < newByteLength)
                 return makeUnexpected(GrowFailReason::InvalidGrowSize);
@@ -1658,14 +1662,18 @@ void ArrayBufferContents::refreshAfterWasmMemoryGrow(Wasm::Memory* memory)
     // A relocating BoundsChecking grow REPLACES the base word. Annex N6
     // requires that relocation to run under a heap §10 stop, with the old
     // mapping quarantined to the NEXT stop for captured/hoisted bases. The
-    // stop conduction belongs to the wasm grow path (Wasm::Memory::grow's
-    // MemoryMode::BoundsChecking arm) and is NOT YET ESTABLISHED there —
-    // OPEN DEPENDENCY, blocks U-T13 sign-off: until it lands, a GIL-off
-    // relocating grow racing a reader can pair a post-grow length with the
-    // pre-grow base (the reader's two loads carry no ordering). What this
-    // file CAN own is the quarantine half, below: the replaced handle is kept
-    // alive until a stop, so the complementary torn pair
-    // {pre-grow length, pre-grow base} never dereferences an unmapped base.
+    // stop conduction lives in the wasm grow path (Wasm::Memory::grow's
+    // MemoryMode::BoundsChecking arm, wasm/WasmMemory.cpp) and is NOW
+    // ESTABLISHED there: GIL-off this function executes INSIDE that
+    // stopTheWorldAndRun closure (via success() -> growSuccessCallback ->
+    // ArrayBuffer::refreshAfterWasmMemoryGrow), so every other mutator is
+    // parked while m_data / m_sizeInBytes / each view's vector are rewritten
+    // — no reader can pair a post-grow length with the pre-grow base. The
+    // quarantine half below is still required: the replaced handle is kept
+    // alive until a LATER stop so a captured/hoisted pre-grow {length, base}
+    // snapshot (in-bounds by construction) never dereferences an unmapped
+    // base. Discharges the U-T13 OPEN DEPENDENCY (CVE-AUDIT Tier-B B4,
+    // MC-GROW S5b / MC-LIFE S6).
     if (gilOffThreadsProcess()) [[unlikely]] {
         RefPtr<BufferMemoryHandle> oldHandle = m_memoryHandle;
         m_memoryHandle = memory->handle();

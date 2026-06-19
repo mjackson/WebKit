@@ -37,7 +37,7 @@ pre-retirement length remain live, which heap §10 stop quiescence provides.
 | S3 | Resizable ArrayBuffer shrink / re-grow | runtime/ArrayBuffer.cpp:1237-1377, 539-620 | needs-test |
 | S4 | ArrayBuffer detach + transfer (quarantine arms 1-2) | runtime/ArrayBuffer.cpp:970-1202, 150-523 | needs-test |
 | S5a | Wasm grow, Signaling / reserved-VA (in-place) | runtime/ArrayBuffer.cpp:1647-1680; wasm/WasmMemory.cpp:359-381 | immune-by-construction |
-| S5b | Wasm grow, BoundsChecking relocation | wasm/WasmMemory.cpp:337-358; runtime/ArrayBuffer.cpp:311-348, 1658-1675, 921-944 | **susceptible-suspected** |
+| S5b | Wasm grow, BoundsChecking relocation | wasm/WasmMemory.cpp:337-415; runtime/ArrayBuffer.cpp:311-348, 1658-1680, 921-944 | **fix-landed (premise-gated needs-test)** |
 | S6 | JSArrayBufferView mode transitions (wasteful/oversize) | runtime/JSArrayBufferView.cpp:265, :327 | immune-by-construction |
 | S7 | Half-built instance publication (transferee, new views) | runtime/ArrayBuffer.cpp:1020-1031; runtime/JSArrayBufferPrototype.cpp:330-346 | immune-by-construction |
 | S8 | JIT-hoisted TA base/length (per-tier fast paths) | DFG/FTL TA length-load sites; ArrayBuffer.cpp:1202 (detach watchpoint) | needs-test |
@@ -46,8 +46,9 @@ Tests written (DO NOT RUN until post-ungil; see //@ headers):
 - `JSTests/threads/cve/mc-grow-buffer-storm.js` — S2/S3/S4/S5a/S8 storm
   (amplifier-ready; deterministic invariants asserted per read).
 - `JSTests/threads/cve/mc-grow-wasm-relocating-grow.js` — S5b targeted
-  susceptibility test (expected to crash / fail ASAN while the S5b hole is
-  open; passes once the stop conduction lands).
+  susceptibility test. **Stop conduction landed** in Memory::grow's
+  BoundsChecking arm (B4); test is premise-gated on the GIL-off wasm refusal
+  and must PASS once that refusal lifts.
 
 ---
 
@@ -216,13 +217,19 @@ immutable base. Same shape and argument as S2 (annex N6 arm 4, reserved-VA
 leg). Shared wasm memories route through S2's `SharedArrayBufferContents`.
 Covered as a storm arm in `mc-grow-buffer-storm.js` (regression guard).
 
-## S5b. Wasm grow, BoundsChecking relocation — SUSCEPTIBLE-SUSPECTED
+## S5b. Wasm grow, BoundsChecking relocation — FIX LANDED (premise-gated)
 
-**Re-verified 2026-06-15: hole STILL OPEN** (no stop conduction in
-`Memory::grow`'s BoundsChecking arm; in-tree OPEN DEPENDENCY comments
-unchanged at runtime/ArrayBuffer.cpp:311-325 and :1658-1668). This is the
-class exemplar (CVE-2017-15399 shape) instantiated in our tree, and the tree
-itself documents the hole.
+**Updated 2026-06-18: stop conduction LANDED** in `Memory::grow`'s
+BoundsChecking arm (wasm/WasmMemory.cpp, gilOffProcess-gated
+`JSThreadsSafepoint::stopTheWorldAndRun` around the handle swap +
+`success()` publication; CVE-AUDIT Tier-B B4). The U-T13 OPEN DEPENDENCY
+comments in runtime/ArrayBuffer.cpp are discharged. This is the class
+exemplar (CVE-2017-15399 shape); the section below retains the hole
+description for review-against-spec and so the gate test's oracle is
+documented. Verdict: structural fix verified by code review against
+SPEC-heap §10 / annex N6 arm 4; **executable verification is premise-gated**
+on the GIL-off wasm refusal — the gate tests must PASS once that refusal
+lifts (no longer expected-FAIL).
 
 The hole, precisely:
 
@@ -236,12 +243,15 @@ The hole, precisely:
   stop-separated, no concurrent reader" — UNGIL-HANDOUT.md:2918-2919),
   with the old mapping quarantined to the NEXT stop for captured/hoisted
   bases.
-- The stop conduction is NOT implemented. `Memory::grow`'s BoundsChecking
-  arm takes no stop, and the in-tree comments record it: "the stop
-  conduction belongs to the wasm grow path ... and does NOT yet conduct it
-  ... OPEN DEPENDENCY, blocks U-T13 sign-off"
-  (runtime/ArrayBuffer.cpp:317-325 and :1661-1668).
-- What IS implemented is only the keepalive half:
+- The stop conduction IS NOW implemented (B4, 2026-06-18): `Memory::grow`'s
+  BoundsChecking arm wraps `transferAnchors` + handle swap + `success()`
+  (which fans out `updateCachedMemories` + `growSuccessCallback` ->
+  `refreshAfterWasmMemoryGrow` + per-view `refreshVector`) inside
+  `JSThreadsSafepoint::stopTheWorldAndRun`, gated `g_jscConfig.gilOffProcess`
+  so flag-off is byte-identical. Allocation + memcpy stay outside the stop.
+  The in-tree OPEN DEPENDENCY comments at runtime/ArrayBuffer.cpp have been
+  rewritten to record the discharge.
+- The keepalive half remains as designed:
   `quarantineStaleWasmMappingGILOff` (:343-348, called from
   `refreshAfterWasmMemoryGrow` :1673-1674) keeps the OLD handle mapped until
   a stop, so the torn pair {pre-grow length, pre-grow base} is safe. The
@@ -277,14 +287,15 @@ must NEVER pair a passing length with an unmapped-or-short base") — the
 design closes this with the §10 stop; the implementation gap leaves the
 length publication ordered but the base swap unfenced against it.
 
-Disposition: tracked in-tree as the U-T13 blocker; this audit adds the
-targeted susceptibility test `mc-grow-wasm-relocating-grow.js` (run
-post-ungil; expected to crash/ASAN-fault while the hole is open, pass once
-the stop conduction lands). Fix shape per annex N6 arm 4: conduct the
-relocation under a heap §10 stop in `Memory::grow`'s BoundsChecking arm (or
-forbid the no-reservation mode entirely under gilOffProcess by always
-reserving maxByteLength VA for resizable-or-growable memories — also
-annex-compatible since it converts S5b into S5a).
+Disposition: B4 fix landed in `Memory::grow`'s BoundsChecking arm
+(stopTheWorldAndRun around publication, gilOffProcess-gated). The targeted
+susceptibility test `mc-grow-wasm-relocating-grow.js` is now a REGRESSION
+GATE: premise-SKIPs while the GIL-off wasm refusal is in force, and must
+PASS (not crash/ASAN-fault) once the refusal lifts. The alternative fix
+shape — forbid the no-reservation mode under gilOffProcess by always
+reserving maxByteLength VA — remains annex-compatible (converts S5b into
+S5a) and is a valid future simplification, but is not required for
+correctness now that the stop conduction is in place.
 
 ## S6. JSArrayBufferView mode transitions — immune-by-construction
 
@@ -352,7 +363,7 @@ LLInt paths.
 | Test | Arms | Determinism |
 |------|------|-------------|
 | JSTests/threads/cve/mc-grow-buffer-storm.js | S2 GSAB grow, S3 RAB shrink/re-grow (+GC pressure), S4 detach/transfer/transfer-resizable, S5a signaling wasm grow, S8 (runs hot, JIT-on) | invariant-asserting storm; amplifier-ready (race-amplifier hooks at the §4.4/N6 choke points per AMPLIFIER.md apply); failures = crash/ASAN/assert |
-| JSTests/threads/cve/mc-grow-wasm-relocating-grow.js | S5b relocating wasm grow vs spawned TA readers | targeted; expected-FAIL while S5b open (crash/ASAN), pass after the §10 stop conduction lands |
+| JSTests/threads/cve/mc-grow-wasm-relocating-grow.js | S5b relocating wasm grow vs spawned TA readers | targeted; §10 stop conduction LANDED (B4); premise-SKIP under GIL-off wasm refusal, must PASS once refusal lifts |
 
 Both tests carry `//@ requireOptions` headers naming their flags and MUST NOT
 be run against the current mid-bring-up tree; they are written for the

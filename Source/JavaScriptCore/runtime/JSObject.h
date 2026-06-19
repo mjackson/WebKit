@@ -2088,8 +2088,44 @@ ALWAYS_INLINE bool JSObject::getOwnNonIndexPropertySlot(VM& vm, Structure* struc
             // sound. structureID moved -> re-sample WITHOUT touching value.
             // The post-stable consistency clause (the original M7(c) torn-
             // attribute check) is preserved verbatim below.
+            //
+            // SCAN-CAS-PROBE-STRUCTURE-SEGV (SCAN-RESULTS.md residual #5,
+            // property-cas-delete-undefined-sentinel-u5.js — same
+            // rdi=0xbadbeef5 type() SEGV signature, ~6% GIL-off Debug):
+            // the structureID recheck above is INSUFFICIENT for a pinned
+            // (dictionary) structure — its structureID is never re-tagged
+            // across in-place add/delete/attribute edits, AND .decode()
+            // decontaminates the nuke bit set during a butterfly grow, so
+            // the recheck is a no-op there and admits a {offset, butterfly,
+            // value} triple torn against an in-flight pinned-table edit.
+            // Mirror the I34/L6 seqlock pattern Structure::getConcurrently
+            // itself uses (annex-N6/M7 single-snapshot discipline): snapshot
+            // the pinned table's S6 L3/L4 edit-stamp (acquire), THEN re-read
+            // value, THEN re-check both the RAW structureID (so a nuked ID
+            // never validates — closes the in-flight grow window) and the
+            // edit-stamp. Any mismatch re-spins WITHOUT touching `value` as
+            // a cell. Non-pinned structures return a constant 0 stamp (every
+            // table edit there publishes a fresh structureID, so the
+            // structureID recheck already covers them) and the stamp pair
+            // degenerates to 0==0.
+            // The flag-off `value = getDirect(offset)` above is left in
+            // place for byte-identical flag-off behavior (I22); flag-on this
+            // re-read supersedes it. Progress: a stamp/ID mismatch requires
+            // an external in-flight edit in the window — same bounded-
+            // adversarial class as the original M7(c) spin (§C.3(b)).
+            uint32_t editStamp = structure->pinnedTableConcurrentEditCountForRead();
+            WTF::loadLoadFence(); // I34/L6: stamp acquire -> value re-read.
+            value = getDirect(offset);
             WTF::loadLoadFence(); // M7(c)/I34: order the value load -> structureID re-load.
-            if (structureID().decode() == structure) {
+            StructureID currentID = structureID();
+            // S6 L3/L4 reader discipline: an ODD stamp = edit in flight (the
+            // writer's beginConcurrentEdit -> ... -> bumpConcurrentEditCount
+            // bracket); an unchanged-but-odd pair would otherwise validate a
+            // value torn against the live edit. Non-pinned: stamp is the
+            // constant 0 (even), so this is a no-op there.
+            if (!currentID.isNuked() && currentID.decode() == structure
+                && !(editStamp & 1)
+                && structure->pinnedTableConcurrentEditCountForRead() == editStamp) {
                 bool valueIsGetterSetter = !!value && value.isCell() && value.asCell()->type() == GetterSetterType;
                 bool valueIsCustomGetterSetter = !!value && value.isCell() && value.asCell()->type() == CustomGetterSetterType;
                 bool consistent = !!value
@@ -2112,7 +2148,6 @@ ALWAYS_INLINE bool JSObject::getOwnNonIndexPropertySlot(VM& vm, Structure* struc
                     return false;
                 return getOwnStaticPropertySlot(vm, propertyName, slot);
             }
-            value = getDirect(offset);
         }
     }
 

@@ -377,7 +377,17 @@ void DeferredWorkTimer::runRunLoop()
 
 DeferredWorkTimer::Ticket DeferredWorkTimer::addPendingWork(WorkType type, VM& vm, JSObject* target, Vector<JSCell*>&& dependencies)
 {
-    ASSERT_UNUSED(vm, vm.currentThreadIsHoldingAPILock() || (Thread::mayBeGCThread() && vm.heap.worldIsStopped()));
+    // SharedGC (CVE-audit B8, MC-GC S6): a shared-mode conducted collection
+    // runs JSFinalizationRegistry::finalizeUnconditionally on the CONDUCTOR
+    // inside the §10 stop window and that conductor is a mutator
+    // (GCConductor::Mutator, SPEC-heap §10B.2) — GIL-off it holds no API
+    // lock and is not Thread::mayBeGCThread(). Admit that caller via the
+    // WSAC disjunct (Heap F7: conductor-written under GBL, every other
+    // client NoAccess behind the §10.4 barrier => single-writer here). The
+    // ticket then takes the §E.7 internal arm below. Flag-off / non-shared:
+    // WSAC is never set, so the disjunct is dead and the legacy two-arm
+    // contract is enforced unchanged.
+    ASSERT_UNUSED(vm, vm.currentThreadIsHoldingAPILock() || (Thread::mayBeGCThread() && vm.heap.worldIsStopped()) || vm.heap.worldIsStoppedForAllClients());
     for (unsigned i = 0; i < dependencies.size(); ++i)
         ASSERT(dependencies[i] != target && dependencies[i]);
 

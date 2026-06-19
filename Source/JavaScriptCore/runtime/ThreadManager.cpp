@@ -31,6 +31,7 @@
 #include "JSCInlines.h"
 #include "JSLock.h"        // UNGIL §E.2 (U-T9): per-task token brackets in the E2A loop.
 #include "JSPromise.h"
+#include "JSThreadsSafepoint.h" // CVE-B6 (MC-CODE S8): gilRemovalPreconditionsMet() tripwire at second-mutator attach.
 #include "RaceAmplifier.h" // UNGIL EXIT1.8 (U-T6): T5-tail stall points.
 #include "ThreadObject.h"
 #include "TopExceptionScope.h"
@@ -613,6 +614,26 @@ void attachSpawnedThreadGCClient(VM& vm, VMLite& lite)
     // §B.1: after lite registration/setCurrent + TID-tag handshake, BEFORE
     // any allocation. Spawned threads exist only in the m_gilOff VM (U0b).
     RELEASE_ASSERT(vm.gilOff());
+    // CVE-B6 (MC-CODE S8) — INTEGRATE-jit.md tripwire contract WIRED: this is
+    // the gilOff SPAWNED-thread second-mutator attach point (the spawned
+    // thread's OWN client construction + first heap-access acquisition below
+    // is what admits a concurrent JS mutator). The §F.1/§B.2 carrier non-main
+    // arm at JSLock.cpp perThreadClientForCarrierEntry is the SECOND wiring
+    // site (residual; see MC-CODE S8) and must carry the identical assert
+    // before the tripwire is fully wired.
+    // The gilRemovalPreconditionsMet() predicate is a
+    // compile-time constant FALSE until the GIL-removal change closes (or
+    // consciously re-classifies) every precondition listed at
+    // JSThreadsSafepoint.h / INTEGRATE-jit.md "GIL-removal preconditions".
+    // The bring-up override flag (useThreadGILOffUnsafe — the SAME flag that
+    // U0 option validation already requires to admit gilOff at all) keeps the
+    // ladder running today; a production build that flips gilOff WITHOUT that
+    // override fail-stops here rather than silently running the documented
+    // GIL-sound-only gaps with N concurrent mutators. Unreachable flag-off
+    // (vm.gilOff() asserted just above; spawned threads are U0b-gated to the
+    // m_gilOff winner VM only) — flag-off codegen of every reachable path is
+    // unchanged.
+    RELEASE_ASSERT(JSThreadsSafepoint::gilRemovalPreconditionsMet() || Options::useThreadGILOffUnsafe());
     RELEASE_ASSERT(lite.vm == &vm);     // registered (vmstate §6.5.1 sole writer)
     RELEASE_ASSERT(lite.tid && lite.tid < ThreadManager::carrierTIDBase); // spawned-range tid
     RELEASE_ASSERT(!lite.clientHeap);   // EXIT1.4(b): written ONCE per registration epoch

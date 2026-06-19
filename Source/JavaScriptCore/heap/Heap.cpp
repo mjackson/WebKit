@@ -4174,8 +4174,71 @@ void Heap::LambdaFinalizerOwner::finalize(Handle<Unknown> handle, void* context)
 {
     auto finalizer = WTF::adopt(static_cast<LambdaFinalizer::Impl*>(context));
     HandleSlot slot = handle.slot();
+    // UNGIL-HANDOUT §F.3 carve-out (b) (MC-GC S5 / CVE-AUDIT B7): the SPEC-api
+    // 5.10 addFinalizer lambda (sole LambdaFinalizer caller in-tree:
+    // registerThreadStateFinalizer, ThreadObject.cpp:123) clears Strongs
+    // (HandleSet::m_strongLock) and takes ThreadState::joinLock; carve-out (b)
+    // requires it to run entered-with-access OUTSIDE the §10 stop window
+    // ("the conductor runs them after resume, before releasing its own
+    // client's access"). WeakBlock::sweep reaches here inside the conducted
+    // stop (the weak-mutation protocol, WeakSet.cpp:59-80, routes all
+    // weak-bearing sweeps to world-stopped contexts), so DEFER the lambda body
+    // to the post-resume drain at the conductSharedCollection tail (after
+    // closeSharedGCStopWindow + acquireHeapAccess). The WeakImpl is
+    // deallocated NOW (lock-free clear, WeakSet.h:121-131) — the deferred
+    // lambda must NOT dereference its JSCell* (the cell's block may have been
+    // shrunk/reused by reclaimSharedGCMemoryAtCycleEnd before the drain runs);
+    // the 5.10 lambda captures its ThreadState by Ref and ignores the
+    // argument. WSAC is set/cleared only by open/closeSharedGCStopWindow
+    // (both reachable only from conductSharedCollection), so every deferred
+    // lambda has a matching drain on the same conductor thread before this
+    // function's caller returns to its caller; lastChanceToFinalize and any
+    // non-stopped sweep see WSAC == false and run inline. The WS(ii)
+    // conductor carve-out's CLOSED list (WeakHandleOwner::finalize-driven
+    // table pruning only) is preserved: this body no longer mutates
+    // HandleSet/joinLock from inside a stop. Conductor-thread-private append
+    // (no lock — see m_deferredLambdaFinalizers in Heap.h).
+    // gilOff-gated: flag-off path is byte-identical to the pre-B7 body.
+    if (VM::isGILOffProcess() && m_heap.worldIsStoppedForAllClients()) [[unlikely]] {
+        m_heap.m_deferredLambdaFinalizers.append(WTF::move(finalizer));
+        WeakSet::deallocate(WeakImpl::asWeakImpl(slot));
+        return;
+    }
     finalizer(slot->asCell());
     WeakSet::deallocate(WeakImpl::asWeakImpl(slot));
+}
+
+void Heap::drainDeferredLambdaFinalizers()
+{
+    // §F.3 carve-out (b) drain (MC-GC S5 / CVE-AUDIT B7): runs the
+    // addFinalizer lambdas that LambdaFinalizerOwner::finalize deferred from
+    // inside the conducted §10 stop. Called from conductSharedCollection's
+    // tail, AFTER closeSharedGCStopWindow (world resumed; WSAC cleared) and
+    // conductorClient.acquireHeapAccess (the conductor is entered-with-access
+    // — the carve-out's stated context), BEFORE the conductor returns and
+    // re-enters its §10.2 ticket loop or releases anything. The lambdas clear
+    // Strongs under HandleSet::m_strongLock (a §LK.8 destructor-leaf lock,
+    // taken with access held — its sanctioned context) and take
+    // ThreadState::joinLock (api-rank, never across user JS); both are now
+    // ordinary mutator-side acquisitions racing other resumed mutators —
+    // exactly the carve-out (b) intent — instead of conductor-in-stop writes
+    // outside the WS(ii) closed list. Heap I6 ("parked threads hold neither
+    // lock") made the in-stop execution benign TODAY, but SPEC-congc moves
+    // finalization off the global stop, at which point that argument
+    // collapses; the deferral is the forward-safe form.
+    // The JSCell* argument is passed as nullptr: the cell was dead at sweep
+    // time and its block may already be freed (reclaimSharedGCMemoryAtCycleEnd
+    // ran inside the stop). The sole LambdaFinalizer caller ignores it; any
+    // future LambdaFinalizer that needs the cell must run inline (i.e. not be
+    // a 5.10 access-requiring lambda) or capture what it needs by value.
+    // Conductor-thread-private (see m_deferredLambdaFinalizers in Heap.h).
+    if (m_deferredLambdaFinalizers.isEmpty())
+        return;
+    ASSERT(VM::isGILOffProcess());
+    ASSERT(!worldIsStoppedForAllClients());
+    auto deferred = std::exchange(m_deferredLambdaFinalizers, { });
+    for (auto& finalizer : deferred)
+        finalizer(nullptr);
 }
 
 void Heap::collectNowFullIfNotDoneRecently(Synchronousness synchronousness)
@@ -6905,6 +6968,11 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // Re-acquire our own access (§3.2: only at this landed tail, after the
     // FINAL WND-close); the §10.2 loop then re-checks the ticket.
     conductorClient.acquireHeapAccess();
+
+    // §F.3 carve-out (b) (MC-GC S5 / CVE-AUDIT B7): post-resume,
+    // entered-with-access — drain the addFinalizer lambdas deferred from
+    // inside the stop window(s) above. See drainDeferredLambdaFinalizers.
+    drainDeferredLambdaFinalizers();
 }
 
 void Heap::reclaimSharedGCMemoryAtCycleEnd()
@@ -7028,6 +7096,24 @@ void Heap::runSafepointHooksAndReclaim()
     clientSet().forEach([&](GCClient::Heap& client) {
         client.m_localEpoch.store(epoch, std::memory_order_seq_cst);
     });
+
+    // B14 / MC-DOS S7 (SPEC-jit §4.4): the per-client stamp above IS the
+    // per-thread epoch publication. bumpAndReclaim()'s min scan
+    // (GCSafepointEpoch.cpp:148) reads GCClient::Heap::m_localEpoch only;
+    // under U-T6 (per-thread clients — JSLock perThreadClientForCarrierEntry
+    // + the spawned-lite client in ThreadManager.cpp) every JS-executing lite
+    // owns a distinct registered client, so min-over-clients == min-over-JS-
+    // threads, and bumpAndReclaim()'s RELEASE_ASSERT(minLocalEpoch >=
+    // oldEpoch) backstops a missed stamp. An earlier B14 revision additionally
+    // walked VMLiteRegistry to stamp a per-lite slot — dropped at adversarial
+    // review as write-only dead code (no reader) that added a release-build
+    // lock-site inside the conductor stop for zero functional gain.
+    // STANDING OBLIGATION: if U-T6 ever weakens (a lite executing JS without
+    // its own registered GCClient::Heap, or two lites sharing one client
+    // under a future carrier path), epochCoversEveryJSThread()'s soundness
+    // collapses into a handler-chain/record UAF — that change MUST either
+    // restore the per-lite witness AND wire it into bumpAndReclaim()'s min
+    // scan, or revert epochCoversEveryJSThread() to false.
 
     m_safepointEpoch.bumpAndReclaim();
 

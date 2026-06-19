@@ -250,6 +250,14 @@ public:
 
     void lower()
     {
+        // SPEC-jit I14 + I21(b) Task-13 lint (Tier-B B3 / MC-JIT S2): walk
+        // the finalized SSA graph and assert every butterfly storage consumer
+        // takes its storage from a tag-masking producer (I14) and no
+        // GetButterfly result is consumed across a poll-clobber boundary
+        // (I21(b)). Declared in DFGClobberize.h; defined in
+        // DFGSpeculativeJIT.cpp; flag-off no-op.
+        DFG::validateButterflyTagDisciplineForGraph(m_graph);
+
         State* state = &m_ftlState;
 
         CString name;
@@ -366,7 +374,13 @@ public:
 
         if (m_graph.m_codeBlock->couldBeTainted())
             m_out.store32As8(m_out.int32One, m_out.absolute(vm->addressOfMightBeExecutingTaintedCode()));
-        if (Options::validateDFGClobberize())
+        // SCAN-CLOBBERIZE-SIGTRAP: validator suppressed gilOff (shared
+        // vm.didEnterVM byte → cross-thread false positives AND negatives).
+        // See the DOCUMENTED PROTOCOL EXCEPTION block in
+        // DFGSpeculativeJIT.cpp SpeculativeJIT::compileCurrentBlock for the
+        // root-cause analysis, AB18-C per-lite precedent, and the open
+        // obligation. Flag-off byte-identical (gate is false).
+        if (Options::validateDFGClobberize() && !(Options::useJSThreads() && !Options::useThreadGIL()))
             m_out.store32As8(m_out.int32Zero, m_out.absolute(reinterpret_cast<char*>(vm) + OBJECT_OFFSETOF(VM, didEnterVM)));
 
         // Make sure that B3 knows that we really care about the mask registers. This forces the
@@ -571,7 +585,9 @@ private:
         m_state.reset();
         m_state.beginBasicBlock(m_highBlock);
 
-        if (Options::validateDFGClobberize()) {
+        // SCAN-CLOBBERIZE-SIGTRAP: see the entry-clear gate above and the
+        // DFGSpeculativeJIT.cpp protocol-exception block.
+        if (Options::validateDFGClobberize() && !(Options::useJSThreads() && !Options::useThreadGIL())) {
             bool clobberedWorld = m_highBlock->predecessors.isEmpty() || m_highBlock->isOSRTarget || m_highBlock->isCatchEntrypoint;
             auto validateClobberize = [&] () {
                 clobberedWorld = true;
@@ -2111,7 +2127,8 @@ private:
             break;
         }
 
-        if (Options::validateDFGClobberize() && !m_node->isTerminal()) {
+        // SCAN-CLOBBERIZE-SIGTRAP: see DFGSpeculativeJIT.cpp protocol-exception block.
+        if (Options::validateDFGClobberize() && !(Options::useJSThreads() && !Options::useThreadGIL()) && !m_node->isTerminal()) {
             bool clobberedWorld = false;
             auto validateClobberize = [&] () {
                 clobberedWorld = true;
@@ -23851,7 +23868,33 @@ IGNORE_CLANG_WARNINGS_END
                 m_heaps.properties.atAnyNumber());
         }
 
-        m_out.storePtr(butterfly, result, m_heaps.JSObject_butterfly);
+        // Task-8 (SPEC-objectmodel §2.1, SCALEBENCH §43 residual #2): TID-tag
+        // the inline-installed butterfly so the stored m_butterfly word
+        // matches JSObjectWithButterfly's ctor encoding (encodeButterfly(ptr,
+        // currentButterflyTID(), false), JSObject.h:1730), so a fresh
+        // inline-allocated JSArray reads as OWNER (not foreign) at the §4.2
+        // ensureLength dispatch. A const-zero butterfly (every no-butterfly
+        // ClassType: JSPromise / JSMap / JSFunction / JSLexicalEnvironment /
+        // JS*Function / StringObject / JS*TypedArray / RegExpObject /
+        // CreateThis et al.) skips the tag — matches the ctor's
+        // `if (butterfly)` guard. Every non-const-zero caller (allocateJSArray
+        // both forms, ClonedArguments, the MaterializeNewObject indexed-header
+        // arm, the CoW JSArray buffer installs at compileNewArrayBuffer /
+        // compileNewArrayWithSpread / compileOwnPropertyKeys) passes a
+        // freshly-allocated or known-non-null butterfly on the fall-through
+        // path. The bitOr produces a fresh LValue: the original untagged
+        // `butterfly` stays available for post-install header / element
+        // writes (allocateJSArray's ArrayValues butterfly return,
+        // compileMaterializeNewObject's fill loop, ClonedArguments' length /
+        // varargs copy). loadButterflyTIDTag() is Effects::none() so B3 hoists
+        // the per-thread-constant TLS load. Pre-escape, plain store (E4/N3).
+        // gilOff emission only — flag-off byte-identity.
+        LValue installedButterfly = butterfly;
+        if (vm().gilOff()) [[unlikely]] {
+            if (!(butterfly->hasIntPtr() && !butterfly->asIntPtr()))
+                installedButterfly = m_out.bitOr(butterfly, loadButterflyTIDTag());
+        }
+        m_out.storePtr(installedButterfly, result, m_heaps.JSObject_butterfly);
         return result;
     }
 

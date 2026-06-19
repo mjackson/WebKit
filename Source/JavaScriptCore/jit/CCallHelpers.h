@@ -1027,8 +1027,10 @@ public:
     JumpList loadButterflyForWrite(GPRReg baseGPR, GPRReg destGPR, GPRReg tidScratchGPR, ConcurrentButterflyShape, GPRReg indexingScratchGPR = InvalidGPRReg, GPRReg structureIDGPR = InvalidGPRReg);
 
     // R5: one-load read of the current thread's pre-shifted TID tag
-    // (g_jscButterflyTIDTag), offset baked at emission (App. R5).
-    void loadButterflyTIDTag(GPRReg destGPR);
+    // (g_jscButterflyTIDTag), offset baked at emission (App. R5). Hoisted to
+    // AssemblyHelpers (Task-8: emitAllocateJSObject* templates need it);
+    // inherited here unchanged.
+    using AssemblyHelpers::loadButterflyTIDTag;
 
     // The always-kept tag mask (I14(a)): dest &= low-48-bits.
     void maskButterflyTag(GPRReg destGPR);

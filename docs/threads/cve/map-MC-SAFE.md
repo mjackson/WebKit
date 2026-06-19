@@ -418,3 +418,55 @@ Action items (non-test): when wasm is re-enabled GIL-off, wasm loop polling
 is a HARD precondition (S3); a `CheckTraps`-style poll inside Yarr
 `matchDisjunction` would retire the residual ~1.8s jank (S3, perf charter);
 keep the conductor re-fire until the per-lite trap words land (S2).
+
+---
+
+## B16 (Tier-B cross-family residual): STW-watchdog 30s under OM-transition stops
+
+**Status: TRIAGE INSTRUMENTATION LANDED 2026-06-18; root cause not yet
+localized.** ~1/6 amplified flake on
+`JSTests/threads/cve/mc-gc-weakgcmap-registry-vs-prune.js` and
+`JSTests/threads/cve/mc-jit-delete-reuse-stale-offset.js` (the latter
+usually masked by an unrelated `Structure.cpp:717` materializePropertyTable
+assertion — see that test's DIAGNOSIS.md).
+
+**Captured evidence**
+(`JSTests/threads/cve/mc-gc-weakgcmap-registry-vs-prune.stw-variant.txt`):
+the conductor (a spawned lite, "OM transition stop" context) fail-stops at
+the §A.3.2 predicate wait with exactly ONE non-quiescent sibling
+(hasHeapAccess=true). Every audited FIX-2 class-(2) wait
+(PerEventStopClaim spin, every GILOffCompilationLocker tryLock-poll,
+lockStaticPropertyReificationLockContended, the §A.3 arbitration leg, the
+JSThreadsStopScope GCL leg) releases the caller's client access before
+blocking — so the wedged lite is in a wait NOT on that audited list. The
+existing dump's REQUESTER backtrace (the WTFCrash on the conductor thread)
+says nothing about where the SIBLING is blocked; a re-symbolize attempt
+against the current binary failed (crash log predates a rebuild).
+
+**Instrumentation landed** (`bytecode/JSThreadsSafepoint.cpp`,
+`watchdogAssertStopProgress`): the 30s fail-stop now additionally dumps
+(a) per-lite owning `WTF::Thread*` (via the per-thread client's
+`parkedRootSnapshotThread()`, stable under U-T6); (b) conductor-side
+held-lock facts — `gilOffCompilationLock().isOwner()`,
+`staticPropertyReificationLock().isOwner()`, `isCurrentlyTenuredConductor`,
+server `gcStopPendingForAllClients` / `worldIsStoppedForAllClients`
+(discriminates FIX-2 mech (1) "conductor holds a long-hold lock the wedged
+sibling contends" from mech (2) "sibling sits in an unbracketed
+access-holding wait"); (c) a SUSPEND + frame-pointer-walk native backtrace
+of every non-quiescent sibling (PC + up to 64 return addresses, validated
+against that thread's real `StackBounds`, dumped raw for offline
+`llvm-addr2line` against the SAME build — registry lock dropped first so
+the SIGUSR2 ack handshake cannot itself wedge). All on the fail-stop path;
+gilOff-only callers, so flag-off byte-identical.
+
+**Next step (after the builder reruns the two repros under amplify with
+this instrumentation):** the (c) backtrace names the exact blocked frame.
+Then EITHER bracket that frame's wait with the FIX-2 class-(1)
+`gcClientWillParkForThreadGranularStop` /
+`gcClientDidResumeFromThreadGranularStop` pair (or a per-quantum
+`parkSitePollAndParkForStopTheWorld` poll) if it is an access-holding
+native wait, OR — if (b) shows the conductor holds one of the two
+recursive locks — route the conductor's OM-transition-stop call site so it
+drops that lock first (the mech-(1) "escaped lock-holding fireAll caller"
+shape; SPEC-jit annex App. 5.6(c) bucket iii). Gate (unchanged): both
+repros 0/60 watchdog trips under `Tools/threads/amplify.sh`.

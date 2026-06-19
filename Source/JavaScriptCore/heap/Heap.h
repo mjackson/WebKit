@@ -1253,7 +1253,11 @@ private:
     };
 
     class LambdaFinalizerOwner final : public WeakHandleOwner {
+    public:
+        explicit LambdaFinalizerOwner(JSC::Heap& heap) : m_heap(heap) { }
+    private:
         void finalize(Handle<Unknown>, void* context) final;
+        JSC::Heap& m_heap;
     };
 
     Lock& lock() LIFETIME_BOUND { return m_lock; }
@@ -1460,6 +1464,7 @@ private:
     void removeDeadHeapSnapshotNodes(HeapProfiler&);
     void finalize();
     void sweepInFinalize();
+    void drainDeferredLambdaFinalizers(); // §F.3 carve-out (b) (MC-GC S5 / B7).
     
     void sweepAllLogicallyEmptyWeakBlocks();
     bool sweepNextLogicallyEmptyWeakBlock();
@@ -1643,8 +1648,15 @@ private:
     HashCountedSet<void*> m_retiredCallLinkRecordCodeBlocks WTF_GUARDED_BY_LOCK(m_retiredCallLinkRecordCodeBlocksLock);
     std::unique_ptr<JITStubRoutineSet> m_jitStubRoutines;
     CFinalizerOwner m_cFinalizerOwner;
-    LambdaFinalizerOwner m_lambdaFinalizerOwner;
-    
+    LambdaFinalizerOwner m_lambdaFinalizerOwner { *this };
+    // UNGIL-HANDOUT §F.3 carve-out (b) (MC-GC S5 / CVE-AUDIT B7): addFinalizer
+    // lambdas that LambdaFinalizerOwner::finalize deferred from inside the
+    // conducted §10 stop window. Conductor-thread-private: appended only by
+    // the conductor inside its own WSAC window (no other thread reaches
+    // weak-bearing sweeps while WSAC is set), drained only by the same thread
+    // at the conductSharedCollection tail (post-resume, with access) — no lock.
+    Vector<LambdaFinalizer> m_deferredLambdaFinalizers;
+
     Lock m_parallelSlotVisitorLock;
     bool m_isSafeToCollect { false };
     bool m_isShuttingDown { false };

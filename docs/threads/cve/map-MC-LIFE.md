@@ -12,11 +12,11 @@ cr/1215233004 (d8 Worker SAB transfer: externalized backing store outlives the
 creating Isolate), Erlang NIF resource-destructor races (destructor runs on the
 wrong thread / past release).
 
-Audit date: 2026-06-15 (re-audit; first pass 2026-06-07). Tree:
-`jarred/threads` (UNGIL-HANDOUT rev 32 era; annex N6 quarantine landed in
-`runtime/ArrayBuffer.cpp`, GIL removal in progress; S6 stop conduction still
-OPEN per `ArrayBuffer.cpp:325,1401,1663`). Defensive audit of our own engine;
-read-only on `Source/**`.
+Audit date: 2026-06-15 (re-audit; first pass 2026-06-07; **B4/B10/B11 update
+2026-06-18**). Tree: `jarred/threads` (UNGIL-HANDOUT rev 32 era; annex N6
+quarantine landed in `runtime/ArrayBuffer.cpp`, GIL removal in progress; S6
+stop conduction NOW LANDED in `wasm/WasmMemory.cpp` per CVE-AUDIT Tier-B
+B4). Defensive audit of our own engine; read-only on `Source/**`.
 
 Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 **needs-test** = targeted susceptibility test written under `JSTests/threads/cve/`,
@@ -97,8 +97,9 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 
 ## S4. Pin/lock accounting: `m_pinCount` / `m_locked` — native pointers vs detach
 
-- Where: `ArrayBuffer.h:404` `Checked<unsigned> m_pinCount` (NON-atomic;
-  re-verified 2026-06-15), `bool m_locked` (plain); mutators `pin()/unpin()`
+- Where: `ArrayBuffer.h:404` `std::atomic<unsigned> m_pinCount` (was
+  `Checked<unsigned>`, NON-atomic, through 2026-06-15; atomicized 2026-06-18
+  per B10), `std::atomic<bool> m_locked`; mutators `pin()/unpin()`
   (`ArrayBuffer.h:453-461`), `pinAndLock()` (`:468-`); predicate
   `isDetachable() { return !m_pinCount && !m_locked && !isShared(); }` (`:463-466`).
   Callers: `ArrayBufferView::setDetachable` (`ArrayBufferView.cpp:95-108`) and the
@@ -120,10 +121,16 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
   the racing surface (WebCore uses them; Bun's embedder surface should be audited
   for them).
 - Not reachable from pure JS (no JS-visible pin), so no JS test can be written.
-- **Verdict: suspected.** Fix shape: make `m_pinCount` atomic (or rule pin/unpin
-  under the buffer's `BufferMemoryHandle::lock()` / a documented single-thread
-  embedder contract) and add the pair to the N7 field table. Needs a native/TSAN
-  arm, not a JSTests case; flagged for the thread-scanners battery.
+- **Verdict: fix-landed (CVE-AUDIT Tier-B B10, 2026-06-18).** `m_pinCount` is
+  now `std::atomic<unsigned>` and `m_locked` is `std::atomic<bool>` (relaxed;
+  `ArrayBuffer.h:404,409` + accessors `:453-487`); the `Checked<>` overflow/
+  underflow crash is preserved as `RELEASE_ASSERT` in `pin()`/`unpin()` so the
+  fail-stop is not weakened. The lost-update on concurrent embedder
+  `pin()/unpin()` is closed and the fields are TSAN-clean. The residual
+  embedder obligation (an unpinned `data()` read has no lifetime guarantee
+  against a concurrent detach) is documented in
+  `docs/threads/INTEGRATE-api.md` §9.2-10. Gate stays a native/TSAN arm
+  (thread-scanners battery); no JSTests case.
 
 ## S5. Annex N6 quarantine — the ownership-accounting machine itself
 
@@ -175,19 +182,22 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 - Status, per the code's own comments (`ArrayBuffer.cpp:325`, `:1401`,
   `:1661-1664`): the **quarantine half is landed** (replaced `BufferMemoryHandle`
   kept alive until a stop ⇒ torn {pre-grow length, pre-grow base} never derefs an
-  unmapped base) but the **stop conduction in `Wasm::Memory::grow`'s
-  BoundsChecking arm is NOT YET ESTABLISHED — "OPEN DEPENDENCY, blocks U-T13
-  sign-off"**. Until it lands, a GIL-off relocating grow racing a reader can pair
-  a *post-grow length* with the *pre-grow base*: the old mapping is alive but
-  **short**, so the read runs off its end — a shared raw buffer's pointer held
-  past (the end of) its allocation, squarely MC-LIFE.
-- **Verdict: suspected** (known-open, already tracked as a U-T13 blocker; this
-  audit adds an executable witness). Test:
+  unmapped base) and the **stop conduction in `Wasm::Memory::grow`'s
+  BoundsChecking arm is NOW ESTABLISHED** (CVE-AUDIT Tier-B B4, 2026-06-18):
+  the handle swap + per-instance cache + `refreshAfterWasmMemoryGrow` (and its
+  per-view `refreshVector` walk) run inside a
+  `JSThreadsSafepoint::stopTheWorldAndRun` closure, gated
+  `g_jscConfig.gilOffProcess` so flag-off is byte-identical. With every other
+  mutator parked at a safepoint during publication, a reader cannot pair a
+  *post-grow length* with the *pre-grow base*; the quarantine still bounds the
+  old mapping's lifetime to the NEXT stop for captured/hoisted pre-grow
+  snapshots. U-T13 dependency discharged.
+- **Verdict: fix-landed (premise-gated needs-test).** Test:
   `JSTests/threads/cve/mc-life-wasm-grow-relocate.js` — spawned TA readers hammer
   views over a no-maximum `WebAssembly.Memory` while main grows in a loop
   (spawned threads do plain TA accesses only — SPEC-api §I refuses spawned wasm
-  *execution*, not views). Expected to pass only once the stop conduction lands;
-  amplifier-ready.
+  *execution*, not views). Premise-SKIPs while the GIL-off wasm refusal is in
+  force; must PASS once the refusal lifts. Amplifier-ready.
 
 ## S7. Embedder destructors run on a foreign agent (Erlang-NIF analog)
 
@@ -205,11 +215,15 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
   that created them"). A thread-affine destructor invoked on the stop conductor is
   the Erlang NIF destructor-race shape: not a JSC heap corruption, but a
   use-after-release in the embedder's own bookkeeping.
-- **Verdict: suspected** (contract gap, not an engine bug; cannot be witnessed
-  from JSTests). Recommendation: document in INTEGRATE-api.md that GIL-off
-  `ArrayBufferDestructorFunction`s MUST be thread-agnostic, and have Bun route
-  thread-affine finalizers through its own marshalling (as it already must for
-  napi post-ungil).
+- **Verdict: doc-landed (CVE-AUDIT Tier-B B11, 2026-06-18).** The contract is
+  now recorded in `docs/threads/INTEGRATE-api.md` §9.2-10: under GIL-off an
+  `ArrayBufferDestructorFunction` MAY run on any thread (final-deref thread,
+  the §10 stop conductor via the N6 quarantine drain, or after the creator
+  thread has exited), with no `JSLock`/`VMLite` installed; it MUST be
+  thread-agnostic and MUST NOT touch per-thread/per-creator state or call
+  back into JS. Bun routes thread-affine finalizers (napi external buffers,
+  FFI) through its own marshalling. Engine-side remains memory-safe
+  (exactly-once after sole ownership, per S2/S5).
 
 ## S8. jsc shell `$.agent` broadcast/receive (test-infra serialize path)
 
@@ -327,10 +341,10 @@ Verdict legend: **immune** = immune-by-construction (cited protocol/invariant),
 | S1 | Thread() value passing | immune (no serialization exists; SPEC-api I2/5.10) | — |
 | S2 | SharedArrayBufferContents refcount | needs-test (balance churn; width infeasible) | `mc-life-sab-refchurn.js` |
 | S3 | ArrayBuffer refcount cross-thread | immune (atomic DeferrableRefCounted; stale comment noted) | — |
-| S4 | m_pinCount/m_locked vs detach | suspected (non-atomic, uncovered by N6/N7; embedder-only) | native/TSAN arm needed |
+| S4 | m_pinCount/m_locked vs detach | fix-landed (B10: atomic count+flag, Checked<> crash preserved; embedder contract §9.2-10) | native/TSAN arm |
 | S5 | N6 quarantine ownership machine | needs-test | `mc-life-detach-quarantine-storm.js` |
-| S6 | Relocating wasm grow, old-mapping lifetime | suspected (documented OPEN DEPENDENCY, U-T13 blocker) | `mc-life-wasm-grow-relocate.js` |
-| S7 | Embedder destructor thread-affinity | suspected (contract, Bun-side; doc fix) | — |
+| S6 | Relocating wasm grow, old-mapping lifetime | fix-landed (B4 stop conduction; premise-gated PASS until wasm refusal lifts) | `mc-life-wasm-grow-relocate.js` |
+| S7 | Embedder destructor thread-affinity | doc-landed (B11: INTEGRATE-api.md §9.2-10 thread-agnostic contract) | — |
 | S8 | jsc shell $.agent transfer | immune (RAII Message ownership) | — |
 | S9 | NLS/NCS/WaiterList lifetime | immune (SPEC-api 5.3/5.4 RAII; dtor-unregister tie) | — |
 | S10 | Per-thread TLC/LocalAllocator teardown | immune (SPEC-heap §5.3/I9/I12; blocks server-owned) | `clientChurnVsGC` (native) |

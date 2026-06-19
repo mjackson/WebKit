@@ -691,8 +691,51 @@ public:
 
     JS_EXPORT_PRIVATE void NODELETE takeWatchpointsToFire(WatchpointSet*);
 
+    // B5 / GIL-removal precondition 10 (docs/threads/cve/map-MC-CODE.md S6):
+    // gilOff EAGER fire entry point. The deferring caller, AFTER dropping
+    // every lock that motivated the deferral (SAL / cell locks) but BEFORE it
+    // PUBLISHES the watched-fact mutation (the setStructure / structureID
+    // store), calls this with the same FireDetail the scope-exit fire would
+    // have used. gilOff Class-A pending: runs the full Class-A
+    // stop-the-world fire NOW, so every CodeBlock that elided a check on the
+    // claimed source set is jettisoned BEFORE any other mutator can observe
+    // the about-to-be-published fact — closing the publication-before-fire
+    // window the scope-exit form left open. After this returns the holder is
+    // drained (state() != IsWatched) and the dtor's scope-exit fire is a
+    // no-op. Flag-off / GIL-on / Class-B / nothing-claimed: no-op (the
+    // dtor's fire stays the firing point — flag-off behaviour byte-identical).
+    //
+    // Adaptive-watchpoint cost (gilOff only, recorded): firing BEFORE the
+    // object's structureID is updated means an adaptive watchpoint observes
+    // the OLD structure, finds the source set already IsInvalidated, and
+    // takes its conservative path (jettison / give up) instead of
+    // re-installing on the new structure. Correctness > the gilOff re-adapt
+    // optimisation; the flag-off adapt-after-publish ordering is unchanged.
+    //
+    // Caller contract: must be a valid §A.3 stop-request point (no rank-3
+    // lock held, no SAL, may DeferGC) — exactly the same contract the
+    // scope-exit ~DeferredWatchpointFire fire already meets at every site.
+    JS_EXPORT_PRIVATE void fireEarlyForGILOff(VM&, const FireDetail&);
+
+    // B5 audit aid: true iff this holder has CLAIMED a Class-A source set
+    // whose fire has not yet run. NB this reads the stack-local HOLDER's
+    // (relaxed) state — it is a same-thread predicate only, not a
+    // cross-thread acquire. Cross-thread consumers do not see the holder;
+    // the release-publish of the deferred-fire fact is the claim CAS in
+    // WatchpointSet::fireAllSlow(VM&, DeferredWatchpointFire*) (seq_cst CAS
+    // on the SOURCE set's m_state, IsWatched -> IsInvalidated): any consumer
+    // that may re-use a not-yet-jettisoned code pointer either acquire-loads
+    // the source set's state() and observes IsInvalidated, or rides the §A.3
+    // stop barrier (every Class-A consumer in this tree does the latter — see
+    // the S6 audit in docs/threads/cve/map-MC-CODE.md).
+    bool hasClassAFirePending() const
+    {
+        return m_watchpointsToFire.state() == IsWatched && m_watchpointsToFire.invalidatesCompiledCode();
+    }
+
 protected:
     WatchpointSet& watchpointsToFire() { return m_watchpointsToFire; }
+    const WatchpointSet& watchpointsToFire() const { return m_watchpointsToFire; }
 
 private:
     WatchpointSet m_watchpointsToFire;

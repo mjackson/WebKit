@@ -448,6 +448,7 @@ JS_EXPORT_PRIVATE void reifyStaticAccessor(VM&, const HashTableValue&, JSObject&
 // parked waiter, and every caller re-checks its precondition after acquisition.
 JS_EXPORT_PRIVATE RecursiveLock& staticPropertyReificationLock();
 JS_EXPORT_PRIVATE void lockStaticPropertyReificationLockContended(VM&);
+JS_EXPORT_PRIVATE bool staticPropertyAlreadyReified(VM&, JSObject&, const PropertyName&);
 
 // Scoped acquisition gated on the lite-threading predicate: with useJSThreads=0
 // (single-threaded embedders, shipped flag-off multi-VM configs) this takes no lock
@@ -535,6 +536,35 @@ inline void reifyStaticProperty(VM& vm, const ClassInfo* classInfo, const Proper
     // deleteProperty path, outside Lookup.*), serializes under the same lock. The lock
     // is recursive, so the batch holders and setUpStaticFunctionSlot nest harmlessly.
     StaticPropertyReificationLocker reificationLocker(vm);
+    // S45-DUPLICATE-PROPERTY-NAME: make reification idempotent under the lock.
+    // JSObject::reifyAllStaticProperties probes getDirectOffset UNLOCKED before
+    // calling here, and the batch reifyStaticProperties template never pre-
+    // probes — for those callers the locker above is the first serialization
+    // point, so two lites can both observe "not present", both arrive here,
+    // and the loser would re-putDirect a name the winner just installed
+    // (wasted JSFunction allocation + spurious didReplaceProperty /
+    // replacement-watchpoint fire on a freshly-installed slot; under the §4.2
+    // StayFlatShared gate that is also a second locked header publish).
+    // Re-probe HERE, after the lock is held, and skip when the uid is already
+    // own. setUpStaticFunctionSlot already takes this lock and re-probes under
+    // it (UNGIL IT-6) before calling here, so for that caller this re-probe is
+    // redundant-but-harmless (recursive lock, cold path). Gated on the same
+    // predicate as the locker (useJSThreads) so flag-off codegen is byte-
+    // identical: with the flag off every caller's pre-probe is authoritative
+    // (single-threaded) and this body runs exactly once per name as before.
+    //
+    // Investigation note (SCALEBENCH §45 residual #2): the reported
+    // `describe(Object) -> {…hasOwn:75,hasOwn:76,…}` and post-worker `keys:78`
+    // / `from:72` "duplicates" turned out to be the PRIVATE builtin symbols
+    // (`@hasOwn` at 76, `@keys` at 71, `@from` at 70) which describe() prints
+    // without the `@` distinguisher — distinct uids, not duplicate offsets for
+    // one uid. putDirectInternal's structure->get() replace leg already
+    // prevents same-uid duplicates. This re-probe is therefore the TOCTOU
+    // closure (avoid the redundant install), not a duplicate-uid fix.
+    if (Options::useJSThreads()) [[unlikely]] {
+        if (staticPropertyAlreadyReified(vm, thisObj, propertyName))
+            return;
+    }
     if (value.attributes() & PropertyAttribute::Builtin) {
         if (value.attributes() & PropertyAttribute::Accessor)
             reifyStaticAccessor(vm, value, thisObj, propertyName);

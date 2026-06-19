@@ -11,8 +11,21 @@ Audit date: 2026-06-07. Tree: `jarred/threads` (UNGIL-HANDOUT rev 32).
 Re-verified 2026-06-15 against the current tree: every verdict stands
 unchanged; S7 leakRef stubs still present (RetiredJITArtifacts.cpp:226,249),
 S6 retire path still has no reportExtraMemory bridge, S3 no per-client
-quota/attribution landed. Table line refs below are 06-15 current; prose-body
+quota/attribution landed (06-18: S3 design now chartered — SPEC-heap ANNEX B;
+knob stubbed inert). Table line refs below are 06-15 current; prose-body
 line refs are as-of original audit date.
+**2026-06-18 (B14 ship-readiness pass): S7 CLOSED** —
+epochCoversEveryJSThread now true (soundness rests on U-T6 per-thread
+GCClients: the existing per-client m_localEpoch stamp IS per-thread, and
+bumpAndReclaim's min-over-clients scan IS the per-JS-thread global minimum;
+see the STANDING OBLIGATION at the B14 hunk in
+Heap::runSafepointHooksAndReclaim if U-T6 ever weakens), and the R2 N-stack
+scan bounds the JITCode leg (retireOptimizedJITCode releases inline). The
+S7-leg bounded-RSS assertion is now in mc-dos-retired-artifact-churn.js.
+S6's reportExtraMemory bridge remains a separate action item. *(B14
+adversarial-review amendment: an earlier revision added a per-lite
+VMLite::observedRetireEpoch slot + in-stop registry walk; dropped as
+write-only dead code — bumpAndReclaim reads only per-client m_localEpoch.)*
 Scope: both GIL-on phase 1 and GIL-off (`--useJSThreads=1 --useThreadGIL=0`)
 — unlike the race classes, MC-DOS does not need parallelism; a single
 spawned thread (or the main thread) can drive every arm below. Catalog
@@ -41,7 +54,7 @@ SPEC-heap §11/I10/I11 (epoch retire/reclaim), SPEC-jit §2/§4.4 + N6
 | S4 | Property-waiter table: per-(cell,uid) lists, deques, Strong roots | runtime/ThreadAtomics.cpp:1108-1290 | tested → leak found+fixed, CLOSED 2026-06-10 |
 | S5 | AsyncTicket inboxes + lock/condition async-waiter queues | ThreadManager.h:83-236, 352-382; SPEC-api 5.5/5.5a | immune-by-construction |
 | S6 | Epoch-deferred retire backlog between shared GCs | heap/GCSafepointEpoch.cpp:81, 128-170; SPEC-heap §11 | needs-test → mc-dos-retired-artifact-churn.js |
-| S7 | Flag-on retired JIT artifact LEAK (handler chains + optimized JITCode) | bytecode/RetiredJITArtifacts.cpp:97-100, 214-226, 249; .h:103-130 | **susceptible-suspected** (chartered) |
+| S7 | Flag-on retired JIT artifact LEAK (handler chains + optimized JITCode) | bytecode/RetiredJITArtifacts.cpp:97-100, 214-226, 249; .h:103-130 | **CLOSED 2026-06-18** (B14: U-T6 per-thread clients ⇒ epoch covers all JS threads; R2 N-stack scan) |
 | S8 | Process-global sharded atom table growth | WTF/wtf/text/SharedAtomStringTable.h:54-116; SPEC-vmstate §4 | immune-by-construction |
 | S9 | Named-endpoint squatting (folded subclass) | no surface exists | immune-by-construction (vacuous) + standing rule |
 
@@ -144,9 +157,24 @@ is the missing DESIGN feature: a per-client byte counter at the TLC
 slow-path refill (SPEC-heap §5.3 — the natural charging point, one counter
 bump per block acquisition, zero fast-path cost) feeding (a) an optional
 `Options::maxJSThreadHeapBytes` per-thread RangeError/termination and (b)
-OOM attribution in the error message. Recommend chartering in the heap
-workstream before ship; until then embedders must treat every spawned
-thread as trusted with the whole heap budget.
+OOM attribution in the error message. **CHARTERED 2026-06-18 (B13
+ship-readiness pass): design frozen as SPEC-heap ANNEX B (adversarial r1
+amendments applied)** — per-client `Atomic<size_t> m_grossBytesAllocated`
+(relaxed) bumped in the existing `didAllocate` ISS leg (Heap.cpp:4138, zero
+fast-path cost, hoisted above the F4-burst latch so heavy allocators keep
+accumulating); always-on top-K attribution string at the ISS OOM seam;
+opt-in soft quota = gross-since-last-cycle-end vs
+`Options::maxJSThreadHeapBytes` (knob stubbed inert at 0, OptionsList.h:702),
+exceed → sticky per-client bit + per-lite VMTraps fire → ReturnNull-mode
+slow paths fail immediately, Assert-mode allocations succeed in-flight then
+RangeError at the next trap checkpoint (never `RELEASE_ASSERT` at the
+per-thread threshold — LocalAllocator.cpp:379 is unreachable from the quota
+path). Per-client LIVE-footprint accounting explicitly rejected (would
+need per-client mark attribution or cross-thread block credit/debit; both
+add cost to paths that are plain today). Until the ANNEX B implementation
+lands, embedders must still treat every spawned thread as trusted with the
+whole heap budget; once it lands, attribution is unconditional under ISS
+and the quota is opt-in.
 
 ## S4. Property-waiter table — **needs-test → TEST RAN, FOUND A REAL LEAK, FIXED (CLOSED 2026-06-10)**
 
@@ -279,10 +307,42 @@ exemption doesn't silently skip it). Recommend additionally (design note,
 heap workstream): a retired-bytes counter that feeds
 `Heap::reportExtraMemoryAllocated`, closing observation 1 properly.
 
-## S7. Flag-on retired-JIT-artifact LEAK — susceptible-suspected (chartered)
+## S7. Flag-on retired-JIT-artifact LEAK — **CLOSED 2026-06-18 (B14)**
 
-Suspected hole, precisely: under `--useJSThreads=1` BOTH retirement paths
-currently leak unconditionally:
+**Fix landed (B14, ship-readiness pass):** the chartered leak's two close
+conditions are now both met in-tree.
+
+- Handler-chain / generic-retire / call-link-record leg:
+  `epochCoversEveryJSThread()` returns true (RetiredJITArtifacts.cpp). The
+  §4.4 "every mutator thread crossed the epoch" requirement is discharged by
+  U-T6 per-thread GCClients (JSLock perThreadClientForCarrierEntry + the
+  spawned-lite client in ThreadManager.cpp): the existing per-client
+  `m_localEpoch` stamp in `Heap::runSafepointHooksAndReclaim` IS per-thread,
+  and `bumpAndReclaim()`'s min-over-clients scan (GCSafepointEpoch.cpp:148)
+  IS the conductor's global-minimum scan over JS threads, with
+  `RELEASE_ASSERT(minLocalEpoch >= oldEpoch)` backstopping a missed stamp.
+  No separate per-lite witness exists — see the STANDING OBLIGATION recorded
+  at both sites if U-T6 ever weakens (a lite executing without a distinct
+  registered client → predicate becomes a UAF with no functional guard).
+  Retired chains/records/callbacks now route through
+  `GCSafepointEpoch::retire` flag-on and are destroyed at epoch expiry —
+  bounded by two collections, exactly the §11 contract. The leak arms are
+  reachable only in the `!JSC_JIT_HAS_GC_SAFEPOINT_EPOCH` build config.
+- Optimized-JITCode leg: `retireOptimizedJITCode` drops the ref inline
+  flag-on (same as flag-off). R2's N-stack conservative scan
+  (`Heap::gatherStackRoots`, §10.6/T6 — one MachineThreads scan covers all N
+  mutators, `*m_codeBlocks` keeps any block with code on any stack) ran in
+  the marking phase that produced this sweep; CallLinkInfo::visitWeak
+  unlinked dead callees; §5.8 publish-time pins kept any record-named block
+  alive (and those pins now expire via the epoch path above). I7 hard rule
+  respected: machine code is never freed by epoch expiry, only by R2-licensed
+  sweep.
+- Gate: `mc-dos-retired-artifact-churn.js` now carries an in-test bounded-RSS
+  assertion over the second-half churn (the S7 leg), in addition to the
+  correctness/completion arms. Pre-fix this grew monotonically with ITERS.
+
+Original analysis (kept for the regression record): under `--useJSThreads=1`
+BOTH retirement paths leaked unconditionally:
 
 - `epochCoversEveryJSThread(VM&)` returns `!Options::useJSThreads()`
   (RetiredJITArtifacts.cpp:95-99) — so `retireHandlerChain` always takes the
@@ -369,10 +429,26 @@ inspector transport ever ships in the flag-on configuration.
 | immune-by-construction | S1, S2 (tested elsewhere), S5, S8, S9 |
 | needs-test | S6 (retire backlog drain) |
 | tested — leak found+fixed, CLOSED 2026-06-10 | S4 (waiter table reclaim: un-retired TicketData on the notify-settle tail; fixed in AsyncTicket::scheduleViaDeferredWorkTimer) |
-| susceptible-suspected | S3 (no per-thread heap quota/attribution — design gap, availability-only), S7 (chartered flag-on JIT-artifact leak — close condition: per-thread epoch publication + R2 scan) |
+| CLOSED 2026-06-18 (B14) | S7 (flag-on JIT-artifact leak: epochCoversEveryJSThread true via U-T6 per-thread clients; R2 N-stack scan landed; bounded-RSS gate in mc-dos-retired-artifact-churn.js) |
+| susceptible-suspected → DESIGN CHARTERED 2026-06-18 (B13, adversarial r1 amended) | S3 (no per-thread heap quota/attribution — availability-only; design FROZEN at SPEC-heap ANNEX B post-r1: Atomic gross counter, ReturnNull-only early-out + trap-checkpoint throw so Assert-mode never crashes the process; `maxJSThreadHeapBytes` knob stubbed inert; engine implementation is the remaining action) |
 
 Action items carried out of this audit: charter a per-client allocation
-counter + OOM attribution (S3, heap workstream); add a retired-bytes →
-`reportExtraMemoryAllocated` bridge (S6); keep S7's two leak legs on the
-INTEGRATE checklist with `mc-dos-retired-artifact-churn.js` as the
-regression at each landing.
+counter + OOM attribution (S3, heap workstream — **DONE 2026-06-18: SPEC-heap
+ANNEX B + OptionsList.h:702 stub; implementation tracked there**); add a
+retired-bytes →
+`reportExtraMemoryAllocated` bridge (S6). S7's two leak legs are CLOSED at
+B14; `mc-dos-retired-artifact-churn.js` stays as the regression for both.
+
+**B14 follow-up (doc-rot only, out of B14's owned-file set; not a
+correctness blocker):** stale comments still reference the now-removed
+flag-on leak as a live invariant at CallLinkInfo.cpp:894-899,
+CallLinkInfo.h:720-722 ("the retireOptimizedJITCode leak keeps this node
+alive past its owner"), CallLinkInfo.h:~812 ("retireHandlerChain (which
+flag-on never frees — epochCoversEveryJSThread)"), and Heap.h:985 ("flag-on
+until epochCoversEveryJSThread"). The rules those comments justify (don't
+derive VM from m_owner; TSAN happens-after lifetime proof; record-named
+CodeBlock pin) remain SOUND under the new epoch-bounded / R2-bounded
+lifetimes — m_owner can still be a swept cell for the still-leaked
+baseline/metadata CLIs and during mark→sweep windows — so the underlying
+code is correct; only the prose justification needs updating in a follow-up
+comment sweep.

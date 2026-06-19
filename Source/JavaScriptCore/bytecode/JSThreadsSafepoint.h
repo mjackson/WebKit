@@ -210,19 +210,40 @@ JS_EXPORT_PRIVATE bool parkSitePollAndParkForStopTheWorld(VM&);
 // list: docs/threads/INTEGRATE-jit.md "GIL-removal preconditions"):
 // DFG64/FTL array-element store predicates, the LLInt monomorphic-call record
 // form, the MultiDeleteByOffset flag-on bail, allocation tagging, the ARM64
-// R7 dest==base residue, the deferred Class-A fire fact-publication ordering,
+// R7 dest==base residue, the deferred Class-A fire fact-publication ordering
+// (precondition 10 — B5: MECHANISM landed,
+// DeferredWatchpointFire::fireEarlyForGILOff + the release claim-CAS in
+// WatchpointSet::fireAllSlow(VM&, DeferredWatchpointFire*); per-site Task-11
+// "fact published before fire?" classification is the residual),
 // the segmented-butterfly (regime 2) fast paths, and the slow-path
-// call-linking writer-writer serialization (precondition 11, R3-3). Nothing
-// else in the tree
-// mechanically prevents a future change from admitting a second concurrent
-// mutator while these gaps are open, so the change that removes the GIL MUST
-// gate second-mutator attach on this predicate:
+// call-linking writer-writer serialization (precondition 11 — AB18-D:
+// LANDED). The mechanical tripwire is WIRED at the gilOff SPAWNED-thread
+// second-mutator attach point (CVE-B6 / MC-CODE S8):
 //
-//     RELEASE_ASSERT(JSThreadsSafepoint::gilRemovalPreconditionsMet());
+//     attachSpawnedThreadGCClient (runtime/ThreadManager.cpp):
+//     RELEASE_ASSERT(JSThreadsSafepoint::gilRemovalPreconditionsMet()
+//                    || Options::useThreadGILOffUnsafe());
 //
-// It is a compile-time constant FALSE today; the GIL-removal change flips it
-// to true in the SAME commit that closes (or consciously re-classifies) every
-// listed precondition. Flipping it without doing so is the recorded violation.
+// RESIDUAL second wiring site (out of B6 file scope; lands with the JSLock
+// owner or the GIL-removal commit): the §F.1/§B.2 carrier non-main arm at
+// runtime/JSLock.cpp perThreadClientForCarrierEntry (the `new GCClient::Heap`
+// for a non-main embedder/carrier thread, reached from
+// ensureCarrierLiteForCurrentThread under ASSERT(vm.gilOff())) is ALSO a
+// gilOff concurrent-mutator admission point and MUST carry the identical
+// assert before the tripwire is considered fully wired.
+//
+// The predicate is a compile-time constant FALSE today; the bring-up override
+// flag (useThreadGILOffUnsafe — also the U0 option-validation gate that admits
+// gilOff at all) keeps the ladder running. The tripwire is therefore NOT
+// independently load-bearing today: its teeth depend on the U0 gate
+// (Options.cpp) and the override flag being retired TOGETHER with the
+// predicate flip. The GIL-removal change flips the constant to true in the
+// SAME commit that closes (or consciously re-classifies) every listed
+// precondition, retires the override flag, AND wires the carrier non-main
+// site above. Flipping it without doing so is the recorded violation; a
+// production build that admits a second concurrent mutator without the
+// override fail-stops at the attach assert rather than running the open gaps
+// silently.
 constexpr bool gilRemovalPreconditionsMetValue = false;
 ALWAYS_INLINE constexpr bool gilRemovalPreconditionsMet() { return gilRemovalPreconditionsMetValue; }
 

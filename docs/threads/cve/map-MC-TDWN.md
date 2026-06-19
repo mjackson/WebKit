@@ -77,14 +77,25 @@ Adversarial probes:
   contract is join-then-destroy under the lock), and the jsc shell holds
   its VM ref until process exit — but nothing fail-stops the bad shape in
   release builds.
-  **Verdict: suspected** (embedder-API surface; recommend a RELEASE_ASSERT
-  or a documented re-dispatch in ~VM when
-  `!currentThreadIsHoldingAPILock()`), plus **needs-test** for the
+  **Verdict: suspected → FAIL-STOPPED (B12 landed)**. The release-build
+  fail-stop is in place at the top of the `if (m_mainVMLite)` block in
+  `~VM` (`runtime/VM.cpp`, immediately after the §F.2 debug ASSERT):
+  threads-on (`Options::useJSThreads()`, `[[unlikely]]`) gates a
+  `RELEASE_ASSERT_WITH_MESSAGE(currentThreadIsHoldingAPILock(), …)` naming
+  the MC-TDWN S1 protocol violation and the join-then-destroy-under-lock
+  embedder contract. Flag-off is byte-identical (the block is unreachable
+  — `m_mainVMLite` is null without `useVMLite`; the pre-existing debug
+  ASSERT remains the sole check). The bad shape now crashes
+  deterministically in release rather than silently running step (1)
+  onward without a carrier or token. Plus **needs-test** for the
   JS-reachable neighbor: unjoined threads mid-exit at shell teardown —
-  `JSTests/threads/cve/mc-tdwn-vm-teardown-unjoined.js`.
+  `JSTests/threads/cve/mc-tdwn-vm-teardown-unjoined.js` (gate: 20/20
+  clean exit; the shell holds its VM ref to process exit so the
+  fail-stop is not on the test's path).
 
 Overall: **immune** for join-then-destroy and drop-while-running (fence +
-Ref), **suspected** for the last-deref-on-spawned-thread placement above.
+Ref), **fail-stopped** for the last-deref-on-spawned-thread placement
+above (B12).
 
 ## S2. E2A inbox close vs concurrent cross-thread settles (queued work targeting a dying queue)
 

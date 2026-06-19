@@ -48,6 +48,24 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+// SCAN-CAS-PROBE-STRUCTURE-SEGV (see Structure.h, OM I34/L6): the M7(c)
+// reader's single-snapshot edit-stamp. Acquire-load of the S6 L3/L4 stamp
+// (PropertyTable::concurrentEditCount) so the caller's subsequent
+// getDirect()/butterfly load is ordered after every store the matching
+// release-side bumpConcurrentEditCount() published — the same fence pair
+// Structure::getConcurrently's seqlock fast path uses. Non-pinned structures
+// re-tag structureID on every edit, so the structureID recheck already
+// suffices and 0 is returned (caller's stamp comparison degenerates to a
+// no-op). Pinned tables are never cleared/replaced (S6), so the table pointer
+// is stable across the stamp pair. Flag-off: callers are gated, never
+// reached.
+ALWAYS_INLINE uint32_t Structure::pinnedTableConcurrentEditCountForRead() const
+{
+    if (PropertyTable* table = pinnedPropertyTableForConcurrentReadStamp())
+        return table->concurrentEditCount();
+    return 0;
+}
+
 inline Structure* Structure::create(VM& vm, Structure* previous, DeferredStructureTransitionWatchpointFire* deferred)
 {
     ASSERT(vm.structureStructure);

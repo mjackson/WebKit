@@ -1008,9 +1008,43 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
 
 bool VMTraps::handleTrapsIfNeeded(VMTraps::BitField mask)
 {
-    if (needHandling(mask))
-        return handleTraps(mask);
-    return false;
+    if (!needHandling(mask))
+        return false;
+    bool handled = handleTraps(mask);
+#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+    // SCAN-EXC-CHECKS (sweep 05, validateExceptionChecks family):
+    // handleTraps' ThrowScope unconditionally simulates a throw to its
+    // caller on destruction (the validator's "this scope can throw at
+    // VMTraps.cpp:686" record). GIL-off this wrapper is the callee of the
+    // lite-then-VM dispatch shape — handleTrapsForCurrentThreadIfNeeded
+    // below, and the two open-coded copies in JSLock.cpp
+    // (spawnedDropAllLocksBracketExit, the GILDroppedSection spawned-arm
+    // bracket-exit poll; completeDeferredForeignCarrierRestoreAfterUnlock)
+    // — which call this twice in a row with no scope of their own, so the
+    // SECOND call's ThrowScope ctor at :686 trips on the FIRST call's
+    // simulated throw (the dominant 686/686 report); and when only the
+    // per-lite call services (VM-level needHandling false), the unsatisfied
+    // simulated throw propagates to the park-site epilogue's scope
+    // (conditionProtoFuncWait / atomicsWaitOnProperty / the lock.hold
+    // callback's CallData.cpp:76 TopExceptionScope), which is the
+    // 686/secondary-site tail.
+    //
+    // This wrapper IS handleTraps' direct caller and so owes the check.
+    // Perform it via the canonical exception() read (clears the per-lite
+    // m_needExceptionCheck). A REAL pending exception (the NeedTermination
+    // throw) is never lost: every dispatch site re-tests
+    // hasPendingTerminationException() before the second service, and the
+    // GILDroppedSection spawned-arm dtor converts an installed termination
+    // back to bits+request before returning to the park site. gilOff-gated:
+    // flag-off / GIL-on byte-identical (the wrapper's flag-off callers are
+    // the LLInt/JIT slow paths via handleTrapsForCurrentThreadIfNeeded,
+    // whose previousScope is past topEntryFrame so handleTraps' dtor never
+    // simulates there — no check was ever owed on that path).
+    VM& vm = this->vm();
+    if (vm.gilOff()) [[unlikely]]
+        (void)vm.exception();
+#endif
+    return handled;
 }
 
 CONCURRENT_SAFE void VMTraps::fireTrapVMWide(Event event)

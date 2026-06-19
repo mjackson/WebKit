@@ -1208,16 +1208,20 @@ CodeBlock::~CodeBlock()
     }
 
 #if ENABLE(DFG_JIT)
-    // SPEC-jit section 5.3 / I7: flag-on, this CodeBlock's optimized machine
-    // code must not be freed by this sweep. Jettison defers code deletion to
-    // "the GC sweep after R2's conservative scan", but under the phase-1 GIL
-    // stub that scan covers only the GIL-holding thread: a sibling spawned
-    // thread parked with the GIL dropped can still resume into this code
-    // through a call-link/IC entrypoint (ASAN SEGV with pc in an unmapped
-    // module from llint_op_call, JSTests/threads/jit/tid-tag-3-threads.js
-    // et al.). Route the release through RetiredJITArtifacts, which leaks it
-    // until the heap workstream's N-stack scan lands. Flag-off this is the
-    // same inline ref drop as today. THREADS-INTEGRATE(jit)
+    // SPEC-jit section 5.3 / I7: flag-on, route the optimized JITCode release
+    // through RetiredJITArtifacts. B14 / MC-DOS S7: that path now drops the
+    // ref inline (the chartered leak is closed) — R2's N-stack conservative
+    // scan (Heap::gatherStackRoots, §10.6/T6) ran in the marking phase that
+    // led to this sweep and covers EVERY registered mutator thread, so no
+    // sibling's stack can hold a return address into this code; visitWeak
+    // unlinked it from live callers; §5.8 publish-time pins would have kept
+    // it marked if any record still named it. The original ASAN SEGV
+    // (llint_op_call into unmapped memory, tid-tag-3-threads.js et al.) was a
+    // phase-1 GIL artifact: the scan then covered only the GIL holder.
+    // Flag-off this branch is not taken and the member ~RefPtr drops the ref
+    // exactly as today (byte-identical). The call is kept (rather than
+    // letting the member dtor do it) so the I7 release point stays explicit
+    // and centrally documented in RetiredJITArtifacts.
     if (Options::useJSThreads() && m_jitCode && JSC::JITCode::isOptimizingJIT(m_jitCode->jitType())) [[unlikely]]
         RetiredJITArtifacts::retireOptimizedJITCode(vm, m_jitCode.take());
 #endif
@@ -1240,9 +1244,11 @@ CodeBlock::~CodeBlock()
     // stay intact for prologue reloads (the member RefPtr dtor only derefs,
     // it does not null the slot), same discipline as m_jitData. The leaked
     // CLIs remain on callees' m_incomingCalls lists — already the accepted
-    // state for the leaked DFG CommonData / BaselineJITData CallLinkInfos
-    // (§17.2 rows 7/8/11); the locked drains tolerate dead-owner nodes (see
-    // DirectCallLinkInfo::retireRecord's AB18-E comment).
+    // state for the leaked BaselineJITData CallLinkInfos (§17.2 rows 7/8/11;
+    // DFG CommonData CLIs are no longer leaked since B14 — their ~CallLinkInfo
+    // delists under s_callLinkSerializationLock, AB17e F4); the locked drains
+    // tolerate dead-owner nodes (see DirectCallLinkInfo::retireRecord's
+    // AB18-E comment).
     if (Options::useJSThreads() && m_metadata) [[unlikely]]
         m_metadata->ref();
 }

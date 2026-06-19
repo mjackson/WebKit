@@ -2301,28 +2301,18 @@ public:
     {
         if (auto slot = tlcSlotForConcurrently<Type>(vm, allocationSize))
             return slot;
-        // H-ISO-TLCSLOT exclusion: JSArray's JIT inline-allocate fast path
-        // stores the butterfly word UNTAGGED (storePtr(butterfly, …,
-        // JSObject::butterflyOffset()) — no TID-tag emission), so a fresh
-        // inline-allocated JSArray reads as foreign (butterflyTID(word) !=
-        // currentButterflyTID()) and the FIRST ensureLength growth segments it
-        // (ConcurrentButterfly.cpp ensureLength T1/T2 dispatch) — measured at
-        // 182,339 convertToSegmentedButterfly + 19,073,867 operationArrayPush
-        // on intcs W=1 (vs 0 / ~692 K with JSArray excluded). Under §42 the
-        // JSArray cell allocator was always null GIL-off (iso → IT-9 nullopt)
-        // so the path went to operationNewArrayWithSize / operationNewRawObject,
-        // which TID-tags in C++; the iso arm here would be the FIRST time the
-        // JSArray inline path fires GIL-off. The proper fix is Task-8
-        // (loadButterflyTIDTag-tag the butterfly word at every JIT inline
-        // allocateObject / emitAllocateJSObject store site) — out of scope for
-        // §43; until that lands JSArray stays on the §42 lazy-slow-path arm
-        // where the §43 thin-thunk reduces the per-traversal cost. Every other
-        // iso ClassType reaching this resolver either has no butterfly
-        // (JSRopeString / JSString) or stores a null butterfly on its inline
-        // path (JSPromise / JSMap / JSSet / JSBoundFunction / JSFunction et
-        // al.), so the TID-tag question never arises.
-        if constexpr (std::is_same_v<Type, JSArray>)
-            return std::nullopt;
+        // Task-8 LANDED (SCALEBENCH §43 residual #2): the §43 JSArray
+        // exclusion is dropped. Every JIT inline butterfly install
+        // (emitAllocateJSObjectWithKnownSize's gilOff arm below,
+        // emitAllocateRawObject's cellSlot arm, FTL allocateObject) now
+        // TID-tags the stored m_butterfly word via
+        // emitTagInstalledButterflyWithTID / loadButterflyTIDTag, so a fresh
+        // inline-allocated JSArray reads as OWNER at the §4.2 ensureLength
+        // dispatch (convertToSegmentedButterfly stays 0 on intcs W=1). The
+        // null-butterfly inline paths (JSPromise / JSMap / JSSet /
+        // JSBoundFunction / JSFunction / JSRopeString / JSString et al.) skip
+        // the tag — matches JSObjectWithButterfly's `if (butterfly)` ctor
+        // guard.
         auto* subspace = subspaceForConcurrently<Type>(vm);
         if constexpr (std::is_same_v<std::remove_cv_t<decltype(subspace)>, GCClient::IsoSubspace*>) {
             UNUSED_PARAM(allocationSize); // Iso has exactly one size class; the LocalAllocator cellSize() RELEASE_ASSERT (allocatorFor) covers a mismatched size at run time.
@@ -2349,7 +2339,32 @@ public:
     // contract as loadVMLite). gilOff-mode emission ONLY — every call site is
     // behind a vm.gilOff() codegen gate (flag-off byte-identity).
     void emitLoadTLCAllocatorForSlot(GPRReg allocatorGPR, unsigned tlcSlot, JumpList& slowPath);
-    
+
+    // SPEC-jit App. R5: one-load read of the current thread's pre-shifted
+    // butterfly TID tag (uint64_t(currentButterflyTID()) << 48, SW=0) from
+    // g_jscButterflyTIDTag; offset baked at emission (ELF IE-TLS / Darwin
+    // TSD). Hoisted from CCallHelpers so the Task-8 inline-allocation tag
+    // emitter below can call it from inside the emitAllocateJSObject*
+    // templates (CCallHelpers / SpeculativeJIT inherit it unchanged).
+    void loadButterflyTIDTag(GPRReg destGPR);
+
+    // Task-8 (SPEC-objectmodel §2.1, SCALEBENCH §43 residual #2): TID-tag a
+    // JIT inline-installed butterfly so the stored m_butterfly word matches
+    // JSObjectWithButterfly's ctor encoding (encodeButterfly(ptr,
+    // currentButterflyTID(), false), JSObject.h:1730). storageGPR holds the
+    // UNTAGGED butterfly pointer and is left UNCHANGED so post-install
+    // header / element writes (emitAllocateRawObject's offsetOfPublicLength
+    // store + emitFillStorageWith* + emitInitializeOutOfLineStorage,
+    // compileNewArray*'s element stores, ClonedArguments' length/varargs
+    // copy loop) can keep dereferencing it. The encoded word is composed in
+    // scratchGPR (loadButterflyTIDTag | storageGPR) and stored over the
+    // untagged word emitAllocateJSObject just wrote. Pre-escape (object not
+    // yet visible to other threads), so a plain store is the sanctioned
+    // E4-eligible install form (N3). gilOff emission ONLY — every call site
+    // is behind a vm.gilOff() codegen gate (flag-off byte-identity).
+    // scratchGPR must be distinct from resultGPR and storageGPR.
+    void emitTagInstalledButterflyWithTID(GPRReg resultGPR, GPRReg storageGPR, GPRReg scratchGPR);
+
     template<typename StructureType>
     void emitAllocateJSCell(GPRReg resultGPR, const JITAllocator& allocator, GPRReg allocatorGPR, StructureType structure, GPRReg scratchGPR, JumpList& slowPath, SlowAllocationResult slowAllocationResult = SlowAllocationResult::ClearToNull)
     {
@@ -2382,6 +2397,24 @@ public:
             if (auto slot = tlcSlotForConcurrentlyWithIso<ClassType>(vm, size)) {
                 emitLoadTLCAllocatorForSlot(scratchGPR1, *slot, slowPath);
                 emitAllocateJSObject(resultGPR, JITAllocator::variable(), scratchGPR1, structure, storage, scratchGPR2, slowPath, slowAllocationResult);
+                // Task-8: TID-tag the just-installed butterfly word so a
+                // fresh inline-allocated object reads as OWNER (not foreign)
+                // at the §4.2 ensureLength dispatch. A register storage is
+                // provably non-null at every caller (the butterfly is freshly
+                // allocated on the fall-through path; null-initialized GPRs
+                // only reach here after a slow-path branch). An immediate
+                // storage is null for every no-butterfly ClassType (JSPromise
+                // / JSMap / JSFunction / …) and non-null only for the CoW
+                // JSCellButterfly install (compileNewArrayBuffer); the null
+                // skip matches the ctor's `if (butterfly)` guard. storage is
+                // left untagged for post-install writes; scratchGPR1/2 are
+                // both free after emitAllocateJSObject. gilOff arm only.
+                if constexpr (std::is_same_v<std::decay_t<StorageType>, GPRReg>)
+                    emitTagInstalledButterflyWithTID(resultGPR, storage, scratchGPR1);
+                else if (storage.asIntptr()) {
+                    loadPtr(Address(resultGPR, JSObject::butterflyOffset()), scratchGPR2);
+                    emitTagInstalledButterflyWithTID(resultGPR, scratchGPR2, scratchGPR1);
+                }
                 return;
             }
         }

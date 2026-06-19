@@ -348,6 +348,29 @@ public:
         ASSERT(isPinnedPropertyTable());
         return m_propertyTableUnsafe.get();
     }
+    // SCAN-CAS-PROBE-STRUCTURE-SEGV (OM I34/L6, annex-N6/M7 single-snapshot
+    // discipline): hand the M7(c) lock-free reader (JSObject::
+    // getOwnNonIndexPropertySlot) the pinned table pointer so it can EXTEND
+    // the S6 L3/L4 seqlock across its own getDirect() value read — a pinned
+    // (dictionary) structure's structureID is never re-tagged across in-place
+    // add/delete/attribute edits, so the M7(c) `structureID()==structure`
+    // recheck alone cannot detect them and admits a torn {offset, m_butterfly,
+    // value} triple (CVE A5 mc-df-delete-reuse.CRASH.log; SCAN-RESULTS.md
+    // residual #5, property-cas-delete-undefined-sentinel-u5.js). Non-pinned
+    // structures publish a fresh structureID on every table edit, so the
+    // structureID recheck already suffices and this returns null (no extra
+    // constraint). Pinned tables are never cleared or replaced (S6), so the
+    // pointer is stable for the duration of a stamp pair. Non-asserting twin
+    // of pinnedPropertyTableForConcurrentDelete(): callers branch on null.
+    PropertyTable* pinnedPropertyTableForConcurrentReadStamp() const
+    {
+        return isPinnedPropertyTable() ? m_propertyTableUnsafe.get() : nullptr;
+    }
+    // Acquire-load the S6 L3/L4 edit-stamp for the M7(c) reader's
+    // single-snapshot recheck (0 if non-pinned — see above). Declared here,
+    // defined in StructureInlines.h (PropertyTable.h is not includable from
+    // this header; same declare/define split as Structure::get(VM&, ...)).
+    uint32_t pinnedTableConcurrentEditCountForRead() const;
     static Structure* removePropertyTransitionFromExistingStructure(Structure*, PropertyName, PropertyOffset&);
     static Structure* removePropertyTransitionFromExistingStructureConcurrently(Structure*, PropertyName, PropertyOffset&);
     static Structure* changePrototypeTransition(VM&, Structure*, JSValue prototype, DeferredStructureTransitionWatchpointFire&);
@@ -1585,6 +1608,7 @@ private:
         JSC_TSAN_DEFERRED_MEMBER_FORWARD(fireAll)
         JSC_TSAN_DEFERRED_MEMBER_FORWARD(touch)
         JSC_TSAN_DEFERRED_MEMBER_FORWARD(trySingleTransition)
+        JSC_TSAN_DEFERRED_MEMBER_FORWARD(tryGetSingleSlotConcurrently)
         JSC_TSAN_DEFERRED_MEMBER_FORWARD(get)
         JSC_TSAN_DEFERRED_MEMBER_FORWARD(getMatching)
         JSC_TSAN_DEFERRED_MEMBER_FORWARD(contains)

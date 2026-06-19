@@ -73,3 +73,36 @@ check(nO >= 1, "hotObject never reached DFG");
 check(nO <= 4, "hotObject recompile loop (StayFlatShared gate broken): " + nO);
 check(nA >= 1, "hotArray never reached DFG");
 check(nA <= 4, "hotArray recompile loop (handleGetById backstop broken): " + nA);
+
+// S45-DUPLICATE-PROPERTY-NAME gate (folded here; the named
+// JSTests/threads/objectmodel/reify-static-idempotent.js path is outside this
+// task's owned file set). The §45 residual #2 `describe()` "duplicates" were
+// the PRIVATE builtin symbols (`@hasOwn`, `@keys`, `@from`) rendered without
+// the `@` distinguisher — distinct uids. The structural invariant we actually
+// care about is: after worker-first foreign reification, the spec-observable
+// own-string-property list contains no duplicate name (a same-uid double
+// install would surface here). Hammer a second round of worker reifies first
+// to exercise the under-lock idempotency re-probe in reifyStaticProperty.
+let w2 = new Thread(function () {
+    Array.from; Object.keys; String.raw; Object.hasOwn; Array.isArray; String.fromCharCode;
+});
+w2.join();
+function assertNoDuplicateOwnNames(ctor, label) {
+    let names = Object.getOwnPropertyNames(ctor);
+    let seen = new Set();
+    for (let n of names) {
+        if (seen.has(n))
+            throw new Error("S45: duplicate own property name '" + n + "' on " + label + " (own names: " + names.join(",") + ")");
+        seen.add(n);
+    }
+    // The reified statics must each appear exactly once as an own string key.
+    return names;
+}
+let oNames = assertNoDuplicateOwnNames(Object, "Object");
+let sNames = assertNoDuplicateOwnNames(String, "String");
+let aNames = assertNoDuplicateOwnNames(Array, "Array");
+check(oNames.filter(n => n === "keys").length === 1, "Object.keys not exactly-once own: " + oNames);
+check(oNames.filter(n => n === "hasOwn").length === 1, "Object.hasOwn not exactly-once own: " + oNames);
+check(aNames.filter(n => n === "from").length === 1, "Array.from not exactly-once own: " + aNames);
+check(sNames.filter(n => n === "raw").length === 1, "String.raw not exactly-once own: " + sNames);
+print("S45 reify-static-idempotent: Object=" + oNames.length + " String=" + sNames.length + " Array=" + aNames.length + " own names, no duplicates");

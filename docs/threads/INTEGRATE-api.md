@@ -821,6 +821,129 @@ Post-apply steps for the integrator:
    makes park sites exactly as sound as stock DAL on every platform, and
    strictly sound on the platforms Bun ships (Linux/macOS-current/Windows).
 
+## 9.2-10 Embedder ArrayBuffer contract under GIL-off (CVE-AUDIT Tier-B B10/B11; map-MC-LIFE S4/S7/S11) [LANDED — doc + atomicization]
+
+No shared-hot-file diff. The engine-side half (B10) is LANDED in
+`runtime/ArrayBuffer.h`: `m_pinCount` is `std::atomic<unsigned>` and
+`m_locked` is `std::atomic<bool>` (relaxed; the Checked<> overflow/underflow
+crash is preserved as RELEASE_ASSERT in pin()/unpin()). That closes the
+lost-update on concurrent embedder pin()/unpin() and makes
+`isDetachable()`/`isLocked()` data-race-free for TSAN. This entry records
+the EMBEDDER obligations the engine cannot enforce (B11), for the Bun
+integration to gate on; nothing here changes flag-off behavior.
+
+**ArrayBufferDestructorFunction thread-affinity (B11 / S7 / S11).** Under
+`--useJSThreads=1 --useThreadGIL=0` an `ArrayBufferDestructorFunction`
+supplied to `ArrayBuffer::createFromBytes` / `SharedArrayBufferContents`
+MAY run on ANY thread, with NO `JSLock` held and NO `VMLite` installed:
+
+- on whichever thread performs the final deref of the contents (any spawned
+  JS thread, main, or an embedder thread), or
+- on the heap §10 stop CONDUCTOR thread, when the mapping was retired via
+  the annex-N6 quarantine drain (`arrayBufferQuarantineSafepointHook`,
+  `runtime/ArrayBuffer.cpp`), or
+- on a thread other than the buffer's CREATOR — a spawned thread may create
+  a buffer, hand it to main, and exit; the destructor then runs after the
+  creator's `VMLite`/`GCClient::Heap` are gone (S11).
+
+The destructor runs EXACTLY ONCE, after sole ownership is established (S2/S5
+guarantee that). The embedder MUST therefore supply only THREAD-AGNOSTIC
+destructors: they may call process-global allocators (Gigacage, malloc/free,
+mmap/munmap, `BufferMemoryManager::singleton()`), but MUST NOT touch
+per-thread or per-creator state (no `napi_env`, no per-isolate bookkeeping,
+no thread-affine native handles), MUST NOT acquire the `JSLock` or call back
+into JS, and MUST NOT assume a current `VMLite`/`ThreadState`. Thread-affine
+finalizers (napi external buffers, FFI callbacks) MUST be marshalled by the
+embedder to their owning thread — exactly as Bun already must for napi
+post-ungil; the engine will not marshal for it.
+
+**pin()/unpin() balance (B10 / S4).** The atomicization makes concurrent
+`pin()`/`unpin()` count-correct, but does NOT make `isDetachable()` a fence:
+a `pin()` does not retroactively block a detach whose relaxed
+`isDetachable()` load on another thread already observed 0 — the pin must be
+ESTABLISHED (with a happens-before edge to any would-be detacher) before any
+other thread can attempt detach. Under that discipline, a raw `bytesPtr`
+obtained via `JSObjectGetTypedArrayBytesPtr` (which calls `pinAndLock()` —
+sticky-true, monotone, so the C-API path is establish-once) or via an
+`ArrayBufferView` with `setDetachable(false)` is safe against any detach
+whose `isDetachable()` check observes the pin/lock; engine-side memory
+safety for the captured pointer then rests on the annex-N6 quarantine, not
+on this counter. An embedder that reads `data()` without pinning gets no
+lifetime guarantee against a concurrent `transfer()`/`detach()` from another
+thread (GIL-off only; under the GIL the `JSLock` serializes it).
+`pin()`/`unpin()` calls MUST balance; an unbalanced `unpin()` now
+`RELEASE_ASSERT`s (previously `Checked<>`-crashed identically).
+
+Gate: TSAN native arm clean on `m_pinCount`/`m_locked` (thread-scanners
+battery); no JSTests case is possible (no JS-visible pin).
+
+## 9.2-11 `--useJSThreads` is native-code-equivalent for confidentiality (CVE-AUDIT Tier-B B15; map-MC-SPEC S1-S5) [LANDED — doc + OptionsList help text]
+
+No engine code change. MC-SPEC is STRUCTURAL: speculative execution side
+channels (Spectre v1/v2) are not bugs in any one check, they are a property
+of running attacker JS in the same address space as secrets while handing it
+a high-resolution clock — and `--useJSThreads` IS that clock, independent of
+`--useSharedArrayBuffer`. The disposition is therefore an EMBEDDER
+OBLIGATION, recorded here as the source of record for the Bun integration
+and surfaced verbatim in the `useJSThreads` OptionsList.h help text so no
+embedder can enable the flag without seeing it in `--options`.
+
+**The capability grant (S1/S2).** With `--useJSThreads=1
+--useSharedArrayBuffer=0`, `Thread`/`Lock`/`Atomics`-on-properties are
+present and `SharedArrayBuffer` is absent (independent gates,
+`OptionsList.h:691` vs `:712`, `JSGlobalObject.cpp` reads them in separate
+`if`s). A spawned `Thread` captures any plain shared-heap object and spins
+`Atomics.add(o, "c", 1)`; the observer reads `Atomics.load(o, "c")` — a
+free-running counter at near cache-coherency rate, 4-5 orders of magnitude
+finer than a coarsened browser timer. The 2018-era SAB-removal lever does
+not exist for this engine: the timer is inherent to the Thread API's reason
+for existing, and jitter cannot blunt a counting clock (which is WHY SAB was
+the thing browsers removed). `JSTests/threads/cve/mc-spec-timer-capability.js`
+is the capability WITNESS: it asserts the gating shape and that the counter
+advances between back-to-back loads. It is not a failure detector; PASS
+means the grant is present as designed.
+
+**Structural exposure (S3-S5).** This tree contains zero
+speculation-hardening primitives — no index masking between bounds branch
+and load (DFG `speculationCheck(OutOfBounds, ...)`, FTL
+`compileCheckInBounds`, runtime `canGetIndexQuickly` / I33-C4 clamps are all
+branch-only), no retpolines in the MacroAssembler layer, and
+`GIGACAGE_ENABLED` is FALSE on Windows and musl-mimalloc builds
+(`bmalloc/BPlatform.h`). What the threads flag changes vs stock JSC is (a)
+the S1 clock makes the cache-readback leg practical with no embedder-visible
+API, and (b) the shared heap server places every thread's objects in one
+address space by design — a transient OOB from thread A's butterfly lands in
+memory that holds every other thread's cells. None of this is fixable by a
+patch this project could demand; v2 mitigation is hardware/OS (eIBRS, IBPB)
+and per-indirect-branch retpolines in a JIT are not realistic.
+
+**Embedder obligation (the deliverable).** Treat `--useJSThreads` as
+equivalent to granting native code execution for confidentiality purposes:
+
+1. Never enable `--useJSThreads` for code you would not also trust with
+   `process.hrtime` + Workers + SAB. The flag is a strict superset of that
+   timing capability and is NOT gated by `--useSharedArrayBuffer`.
+2. No in-process secret is confidentiality-protected from JS running under
+   the flag — not by bounds checks, not by the cage (and there IS no cage on
+   Windows / musl-mimalloc), not by branch hygiene. Multi-tenant deployments
+   (plugins, user-supplied lambdas, sandboxes) MUST use multi-process
+   isolation; the JS sandbox does not hold against a co-resident reader with
+   this clock. Same conclusion the browsers reached in 2018.
+3. Server-side v2 posture (updated microcode, eIBRS) is assumed by ops, not
+   provided by the engine.
+
+Cheap engine-side hardening worth taking but NOT blocking (tracked in
+map-MC-SPEC.md S3/S4 dispositions, for thread-scanners): branchless index
+clamping on the new C4/I33 runtime paths; keep `Gigacage::Primitive` on any
+future shared-buffer allocation path.
+
+LANDED in tree: `OptionsList.h:691` help text carries the obligation
+verbatim (string-literal only; default `false` and option type unchanged,
+flag-off behavior byte-identical). Gate:
+`JSTests/threads/cve/mc-spec-timer-capability.js` under the pinned GIL-off
+env with `--useSharedArrayBuffer=0` — PASS = timer demonstrated; the doc is
+the deliverable.
+
 ---
 
 ## Landed deviations from the frozen SPEC-api text (escalation list for the spec owner / post-GIL re-freeze)

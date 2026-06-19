@@ -1,6 +1,7 @@
 # map-MC-SPEC — Speculative side channel enabled by shared memory
 
-Status: surface map, 2026-06-07; line citations re-verified 2026-06-15. Defensive audit artifact for `--useJSThreads`
+Status: surface map, 2026-06-07; line citations re-verified 2026-06-15;
+B15 embedder-obligation disposition LANDED 2026-06-18 (INTEGRATE-api.md 9.2-11). Defensive audit artifact for `--useJSThreads`
 (jarred/threads). Class definition: docs/threads/CVE-AUDIT.md "MC-SPEC" (merged from
 JS-SP; exemplars Spectre v1/v2, CVE-2017-5753 / CVE-2017-5715; industry response = SAB
 disabled Jan 2018, re-enabled only under cross-origin isolation).
@@ -217,12 +218,14 @@ is assumed.
 
 ---
 
-## Closing: the one real mitigation, stated as an embedder obligation
+## Closing: the one real mitigation, stated as an embedder obligation [LANDED — INTEGRATE-api.md 9.2-11 + OptionsList.h:691]
 
 Isolation is the industry answer to MC-SPEC, and for this engine isolation means:
 **`--useJSThreads` must be treated as equivalent to granting native code execution
-for confidentiality purposes.** Concretely, for SPEC-api (proposed non-normative
-annex note; this audit file is the source of record until a spec rev picks it up):
+for confidentiality purposes.** Concretely (LANDED as the CVE-AUDIT Tier-B B15
+disposition: docs/threads/INTEGRATE-api.md 9.2-11 is the embedder-facing source
+of record, and the `useJSThreads` help text at `runtime/OptionsList.h:691`
+carries the obligation verbatim so `--options` surfaces it):
 
 1. Never enable `--useJSThreads` for code you would not also trust with
    `process.hrtime` + a Worker + SAB — the flag is a strict superset of that timing

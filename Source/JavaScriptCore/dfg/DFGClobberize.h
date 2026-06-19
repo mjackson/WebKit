@@ -876,10 +876,12 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
                 // grade clobber / partial de-jank" outcome §7.1 anticipates
                 // for a YES ruling; if the ruling lands NO (plain reads may
                 // be hoisted), delete this block and adjust the corpus. The
-                // de-jank this change targets is preserved: SHAPE facts —
-                // structure, butterfly pointer, vector length, indexing
-                // type, typeinfo — remain hoistable across polls, guarded by
-                // the invalidation point + precise jettison.
+                // de-jank this change targets is preserved for the SHAPE
+                // facts that ARE precise-jettison-covered: structure,
+                // indexing type, typeinfo remain hoistable across polls,
+                // guarded by the invalidation point + precise jettison. The
+                // butterfly POINTER and vectorLength are NOT hoistable —
+                // see the JSObject_butterfly write below (Tier-B B3).
                 // (IndexedProperties is the supertype of all element-like
                 // heaps: the four indexed kinds, DirectArguments, Scope, and
                 // TypedArray properties — plain typed-array element reads
@@ -889,6 +891,35 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
                 write(NamedProperties);
                 write(IndexedProperties);
                 write(Butterfly_publicLength);
+                // Tier-B B3 / map-MC-JIT.md S2(a) (B3-JIT-POLL-CLOBBER-LINT):
+                // the BUTTERFLY POINTER itself MUST NOT survive the poll in
+                // unregistered code. The precise-jettison story above covers
+                // structure/indexingType — every falsifier of those goes
+                // through a stop window and bumps the conductor heap-fact
+                // rewrite epoch (arms (b)/(c) of map-MC-JIT.md S2). It does
+                // NOT cover arm (a): a foreign flat->segmented conversion +
+                // growth on an object whose TTL sets are already fired is a
+                // lock-free, NO-STW operation (OM 4.2) — no epoch bump, no
+                // jettison — yet it re-tags the butterfly word and (via the
+                // aliased fragment-0-slot-0 = flat IndexingHeader) grows the
+                // live publicLength past the frozen flat-era vectorLength
+                // (OM I9b). A LICM-hoisted (stale) masked flat base + a
+                // re-loaded (fresh) publicLength is then a heap OOB
+                // (CVE-2019-5782 / CVE-2021-2388 analog;
+                // JSTests/threads/cve/mc-jit-stale-base-grow-oob.js). Writing
+                // JSObject_butterfly + Butterfly_vectorLength here forces
+                // SAME-SNAPSHOT {base, publicLength, vectorLength} per poll
+                // boundary — the sufficient condition for S3's
+                // immune-by-construction BCE argument — so any staleness is
+                // memory-safe (old allocation kept live by conservative scan,
+                // never shrunk in place; jit R2 / OM I7). Structure /
+                // indexingType remain hoistable: the de-jank's chief win
+                // (CheckArray/CheckStructure surviving the poll) is intact.
+                // The validateButterflyTagDisciplineForGraph lint (declared
+                // below; SPEC-jit I14/I21(b) Task-13) cross-checks that no
+                // GetButterfly result is consumed across this clobber.
+                write(JSObject_butterfly);
+                write(Butterfly_vectorLength);
                 write(Absolute);
                 write(JSMapFields);
                 write(JSSetFields);
@@ -3152,6 +3183,24 @@ bool accessesOverlap(Graph&, Node*, AbstractHeap);
 bool writesOverlap(Graph&, Node*, AbstractHeap);
 
 bool clobbersHeap(Graph&, Node*);
+
+// SPEC-jit I14 + I21(b) Task-13 lint (Tier-B B3 / MC-JIT S2). Walks the
+// finalized DFG/FTL graph just before backend codegen and asserts:
+//   (a) I14: every node that dereferences a butterfly storage pointer takes
+//       its storage edge from a tag-masking (or tag-zero-by-construction)
+//       producer;
+//   (b) I21(b) poll-placement: no GetButterfly result is consumed across a
+//       JSObject_butterfly-clobbering boundary (CheckTraps poll, parkable
+//       slow path, or any explicit butterfly write). With CheckTraps' GIL-off
+//       clobberize entry above writing JSObject_butterfly, CSE/LICM enforce
+//       (b) by construction; the lint is a regression guard so a future
+//       de-jank that re-widens the poll's preserved-heap set is caught
+//       immediately under JSC_validateButterflyTagDiscipline=1.
+// Forward "available expressions" dataflow over GetButterfly defs.
+// Flag-off: tag is always zero, function is a no-op (byte-identical LAW).
+// Defined in dfg/DFGSpeculativeJIT.cpp; called from both backends just
+// before codegen (SpeculativeJIT::compileBody / FTL LowerDFGToB3::lower).
+void validateButterflyTagDisciplineForGraph(Graph&);
 
 // We would have used bind() for these, but because of the overlaoding that we are doing,
 // it's quite a bit of clearer to just write this out the traditional way.

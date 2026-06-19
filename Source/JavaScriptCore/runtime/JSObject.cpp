@@ -4282,8 +4282,17 @@ bool JSObject::setPrototypeWithCycleCheck(VM& vm, JSGlobalObject* globalObject, 
 {
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    if (Options::useJSThreads() && structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, this)) [[unlikely]]
+    if (Options::useJSThreads() && structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, this)) [[unlikely]] {
+        // SCAN-EXC-CHECKS (sweep 05): threadRestrictCheck declares a
+        // ThrowScope only on its Foreign-affinity throw path (the false
+        // return), whose dtor simulates a throw to THIS scope; the bare
+        // `return false` left it unchecked (the ThreadManager.cpp:1124 /
+        // JSObject.cpp:4283 report on api/thread-restrict.js). The check is
+        // the missing bracket — threadRestrictCheck returned false ⇔ it
+        // threw. Flag-off: branch not taken (useJSThreads gates the call).
+        EXCEPTION_ASSERT(scope.exception());
         return false;
+    }
 
     if (this->structure()->isImmutablePrototypeExoticObject()) {
         // This implements https://tc39.github.io/ecma262/#sec-set-immutable-prototype.

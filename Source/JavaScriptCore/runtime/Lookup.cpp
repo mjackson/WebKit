@@ -73,6 +73,16 @@ void lockStaticPropertyReificationLockContended(VM& vm)
     staticPropertyReificationLock().lock();
 }
 
+bool staticPropertyAlreadyReified(VM& vm, JSObject& thisObj, const PropertyName& propertyName)
+{
+    // S45-DUPLICATE-PROPERTY-NAME: out-of-line so reifyStaticProperty (inline in
+    // Lookup.h, instantiated widely) does not grow a StructureInlines.h
+    // dependency at every include site. Caller holds the reification lock.
+    ASSERT(Options::useJSThreads());
+    unsigned ignoredAttributes;
+    return isValidOffset(thisObj.getDirectOffset(vm, propertyName, ignoredAttributes));
+}
+
 void reifyStaticAccessor(VM& vm, const HashTableValue& value, JSObject& thisObject, PropertyName propertyName)
 {
     JSGlobalObject* globalObject = thisObject.realm();

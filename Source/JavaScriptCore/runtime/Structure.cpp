@@ -2537,13 +2537,17 @@ void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     }
     visitor.append(thisObject->m_previousOrRareData);
 
-    if (thisObject->isPinnedPropertyTable() || thisObject->protectPropertyTableWhileTransitioning()) {
-        // NOTE: This can interleave in pin(), in which case it may see a null property table.
-        // That's fine, because then the barrier will fire and we will scan this again.
-        visitor.append(thisObject->m_propertyTableUnsafe);
-    } else if (visitor.vm().isAnalyzingHeap())
-        visitor.append(thisObject->m_propertyTableUnsafe);
-    else if (Options::useJSThreads()) [[unlikely]] {
+    // Three independent reasons to KEEP the property table (same body, OR'd
+    // intentionally — was a bugprone-branch-clone if/else-if chain):
+    //  (a) pinned / mid-transition: must survive. NOTE: this can interleave
+    //      with pin(), in which case it may see a null property table; that's
+    //      fine, because then the barrier will fire and we will scan again.
+    //  (b) heap analysis: keep tables reachable so the snapshot sees them.
+    //  (c) useJSThreads — see T3 rationale below.
+    if (thisObject->isPinnedPropertyTable()
+        || thisObject->protectPropertyTableWhileTransitioning()
+        || visitor.vm().isAnalyzingHeap()
+        || Options::useJSThreads()) {
         // T3 (flag-on): KEEP cached property tables across GC instead of
         // dropping them on the floor. Flag-off this drop is a pure memory
         // optimization: the next mutator Structure::get re-materializes AND

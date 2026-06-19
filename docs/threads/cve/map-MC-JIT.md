@@ -34,7 +34,7 @@ Verdict summary:
 | # | Surface | Verdict |
 |---|---|---|
 | S1 | TTL-justified elision (E1/E2/E3) vs concurrent falsification | immune-by-construction |
-| S2 | Value-numbered butterfly/shape/length facts surviving polls in **unregistered** DFG/FTL code | **susceptible-suspected + needs-test** |
+| S2 | Value-numbered butterfly/shape/length facts surviving polls in **unregistered** DFG/FTL code | **CLOSED Tier-B B3** (poll-clobber + Task-13 lint landed; pinned by `mc-jit-stale-base-grow-oob.js`) |
 | S3 | Bounds-check elimination / CheckInBounds CSE on butterflies | immune-by-construction (conditional on S2) |
 | S4 | Typed-array/ArrayBuffer cached {base,length} vs detach/shrink/grow | needs-test (design covered, unimplemented) |
 | S5 | Compile-time proof vs installation (DFG Plan finalize) | immune-by-construction |
@@ -98,8 +98,33 @@ invalidation point makes any residual hoisting safe. Existing coverage:
 
 ## S2. Value-numbered butterfly/shape/length facts surviving safepoint polls in UNREGISTERED flag-on DFG/FTL code
 
-**Verdict: susceptible-suspected + needs-test.** This is the audit's central
-finding.
+**Verdict: CLOSED (Tier-B B3, B3-JIT-POLL-CLOBBER-LINT).** This was the
+audit's central finding; the original analysis is preserved below for the
+audit trail.
+
+**Closure (2026-06):** the GIL-off `CheckTraps` clobberize entry
+(`dfg/DFGClobberize.h`) now writes `JSObject_butterfly` and
+`Butterfly_vectorLength` in addition to the §7.1 interim value-heap writes,
+so CSE/LICM cannot carry a `GetButterfly` result (or a vectorLength fact)
+across a poll. That forces SAME-SNAPSHOT `{base, publicLength,
+vectorLength}` per poll boundary — the sufficient condition for S3's
+immune-by-construction BCE argument — closing arm (a) (the only arm not
+already covered by the precise-jettison + epoch-bump mechanism: (b)/(c) go
+through STW and bump `conductorHeapFactRewriteEpoch`, jettisoning the parked
+mutator on resume; (a)'s flat→segmented conversion with dead TTL sets is
+lock-free, no STW, no epoch bump). `JSCell_structureID`/`JSCell_indexingType`
+remain hoistable across polls (the de-jank's chief win), guarded by the
+invalidation point + precise jettison. The Task-13
+`validateButterflyTagDiscipline` lint is now a real check
+(`validateButterflyTagDisciplineForGraph`, defined in
+`dfg/DFGSpeculativeJIT.cpp`, declared in `dfg/DFGClobberize.h`, called from
+both backends just before codegen): a forward "available GetButterfly"
+dataflow that asserts (I14) every butterfly storage consumer takes its
+storage from a tag-masking/tag-zero producer and (I21(b)) no `GetButterfly`
+result is consumed across a `JSObject_butterfly`-clobbering boundary. Gate:
+`JSTests/threads/cve/mc-jit-stale-base-grow-oob.js` (was XFAIL/ASAN, now
+EXPECTED PASS); `JSC_validateButterflyTagDiscipline=1` corpus run = 0
+violations.
 
 ### The surface
 

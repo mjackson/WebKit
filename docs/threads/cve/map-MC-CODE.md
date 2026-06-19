@@ -6,9 +6,9 @@ IC/call-site patching, deopt racing the executing thread, freeing compiled code 
 still returns into. Known-good fix shape: ONE funnel (safepoint/handshake + entry
 barriers) plus i-cache ordering barriers (ISB-class on arm64).
 
-Audit date: **2026-06-15 re-audit**, tree `jarred/threads` (post thread-closeout +
-TSAN-TRIAGE §17 closure + AB18-D); supersedes the 2026-06-07 audit (UNGIL-HANDOUT
-rev 32 era). Governing design: SPEC-jit.md §5.1/§5.3/§5.6/§5.8, invariants
+Audit date: **2026-06-18 re-audit (B5)**, tree `jarred/threads` (post thread-closeout +
+TSAN-TRIAGE §17 closure + AB18-D + B5 precondition-10 mechanism); supersedes the
+2026-06-15 audit. Governing design: SPEC-jit.md §5.1/§5.3/§5.6/§5.8, invariants
 I2/I3/I7/I8/I16/I21, F5/F6, R1/R2; UNGIL-HANDOUT §A.3 + ANNEX ISB1; SPEC-heap §10/§11
 (epoch, scan); TSAN-TRIAGE.md §17.2 (retired-artifact dealloc enumeration).
 
@@ -19,10 +19,18 @@ replacements) are funneled through exactly one primitive
 (`JSThreadsSafepoint::stopTheWorldAndRun`, SPEC-jit R1). That is precisely the HotSpot
 fix shape. The audit below is therefore mostly "verify the funnel has no bypass".
 
-**Delta vs 2026-06-07:** S4's immunity was FALSIFIED (TSAN-TRIAGE §17.2 rows 16/17/18
-were real bypasses) then re-established by closeout fixes; S7 (precondition 11) was
-LANDED by AB18-D and is now immune; S1's I21(b) cite was corrected by map-MC-AINT S4;
-S6/S8 remain open.
+**Delta vs 2026-06-15:** S6 (precondition 10) MECHANISM is LANDED — the claim CAS
+is the release-publish of the deferred-fire fact, and
+`DeferredWatchpointFire::fireEarlyForGILOff` is the eager-fire entry point that
+closes the publication-before-fire window; the three named consumer reference sites
+(Watchpoint.cpp drain re-check, CallLinkInfo.cpp publishRecord,
+ConcurrentButterflyOperations.cpp R3 shims) were audited in-tree and none requires
+a separate acquire-load (all ride the §A.3 stop barrier or are not deferred-fire-fact
+consumers). S8 spawned-arm CLOSED — tripwire wired at `attachSpawnedThreadGCClient`
+(ThreadManager.cpp) behind `useThreadGILOffUnsafe` (CVE-B6); carrier non-main arm
+(JSLock.cpp `perThreadClientForCarrierEntry`) is the recorded second wiring site,
+residual. (Prior delta: S4 falsified-then-fixed by §17.2 rows
+16/17/18; S7/precondition 11 landed by AB18-D; S1's I21(b) cite struck.)
 
 ---
 
@@ -219,14 +227,46 @@ Surface:
 
 Mechanism match: this is exactly "deopt racing the executing thread".
 
-Verdict: **susceptible-suspected** (known, recorded: GIL-removal precondition 10,
-`docs/threads/INTEGRATE-jit.md:2332-2346`; full caveat at the overload). Sound
-today only because (a) the mutation+fire already runs world-stopped (the OM
-TTL-set pattern publishes INSIDE the stop), or (b) consumers re-check
-dynamically. Required fix is chartered: classify every deferred site
-(a)/(b)/(c) in the "fact published before fire?" column or restructure onto
-`Structure::fireThreadLocalSetsWithChainUnderStop`. Test (amplifier-ready
-stale-window detector): `JSTests/threads/cve/mc-code-deferred-fire-stale-window.js`.
+Verdict: **mechanism LANDED (B5); per-site adoption is the residual.**
+Precondition 10's protocol is now fixed in `bytecode/Watchpoint.{h,cpp}`:
+- **(1) Release-publish of the deferred-fire fact.** The claim CAS at
+  `Watchpoint.cpp` `fireAllSlow(VM&, DeferredWatchpointFire*)` flag-on arm
+  (`m_state.compareExchangeStrong(IsWatched, IsInvalidated)`, seq_cst hence
+  release) is the single release point at which the SOURCE set becomes
+  observably invalidated, and runs strictly BEFORE any caller publishes its
+  watched-fact mutation.
+- **(2) Eager-fire entry point.**
+  `DeferredWatchpointFire::fireEarlyForGILOff(VM&, const FireDetail&)`
+  (`bytecode/Watchpoint.h` / `.cpp`): gilOff callers invoke it AFTER dropping
+  the locks that motivated deferral but BEFORE publishing (the
+  setStructure/structureID store). gilOff Class-A pending → runs the full
+  Class-A stop+fire NOW, jettisoning every CodeBlock that watched the source
+  set BEFORE another mutator can act on the about-to-be-published fact; the
+  dtor's scope-exit fire is then a no-op. Flag-off / GIL-on / Class-B: no-op,
+  so the adapt-after-publish ordering stays byte-identical. Adaptive
+  watchpoints fire pre-publish gilOff and take their conservative path
+  (cannot re-install on the still-old structure) — recorded gilOff cost,
+  correctness > re-adapt.
+- **(3) Consumer audit (the three named reference sites).** All three were
+  checked in-tree with B5 audit comments landed at each:
+  `Watchpoint.cpp` `drainClassAFireQueue` state() re-check — runs
+  world-stopped, the §A.3 stop barrier is the ordering edge, no separate
+  acquire needed. `CallLinkInfo.cpp` `publishRecord` — NOT a deferred-fire-fact
+  consumer (F2 address-dependent reader; jettison-time unlink reaches it under
+  the §A.3 stop); references gilRemovalPreconditionsMet for precondition 11.
+  `ConcurrentButterflyOperations.cpp` R3 shims — NOT a deferred-fire-fact
+  consumer (regime-2 OM forwarders; references gilRemovalPreconditionsMet for
+  precondition 9). No site requires an explicit acquire-load of the
+  deferred-fire fact.
+
+The Task-11 audit's "fact published before fire?" column now records, per
+deferring site, which of (b) published-inside-stop / (c) re-checked
+dynamically / **(d) eager-fire-via-fireEarlyForGILOff** applies; (a)
+single-mutator-only is no longer admissible gilOff. Gate test
+(amplifier-ready stale-window detector, ASAN strongest):
+`JSTests/threads/cve/mc-code-deferred-fire-stale-window.js` — flips XFAIL→PASS
+once the (d) call is wired at every deferring site that publishes after the
+SAL scope (the JSObject/JSObjectInlines transition writers).
 
 ## S7 — Call-site publication: readers vs writers (call-site patching leg)
 
@@ -288,24 +328,56 @@ Mechanism is NOT cross-modifying code; recorded here only because the symptom
 pinned regression test
 `JSTests/threads/jit/ftl-direct-tailcall-dataic-arg-clobber.js`.
 
-## S8 — Meta-finding: the mechanical tripwire is not wired
+## S8 — Meta-finding: the mechanical tripwire — WIRED, spawned arm (CVE-B6)
 
 `JSThreadsSafepoint::gilRemovalPreconditionsMet()`
-(`bytecode/JSThreadsSafepoint.h:226-227`) is constexpr false and
+(`bytecode/JSThreadsSafepoint.h`) is constexpr false and
 `INTEGRATE-jit.md:2363-2369` requires the GIL-removal change to gate
-second-mutator attach on `RELEASE_ASSERT(gilRemovalPreconditionsMet())`. As of
-this re-audit the symbol is **still referenced only in comments**
-(`Watchpoint.cpp:440`; the `CallLinkInfo.cpp` reference now points at LANDED
-AB18-D text) — there is no assert at any spawn/attach/registration point
-(`runtime/ThreadManager.cpp`, `runtime/ThreadObject.cpp`, VMLite registration),
-while the gilOff §A.3 stop machinery is live and the bring-up ladder runs real
-second mutators.
+second-mutator attach on `RELEASE_ASSERT(gilRemovalPreconditionsMet())`. The
+tripwire is now **WIRED** at the gilOff **spawned-thread** second-mutator
+attach point:
 
-Verdict: **susceptible-suspected** (process hole, not a code race per se).
-Unchanged from 2026-06-07. With precondition 11 now closed (S7), the
-outstanding preconditions the tripwire must guard are 1, 2, 3, 9, 10
-(precondition 10 = S6). Recommendation stands: wire the RELEASE_ASSERT at the
-gilOff second-mutator attach point behind a bring-up-only override flag.
+    runtime/ThreadManager.cpp attachSpawnedThreadGCClient():
+    RELEASE_ASSERT(JSThreadsSafepoint::gilRemovalPreconditionsMet()
+                   || Options::useThreadGILOffUnsafe());
+
+`attachSpawnedThreadGCClient` is the §B.1 point where a spawned thread
+constructs its OWN `GCClient::Heap` and acquires first heap access — i.e. the
+exact instant a second concurrent JS mutator becomes live. The bring-up
+override is `useThreadGILOffUnsafe` (the same flag U0 option validation already
+requires to admit gilOff at all), so the ladder keeps running unchanged today;
+a production build that flips gilOff WITHOUT the override fail-stops here
+rather than running the documented GIL-sound-only gaps with N mutators.
+Unreachable flag-off (`vm.gilOff()` asserted immediately above; spawned threads
+are U0b-gated to the m_gilOff winner VM only).
+
+**RESIDUAL — second wiring site (out of B6 file scope):** the §F.1/§B.2
+carrier non-main arm at `runtime/JSLock.cpp perThreadClientForCarrierEntry`
+(the `new GCClient::Heap(vm.heap)` for `!isMainThread`, reached from
+`ensureCarrierLiteForCurrentThread` under `ASSERT(vm.gilOff())`) is ALSO a
+gilOff concurrent-mutator admission point per the ANNEX A36C / §F.1 design and
+MUST carry the identical assert. With only the spawned arm wired, a future
+commit that relaxes the U0 option-validation gate without flipping the
+predicate would fail-stop spawned attach but silently admit a non-main carrier
+as a concurrent mutator. The carrier wiring lands with the JSLock owner or the
+GIL-removal commit; recorded here so S8 is not read as fully closed.
+
+**Tautology note (intentional):** because `vm.gilOff()` is reachable today only
+when U0 option validation (`Options.cpp`) passed — which itself requires
+`useThreadGILOffUnsafe` — the wired assert cannot fire under any present
+configuration. The tripwire's teeth depend on the U0 gate and the override flag
+being retired TOGETHER with the predicate flip; it is NOT independently
+load-bearing today. This is by design (future-tripwire).
+
+The three comment-only references (`Watchpoint.cpp` precondition-10 ORDERING,
+`CallLinkInfo.cpp` AB18-D, `ConcurrentButterflyOperations.cpp` precondition 9)
+remain as precondition trackers. Outstanding preconditions the predicate must
+guard before flipping true: 1, 2, 3, 9 plus the precondition-10 per-site
+Task-11 column. The GIL-removal change flips the constant true, retires the
+override flag, AND wires the carrier non-main site in the SAME commit.
+
+Verdict: **CLOSED — spawned arm** (process hole; tripwire wired behind bring-up
+override). **Carrier non-main arm: residual wiring site** (JSLock.cpp).
 
 ---
 
@@ -318,9 +390,9 @@ gilOff second-mutator attach point behind a bring-up-only override flag.
 | S3 | i-cache ordering incl. access-released sleepers | F5/R1.d + UNGIL ANNEX ISB1 | needs-test → `mc-code-sleep-through-jettison-isb.js` | none |
 | S4 | Freeing jettisoned code/data (nmethod sweeper) | R2/I7/G1, §4.4 + TSAN-TRIAGE §17.2 | immune-by-construction (fixed tree) | **was falsified; rows 16/17/18 fixed** |
 | S5 | Property-IC publish/reset | §5.1/§4.4, F2, I3/I16 | immune-by-construction | none |
-| S6 | Deferred Class-A fire fact ordering | §5.6 + precondition 10 | susceptible-suspected (recorded) → `mc-code-deferred-fire-stale-window.js` | claim CAS landed; ordering still open |
+| S6 | Deferred Class-A fire fact ordering | §5.6 + precondition 10 | **mechanism LANDED (B5)** — release claim-CAS + `fireEarlyForGILOff`; consumer sites audited (ride §A.3 stop barrier) → `mc-code-deferred-fire-stale-window.js` | **claim CAS + eager-fire mechanism + 3-site consumer audit landed**; per-site (d) wiring is the residual |
 | S7 | Call-link writers (publishRecord double-retire) | §5.8/F6 + precondition 11 | **immune-by-construction (AB18-D)** → `mc-code-calllink-writer-writer.js` (regression) | **was suspected; LANDED** |
-| S8 | Unwired gilRemovalPreconditionsMet tripwire | INTEGRATE-jit.md tripwire contract | susceptible-suspected (process) | none |
+| S8 | gilRemovalPreconditionsMet tripwire | INTEGRATE-jit.md tripwire contract | **CLOSED spawned arm (CVE-B6)** — wired at `attachSpawnedThreadGCClient` behind `useThreadGILOffUnsafe`; **residual**: carrier non-main arm (`JSLock.cpp perThreadClientForCarrierEntry`) second wiring site | **spawned wired; carrier residual** |
 
 All three tests carry `//@` headers; S3 detection is arm64-hardware strongest;
 S6 detection is strongest under ASAN + the race amplifier. S4's re-audit is a

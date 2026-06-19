@@ -214,9 +214,21 @@ unimplemented binding ruling on exactly this mechanism class, the conductor
 mutates HandleSet state without holding any client's access (outside the
 sanctioned jit-R1.i write exemption's purpose), and the benignity argument
 collapses the moment SPEC-congc moves finalization off the global stop.
-**Action: either land carve-out (b)'s deferral or amend the handout to bless
-the in-stop execution with the I6 argument.**
-**Verdict: suspected (divergence) + needs-test** —
+**Landed (CVE-AUDIT B7): carve-out (b)'s deferral.**
+`Heap::LambdaFinalizerOwner::finalize` (heap/Heap.cpp) now defers the lambda
+body whenever WSAC is set (gilOff-gated; flag-off byte-identical) into
+`Heap::m_deferredLambdaFinalizers`, drained by
+`Heap::drainDeferredLambdaFinalizers` at the `conductSharedCollection` tail —
+post `closeSharedGCStopWindow` + `acquireHeapAccess`, i.e. entered-with-access
+OUTSIDE the stop window, exactly the carve-out's stated context. The WeakImpl
+is freed in-stop (lock-free); the deferred lambda receives a null `JSCell*`
+(its block may already be reclaimed by `reclaimSharedGCMemoryAtCycleEnd`) —
+the 5.10 lambda captures its `ThreadState` by `Ref` and ignores the argument.
+WSAC is set/cleared only by `open`/`closeSharedGCStopWindow`, both reachable
+only from `conductSharedCollection`, so every deferred lambda has a matching
+same-thread drain before the conductor returns. The WS(ii) closed list stays
+closed: this body no longer mutates HandleSet/joinLock from inside a stop.
+**Verdict: FIXED (deferral landed) + needs-test** —
 `JSTests/threads/cve/mc-gc-thread-shell-finalizer-storm.js` (dead shells +
 5.10 lambdas finalized by spawned-thread conductors racing live asyncJoin
 settles; oracle = exactly-once settles with exact results, no deadlock).
@@ -231,16 +243,21 @@ performed *during* GC. Ours:
 `DeferredWorkTimer::addPendingWork` + `scheduleWorkSoon` to schedule the
 cleanup job. Three holes/edges, in increasing severity of doubt:
 
-1. **Stale entry assertion.** `addPendingWork`'s guard
-   (`runtime/DeferredWorkTimer.cpp:359`) admits only
+1. **Stale entry assertion — FIXED (B8).** `addPendingWork`'s guard
+   (`runtime/DeferredWorkTimer.cpp` entry assert) admitted only
    `currentThreadIsHoldingAPILock() || (Thread::mayBeGCThread() && worldIsStopped())`.
    A shared-mode conductor is a *mutator* (GCConductor::Mutator, §10B.2) —
    GIL-off it holds no API lock and is not `mayBeGCThread()`. The legacy
    single-mutator note survives at `heap/Heap.cpp:890-892` ("expects tasks to
    only be posted by the API lock holder") — neither was T5b-audited for the
    shared conductor (no `// SharedGC:` tag in `JSFinalizationRegistry.cpp`).
-   Debug-build aborts on the first spawned-conductor full GC that readies a
-   registry cell; needs the `|| WSAC` treatment.
+   Debug-build aborted on the first spawned-conductor full GC that readied a
+   registry cell. **Landed:** the `|| vm.heap.worldIsStoppedForAllClients()`
+   disjunct, with the `// SharedGC (CVE-audit B8, MC-GC S6)` protocol-exception
+   comment recording why WSAC is a sufficient single-writer witness here
+   (F7: conductor-written under GBL; every other client NoAccess behind the
+   §10.4 barrier). Flag-off / non-shared: WSAC is never set, so the added
+   disjunct is dead and the legacy two-arm contract is enforced unchanged.
 2. **Cross-thread routing of the cleanup ticket.** When the conductor is a
    spawned thread, `addPendingWork` takes the §E.7 internal arm
    (`DeferredWorkTimer.cpp:357-396`: keyed on
@@ -258,8 +275,7 @@ cleanup job. Three holes/edges, in increasing severity of doubt:
    (UNGIL-HANDOUT K4.VII.7). The classic deref-vs-concurrent-mark race is a
    **SPEC-congc re-audit item**, recorded there.
 
-**Verdict: suspected (items 1-2; item 1 is a concrete defect in debug
-builds) + needs-test** —
+**Verdict: item 1 FIXED (B8); item 2 needs-test** —
 `JSTests/threads/cve/mc-gc-finreg-cross-thread-gc.js` (spawned conductors
 force full GCs; oracles: exactly-once cleanup per registration, unregistered
 holdings never delivered, at-least-one delivery — loss exits non-zero via
@@ -543,8 +559,8 @@ discharge.
 | S2b | per-thread CLoop stacks | immune on JIT builds / suspected-if-C_LOOP | keep `Heap.cpp:1043-1056` note; ladder pins JIT builds |
 | S3 | spawn handoff publication | immune (5.10 Strongs precede `Thread::create`) | — |
 | S4 | thread exit vs collector sampling | immune (EXIT1.3 ordering) | teardown half owned by map-MC-TDWN |
-| S5 | 5.10 native finalizer in stop window | **suspected** (binding §LK carve-out (b) unimplemented; benign-today argument given) + needs-test | `mc-gc-thread-shell-finalizer-storm.js`; align handout or land deferral |
-| S6 | FinalizationRegistry enqueue from a shared conductor | **suspected** (stale `DeferredWorkTimer.cpp:359` assert = debug abort; §E.7 routing unexercised) + needs-test | `mc-gc-finreg-cross-thread-gc.js`; add `\|\| WSAC` to the assert |
+| S5 | 5.10 native finalizer in stop window | **FIXED** (B7: carve-out (b) deferral landed — `Heap::LambdaFinalizerOwner::finalize` defers under WSAC, drained post-resume with-access at `conductSharedCollection` tail; gilOff-gated) + needs-test | `mc-gc-thread-shell-finalizer-storm.js` |
+| S6 | FinalizationRegistry enqueue from a shared conductor | item 1 **FIXED** (B8: `\|\| WSAC` disjunct landed in `DeferredWorkTimer.cpp` `addPendingWork` entry assert); item 2 §E.7 routing → **needs-test** | `mc-gc-finreg-cross-thread-gc.js` |
 | S7 | §11 epoch reclamation | immune (I11 assert-backed; attach/detach edges engineered) | covered by existing corpus/unit tests |
 | S8 | dead-TID reissue vs surviving tags | design-immune; multi-VM tripwire = known abort | test owned by map-MC-TDWN S10 |
 | S9 | async-ticket dependency rooting | immune (double-rooted; access rule closes the window) | — |

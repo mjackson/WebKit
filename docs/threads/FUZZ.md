@@ -105,7 +105,7 @@ nice -n 10 bash Tools/threads/fuzz/run-fuzzilli.sh            # JOBS=4 default
 JOBS=16 nice -n 10 bash Tools/threads/fuzz/run-fuzzilli.sh    # bigger box share
 
 # Bare-metal equivalent of what the script runs:
-ASAN_OPTIONS="abort_on_error=1:symbolize=1:detect_leaks=0:allocator_may_return_null=1" \
+ASAN_OPTIONS="detect_stack_use_after_return=0:abort_on_error=1:symbolize=1:detect_leaks=0:allocator_may_return_null=1" \
 nice -n 10 /root/fuzzilli/.build/release/FuzzilliCli \
   --profile=jscthreads \
   --storagePath=/root/WebKit/WebKitBuild/Fuzz/fuzzilli-storage \
@@ -144,6 +144,22 @@ WebKitBuild/Fuzz/bin/jsc --useJSThreads=1 <flags from the crash file header> cra
 # lifted .js is already minimized):
 cd /root/fuzzilli && swift run FuzzILTool --liftToFuzzIL crash.fzil
 ```
+
+**ASAN_OPTIONS lane pin (CVE-AUDIT B9 / MC-GC S2a):** every Linux ASAN
+threads lane — the fuzz target included — MUST set
+`detect_stack_use_after_return=0`. With UAR on (clang's recent default),
+address-taken locals live on a heap fake-stack outside `thread.stack()`; the
+T5 cooperative parked-root scan captures `&local` as `stackTop` and the
+conductor's `copyMemory` walks a span off the mapped OS stack
+(`MachineStackMarker.cpp:128` SEGV; reproduced in-tree as
+`JSTests/threads/cve/mc-gc-s2a-uar-fakestack.crash.txt`). The engine-side
+publish/consumer bounds-checks decline-and-fall-back so this is not a
+correctness hole, but UAR-on degrades every cooperative snapshot to a
+SIGUSR2 suspend and any new publish site that escapes UAR instrumentation
+re-opens the fault — pin it off so the fuzzer exercises the production
+shape. `Tools/threads/fuzz/run-fuzzilli.sh`'s `ASAN_OPTIONS` export must
+include the same `detect_stack_use_after_return=0` term (add it if absent);
+the bare-metal command above already does.
 
 Crash dedup is by ASAN signature + Fuzzilli "crash behaviour is
 deterministic/flaky" tagging in the .js header comments. Thread bugs are

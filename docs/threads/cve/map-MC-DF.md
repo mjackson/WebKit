@@ -453,6 +453,38 @@ check-then-reload) that the shared-everything model has widened past.**
 The round-4 sweep fixed the JSArray.cpp instances; ArrayPrototype.cpp and
 JSGenericTypedArrayViewInlines.h were outside that sweep's file set.
 
+### S8 + S10b — FIXED 2026-06-18 (Tier-B B1+B2)
+
+Landed the round-4 single-snapshot discipline at both sites:
+
+- **S8** `sortCompact` (ArrayPrototype.cpp): the §10.7 gate stays as the
+  flag-off-dead segmented hint; flag-on, ONE `taggedButterflyWord()` load
+  immediately after it drives every flat deref in all three case bodies
+  (segmented/null snapshot → `default` arm → generic
+  `getIfPropertyExists` loop), with each case's read loop bounded by the
+  SNAPSHOT's `vectorLength`. Flag-off the `[[unlikely]]` arm is dead and
+  the case bodies compile to the unchanged originals (I22).
+- **S10b** `copyFrom{Int32,Double}ShapeArray`
+  (JSGenericTypedArrayViewInlines.h): the helper BODIES now carry the
+  authoritative snapshot — ONE `taggedButterflyWord()` load at the top,
+  segmented/null/short → regime-safe `tryGetIndexQuickly` per-element
+  fallback (never OOBs, never follows garbage as a pointer); otherwise
+  every `array->butterfly()` re-load replaced with the single
+  `sourceButterfly`. This also closes the previously-ungated
+  `genericTypedArrayViewPrivateFuncFromFast` caller (allocation safepoint
+  between its shape check and the helper call) without touching that
+  unowned file. The `setFromArrayLike` §10.7 gate is demoted to a
+  dispatch hint between the flat-helper and segmented-walk arms; both
+  arms are individually authoritative.
+
+R-DOUBLE residual matches the round-4 ruling at fastSlice
+(JSArray.cpp:2115-2122): shape relabels touching Double on a shared word
+are per-event STW (§4.7/§10.6); the lock-free Int32→Contiguous (§4.3)
+race yields at worst reinterpreted numbers in private storage / TA
+elements, never a followed cell pointer. Gate:
+`mc-df-arraycopy-relabel.js` 20/20 Debug GIL-off + ASAN with
+`--verifyConcurrentButterfly=1`.
+
 ## Test manifest (EXECUTED LATER, post-ungil — do not run during bring-up)
 
 - JSTests/threads/cve/mc-df-ta-detach-resize.js — `--useJSThreads=1`

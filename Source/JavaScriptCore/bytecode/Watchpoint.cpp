@@ -308,6 +308,13 @@ void WatchpointSet::drainClassAFireQueue()
         // this drain (or a previous winner's drain) may already have
         // invalidated this set; fires are idempotent.
         s_bhDrainedFireEntries.fetch_add(1, std::memory_order_relaxed); // BUGHUNT (always-on counter; read only when env-gated dump runs).
+        // B5 audit (precondition 10, docs/threads/cve/map-MC-CODE.md S6): this
+        // re-check is a CONSUMER of the deferred-fire fact (a deferred claim
+        // CAS may have flipped this set to IsInvalidated on another mutator
+        // before this drain runs). The load is relaxed (state()) but the
+        // ordering edge is the §A.3 stop barrier we are INSIDE — every
+        // mutator's prior writes (including the seq_cst claim CAS) are
+        // visible world-stopped. No separate acquire needed.
         if (entry->set->state() == IsWatched) {
             // Step (4): the existing fire body, world stopped. Step (5):
             // jettisons performed by the fired Watchpoints (e.g.
@@ -421,22 +428,35 @@ void WatchpointSet::fireAllSlow(VM&, DeferredWatchpointFire* deferredWatchpoints
     // (e.g. Structure transitions); pre-M4 the GIL stub guarantees a single
     // mutator.
     //
-    // ORDERING CAVEAT (review round 1; GIL-removal precondition, recorded in
-    // docs/threads/INTEGRATE-jit.md): a deferring caller COMPLETES its watched-
-    // fact mutation (e.g. publishes a new structureID into objects) BEFORE the
-    // scope-exit fire stops the world. Under N mutators, any optimized code in
-    // ANOTHER mutator that elided a check based on this set executes against
-    // the already-false fact until the stop lands — THREAD.md forbids exactly
-    // that ("it will not actually perform the write until that optimized code
-    // reaches a safepoint and gets invalidated"). This deferral form is
-    // therefore sound only when (a) a single mutator runs (phase-1 GIL — the
-    // case today), (b) the world is already stopped around the whole
-    // mutation+fire (the OM's TTL-set pattern:
-    // Structure::fireThreadLocalSetsWithChainUnderStop publishes INSIDE the
-    // stop), or (c) the specific watched fact is re-checked dynamically by all
-    // compiled consumers. Before GIL removal, every deferred Class-A site must
-    // be classified (a)/(b)/(c) in the Task-11 audit's "fact published before
-    // fire?" column or restructured onto the TTL-set pattern; see
+    // ORDERING (B5; GIL-removal precondition 10 — MECHANISM LANDED,
+    // docs/threads/cve/map-MC-CODE.md S6): a deferring caller COMPLETES its
+    // watched-fact mutation (e.g. publishes a new structureID into objects)
+    // BEFORE the scope-exit fire stops the world. Under N mutators, optimized
+    // code in another mutator that elided a check on this set would otherwise
+    // execute against the already-false fact in that window — forbidden by
+    // THREAD.md. The protocol that closes the window:
+    //   (1) THIS function release-publishes the deferred-fire fact: the
+    //       claim CAS below (m_state IsWatched -> IsInvalidated, seq_cst,
+    //       hence release) on the SOURCE set is the single point at which the
+    //       set becomes observably invalidated to every acquire-loader, and
+    //       runs BEFORE any caller publishes its watched-fact mutation. Any
+    //       consumer that decides whether to re-use a not-yet-jettisoned
+    //       code pointer either acquire-loads the source set's state and
+    //       observes IsInvalidated, or rides the §A.3 stop barrier (the S6
+    //       audit found every in-tree consumer is the latter).
+    //   (2) gilOff callers convert the scope-exit fire into an EAGER fire via
+    //       DeferredWatchpointFire::fireEarlyForGILOff: after dropping every
+    //       lock that motivated deferral but BEFORE publishing the
+    //       watched-fact mutation, they fire the transferred set under a
+    //       Class-A stop, so every CodeBlock that watched the source is
+    //       jettisoned BEFORE another mutator can act on the about-to-be-
+    //       published fact. The dtor's scope-exit fire is then a no-op.
+    //       Flag-off / GIL-on: fireEarlyForGILOff is a no-op and the dtor
+    //       fire keeps today's adapt-after-publish ordering byte-identical.
+    // The Task-11 "fact published before fire?" audit column records, per
+    // deferring site, which of (b) published-inside-stop / (c) re-checked
+    // dynamically / (d) eager-fire-via-fireEarlyForGILOff applies; (a)
+    // single-mutator-only is no longer an admissible verdict gilOff. See
     // JSThreadsSafepoint::gilRemovalPreconditionsMet().
     // B-relabelrace (SPEC-jit §5.6 deferral row, amended in this change):
     // the owner-side-serialization claim above does NOT hold for every entry.
@@ -629,6 +649,46 @@ void DeferredWatchpointFire::takeWatchpointsToFire(WatchpointSet* watchpointsToF
     // IsWatched. Both arms assert the one exact state their protocol permits.
     ASSERT(watchpointsToFire->state() == (Options::useJSThreads() ? IsInvalidated : IsWatched));
     m_watchpointsToFire.take(watchpointsToFire);
+}
+
+void DeferredWatchpointFire::fireEarlyForGILOff(VM& vm, const FireDetail& detail)
+{
+    // B5 / precondition 10 mechanism (see the declaration in Watchpoint.h and
+    // the ORDERING comment at WatchpointSet::fireAllSlow(VM&,
+    // DeferredWatchpointFire*)). gilOff-gated: flag-off and GIL-on keep the
+    // dtor's adapt-after-publish ordering byte-for-byte (this body is dead
+    // code there — every caller is behind a vm.gilOff() gate, and the cheap
+    // re-check below makes a stray call a no-op).
+    if (!vm.gilOff()) [[likely]]
+        return;
+    if (m_watchpointsToFire.state() != IsWatched)
+        return; // Nothing claimed (loser of the claim CAS, or already fired).
+    if (!m_watchpointsToFire.invalidatesCompiledCode())
+        return; // Class-B set: data-only fires never had an ordering window.
+    // Foot-gun closure (B5 review): the routing in fireAllSlow(VM&, const
+    // FireDetail&) consults BOTH the set's Class-A bit AND the FireDetail's
+    // rare-site data-only override. A data-only detail on a Class-A holder
+    // would route to fireAllNow with NO §A.3 stop — silently defeating this
+    // entry point's whole jettison-before-publish guarantee while still
+    // draining the holder (so the dtor's correct STW fire is also skipped).
+    // Adopters construct the FireDetail externally here (unlike the dtor path,
+    // where the concrete subclass builds it internally), so assert the
+    // contract: the detail passed MUST be the same non-data-only detail the
+    // scope-exit fire would have used. Strengthening only; flag-off this body
+    // is unreachable.
+    ASSERT(!detail.fireIsDataOnly());
+    // Caller contract (asserted by the §A.3 conductor / watchdog inside
+    // fireAllUnderClassAStop): we are at a valid stop-request point — no
+    // SAL, no rank-3 lock, exactly the same point the dtor fire would run.
+    // The transferred set inherited the source's Class-A bit (take()), so
+    // fireAll routes through fireAllSlow -> fireAllUnderClassAStop and runs
+    // the full stop + jettison BEFORE we return; on return every CodeBlock
+    // that elided a check on the claimed source set is jettisoned and the
+    // caller may publish its watched-fact mutation with no stale-consumer
+    // window. m_watchpointsToFire is left IsInvalidated/empty so the dtor's
+    // state()==IsWatched gate is false and the scope-exit fire is a no-op.
+    m_watchpointsToFire.fireAll(vm, detail);
+    ASSERT(m_watchpointsToFire.state() == IsInvalidated);
 }
 
 } // namespace JSC

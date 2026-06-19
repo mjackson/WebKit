@@ -270,6 +270,13 @@ void assertButterflyTIDTagCoherent()
 // until then, and these RELEASE_ASSERT_NOT_REACHED bodies are unreachable
 // today (no emitter references them; all predicate failures route to
 // existing generic paths).
+//
+// B5 audit (precondition 10, docs/threads/cve/map-MC-CODE.md S6): these R3
+// shims are NOT consumers of the deferred-fire fact. They forward to OM
+// segmented-butterfly accessors and never re-use a code pointer gated on a
+// WatchpointSet state; the gilRemovalPreconditionsMet() reference here tracks
+// precondition 9 (regime-2 fast paths), not 10. No acquire-load of the
+// deferred-fire fact is needed at this site.
 // THREADS-INTEGRATE(jit)
 // ===========================================================================
 

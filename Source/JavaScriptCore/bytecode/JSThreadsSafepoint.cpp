@@ -28,6 +28,7 @@
 
 #include "Heap.h"
 #include "HeapInlines.h"
+#include "MachineContext.h" // B16 watchdog triage: foreign-thread PC/FP capture for the fail-stop backtrace dump.
 #include "MachineStackMarker.h" // T5-rootscan-skip: DECLARE_AND_COMPUTE_CURRENT_THREAD_STATE at the class-(2) park.
 #include "VM.h"
 #include "VMLiteShared.h" // VMLiteRegistry: watchdog timeout participant dump.
@@ -37,7 +38,9 @@
 #include <wtf/Atomics.h>
 #include <wtf/DataLog.h>
 #include <wtf/IterationStatus.h>
+#include <wtf/RecursiveLockAdapter.h> // B16 watchdog triage: gilOffCompilationLock / staticPropertyReificationLock isOwner() probe.
 #include <wtf/Seconds.h>
+#include <wtf/Threading.h> // B16 watchdog triage: ThreadSuspendLocker / PlatformRegisters for the fail-stop backtrace dump.
 
 // Pre-M4 stub witness of the object-model workstream (SPEC-objectmodel manifest
 // entry 6 / SPEC-jit section 5.6 disjunct 4, CS6). The witness global
@@ -85,6 +88,16 @@ bool gcClientReleaseAccessAndBlockForPendingSharedGCStop();
 // publish/clear bracketing the class-(2) ticket park below.
 void gcClientPublishParkedRootSnapshot(CurrentThreadState*);
 void gcClientClearParkedRootSnapshot();
+
+// B16 (CVE-AUDIT Tier-B / map-MC-SAFE cross-family): the two long-hold
+// recursive locks a §A.3 conductor can be holding when it requests an OM
+// transition stop (FIX-2 mech (1) "escaped lock-holding fireAll caller"
+// candidates). Owners: runtime/ScriptExecutable.cpp,
+// runtime/Lookup.cpp. Consumed only on the watchdog fail-stop path
+// (isOwner() probe — a held lock here means a contended waiter on that lock
+// is the prime suspect for the non-quiescent lite). Same-library seam.
+RecursiveLock& gilOffCompilationLock();
+RecursiveLock& staticPropertyReificationLock();
 
 namespace JSThreadsSafepoint {
 
@@ -688,6 +701,18 @@ void watchdogAssertStopProgress(MonotonicTime requestStart, VM* vm) WTF_IGNORES_
     // run once on the way into the fail-stop, so the crash log identifies
     // WHICH entered lite still holds access instead of only the requester's
     // (often nil) Class-A context.
+    // B16 triage (CVE-AUDIT Tier-B / map-MC-SAFE cross-family): collected
+    // (tid, owning WTF::Thread*) for every NON-QUIESCENT lite, captured under
+    // the registry lock and walked AFTER releasing it (the suspend/backtrace
+    // below must not run while holding the registry leaf lock — the suspended
+    // thread may be spinning on it, and the SIGUSR2 ack handshake would then
+    // never complete). Fixed-size to stay allocation-free under the registry
+    // lock; the watchdog only needs to name the wedge, so a few entries
+    // suffice.
+    constexpr unsigned watchdogMaxWedgedDump = 8;
+    struct { uint16_t tid; WTF::Thread* thread; } wedged[watchdogMaxWedgedDump];
+    unsigned numWedged = 0;
+
     if (vm) {
         VMLite* requesterLite = VMLite::currentIfExists();
         auto& registry = VMLiteRegistry::singleton();
@@ -710,29 +735,151 @@ void watchdogAssertStopProgress(MonotonicTime requestStart, VM* vm) WTF_IGNORES_
             dataLogLn("  (registry lock unavailable after bounded spin — possible registry-lock-holding wedge; skipping participant dump)");
             RELEASE_ASSERT_NOT_REACHED();
         }
-        Locker locker { AdoptLock, registry.lock };
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-        // A foreign §A.3 window open at dump time means the access-holding
-        // lite below may be that window's conductor (AB-21 re-acquire), not
-        // a wedged mutator — i.e. the caller is a starved/queued requester,
-        // not a conductor whose predicate cannot converge.
-        bool foreignWindowOpen = jsThreadsThreadGranularWorldIsStopped() && !jsThreadsCurrentThreadIsStopConductor();
-        if (foreignWindowOpen)
-            dataLogLn("  NOTE: another thread's §A.3 stop window is OPEN (witness depth nonzero, opened by a different thread) — this requester never reached/held tenure; access-holders below may be that live conductor.");
-        for (VMLite* lite : registry.lites) {
-            if (lite->vm != vm)
+        {
+            Locker locker { AdoptLock, registry.lock };
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+            // A foreign §A.3 window open at dump time means the access-holding
+            // lite below may be that window's conductor (AB-21 re-acquire), not
+            // a wedged mutator — i.e. the caller is a starved/queued requester,
+            // not a conductor whose predicate cannot converge.
+            bool foreignWindowOpen = jsThreadsThreadGranularWorldIsStopped() && !jsThreadsCurrentThreadIsStopConductor();
+            if (foreignWindowOpen)
+                dataLogLn("  NOTE: another thread's §A.3 stop window is OPEN (witness depth nonzero, opened by a different thread) — this requester never reached/held tenure; access-holders below may be that live conductor.");
+            for (VMLite* lite : registry.lites) {
+                if (lite->vm != vm)
+                    continue;
+                if (lite->state != VMLite::State::Live)
+                    continue;
+                if (!lite->clientHeap)
+                    continue;
+                bool nonQuiescent = lite != requesterLite && lite->clientHeap->hasHeapAccess();
+                // B16: parkedRootSnapshotThread() is the per-thread client's
+                // owning WTF::Thread*, set on its first coop-snapshot publish
+                // (LockObject.cpp GILDroppedSection spawned-arm,
+                // JSThreadsSafepoint.cpp class-(2) park, Heap.cpp F8 wait)
+                // and never cleared independently — under U-T6 per-thread
+                // clients it is the stable identity once set. Null only if
+                // the lite has never parked once (rare; both B16 repros'
+                // workers Atomics.wait at startup).
+                WTF::Thread* liteThread = lite->clientHeap->parkedRootSnapshotThread();
+                dataLogLn("  entered lite ", RawPointer(lite), " tid=", lite->tid,
+                    lite == requesterLite ? " [requester/conductor — exempt]" : "",
+                    " clientHeap=", RawPointer(lite->clientHeap),
+                    " hasHeapAccess=", lite->clientHeap->hasHeapAccess(),
+                    " ownerThread=", RawPointer(liteThread),
+                    " ownerThreadUID=", liteThread ? liteThread->uid() : 0,
+                    nonQuiescent
+                        ? (foreignWindowOpen ? "  <== access-holding (possibly the OPEN window's conductor — see NOTE above)" : "  <== NON-QUIESCENT (blocking the stop)")
+                        : "");
+                if (nonQuiescent && numWedged < watchdogMaxWedgedDump) {
+                    wedged[numWedged].tid = lite->tid;
+                    wedged[numWedged].thread = liteThread;
+                    ++numWedged;
+                }
+            }
+        }
+        // Registry lock dropped (Locker scope closed). Everything below is
+        // best-effort fail-stop diagnostics: this thread is about to
+        // RELEASE_ASSERT_NOT_REACHED, so allocation / suspend / signal use
+        // here cannot regress live behaviour. None of this is reachable
+        // flag-off (every watchdogAssertStopProgress caller is on a gilOff-
+        // only path: VMManager.cpp:683/:770 §A.3 conductor loops and the
+        // Heap::JSThreadsStopScope watchdog ctor at Heap.cpp:7750), so
+        // flag-off byte-identical is preserved.
+
+        // B16 conductor-side held-lock facts (FIX-2 mech (1) discriminator).
+        // A TRUE here means the conductor entered jsThreadsStopTheWorldAndRun
+        // while holding a long-hold recursive lock that other mutators may
+        // contend RAW — i.e. the wedged lite is most likely blocked inside
+        // that lock's contended-acquire path. A FALSE for both rules them
+        // out and points at FIX-2 mech (2) (an unbracketed access-holding
+        // native wait on the wedged lite's stack).
+        dataLogLn("  conductor thread uid=", Thread::currentSingleton().uid(),
+            " isCurrentlyTenuredConductor=", jsThreadsCurrentThreadIsStopConductor(),
+            " holdsGilOffCompilationLock=", gilOffCompilationLock().isOwner(),
+            " holdsStaticPropertyReificationLock=", staticPropertyReificationLock().isOwner());
+        {
+            JSC::Heap& server = vm->clientHeap.server();
+            dataLogLn("  server heap ", RawPointer(&server),
+                " isSharedServer=", server.isSharedServer(),
+                " gcStopPendingForAllClients=", server.gcStopPendingForAllClients(),
+                " worldIsStoppedForAllClients=", server.worldIsStoppedForAllClients());
+        }
+
+        // B16 wedged-thread native backtrace. The single most useful
+        // localization datum: WHERE the non-quiescent lite is sitting in
+        // native code with heap access held for 30s. Suspend it (the same
+        // SIGUSR2 machinery the conservative root scan uses —
+        // MachineThreads::tryCopyOtherThreadStacks), capture PC + walk the
+        // frame-pointer chain inside that thread's real stack bounds, then
+        // resume so the subsequent RELEASE_ASSERT crash sees a consistent
+        // process. The walk reads only the suspended thread's own stack
+        // memory (validated against thread.stack()) and is malloc-free, so
+        // it is signal-suspension-safe in the same sense the root-scan copy
+        // is. Addresses are dumped raw for offline addr2line/llvm-symbolizer
+        // — the binary is the build under test, so symbolization is
+        // build-stable (unlike the existing
+        // mc-gc-weakgcmap-registry-vs-prune.stw-variant.txt whose REQUESTER
+        // backtrace is from the WTFCrash on this thread and says nothing
+        // about the wedged sibling).
+        for (unsigned i = 0; i < numWedged; ++i) {
+            WTF::Thread* thread = wedged[i].thread;
+            dataLogLn("  -- B16 native backtrace for NON-QUIESCENT lite tid=", wedged[i].tid, " thread=", RawPointer(thread), " --");
+            if (!thread) {
+                dataLogLn("     (no owning Thread* recorded — lite never published a coop root snapshot; see parkedRootSnapshotThread())");
                 continue;
-            if (lite->state != VMLite::State::Live)
+            }
+            if (thread == &Thread::currentSingleton()) {
+                dataLogLn("     (wedged thread IS the watchdog caller — stale parkedRootSnapshotThread, skipping self-suspend)");
                 continue;
-            if (!lite->clientHeap)
+            }
+#if HAVE(MACHINE_CONTEXT) || OS(WINDOWS)
+            ThreadSuspendLocker suspendLocker;
+            auto suspended = thread->suspend(suspendLocker);
+            if (!suspended) {
+                dataLogLn("     (suspend() failed — thread may be exiting)");
                 continue;
-            dataLogLn("  entered lite ", RawPointer(lite), " tid=", lite->tid,
-                lite == requesterLite ? " [requester/conductor — exempt]" : "",
-                " clientHeap=", RawPointer(lite->clientHeap),
-                " hasHeapAccess=", lite->clientHeap->hasHeapAccess(),
-                lite != requesterLite && lite->clientHeap->hasHeapAccess()
-                    ? (foreignWindowOpen ? "  <== access-holding (possibly the OPEN window's conductor — see NOTE above)" : "  <== NON-QUIESCENT (blocking the stop)")
-                    : "");
+            }
+            PlatformRegisters regs;
+            thread->getRegisters(suspendLocker, regs);
+            void* pc = nullptr;
+            if (auto pcPtr = MachineContext::instructionPointer(regs))
+                pc = pcPtr->untaggedPtr();
+            void* fp = MachineContext::framePointer(regs);
+            const StackBounds& stackBounds = thread->stack();
+            dataLogLn("     pc=", RawPointer(pc), " fp=", RawPointer(fp),
+                " stack=[", RawPointer(stackBounds.end()), ", ", RawPointer(stackBounds.origin()), "]");
+            // Frame-pointer walk: standard {fp[0]=caller-fp, fp[1]=ret-addr}
+            // layout (x86_64 SysV / arm64 AAPCS, the platforms the threads
+            // ladder runs on). Bounded; each step validated against the
+            // suspended thread's real stack so an FP that escaped into heap
+            // (ASAN fake-stack, JIT frames without an FP) terminates the
+            // walk instead of faulting. JIT frames at the leaf are expected
+            // and harmless — the wedge is in NATIVE code (a JS-executing
+            // thread would have hit a CheckTraps poll within ~1ms of the
+            // conductor's per-sample re-fire, VMManager.cpp:768), so the
+            // frames above any JIT leaf are the load-bearing ones.
+            for (unsigned frame = 0; frame < 64; ++frame) {
+                if (!fp || !stackBounds.contains(fp))
+                    break;
+                void** frameWords = reinterpret_cast<void**>(fp);
+                // fp[1] read also stays inside the stack (origin is
+                // exclusive-ish; one word past fp is fine while fp itself is
+                // contained — the thread's own frame wrote it).
+                void* retAddr = frameWords[1];
+                void* callerFP = frameWords[0];
+                dataLogLn("     #", frame, " ret=", RawPointer(retAddr), " fp=", RawPointer(fp));
+                // Stack grows down; the FP chain walks toward origin
+                // (higher addresses). A non-monotone link is a broken chain
+                // (or a leaf JIT frame) — stop.
+                if (reinterpret_cast<uintptr_t>(callerFP) <= reinterpret_cast<uintptr_t>(fp))
+                    break;
+                fp = callerFP;
+            }
+            thread->resume(suspendLocker);
+#else
+            dataLogLn("     (no MACHINE_CONTEXT on this platform — foreign-thread backtrace unavailable)");
+#endif
         }
     }
     RELEASE_ASSERT_NOT_REACHED();

@@ -688,7 +688,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useIteratorJoin, false, Normal, "Expose the Iterator.prototype.join method."_s) \
     v(Bool, useJSONSourceTextAccess, true, Normal, "Expose JSON source text access feature."_s) \
     v(Bool, useJSPI, true, Normal, "Enable the implementation of JavaScript Promise Integration."_s) \
-    v(Bool, useJSThreads, false, Normal, "enable shared-memory Thread/Lock/Condition/ThreadLocal API"_s) \
+    v(Bool, useJSThreads, false, Normal, "enable shared-memory Thread/Lock/Condition/ThreadLocal API. SECURITY (CVE-B15 / docs/threads/cve/map-MC-SPEC.md): enabling this flag is a high-resolution-timer capability grant equivalent to native code execution for confidentiality purposes, INDEPENDENT of useSharedArrayBuffer -- a spawned Thread spinning Atomics.add on a plain shared object is a no-permission sub-microsecond clock. No in-process secret is confidentiality-protected from JS running under this flag (Spectre v1/v2 structural; no index masking, no retpolines, zero gigacage on Windows/musl-mimalloc). Embedders MUST NOT enable for semi-trusted / multi-tenant code in-process; multi-tenant = multi-process isolation."_s) \
     v(Bool, useThreadedLLIntICs, true, Normal, "kill switch: threaded LLInt metadata caches under useJSThreads"_s) \
     v(Bool, useThreadedBaselineICs, true, Normal, "kill switch: threaded Baseline/stub ICs under useJSThreads"_s) \
     v(Bool, useThreadedDFG, true, Normal, "kill switch: threaded DFG support under useJSThreads"_s) \
@@ -699,11 +699,12 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, forceButterflySWBit, false, Normal, "stress: treat every butterfly write as a foreign shared write (SW DCAS + writeThreadLocal fire; SPEC-objectmodel sec 9.6)"_s) \
     v(Bool, verifyConcurrentButterfly, false, Normal, "debug-assert every concurrent-butterfly tag decode (I2/I3), the butterfly() flatness contract, and run the ConcurrentButterfly self-tests"_s) \
     v(Unsigned, maxJSThreads, 32766, Normal, nullptr) \
+    v(Size, maxJSThreadHeapBytes, 0, Normal, "per-JS-thread soft shared-heap allocation quota under useSharedGCHeap (0 = disabled). INERT STUB: chartered design only, no enforcement yet (SPEC-heap ANNEX B / CVE-B13 / MC-DOS S3). When implemented: bounds a client's gross allocation since the last completed GC cycle; exceed -> ReturnNull-mode slow-path allocations fail + per-lite VMTraps checkpoint raises RangeError on the offending client (Assert-mode allocations never null -> never RELEASE_ASSERT) with per-thread attribution. Availability-only knob; flag-off byte-identical."_s) \
     v(Unsigned, jsThreadGILTimeSliceMs, 0, Normal, "reserved, inert in phase 1 (SPEC-api Deviation 9)"_s) \
     v(Unsigned, jsThreadStackSizeKB, 0, Normal, nullptr) \
     v(Bool, logJSLockContention, false, Normal, "SCALEBENCH S2-parallel-cpu-waste instrumentation (useJSThreads only): at process exit, dataLog per-JS-Lock {acquires, spinIters, parks} from Lock.prototype.hold's acquire path plus the process-wide ThreadAtomics property-RMW retry totals. Off = zero acquire-path overhead (every counter bump is gated on this flag)."_s) \
     v(Bool, useThreadGIL, false, Normal, "serialize all JS Thread execution under a global lock (default flipped OFF at UNGIL U-T14; U0 option validation forces it back ON unless useVMLite, useSharedAtomStringTable, useSharedGCHeap AND useThreadGILOffUnsafe are all enabled)"_s) \
-    v(Bool, useThreadGILOffUnsafe, false, Normal, "DEVELOPMENT ONLY: permit the GIL-off (N-parallel-mutator) configuration even though the UNGIL activation checklist (INTEGRATE-ungil.md AB list) is not fully landed; without this flag U0 option validation forces useThreadGIL=1"_s) \
+    v(Bool, useThreadGILOffUnsafe, false, Normal, "DEVELOPMENT ONLY: permit the GIL-off (N-parallel-mutator) configuration even though the UNGIL activation checklist (INTEGRATE-ungil.md AB list) is not fully landed; without this flag U0 option validation forces useThreadGIL=1 AND the gilRemovalPreconditionsMet() tripwire (CVE-B6, ThreadManager attachSpawnedThreadGCClient) fail-stops second-mutator attach"_s) \
     v(Bool, useSharedAtomStringTable, false, Normal, "process-global shared atom string table"_s) \
     v(Bool, useVMLite, false, Normal, "per-thread VMLite carriers (Phase A: inert)"_s) \
     v(Bool, useStructureAllocationLock, false, Normal, "serialize Structure cell allocation + ID-creating transitions"_s) \

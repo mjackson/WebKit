@@ -401,12 +401,28 @@ public:
     Lock m_wrapperRepublishLock;
 private:
     Atomic<WeakImpl*> m_wrapperImpl { nullptr };
-    Checked<unsigned> m_pinCount { 0 };
+    // CVE-AUDIT Tier-B B10 / docs/threads/cve/map-MC-LIFE.md S4: m_pinCount and
+    // m_locked are atomic so concurrent embedder threads pin()/unpin()'ing
+    // wrappers of one buffer (ArrayBufferView::setDetachable, the C-API
+    // JSObjectGetTypedArrayBytesPtr family) cannot lose an update and let
+    // isDetachable() report true while a native bytesPtr is outstanding —
+    // post-GIL the annex-N6 quarantine would then free the mapping under that
+    // pointer. Relaxed ordering is sufficient: the field is a counter/sticky
+    // flag, not a publication fence (detach ordering is the N6 quarantine's
+    // job). Same precedent as DeferrableRefCounted's unconditional atomic
+    // count (ArrayBuffer.cpp:260). Flag-off: behaviorally identical, layout
+    // unchanged (4B/1B). Relaxed .load()/.store() compile to plain mov/ldr on
+    // x86-64/arm64; pin()/unpin()'s fetch_add/fetch_sub DO emit an atomic RMW
+    // (lock xadd / ldadd) — an accepted byte-identity deviation per the
+    // DeferrableRefCounted precedent, on a cold embedder-only path
+    // (ArrayBufferView::setDetachable / JSObjectGetTypedArrayBytesPtr), never
+    // a JS bench path.
+    std::atomic<unsigned> m_pinCount { 0 };
     bool m_isWasmMemory { false };
     WeakPtr<Wasm::Memory> m_associatedWasmMemory;
     // m_locked == true means that some API user fetched m_contents directly from a TypedArray object,
     // the buffer is backed by a WebAssembly.Memory, or is a SharedArrayBuffer.
-    bool m_locked { false };
+    std::atomic<bool> m_locked { false };
 };
 
 void* ArrayBuffer::data() LIFETIME_BOUND
@@ -452,27 +468,34 @@ size_t ArrayBuffer::gcSizeEstimateInBytes() const
 
 void ArrayBuffer::pin()
 {
-    m_pinCount++;
+    unsigned old = m_pinCount.fetch_add(1, std::memory_order_relaxed);
+    // Preserve the Checked<unsigned> overflow crash this field used to carry
+    // (never-weaken-asserts rule; 2^32 live pins is unreachable in practice).
+    RELEASE_ASSERT(old != std::numeric_limits<unsigned>::max());
 }
 
 void ArrayBuffer::unpin()
 {
-    m_pinCount--;
+    unsigned old = m_pinCount.fetch_sub(1, std::memory_order_relaxed);
+    // Preserve the Checked<unsigned> underflow crash (an unbalanced unpin()
+    // is an embedder bug; trapping here is the MC-LIFE S4 fail-stop).
+    RELEASE_ASSERT(old);
 }
 
 bool ArrayBuffer::isDetachable() const
 {
-    return !m_pinCount && !m_locked && !isShared();
+    return !m_pinCount.load(std::memory_order_relaxed) && !m_locked.load(std::memory_order_relaxed) && !isShared();
 }
 
 void ArrayBuffer::pinAndLock()
 {
-    m_locked = true;
+    // Sticky-true, idempotent (map-MC-LIFE.md S4): a relaxed store suffices.
+    m_locked.store(true, std::memory_order_relaxed);
 }
 
 bool ArrayBuffer::isLocked()
 {
-    return m_locked;
+    return m_locked.load(std::memory_order_relaxed);
 }
 
 bool ArrayBuffer::isWasmMemory()

@@ -117,6 +117,17 @@ RecursiveLock CallLinkInfo::s_callLinkSerializationLock;
 // below is an ATOMIC exchange so two racing publishes can never observe the
 // same oldRecord (no double-retire) even on a writer path the lock audit
 // missed. Each loser retires a distinct displaced record.
+//
+// B5 audit (precondition 10, docs/threads/cve/map-MC-CODE.md S6): this
+// publish path is NOT a consumer of the deferred-fire fact. The JIT'd
+// fast-path reader address-depends through the m_record load (F2) and never
+// consults a WatchpointSet state; a deferred Class-A claim that will jettison
+// the CALLEE reaches this site only via the §A.3 stop (callee CodeBlock is
+// jettisoned world-stopped, then the row-17 End-phase / jettison-time
+// unlinkOrUpgrade clears the record under the same stop). No acquire-load of
+// the deferred-fire fact is needed here — the stop barrier is the ordering
+// edge. The gilRemovalPreconditionsMet() reference above tracks precondition
+// 11 (writer-writer), not 10.
 void CallLinkInfo::publishRecord(VM& vm, uintptr_t comparand, CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer)
 {
     if (!Options::useJSThreads()) [[likely]]

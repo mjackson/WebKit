@@ -113,23 +113,21 @@ public:
     static void retireHandlerChain(VM&, RefPtr<InlineCacheHandler>&& head, DisarmClearingWatchpoints);
 
     // Retire a dying optimized (DFG/FTL) CodeBlock's JITCode (called from
-    // ~CodeBlock during the GC sweep). Flag-off this just drops the ref
-    // inline - exactly today's behavior. Flag-on it NEVER frees: per the hard
-    // rule above and I7, machine code may be released only after R2's
-    // conservative scan of ALL mutator stacks proves it unreachable, and that
-    // scan does not exist yet under the phase-1 GIL stub - the sweep cannot
-    // see a sibling spawned thread parked with the GIL dropped, whose
-    // call-link/IC dispatch state still targets this code's entrypoints
-    // (observed as llint_op_call jumping into unmapped memory on resume,
-    // JSTests/threads/jit/tid-tag-3-threads.js et al.). Until the heap
-    // workstream's N-stack scan lands, the JITCode (and the CommonData /
-    // CallLinkInfos it owns) is leaked - the same chartered
-    // leak-until-integration behavior as the epoch paths. Note the leak also
-    // keeps the CommonData's CallLinkInfos alive, so a dead caller's nodes
-    // stay (validly) on other CodeBlocks' m_incomingCalls lists - their
-    // ~CallLinkInfo never runs; record for R2 integration. Deliberately NOT
-    // routed through the epoch facility even once it is live: epoch expiry
-    // must never free machine code (I7). THREADS-INTEGRATE(jit)
+    // ~CodeBlock during the GC sweep). Drops the ref inline in BOTH flag
+    // arms (B14 / MC-DOS S7: the chartered flag-on leak is closed). Per the
+    // hard rule above and I7, machine code may be released only after R2's
+    // conservative scan of ALL mutator stacks proves it unreachable — and
+    // that scan now exists (Heap::gatherStackRoots, §10.6/T6: one
+    // MachineThreads scan covers all N mutators, with *m_codeBlocks keeping
+    // any block whose code is on any stack). The very GC whose sweep is
+    // calling this ran R2; CallLinkInfo::visitWeak unlinked dead callees;
+    // §5.8 publish-time pins kept any record-named block alive (and those
+    // pins now expire via the epoch path above, so they no longer accumulate).
+    // Deliberately NOT routed through the epoch facility: epoch expiry must
+    // never free machine code (I7). The CommonData / CallLinkInfos this owns
+    // are released with it; ~CallLinkInfo unlinks each from the callee's
+    // m_incomingCalls list (the prior leak-arm "stays on the list forever"
+    // residual is gone).
     static void retireOptimizedJITCode(VM&, RefPtr<JITCode>&&);
 #endif
 

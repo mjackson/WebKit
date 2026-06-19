@@ -127,19 +127,7 @@ static_assert(swBit == 0x8000000000000000ULL);
 
 } // namespace CCallHelpersConcurrentButterfly
 
-void CCallHelpers::loadButterflyTIDTag(GPRReg destGPR)
-{
-#if OS(LINUX) && (CPU(X86_64) || CPU(ARM64))
-    loadFromELFTLS64(butterflyTIDTagELFTLSOffset(), destGPR);
-#elif OS(DARWIN) && ENABLE(FAST_TLS_JIT)
-    loadFromTLS64(fastTLSOffsetForKey(butterflyTIDTagTLSKey()), destGPR);
-#else
-    // D8/App. R5: no JIT-visible TLS mechanism; useJSThreads is unsupported
-    // on this platform, so emission must never get here.
-    UNUSED_PARAM(destGPR);
-    RELEASE_ASSERT_NOT_REACHED();
-#endif
-}
+// loadButterflyTIDTag: hoisted to AssemblyHelpers (Task-8).
 
 void CCallHelpers::maskButterflyTag(GPRReg destGPR)
 {

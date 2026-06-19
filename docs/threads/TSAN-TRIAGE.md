@@ -2147,6 +2147,23 @@ see §16 and docs/threads/TSAN-RESULTS.md).
   into JIT'd code; the real edge is code installation, which TSAN cannot
   model; spine tsanPublish/tsanConsume precedent).
 
+### tsan-deep CLoop config addendum (SCAN-TSAN-REVERIFY, 2026-06-18)
+
+- **WTF::WeakRandom::advance** (tsan-deep r0: 268 GIL-off / 263 GIL-on
+  reports; both stacks anchor at advance()): VM-level WeakRandom shared
+  across JS Threads at safepoint-jitter sites. Non-semantic value (jitter
+  only); torn/lost-update state degrades to a different random seed. §15
+  relaxed-atomic class fix: `advance()`/`setSeed()` access `m_low`/`m_high`
+  via `__atomic_{load,store}_n(__ATOMIC_RELAXED)` over the existing plain
+  `uint64_t` storage (Source/WTF/wtf/WeakRandom.h). Fields stay plain so
+  `lowOffset()`/`highOffset()` and the manually-inlined JIT codegen are
+  unchanged. NOT suppressed (suppressions.txt rule 1: interleaving is
+  threads-introduced, not pre-existing upstream).
+- **TSAN/CLoop build break** (`icConcurrentRelaxedLoad` undeclared in
+  ENABLE_JIT=OFF): resolved by lifting the helper templates outside the
+  `#if ENABLE(JIT)` guard in PropertyInlineCache.h:46-66. r1 re-run staged
+  via `Tools/threads/scan/tsan-deep/r1-reverify.sh`.
+
 ### Normal-build sanity notes (waves 6-9)
 
 - Debug GIL-off smoke: 10/10 pass.

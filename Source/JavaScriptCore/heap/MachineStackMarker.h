@@ -76,7 +76,7 @@ private:
     void gatherFromCurrentThread(ConservativeRoots&, JITStubRoutineSet&, CodeBlockSet&, CurrentThreadState&);
 
     void tryCopyOtherThreadStack(const ThreadSuspendLocker&, Thread&, void*, size_t capacity, size_t*);
-    void tryCopyCooperativelyParkedThreadStack(Thread&, CurrentThreadState&, void*, size_t capacity, size_t*);
+    bool tryCopyCooperativelyParkedThreadStack(Thread&, CurrentThreadState&, void*, size_t capacity, size_t*);
     bool tryCopyOtherThreadStacks(const AbstractLocker&, void*, size_t capacity, size_t*, Thread&, const ScopedLambda<CurrentThreadState*(Thread&)>*);
 
     Ref<ThreadGroup> m_threadGroup;

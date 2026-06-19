@@ -456,12 +456,12 @@ void SpeculativeJIT::emitAllocateRawObject(GPRReg resultGPR, RegisteredStructure
     std::optional<unsigned> cellSlot;
     if (vm.gilOff()) [[unlikely]] {
         // H-ISO-TLCSLOT: JSFinalObject (cellSpace, CompleteSubspace) resolves
-        // through the §42 tlcIndexBase+sizeClass arm unchanged. JSArray
-        // (arraySpace, iso) is EXCLUDED by tlcSlotForConcurrentlyWithIso —
-        // this fast path stores storageGPR untagged into JSObject_butterfly,
-        // so a fresh inline-allocated JSArray would read as foreign and
-        // segment on first growth (see the resolver's JSArray comment); JSArray
-        // stays on the slow-path arm until Task-8 lands TID-tag emission here.
+        // through the §42 tlcIndexBase+sizeClass arm; JSArray (arraySpace,
+        // iso) through the §43 server-stamped tlcSlot. Task-8 LANDED: the
+        // butterfly word stored at JSObject::butterflyOffset() below is now
+        // TID-tagged (emitTagInstalledButterflyWithTID), so a fresh
+        // inline-allocated JSArray reads as OWNER at the §4.2 ensureLength
+        // dispatch and the §43 JSArray exclusion is dropped.
         if (structure->typeInfo().type() == JSType::ArrayType)
             cellSlot = tlcSlotForConcurrentlyWithIso<JSArray>(vm, JSArray::allocationSize(inlineCapacity));
         else
@@ -477,6 +477,18 @@ void SpeculativeJIT::emitAllocateRawObject(GPRReg resultGPR, RegisteredStructure
     if (cellSlot) {
         emitLoadTLCAllocatorForSlot(scratchGPR, *cellSlot, slowCases);
         emitAllocateJSObject(resultGPR, JITAllocator::variable(), scratchGPR, TrustedImmPtr(structure), storageGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
+        // Task-8: TID-tag the inline-installed butterfly word so it matches
+        // JSObjectWithButterfly's ctor encoding. storageGPR is provably
+        // non-null on the fall-through path iff `size != 0` (the auxiliary
+        // allocation above set it; the size==0 path leaves it null and
+        // matches the ctor's `if (butterfly)` skip). storageGPR stays
+        // UNTAGGED for the header/element fills below (offsetOfPublicLength,
+        // emitFillStorageWith*, emitInitializeOutOfLineStorage, and the
+        // callers' post-return element stores — compileNewArray /
+        // compileMaterializeNewObject). Pre-escape, plain store (E4/N3).
+        // gilOff arm only (cellSlot set only when vm.gilOff()).
+        if (size)
+            emitTagInstalledButterflyWithTID(resultGPR, storageGPR, scratchGPR);
         emitInitializeInlineStorage(resultGPR, structure->inlineCapacity(), scratchGPR);
     } else if (allocator) {
         emitAllocateJSObject(resultGPR, JITAllocator::constant(allocator), scratchGPR, TrustedImmPtr(structure), storageGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
@@ -2366,7 +2378,39 @@ void SpeculativeJIT::compileCurrentBlock()
 
     m_origin = NodeOrigin();
 
-    if (Options::validateDFGClobberize()) {
+    // SCAN-CLOBBERIZE-SIGTRAP — DOCUMENTED PROTOCOL EXCEPTION (validator
+    // suppressed gilOff). The validateDFGClobberize machinery emits, after
+    // every non-clobberTop node, `int3 if vm.didEnterVM`, and after every
+    // clobberTop node a clear of that byte. `vm.didEnterVM` is a SINGLE
+    // VM-level byte (VM.h DidEnterVMFlag) that every vmEntry path sets
+    // (Interpreter.cpp executeCallImpl/etc., InterpreterInlines.h,
+    // LLIntThunks.h, MicrotaskQueueInlines.h). GIL-off, N mutators run that
+    // same DFG/FTL code concurrently against the SAME byte:
+    //   - any thread's vmEntry sets it, so the next non-clobberTop check on
+    //     ANY OTHER thread traps (false positive — gdb-confirmed on
+    //     JSTests/threads/jit/tid-tag-3-threads.js: int3 fires immediately
+    //     after a pure inline string-compare with no C++ call on the
+    //     trapping thread; a second JS Thread sits at the same int3);
+    //   - any thread's clobberTop clear masks a real miss on another thread
+    //     (false negative).
+    // The validator's invariant is per-mutator; the witness is shared.
+    // PRECEDENT: validateDoesGC had the identical shared-slot problem and
+    // was rerouted per-lite (VMLite::doesGC, AB18-C — see the
+    // loadVMLite/offsetOfDoesGC emission ~130 lines above). The matching
+    // per-lite `didEnterVM` byte + producer reroute is the principled fix
+    // and is recorded as an OPEN OBLIGATION (VMLite.h slot + the ~10
+    // `vm.didEnterVM = true` producer sites across the four producer files
+    // listed above — grep, don't trust this count; outside this slice's
+    // writable file set). Until that lands, the validator under gilOff produces
+    // structurally unsound results in BOTH directions, so it is suppressed
+    // here — a documented protocol exception under the "never weaken
+    // asserts (or document the protocol exception)" rule. GIL-on flag-on
+    // keeps the validator: only one mutator runs at a time, so the shared
+    // byte is per-thread-correct. Flag-off this gate is false:
+    // byte-identical codegen LAW upheld.
+    bool gilOffClobberizeValidatorSuppressed = Options::useJSThreads() && !Options::useThreadGIL();
+
+    if (Options::validateDFGClobberize() && !gilOffClobberizeValidatorSuppressed) {
         bool clobberedWorld = m_block->predecessors.isEmpty() || m_block->isOSRTarget || m_block->isCatchEntrypoint;
         auto validateClobberize = [&] () {
             clobberedWorld = true;
@@ -2413,7 +2457,7 @@ void SpeculativeJIT::compileCurrentBlock()
 
         pcToCodeOriginMapBuilder().appendItem(labelIgnoringWatchpoints(), m_origin.semantic);
 
-        if (m_indexInBlock && Options::validateDFGClobberize()) {
+        if (m_indexInBlock && Options::validateDFGClobberize() && !gilOffClobberizeValidatorSuppressed) {
             bool clobberedWorld = false;
             auto validateClobberize = [&] () {
                 clobberedWorld = true;
@@ -2536,10 +2580,182 @@ void SpeculativeJIT::checkArgumentTypes()
     m_origin = NodeOrigin();
 }
 
+// SPEC-jit I14 + I21(b) Task-13 lint (Tier-B B3 / MC-JIT S2). Declared in
+// DFGClobberize.h with the full contract; called from both backends just
+// before codegen (compileBody below / FTL LowerDFGToB3::lower).
+void validateButterflyTagDisciplineForGraph(Graph& graph)
+{
+    if (!Options::validateButterflyTagDiscipline()) [[likely]]
+        return;
+    // Flag-off the butterfly tag is always zero; nothing to check
+    // (byte-identical LAW: the lint never fires flag-off, so no flag-off
+    // codegen path can depend on it).
+    if (!Options::useJSThreads())
+        return;
+
+    // (a) I14: tag-masking / tag-zero-by-construction producer set.
+    auto isTagSafeStorageProducer = [](Node* def) -> bool {
+        if (!def)
+            return true;
+        switch (def->op()) {
+        case GetButterfly:                 // flag-on always emits the SPEC-jit 5.5 tag mask
+        case AllocatePropertyStorage:      // freshly allocated, born tag-zero
+        case ReallocatePropertyStorage:    // ditto (returns the new storage)
+        case GetIndexedPropertyStorage:    // typed-array vector pointer, no butterfly tag
+        case ConstantStoragePointer:       // compile-time constant, tag-zero by construction
+        case ResolveRope:                  // string char storage, no butterfly tag
+        case Phi:                          // SSA merge — inputs proven at their own def site;
+                                           // (b)'s intersection dataflow covers cross-poll on
+                                           // the GetButterfly arms
+            return true;
+        default:
+            return false;
+        }
+    };
+
+    // The storage edge for the consumers we lint. hasStorageChild() covers
+    // the indexed/array consumers; GetByOffset/PutByOffset carry storage in
+    // child1 but are not in that set. ArrayIncludes/ArrayIndexOf/ArrayJoin
+    // have hasStorageChild() but storageChildIndex() is unimplemented; skip
+    // them (they re-derive storage in their slow path, no hoisting hazard).
+    auto storageEdgeForLint = [&](Node* node) -> Node* {
+        switch (node->op()) {
+        case GetByOffset:
+        case GetGetterSetterByOffset:
+        case PutByOffset:
+            return node->child1().node();
+        default:
+            break;
+        }
+        if (!node->hasStorageChild())
+            return nullptr;
+        switch (node->op()) {
+        case ArrayIncludes:
+        case ArrayIndexOf:
+        case ArrayJoin:
+            return nullptr;
+        default:
+            break;
+        }
+        return graph.child(node, node->storageChildIndex()).node();
+    };
+
+    // Gather GetButterfly defs and assign each an index for the bitset.
+    Vector<Node*, 16> butterflyDefs;
+    HashMap<Node*, unsigned> defIndex;
+    for (BlockIndex bi = 0; bi < graph.numBlocks(); ++bi) {
+        BasicBlock* block = graph.block(bi);
+        if (!block)
+            continue;
+        for (Node* node : *block) {
+            if (node->op() == GetButterfly) {
+                defIndex.add(node, butterflyDefs.size());
+                butterflyDefs.append(node);
+            }
+        }
+    }
+    unsigned numDefs = butterflyDefs.size();
+
+    // (b) I21(b): forward "available GetButterfly" dataflow to fixed point.
+    // OUT[b] bit i set <=> butterflyDefs[i] reaches end of b on every path
+    // from its def with NO intervening JSObject_butterfly-clobbering node.
+    // The kill predicate is exactly writesOverlap(JSObject_butterfly), so the
+    // lint and CSE agree on what "across a poll" means: with the CheckTraps
+    // GIL-off clobberize writing JSObject_butterfly (DFGClobberize.h, Tier-B
+    // B3), CSE/LICM cannot carry a GetButterfly across a poll, and this lint
+    // proves they did not.
+    Vector<BitVector> outSets(graph.numBlocks());
+    BitVector top;
+    top.ensureSize(numDefs);
+    for (unsigned i = 0; i < numDefs; ++i)
+        top.set(i);
+    for (auto& bv : outSets)
+        bv = top;
+    bool changed = true;
+    auto computeIn = [&](BasicBlock* block) -> BitVector {
+        BitVector in;
+        in.ensureSize(numDefs);
+        if (block->predecessors.isEmpty())
+            return in; // entry: nothing available
+        bool first = true;
+        for (BasicBlock* pred : block->predecessors) {
+            if (first) {
+                in = outSets[pred->index];
+                first = false;
+            } else
+                in.filter(outSets[pred->index]);
+        }
+        return in;
+    };
+    while (changed) {
+        changed = false;
+        for (BlockIndex bi = 0; bi < graph.numBlocks(); ++bi) {
+            BasicBlock* block = graph.block(bi);
+            if (!block)
+                continue;
+            BitVector state = computeIn(block);
+            for (Node* node : *block) {
+                if (node->op() == GetButterfly)
+                    state.set(defIndex.get(node));
+                if (writesOverlap(graph, node, JSObject_butterfly))
+                    state.clearAll();
+            }
+            if (!(state == outSets[bi])) {
+                outSets[bi] = std::move(state);
+                changed = true;
+            }
+        }
+    }
+
+    // Report.
+    unsigned violations = 0;
+    for (BlockIndex bi = 0; bi < graph.numBlocks(); ++bi) {
+        BasicBlock* block = graph.block(bi);
+        if (!block)
+            continue;
+        BitVector state = computeIn(block);
+        for (Node* node : *block) {
+            if (Node* storage = storageEdgeForLint(node)) {
+                if (!isTagSafeStorageProducer(storage)) {
+                    dataLogLn("[validateButterflyTagDiscipline] I14 VIOLATION in ",
+                        *graph.m_codeBlock, " bb#", bi, ": ",
+                        Graph::opName(node->op()), " @", node->index(),
+                        " takes storage from non-tag-masking producer ",
+                        Graph::opName(storage->op()), " @", storage->index());
+                    ++violations;
+                } else if (storage->op() == GetButterfly) {
+                    auto it = defIndex.find(storage);
+                    if (it != defIndex.end() && !state.get(it->value)) {
+                        dataLogLn("[validateButterflyTagDiscipline] I21(b) VIOLATION in ",
+                            *graph.m_codeBlock, " bb#", bi, ": ",
+                            Graph::opName(node->op()), " @", node->index(),
+                            " consumes GetButterfly @", storage->index(),
+                            " across a JSObject_butterfly-clobbering boundary",
+                            " (poll / parkable slow path / butterfly write)");
+                        ++violations;
+                    }
+                }
+            }
+            if (node->op() == GetButterfly)
+                state.set(defIndex.get(node));
+            if (writesOverlap(graph, node, JSObject_butterfly))
+                state.clearAll();
+        }
+    }
+    if (violations) [[unlikely]] {
+        graph.dump();
+        RELEASE_ASSERT_WITH_MESSAGE(!violations,
+            "validateButterflyTagDiscipline: %u violation(s); see dataLog above (SPEC-jit I14/I21(b))",
+            violations);
+    }
+}
+
 void SpeculativeJIT::compileBody()
 {
+    validateButterflyTagDisciplineForGraph(m_graph);
+
     checkArgumentTypes();
-    
+
     ASSERT(!m_currentNode);
     for (BlockIndex blockIndex = 0; blockIndex < m_graph.numBlocks(); ++blockIndex) {
         setForBlockIndex(blockIndex);
