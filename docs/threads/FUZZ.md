@@ -217,3 +217,37 @@ Operational note: if a smoke/campaign is interrupted mid corpus import,
 Fuzzilli leaves `fuzzilli-storage/old_corpus/` behind and refuses to start.
 If it is empty, `rmdir` it; if not, move its contents back into `corpus/`
 before relaunching.
+
+## Re-verification (2026-06-19)
+
+The Fuzz jsc was rebuilt incrementally against the post-closeout tree
+(`build-jsc-fuzz.sh`, 426 ninja targets, exit 0, post-build Thread API check
+OK). `run-fuzzilli.sh` was fixed to export
+`detect_stack_use_after_return=0` in `ASAN_OPTIONS` (the lane-pin note above
+required it but the script had not been updated). Two smoke runs:
+
+**10-min `--resume` smoke** (against the accumulated 2459-program corpus):
+
+- 1,175,199 edges instrumented; startup tests pass (REPRL handshake, crash
+  detection, Thread API exposure, spawn/join round-trip).
+- Coverage feedback works: 6.70% -> 10.15% edge coverage during import.
+- Entire 10 minutes spent in corpus import (43.92% of 2459 programs at
+  SIGINT) — the corpus is now large enough that a rebuild's edge-renumber
+  re-evaluation does not finish inside the smoke window. SIGINT-during-import
+  left `old_corpus/` behind; merged back into `corpus/` (7314 files on disk;
+  Fuzzilli dedups semantically on the next full import).
+
+**4-min fresh-storage smoke** (`STORAGE=/tmp/fuzz-fresh-storage`, no
+`--resume`) to confirm the mutation engine actually fuzzes the new binary:
+
+- Fuzzer state reached "Initial corpus generation (GenerativeEngine)";
+  on-disk corpus 0 -> 262 files in 4 minutes; ~40 execs/s, 71% correctness.
+- 4 unique deterministic crashes written to `crashes/` (TERMSIG 6). NOT
+  triaged here — triage is thread-fuzz's job. One example signature:
+  `Object.defineProperty(arr, 'acc', {get/set self-mutating}); gc()` ->
+  SIGABRT (likely the same pre-existing class-static/gc family seen on
+  2026-06-07; appears with `--useJSThreads=1` default-on in every execution
+  of this profile, not threads-specific).
+
+Path is unchanged: **real Fuzzilli**. The rig is ready for campaigns
+(`thread-fuzz`).

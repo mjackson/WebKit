@@ -35,7 +35,9 @@ fi
 mkdir -p "$STORAGE"
 
 # ASAN: let Fuzzilli see crashes, don't die on the allocator's own limits.
-export ASAN_OPTIONS="abort_on_error=1:symbolize=1:detect_leaks=0:malloc_context_size=5:allocator_may_return_null=1"
+# detect_stack_use_after_return=0 is REQUIRED on Linux threads lanes (see
+# docs/threads/FUZZ.md "ASAN_OPTIONS lane pin" / CVE-AUDIT B9 / MC-GC S2a).
+export ASAN_OPTIONS="detect_stack_use_after_return=0:abort_on_error=1:symbolize=1:detect_leaks=0:malloc_context_size=5:allocator_may_return_null=1"
 
 ARGS=(
     --profile=jscthreads
