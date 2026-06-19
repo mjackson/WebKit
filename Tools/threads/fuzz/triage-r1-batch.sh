@@ -38,13 +38,19 @@ triage_one() {
     local base targs errf rc kind frames sig out
     base=$(basename "$f" .js)
     errf="$WORK/stderr/$base.stderr"
-    # Extract per-crash target args (drop the binary path and --reprl).
+    # Extract per-crash target args (drop the binary path and --reprl). The
+    # header is Fuzzilli-authored (not fuzzed-JS-controlled), but allowlist
+    # anyway: only --opt[=val] tokens with [A-Za-z0-9=._-], no shell metachars.
     targs=$(grep -m1 '^// TARGET ARGS:' "$f" \
         | sed -E 's@^// TARGET ARGS: [^ ]+/jsc @@; s/--reprl//')
-    [[ -z "$targs" ]] && targs="--useJSThreads=true"
+    local -a targs_arr=()
+    for tok in $targs; do
+        [[ "$tok" =~ ^--[A-Za-z0-9][A-Za-z0-9=._-]*$ ]] && targs_arr+=("$tok")
+    done
+    [[ ${#targs_arr[@]} -eq 0 ]] && targs_arr=(--useJSThreads=true)
     rc=0; kind=""; sig=""
     for try in 1 2 3; do
-        timeout -s KILL 25 "$JSC" $targs "$f" >/dev/null 2>"$errf"
+        timeout -s KILL 25 "$JSC" "${targs_arr[@]}" -- "$f" >/dev/null 2>"$errf"
         rc=$?
         [[ $rc -ne 0 ]] && break
     done
