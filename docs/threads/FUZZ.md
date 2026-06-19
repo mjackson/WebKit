@@ -251,3 +251,22 @@ required it but the script had not been updated). Two smoke runs:
 
 Path is unchanged: **real Fuzzilli**. The rig is ready for campaigns
 (`thread-fuzz`).
+
+## Campaign r3b (2026-06-19, 4h, post-§46+TSAN tree 8a250c15)
+
+7670-file corpus resume, 4 jobs. **128 new crashes**, 2 unique signatures:
+
+| count | signature | repro |
+|---|---|---|
+| 125 | `ASSERT !hasAnyArrayStorage(source->indexingType())` at `ConcurrentButterfly.cpp:1064` `trySegmentedTransition` ← `tryPutDirectTransitionConcurrent` ← `putDirectInternal` | `Tools/threads/fuzz/crashes/r3/r3-001-trySegmentedTransition-ArrayStorage.js` |
+| 1 | ABRT in `storeTaggedButterflyWordConcurrent` ← `setButterflyConcurrent` ← `setButterfly` | `Tools/threads/fuzz/crashes/r3/r3-002-storeTaggedButterflyWordConcurrent.js` |
+| 1 | NOREPRO | — |
+| 1 | exit-3 | — |
+
+**r3-001** is a hole in the §45 StayFlatShared gate (or its surrounding
+precondition): an ArrayStorage-indexed object reaches `trySegmentedTransition`
+on a property add. Single-threaded, `--useJSThreads=true` only. 125 variants
+of essentially one repro shape. Debug repros deterministically.
+
+**Prior-campaign re-triage** (same tree): 292/292 NOREPRO — all 06-07/06-10
+crashes closed by §46+TSAN.

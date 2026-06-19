@@ -50,7 +50,7 @@ triage_one() {
     [[ ${#targs_arr[@]} -eq 0 ]] && targs_arr=(--useJSThreads=true)
     rc=0; kind=""; sig=""
     for try in 1 2 3; do
-        timeout -s KILL 25 "$JSC" "${targs_arr[@]}" -- "$f" >/dev/null 2>"$errf"
+        timeout -s KILL 25 "$JSC" "${targs_arr[@]}" "$f" >/dev/null 2>"$errf"
         rc=$?
         [[ $rc -ne 0 ]] && break
     done

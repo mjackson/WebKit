@@ -1,0 +1,9 @@
+[Cli] Using the following arguments for the target engine: ["--validateOptions=true", "--thresholdForJITSoon=10", "--thresholdForJITAfterWarmUp=10", "--thresholdForOptimizeAfterWarmUp=100", "--thresholdForOptimizeAfterLongWarmUp=100", "--thresholdForOptimizeSoon=100", "--thresholdForFTLOptimizeAfterWarmUp=1000", "--thresholdForFTLOptimizeSoon=1000", "--validateBCE=true", "--useJSThreads=true", "--reprl"]
+[Cli] Enabled mutators: ["ExplorationMutator", "CodeGenMutator", "SpliceMutator", "ProbingMutator", "InputMutator (loose)", "InputMutator (aware)", "OperationMutator", "CombineMutator"]
+[Cli] Loaded additional builtins from profile: ["fiatInt52", "ThreadLocal", "makeMasquerader", "ConcurrentAccessError", "ensureArrayStorage", "Condition", "createGlobalObject", "forceGCSlowPaths", "fullGC", "drainMicrotasks", "Lock", "runString", "gc", "noFTL", "edenGC", "Thread", "noInline", "OSRExit", "transferArrayBuffer"]
+[Cli] Loaded additional ObjectGroups from profile: ["Thread", "ThreadConstructor", "Lock", "Condition", "ThreadLocal"]
+[0;35m[Cli] Unexpected /old_corpus directory found! Was a previous import aborted? Please check if you need to recover the old corpus manually by moving to to /corpus or deleting it.[0;0m
+[0;37m[Fuzzer] Shutting down due to fatal error[0;0m
+[0;37m[Cli] Corpus import aborted. The old corpus is now in /root/WebKit/WebKitBuild/Fuzz/fuzzilli-storage/old_corpus.[0;0m
+[0;37m[Cli] You can recover the old corpus by moving it to /root/WebKit/WebKitBuild/Fuzz/fuzzilli-storage/corpus.[0;0m
+Aborting execution after a fatal error.
