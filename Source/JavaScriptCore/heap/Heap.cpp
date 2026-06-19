@@ -8661,11 +8661,11 @@ void GCClient::Heap::publishParkedRootSnapshot(WTF::Thread& thread, CurrentThrea
 #if ASSERT_ENABLED && !ASAN_ENABLED
         dataLogLn("[SharedGC T5-rootscan] declining coop root snapshot publish: stackTop ", RawPointer(snapshot->stackTop), " / stackOrigin ", RawPointer(snapshot->stackOrigin), " outside thread.stack() [", RawPointer(thread.stack().end()), ", ", RawPointer(thread.stack().origin()), "] — falling back to suspend()");
 #endif
-        m_parkedRootSnapshotThread = &thread;
+        WTF::atomicStore(&m_parkedRootSnapshotThread, &thread, std::memory_order_relaxed);
         m_parkedRootSnapshot.store(nullptr, std::memory_order_seq_cst);
         return;
     }
-    m_parkedRootSnapshotThread = &thread;
+    WTF::atomicStore(&m_parkedRootSnapshotThread, &thread, std::memory_order_relaxed);
     m_parkedRootSnapshot.store(snapshot, std::memory_order_seq_cst);
 }
 

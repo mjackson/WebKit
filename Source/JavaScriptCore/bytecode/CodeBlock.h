@@ -616,10 +616,35 @@ public:
     SimpleJumpTable& baselineSwitchJumpTable(int tableIndex);
     StringJumpTable& baselineStringSwitchJumpTable(int tableIndex);
     void setBaselineJITData(std::unique_ptr<BaselineJITData>&&);
+
+    // TSAN-TRIAGE §21.4.2 codeblock-jitdata-publish (next-layer residual): the
+    // m_jitData word itself is relaxed-atomic (the §20.3.7 fix), but a relaxed
+    // load establishes no happens-before for TSAN, so the JITData INTERIOR
+    // (DFG::JITData::m_exits.m_storage, the TrailingArray header) read by
+    // DFG::JITData::exitCodePtrConcurrent is reported as racing the
+    // ButterflyArray malloc/ctor in DFG::Plan::tryFinalizeJITData on the
+    // publishing mutator. The real publication edge is the storeStoreFence +
+    // pointer store in setDFGJITData/setBaselineJITData (SPEC-jit §4.x
+    // publish-via-one-pointer); production needs no acquire because every
+    // dependent read goes through the loaded pointer (consume-style dependency
+    // ordering, which all supported targets honor). §13.4 TSAN-gate precedent
+    // (JITCodePointerConsumeOrder, ConcurrentVector/Buffer/PtrHashSet): under
+    // TSAN ONLY, the publishing-pointer load is acquire and the store is
+    // release so the checker sees exactly the dependency ordering the hardware
+    // already guarantees. Non-TSAN builds keep relaxed; flag-off codegen is
+    // unchanged.
+#if TSAN_ENABLED
+    static constexpr std::memory_order jitDataLoadOrder = std::memory_order_acquire;
+    static constexpr std::memory_order jitDataStoreOrder = std::memory_order_release;
+#else
+    static constexpr std::memory_order jitDataLoadOrder = std::memory_order_relaxed;
+    static constexpr std::memory_order jitDataStoreOrder = std::memory_order_relaxed;
+#endif
+
     BaselineJITData* baselineJITData()
     {
         if (!JSC::JITCode::isOptimizingJIT(jitType()))
-            return std::bit_cast<BaselineJITData*>(m_jitData);
+            return std::bit_cast<BaselineJITData*>(WTF::atomicLoad(&m_jitData, jitDataLoadOrder));
         return nullptr;
     }
 
@@ -628,14 +653,14 @@ public:
     {
         ASSERT(!m_jitData);
         WTF::storeStoreFence(); // m_jitData is accessed from concurrent GC threads.
-        m_jitData = jitData.release();
+        WTF::atomicStore(&m_jitData, static_cast<void*>(jitData.release()), jitDataStoreOrder);
         checker().set(CrashChecker::DFGJITData, checker().hash(this, m_jitData));
     }
 
     DFG::JITData* dfgJITData()
     {
         if (JSC::JITCode::isOptimizingJIT(jitType()))
-            return std::bit_cast<DFG::JITData*>(m_jitData);
+            return std::bit_cast<DFG::JITData*>(WTF::atomicLoad(&m_jitData, jitDataLoadOrder));
         return nullptr;
     }
 #endif

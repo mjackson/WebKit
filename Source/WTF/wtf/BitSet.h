@@ -90,7 +90,8 @@ public:
     constexpr void exclude(const BitSet&);
 
     constexpr void concurrentFilter(const BitSet&);
-    
+    constexpr void concurrentCopyFrom(const BitSet&);
+
     constexpr bool subsumes(const BitSet&) const;
     
     // If the lambda returns an IterationStatus, we use it. The lambda can also return
@@ -402,12 +403,22 @@ inline constexpr void BitSet<bitSetSize, WordType>::concurrentFilter(const BitSe
 {
     for (size_t i = 0; i < words; ++i) {
         for (;;) {
-            WordType otherBits = other.bits[i];
+            // TSAN (JSC GIL-off, family marks-bitset-plain-readers): `other`
+            // is typically a MarkedBlock m_marks bitset whose words are
+            // concurrently CASed by SlotVisitor::testAndSetMarked. Read the
+            // foreign word relaxed-atomic; codegen identical to a plain load.
+            WordType otherBits = std::bit_cast<const Atomic<WordType>*>(&other.bits[i])->loadRelaxed();
             if (!otherBits) {
-                bits[i] = 0;
+                // TSAN (JSC GIL-off, family marks-bitset-plain-readers): own-side
+                // bits[i] is concurrently CASed by IsoCellSet::add (concurrentTestAndSet)
+                // on HeapHelper marker threads while the mutator-conductor runs
+                // sweepToFreeList -> concurrentFilter under resumeThePeriphery.
+                // Use relaxed atomic store/load for the own-side word too; the
+                // CAS at the bottom of this loop already publishes via atomic.
+                atomicStore(&bits[i], static_cast<WordType>(0), std::memory_order_relaxed);
                 break;
             }
-            WordType oldBits = bits[i];
+            WordType oldBits = atomicLoad(&bits[i], std::memory_order_relaxed);
             WordType filteredBits = oldBits & otherBits;
             if (oldBits == filteredBits)
                 break;
@@ -415,6 +426,32 @@ inline constexpr void BitSet<bitSetSize, WordType>::concurrentFilter(const BitSe
                 break;
         }
     }
+}
+
+// TSAN (JSC GIL-off, family marks-bitset-plain-readers): word-wise relaxed
+// snapshot of a BitSet whose words are being concurrently CASed (e.g. the
+// MarkedBlock m_marks set during specializedSweep while a SlotVisitor on
+// another thread runs concurrentTestAndSet). Replaces a plain struct copy
+// (which clang lowers to __tsan_memcpy and which is C++ UB against the
+// concurrent atomic writer). The caller's protocol must already tolerate a
+// per-word-stale view; this only fixes the read shape.
+//
+// TSAN-gated (§13.4 precedent): the relaxed-atomic word loop defeats the
+// optimizer's vectorized memcpy lowering of the plain struct copy, so the
+// non-TSAN build keeps the original struct-assignment codegen unchanged on
+// the hot MarkedBlock sweep prologue. The m_marks-vs-concurrentTestAndSet
+// race is upstream-preexisting and value-benign (the m_markingVersion fence
+// protocol already orders it); the relaxed shape is needed only to satisfy
+// TSAN.
+template<size_t bitSetSize, typename WordType>
+inline constexpr void BitSet<bitSetSize, WordType>::concurrentCopyFrom(const BitSet& other)
+{
+#if TSAN_ENABLED
+    for (size_t i = 0; i < words; ++i)
+        bits[i] = std::bit_cast<const Atomic<WordType>*>(&other.bits[i])->loadRelaxed();
+#else
+    *this = other;
+#endif
 }
 
 template<size_t bitSetSize, typename WordType>

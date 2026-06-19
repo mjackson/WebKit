@@ -282,10 +282,16 @@ void MarkedBlock::Handle::specializedSweep(FreeList* freeList, MarkedBlock::Hand
 
     WTF::BitSet<atomsPerBlock> live;
     if (marksMode == MarksNotStale && newlyAllocatedMode == HasNewlyAllocated) {
-        live = header.m_marks;
+        // TSAN (JSC GIL-off, family marks-bitset-plain-readers): m_marks
+        // words are concurrently CASed by SlotVisitor::testAndSetMarked on
+        // another thread; the plain struct copy lowers to __tsan_memcpy and
+        // is UB against that atomic writer. Snapshot via word-wise relaxed
+        // loads — the m_markingVersion fence protocol already orders the
+        // versions; this only fixes the read shape. Identical x86 codegen.
+        live.concurrentCopyFrom(header.m_marks);
         live.merge(header.m_newlyAllocated);
     } else if (marksMode == MarksNotStale)
-        live = header.m_marks;
+        live.concurrentCopyFrom(header.m_marks);
     else
         live = header.m_newlyAllocated;
 

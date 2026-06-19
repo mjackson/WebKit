@@ -30,6 +30,7 @@
 #include "RegExp.h"
 #include "RegExpGlobalData.h"
 #include "RegExpInlines.h"
+#include <wtf/Atomics.h>
 
 namespace JSC {
 
@@ -54,8 +55,17 @@ ALWAYS_INLINE void RegExpCachedResult::record(VM& vm, JSObject* owner, RegExp* r
     m_lastRegExp.setWithoutWriteBarrier(regExp);
     m_lastInput.setWithoutWriteBarrier(input);
     m_result = result;
-    m_reified = false;
-    m_oneCharacterMatch = oneCharacterMatch;
+    // SPEC-congc visitor-vs-init (TSAN wave 2, regexp-cached-result-visit):
+    // visitAggregateImpl reads m_reified from a HeapHelper marker concurrently
+    // with this record() during JSGlobalObject::init under N-mutator GC.
+    // Relaxed atomic stores (replacing the compiler's coalesced 2-byte memset
+    // of the adjacent bool pair) pair with the relaxed load there. The fields
+    // stay plain bool — JIT writes them via offsetOfReified()/
+    // offsetOfOneCharacterMatch() — so use the free-function accessor; relaxed
+    // is a plain store on every supported arch, so flag-off codegen is
+    // unchanged.
+    WTF::atomicStore(&m_reified, false, std::memory_order_relaxed);
+    WTF::atomicStore(&m_oneCharacterMatch, oneCharacterMatch, std::memory_order_relaxed);
     vm.writeBarrier(owner);
 }
 

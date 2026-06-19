@@ -38,6 +38,7 @@
 #include "JITCode.h"
 #include "JumpTable.h"
 #include <atomic>
+#include <wtf/Atomics.h>
 #include <wtf/CompactPointerTuple.h>
 #include <wtf/Lock.h>
 #include <wtf/SegmentedVector.h>
@@ -172,9 +173,46 @@ public:
 
     void setExitCode(unsigned exitIndex, MacroAssemblerCodeRef<OSRExitPtrTag> code)
     {
-        m_exits[exitIndex] = WTF::move(code);
+        // TSAN family osr-exit-coderef (TSAN-TRIAGE §20.3.5): GIL-off, the
+        // SCALEBENCH-bimodal lock-free DCLP probe in operationCompileOSRExit
+        // reads m_exits[i].m_codePtr without dfgOSRExitGenerationLock; this is
+        // the publishing writer (under that lock). Decompose the move-assign so
+        // m_executableMemory lands first (the slot's own RefPtr is the liveness
+        // anchor once m_codePtr publishes non-thunk), storeStoreFence, then
+        // publish m_codePtr with a relaxed atomic store paired with
+        // exitCodePtrConcurrent()'s relaxed load. offsetOfCodePtr() is the same
+        // JIT-visible word the unlinked-DFG farJump reads (DFGJITCompiler.cpp);
+        // the static_asserts pin m_executableMemory at the second word so a
+        // layout change in MacroAssemblerCodeRef trips here. Flag-off: the DCLP
+        // arm is gilOff-only, and a relaxed store of one word + a fence is
+        // codegen-equivalent on the slow path to the plain move-assign it
+        // replaces (once-per-exit-compile), so flag-off behavior is unchanged.
+        auto& slot = m_exits[exitIndex];
+        static_assert(!MacroAssemblerCodeRef<OSRExitPtrTag>::offsetOfCodePtr());
+        static_assert(sizeof(CodePtr<OSRExitPtrTag>) == sizeof(void*));
+        static_assert(sizeof(MacroAssemblerCodeRef<OSRExitPtrTag>) == 2 * sizeof(void*));
+        constexpr ptrdiff_t executableMemoryOffset = sizeof(void*);
+        auto* slotExecMem = std::bit_cast<RefPtr<ExecutableMemoryHandle>*>(std::bit_cast<char*>(&slot) + executableMemoryOffset);
+        auto* srcExecMem = std::bit_cast<RefPtr<ExecutableMemoryHandle>*>(std::bit_cast<char*>(&code) + executableMemoryOffset);
+        *slotExecMem = WTF::move(*srcExecMem);
+        WTF::storeStoreFence();
+        void** slotCodePtrWord = std::bit_cast<void**>(std::bit_cast<char*>(&slot) + MacroAssemblerCodeRef<OSRExitPtrTag>::offsetOfCodePtr());
+        WTF::atomicStore(slotCodePtrWord, code.code().taggedPtr(), std::memory_order_relaxed);
     }
     const MacroAssemblerCodeRef<OSRExitPtrTag>& exitCode(unsigned exitIndex) const { return m_exits[exitIndex]; }
+
+    // Relaxed-atomic read of m_exits[i].m_codePtr for the gilOff lock-free
+    // DCLP probe in operationCompileOSRExit (TSAN-TRIAGE §20.3.5). Pairs with
+    // setExitCode()'s relaxed-atomic publish; the caller issues
+    // WTF::loadLoadFence() after observing a non-thunk value. Returns the
+    // tagged code pointer (same value exitCode(i).code().taggedPtr() would
+    // return under the lock).
+    void* exitCodePtrConcurrent(unsigned exitIndex) const
+    {
+        static_assert(sizeof(CodePtr<OSRExitPtrTag>) == sizeof(void*));
+        auto* word = std::bit_cast<void* const*>(std::bit_cast<const char*>(&m_exits[exitIndex]) + MacroAssemblerCodeRef<OSRExitPtrTag>::offsetOfCodePtr());
+        return WTF::atomicLoad(const_cast<void**>(word), std::memory_order_relaxed);
+    }
 
     bool isInvalidated() const { return !!m_isInvalidated; }
 

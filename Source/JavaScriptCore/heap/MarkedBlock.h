@@ -657,7 +657,12 @@ inline void MarkedBlock::Handle::assertMarksNotStale()
 
 inline bool MarkedBlock::isMarkedRaw(const void* p)
 {
-    return header().m_marks.get(atomNumber(p));
+    // TSAN (JSC GIL-off, family marks-bitset-plain-readers): the only
+    // remaining caller (sharedGCWindowWitnessSnapshot) reads this lock-free
+    // and tolerates stale, while a SlotVisitor on another thread CASes the
+    // same word via concurrentTestAndSet. Relaxed-atomic read; same shape as
+    // the §18.2 Handle::isLive precedent. Identical codegen to BitSet::get().
+    return header().m_marks.concurrentGet(atomNumber(p));
 }
 
 // Defined in MarkedBlock.cpp with NEVER_INLINE to prevent LTO from breaking compiler barriers

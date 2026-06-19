@@ -1899,8 +1899,16 @@ void JSGlobalObject::init(VM& vm)
         Options::allowDoubleShape() ? JSArray::createStructure(vm, this, m_arrayPrototype.get(), CopyOnWriteArrayWithDouble) : copyOnWriteArrayWithContiguous);
     m_originalArrayStructureForIndexingShape[arrayIndexFromIndexingType(CopyOnWriteArrayWithContiguous)].set(vm, this, copyOnWriteArrayWithContiguous);
 
+    // TSAN family globalobject-init-vs-visitor: the default
+    // WriteBarrierStructureID copy-assign is a plain m_structureID store, but
+    // visitChildrenImpl reads these slots via StructureID::relaxedLoad on a
+    // helper thread (SPEC-congc visitor-vs-init). Route the writer through the
+    // relaxed-store path so the access pair is atomic-vs-atomic. Benign by
+    // value (zero ID -> append no-op; non-zero is independently reachable via
+    // m_originalArrayStructureForIndexingShape). Non-TSAN builds compile to the
+    // identical plain 32-bit store (flag-off codegen unchanged).
     for (unsigned i = 0; i < NumberOfArrayIndexingModes; ++i)
-        m_arrayStructureForIndexingShapeDuringAllocation[i] = m_originalArrayStructureForIndexingShape[i];
+        m_arrayStructureForIndexingShapeDuringAllocation[i].setWithoutWriteBarrier(m_originalArrayStructureForIndexingShape[i].get());
 
     m_shadowRealmPrototype.set(vm, this, ShadowRealmPrototype::create(vm, ShadowRealmPrototype::createStructure(vm, this, m_objectPrototype.get())));
     m_shadowRealmObjectStructure.set(vm, this, ShadowRealmObject::createStructure(vm, this, m_shadowRealmPrototype.get()));

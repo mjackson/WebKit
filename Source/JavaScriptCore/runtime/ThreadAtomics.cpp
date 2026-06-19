@@ -555,7 +555,6 @@ ASCIILiteral JSObject::putDirectIndexForAtomicsMissingAdd(JSGlobalObject* global
         IndexingType type = indexingType();
 
         if (hasAnyArrayStorage(type)) {
-            bool wantGrow = false;
             {
                 Locker locker { cellLock() };
                 ArrayStorage* storage = arrayStorageOrNull();
@@ -568,10 +567,9 @@ ASCIILiteral JSObject::putDirectIndexForAtomicsMissingAdd(JSGlobalObject* global
                     // Map-governance gate (MC-REENT S3c close-out): the
                     // in-vector arm must not bypass a sparse map that governs
                     // this index. A racing indexed define can interleave with
-                    // our arm-(4) vector grow as
+                    // a foreign generic-path vector grow as
                     //   define: createArrayStorage (no map yet)
-                    //   us:     wantGrow decision (no map) -> unlock ->
-                    //           increaseVectorLength(i+1)
+                    //   peer:   increaseVectorLength(i+1) (locked AS-COPY)
                     //   define: allocateSparseIndexMap + setSparseMode +
                     //           cellLocked add(i) + descriptor publish
                     //   us:     i < vectorLength -> unconditional vector fill
@@ -588,7 +586,7 @@ ASCIILiteral JSObject::putDirectIndexForAtomicsMissingAdd(JSGlobalObject* global
                         if (governingMap->contains(i))
                             return "lost indexed-add race (existing sparse entry)"_s; // Restart reclassifies on the settled descriptor.
                         // Sparse mode, no entry for i (reachable stably when
-                        // our arm-(4) grow raced the mode flip): the map is
+                        // a foreign grow raced the mode flip): the map is
                         // the only legal terminal — fall through to arm (5)'s
                         // conditional add below instead of returning
                         // lost-race, which would livelock (the re-probe still
@@ -607,11 +605,35 @@ ASCIILiteral JSObject::putDirectIndexForAtomicsMissingAdd(JSGlobalObject* global
                         storage->m_sparseMap.set(vm, this, pendingMap);
                         map = pendingMap;
                         pendingMap = nullptr;
-                    } else if (isDenseEnoughForVector(i + 1, storage->m_numValuesInVector)
-                        && !indexIsSufficientlyBeyondLengthForSparseMap(i, storage->vectorLength())) {
-                        wantGrow = true; // increaseVectorLength allocates: outside the lock.
                     }
                     // else: fall out to allocate a map outside the lock.
+                    //
+                    // NO dense-growth (increaseVectorLength) arm here, by
+                    // ruling on TSAN family growarrayright-vs-sparsemap-atomics
+                    // (OM §4 — NOT blessed; CVE map mc-reent-store-missing-
+                    // indexed-define-race). The previous mirror of
+                    // putDirectIndexBeyondVectorLengthWithArrayStorage's !map
+                    // dense-growth leg dropped this lock and called
+                    // increaseVectorLength, whose growArrayRight memcpy plain-
+                    // reads the WHOLE old butterfly (including the
+                    // ArrayStorage::m_sparseMap header word) under our
+                    // cellLock. defineOwnIndexedProperty's blank-shape arm of
+                    // ensureArrayStorageExistsAndEnterDictionaryIndexingMode
+                    // does createArrayStorage(0,0) then allocateSparseIndexMap
+                    // — and that m_sparseMap.set runs WITHOUT the cellLock, so
+                    // increaseVectorLength's locked sparse-mode re-check cannot
+                    // synchronize with it: the memcpy and the storeCell race on
+                    // the same word (UB), and our AS-COPY publish can drop
+                    // define's freshly-installed map. Removing the grow arm
+                    // leaves arm-(4)'s locked, atomic m_sparseMap.set as the
+                    // ONLY butterfly-header write this function performs in the
+                    // AS arm; define's later cellLocked re-read + pendingMap
+                    // re-derive + heal loop linearize against it via this same
+                    // lock. Density is a non-goal on the Atomics.store
+                    // indexed-miss slow path; a foreign generic putter that
+                    // wants vector growth still grows via the §4.6-locked
+                    // JSObject.cpp paths, and arm-(3)'s in-vector fill above
+                    // services any such peer-grown vector.
                 }
                 if (map) {
                     // (5) Conditional sparse add + publish, ONE object-cellLock
@@ -640,14 +662,6 @@ ASCIILiteral JSObject::putDirectIndexForAtomicsMissingAdd(JSGlobalObject* global
                         return "lost indexed-publish race (sparse map replaced)"_s;
                     return { };
                 }
-            }
-            if (wantGrow) {
-                // (4) Mirror of putDirectIndexBeyondVectorLengthWithArrayStorage's
-                // !map dense-growth leg: grow outside any lock, re-dispatch -
-                // the next iteration's locked in-vector arm performs the
-                // fill. Growth failure falls to the sparse leg.
-                if (increaseVectorLength(vm, i + 1))
-                    continue;
             }
             pendingMap = SparseArrayValueMap::create(vm); // GC allocation: never under the cell lock (I20/O1).
             continue;

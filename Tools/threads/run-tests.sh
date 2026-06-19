@@ -104,6 +104,27 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 JT="$ROOT/JSTests/threads"
 AMPLIFY_SH="$ROOT/Tools/threads/amplify.sh"
 
+# CVE-AUDIT B9 / MC-GC S2a (mc-gc-s2a-uar-fakestack.crash.txt): pin
+# detect_stack_use_after_return=0 for every Linux ASAN run of the threads
+# corpus. ASAN's UAR fake-stack relocates address-taken locals onto a heap
+# region OUTSIDE thread.stack()'s [end, origin]; the T5 cooperative
+# parked-stack root scan (MachineStackMarker tryCopyCooperativelyParkedThreadStack)
+# captures &local as stackTop and computes a multi-MB span that walks off the
+# mapped OS stack -> hardware SEGV at copyMemory (the SUPPRESS_ASAN there
+# means no UAR diagnostic, just a fault). The publish-side and consumer-side
+# bounds-checks (Heap.cpp publishParkedRootSnapshot / MachineStackMarker.cpp)
+# decline-and-fall-back so the engine is correct regardless, but with UAR on
+# every cooperative snapshot is declined and the T5 optimisation is a no-op
+# (and any future publish site that escapes UAR instrumentation re-opens the
+# hazard). Pin the lane so the corpus exercises the cooperative path the way
+# production builds do. PREPENDED to any caller-supplied ASAN_OPTIONS so an
+# explicit override (e.g. a targeted UAR repro) still wins — ASAN parses
+# left-to-right, last occurrence wins.
+# detect_leaks=0: LSan-at-exit is noise for the jsc shell (intentional
+# at-exit leaks; matches every other Tools/threads ASAN driver — fuzz/
+# triage-r1.sh, run-fuzzilli.sh, bughunt/w16/*.sh, deepwater/LIMP.md).
+export ASAN_OPTIONS="detect_stack_use_after_return=0:detect_leaks=0${ASAN_OPTIONS:+:${ASAN_OPTIONS}}"
+
 FILTER=""
 AMPLIFY=0
 LIST=0

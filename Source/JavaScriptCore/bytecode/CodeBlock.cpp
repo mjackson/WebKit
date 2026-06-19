@@ -819,7 +819,13 @@ void CodeBlock::setBaselineJITData(std::unique_ptr<BaselineJITData>&& jitData)
 {
     ASSERT(!m_jitData);
     WTF::storeStoreFence(); // m_jitData is accessed from concurrent GC threads.
-    m_jitData = jitData.release();
+    // TSAN (JSC GIL-off, family codeblock-jitdata-publish §21.4.2): match
+    // setDFGJITData — under TSAN this is a release so baselineJITData()'s
+    // acquire pairs and the BaselineJITData TrailingArray header /
+    // propertyInlineCaches() interior is published; relaxed otherwise (the
+    // storeStoreFence above already orders for hardware). No non-TSAN
+    // behavior change.
+    WTF::atomicStore(&m_jitData, static_cast<void*>(jitData.release()), jitDataStoreOrder);
     checker().set(CrashChecker::BaselineJITData, checker().hash(this, m_jitData));
     auto* baselineJITData = std::bit_cast<BaselineJITData*>(m_jitData);
     checker().set(CrashChecker::PropertyInlineCacheCount, checker().hash(this, baselineJITData->propertyInlineCaches().size()));

@@ -127,6 +127,10 @@ public:
 
 private:
     MatchResult m_result { 0, 0 };
+    // m_reified / m_oneCharacterMatch stay plain bool (JIT consumes
+    // offsetOfReified/offsetOfOneCharacterMatch as raw byte stores); the C++
+    // sites that race with the concurrent GC visitor (record() vs
+    // visitAggregateImpl) go through WTF::atomicLoad/Store relaxed instead.
     bool m_reified { false };
     bool m_oneCharacterMatch { false };
     WriteBarrier<JSString> m_lastInput;

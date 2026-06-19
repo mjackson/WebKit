@@ -203,22 +203,22 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompileOSRExit, void, (CallFrame* cal
         // phaseA bimodal). Do the lock-free DCLP read FIRST: m_exits[i] is
         // initialized to the process-singleton osrExitGenerationThunk
         // (DFGPlan.cpp:834) and overwritten exactly once by setExitCode under
-        // dfgOSRExitGenerationLock; the move-assign writes m_codePtr (the
+        // dfgOSRExitGenerationLock; setExitCode writes m_executableMemory
+        // first, storeStoreFence, then relaxed-atomic publishes m_codePtr (the
         // single tagged word the JIT-emitted unlinked dispatch ALSO reads
-        // lock-free, DFGJITCompiler.cpp:147) FIRST, so a non-thunk codePtr
+        // lock-free, DFGJITCompiler.cpp:147) LAST, so a non-thunk codePtr
         // implies the ramp's executable memory is fully constructed
-        // (FINALIZE_CODE's LinkBuffer fence) and held live by either the
-        // writer's stack-local exitCode or the m_exits slot's RefPtr. The
-        // thunk codePtr is cached in a function-static (process-lifetime CTI
-        // stub; thread-safe static-local init avoids the per-traversal
-        // JITThunks lock). Same value the under-lock check returned;
-        // DW-1 record above already ran (matching the under-lock early
-        // return's ordering). gilOff-only arm; flag-off byte-identical.
+        // (FINALIZE_CODE's LinkBuffer fence) and held live by the m_exits
+        // slot's own RefPtr. The thunk codePtr is cached in a function-static
+        // (process-lifetime CTI stub; thread-safe static-local init avoids
+        // the per-traversal JITThunks lock). Same value the under-lock check
+        // returned; DW-1 record above already ran (matching the under-lock
+        // early return's ordering). gilOff-only arm; flag-off byte-identical.
         static void* const s_osrExitGenerationThunkCodePtr =
             vm.getCTIStub(osrExitGenerationThunkGenerator).retaggedCode<OSRExitPtrTag>().taggedPtr();
-        void* publishedCodePtr = codeBlock->dfgJITData()->exitCode(exitIndex).code().taggedPtr();
+        void* publishedCodePtr = codeBlock->dfgJITData()->exitCodePtrConcurrent(exitIndex);
         if (publishedCodePtr && publishedCodePtr != s_osrExitGenerationThunkCodePtr) [[likely]] {
-            WTF::loadLoadFence(); // pairs with FINALIZE_CODE's publish + the storeStoreFence before setExitCode.
+            WTF::loadLoadFence(); // pairs with FINALIZE_CODE's publish + setExitCode()'s internal storeStoreFence.
             vm.group3Primitives().osrExitJumpDestination = publishedCodePtr;
             return;
         }

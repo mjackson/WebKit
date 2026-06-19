@@ -37,7 +37,14 @@ void RegExpCachedResult::visitAggregateImpl(Visitor& visitor)
 {
     visitor.append(m_lastInput);
     visitor.append(m_lastRegExp);
-    if (m_reified) {
+    // SPEC-congc visitor-vs-init (TSAN wave 2, regexp-cached-result-visit):
+    // a HeapHelper marker can run visitAggregateImpl on the in-object
+    // RegExpCachedResult while another mutator's JSGlobalObject::init is
+    // mid-record() seeding the same struct (N-mutator conductSharedCollection).
+    // Benign by value — stale false skips null reified slots; stale true
+    // over-visits null WriteBarriers, which SlotVisitor::append tolerates —
+    // but the plain read is UB, so go through a relaxed atomic.
+    if (WTF::atomicLoad(&m_reified, std::memory_order_relaxed)) {
         visitor.append(m_reifiedInput);
         visitor.append(m_reifiedResult);
         visitor.append(m_reifiedLeftContext);

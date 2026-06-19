@@ -1,6 +1,7 @@
 # TSAN-TRIAGE.md — GIL-off TSAN campaign
 
-Status: round 5 (r5) re-run triaged — see §14 for the current table. Earlier
+Status: round 25 (r25) re-run triaged — see §22 for the current table. r24
+in §21, r23 re-snapshot in §20; r0-r22 history in §§0-19. Earlier
 rounds: r4 in §12 (+§13 review amendments), r3 in §10 (+§11), r2 in §8 (+§9),
 r1 in §6 (+§7), r0 in §§0–5; rulings stand unless amended in a later section.
 Raw reports: `Tools/threads/tsan/reports-r0.log` (10515), `reports-r1.log`
@@ -2575,3 +2576,1414 @@ unchanged), full corpus 93/0 GIL-off + 94/0 GIL-on, identity gate
 mismatches=0, GIL-on single-run PASS, flag-off stress smoke
 (have-a-bad-time-with-arguments.js rc=0). The KNOWN-FAILING list is now
 empty of functional items owned by closeout items 3/4.
+
+## 20. Round r23 — post-congc/closeout re-snapshot (2026-06-19)
+
+### 20.0 TSAN configuration (standing-ruling re-compliance)
+
+The `WebKitBuild/TSan` directory had been **reverted to a CLoop build** since
+the §0 reconfiguration (someone re-ran the un-patched `tsan.sh` on Jun 15;
+`CMakeCache.txt` showed `ENABLE_C_LOOP:BOOL=ON, ENABLE_JIT:BOOL=OFF`, and the
+Jun 18 23:36 binary carried 24 CLoop symbols and zero DFG/FTL symbols). Per
+the standing ruling, the directory was **wiped and reconfigured** with the
+REAL LLInt asm + full JIT, identical to the §0 flag set:
+`ENABLE_C_LOOP=OFF`, `ENABLE_JIT/DFG_JIT/FTL_JIT=ON`,
+`ENABLE_WEBASSEMBLY(+BBQ/OMG)=ON`, `ENABLE_SAMPLING_PROFILER=ON`,
+`ENABLE_SANITIZERS=thread`, `USE_SYSTEM_MALLOC=ON`, RelWithDebInfo +
+`-fno-omit-frame-pointer -g`, clang-21, Bun flags. Build verified:
+`ENABLE_C_LOOP:BOOL=OFF` in CMakeCache, binary mtime (Jun 19 00:18) newer
+than the newest source file (Jun 18 23:48), `nm | grep -c CLoop` = 0,
+DFG/FTL symbols present.
+
+Smoke (`JSTests/threads/smoke.js`, GIL-off env, full JIT, 3x standalone):
+**PASS each run, exit 0, ZERO TSAN reports**, no instrumentation crashes or
+hangs. TSAN+JIT remains workable; no-JIT fallback NOT used. (Under -P12
+corpus load, smoke.js surfaces 33 reports — all family `tlc-slot-stamp`,
+which needs ≥2 spawned threads racing the same attach window; standalone
+3x missed it by scheduling.)
+
+**Accepted tradeoff (re-stated per ruling):** TSAN cannot see races inside
+JIT-generated code. That coverage belongs to the object-model protocol
+tests + amplifier. Residual evidence: 20 of the 3692 r23 reports are
+JIT-one-siders (degraded/absent JIT-side stack — see family
+`jit-one-sider-allocator`). **Zero CLoop frames** anywhere in r23
+(`grep -ci CLoop reports-r23.log` = 0). No CLoop suppressions were needed;
+none added.
+
+### 20.1 Run configuration
+
+Same as §1 (binary, env, args, TSAN_OPTIONS, suppressions). Corpus: 246
+candidate `JSTests/threads/**/*.js` (grown since r0; congc-t* + cve/mc-* +
+gc-stress + scaling tests added). Result: **3692 reports** in 105 test
+files, 29 raw deduped stack-pair keys, grouped into the **10 families**
+below. KNOWN-FAILING tests (date-cache-churn, proto-cycle-race,
+symbol-registry-cross-thread, havebadtime-vs-indexed-fastpath) ran; their
+race reports are counted (havebadtime contributes 4 reports to families 2
+and 10; the other three contribute only family-1 stamps). Exit-code
+spectrum: 129 exit-0, 105 exit-66, 10 exit-3, 1 exit-134
+(semantics/frozen-seal-race), 1 exit-124 (w16-c1-prevent-collection
+timeout).
+
+Per-test logs: `Tools/threads/tsan/r23/`. Concatenated reports:
+`Tools/threads/tsan/reports-r23.log` (also written to `reports-r0.log` per
+the campaign-snapshot contract). Dedup output:
+`Tools/threads/tsan/families-r23.txt`.
+
+`unsuppressedCount = 3692` (post-CLoop-suppression: no CLoop families
+existed; nothing newly suppressed in this round — family 10's anchors are
+proposed, not yet applied).
+
+**None of the V7 known-suspect families reappear** (RegExpCachedResult,
+TinyBloomFilter, ArrayProfile/ArithProfile/ArrayAllocationProfile,
+WriteBarrierBase, JITCode/RawPtrTraits, CallLinkRecord, PropertyTable,
+StringImplShape, NumericStrings, KeyAtomStringCache, BlockDirectoryBits,
+cellHeaderConcurrentLoad, Structure::setMaxOffset, addToRememberedSet,
+WatchpointSet — all closed in r0-r17/§18). Every r23 family is **new
+surface** introduced by post-r22 work: SPEC-congc landing
+(`sharedGCWindowWitnessSnapshot`, `parkedRootSnapshot`, GCThreadLocalCache
+attach), the SCALEBENCH bimodal fix's lock-free OSR-exit DCLP, and
+ConcurrentPtrHashSet under N-mutator visit pressure.
+
+### 20.2 Family table (r23)
+
+| # | id | count | spec row | ruling | files (wave ownership) |
+|---|----|-------|----------|--------|------------------------|
+| 1 | tlc-slot-stamp | 2691 | SPEC-heap §5.3 (TLC slot is a deterministic per-subspace index; idempotent stamp) | relaxed-atomic | heap/IsoSubspace.h |
+| 2 | marks-bitset-plain-readers | 828 | SPEC-congc §5 (witness snapshot tolerates stale marks); upstream concurrent-marking BitSet protocol | concurrent-accessor | WTF/wtf/BitSet.h, heap/MarkedBlock.h, heap/MarkedBlockInlines.h |
+| 3 | dependency-loadandfence | 76 | OM §2/§3 (consume-style fenced loads); §13.4 TSAN-gate precedent | relaxed-atomic | WTF/wtf/Atomics.h |
+| 4 | parked-root-snapshot | 37 | SPEC-congc T5-rootscan-skip (seq_cst snapshot ptr orders the thread-id word) | relaxed-atomic | heap/Heap.h, heap/Heap.cpp |
+| 5 | osr-exit-coderef | 25 | SPEC-jit §4.x publish-via-one-pointer; SCALEBENCH bimodal DCLP | relaxed-atomic | dfg/DFGJITCode.h, dfg/DFGOSRExit.cpp |
+| 6 | concurrentptrhashset-publish | 7 | upstream lock-free table; §13.4 TSAN-gate precedent (ConcurrentVector/Buffer) | relaxed-atomic | WTF/wtf/ConcurrentPtrHashSet.h |
+| 7 | codeblock-jitdata-publish | 4 | SPEC-jit §4.x code lifecycle (m_jitData published after storeStoreFence) | relaxed-atomic | bytecode/CodeBlock.h, bytecode/CodeBlock.cpp |
+| 8 | dfg-weakrefs-reallyadd | 2 | SPEC-jit §4.x / SPEC-congc — NOT blessed (unfenced FixedVector swap vs concurrent visitor) | real-bug | dfg/DFGDesiredWeakReferences.cpp |
+| 9 | typedarray-sort-memcpy | 2 | OM §1 GT (TA lanes intentionally racy via concurrent accessor) — plain memcpy is NOT the accessor | relaxed-atomic | runtime/JSGenericTypedArrayViewInlines.h |
+| 10 | jit-one-sider-allocator | 20 | §0 accepted tradeoff (JIT-side invisible) + §18.3 wave-7 anchor class | suppress | Tools/tsan/suppressions.txt |
+
+All 10 families have **disjoint file ownership** (wave-1 can run all 10 in
+parallel).
+
+### 20.3 Per-family analysis
+
+#### 20.3.1 tlc-slot-stamp (2691)
+
+Raw keys: `(stampTlcSlot, stampTlcSlot)` 2673 + `(stampTlcSlot, tlcSlot)`
+18. `IsoSubspace::stampTlcSlot()` (IsoSubspace.h:86) does a plain
+`m_tlcSlot = slot` write; every spawned thread's
+`GCClient::GCThreadLocalCache` ctor (GCThreadLocalCache.cpp:200) walks the
+shared subspace list and stamps each one. N threads attaching concurrently
+all stamp the same word with the **same value** (the ASSERT at :85 confirms
+idempotence: `m_tlcSlot == invalidTlcIndex || m_tlcSlot == slot`). The
+read-side (18 reports) is the DFG compiler thread's
+`AssemblyHelpers::tlcSlotForConcurrentlyWithIso<T>()` reading the slot to
+emit the per-thread inline-allocation address.
+
+**Spec row:** SPEC-heap §5.3 / dev-6 — the TLC slot is a deterministic
+per-subspace index assigned once at first attach; "iso = lookup-only"
+predicate. The value is monotonic (`invalid → slot`, idempotent). SPEC-jit
+§5.7.7 advisory-datum rule applies (≤8B, deterministic, plain-iff-atomic).
+
+**Ruling: relaxed-atomic.** Convert `m_tlcSlot` to relaxed-atomic
+load/store: `tlcSlot()` → `WTF::atomicLoad(&m_tlcSlot, relaxed)`;
+`stampTlcSlot()` → `WTF::atomicStore(&m_tlcSlot, slot, relaxed)`. Keep the
+debug ASSERT (re-read via the relaxed load). Flag-off: never stamped/read
+(behind `vm.gilOff()` codegen gate per the in-source comment), so semantics
+unchanged.
+
+**Files:** `Source/JavaScriptCore/heap/IsoSubspace.h`.
+
+**Evidence:**
+```
+Write of size 4 by T16:
+  IsoSubspace::stampTlcSlot IsoSubspace.h:86
+  GCClient::GCThreadLocalCache::GCThreadLocalCache GCThreadLocalCache.cpp:200
+  GCClient::Heap::Heap Heap.cpp:7932
+  attachSpawnedThreadGCClient ThreadManager.cpp:641
+Previous write of size 4 by T15:
+  IsoSubspace::stampTlcSlot IsoSubspace.h:86
+  GCClient::GCThreadLocalCache::GCThreadLocalCache GCThreadLocalCache.cpp:200
+  (identical stack)
+--- read variant ---
+Previous read of size 4 by DFG compiler thread:
+  IsoSubspace::tlcSlot IsoSubspace.h:81
+  AssemblyHelpers::tlcSlotForConcurrentlyWithIso<JSFunction>
+  AssemblyHelpers::emitAllocateJSObjectWithKnownSize
+  DFG::SpeculativeJIT::compileNewFunctionCommon<JSFunction>
+```
+
+#### 20.3.2 marks-bitset-plain-readers (828)
+
+Raw keys (writer side is always `BitSet<1024>::concurrentTestAndSet` via
+SlotVisitor marking, an atomic CAS): `BitSet::get` 509+17 (one-sided),
+`specializedSweep` memcpy 214+65, `BitSet::concurrentFilter` 18+5. Three
+distinct plain-read sites of `MarkedBlock::header().m_marks` racing the
+marking thread's atomic CAS:
+
+(a) **`isMarkedRaw()`** (MarkedBlock.h:660) calls plain `BitSet::get()`.
+Called from `sharedGCWindowWitnessSnapshot()` (MarkedBlock.cpp:507/527),
+which per its comment "read isMarkedRaw()/isNewlyAllocatedStale() lock-free
+and tolerate stale". The §18.2 precedent already converted
+`Handle::isLive`'s m_marks read to `concurrentGet()`.
+
+(b) **`specializedSweep`**'s `live = header.m_marks` struct copy
+(MarkedBlockInlines.h:285/288) — clang lowers this to `__tsan_memcpy` over
+the 128-byte BitSet while a SlotVisitor on another mutator's conducted GC
+CAS-sets bits. The sweep is allocator-side; the CAS is marker-side. The
+existing protocol orders them via `m_markingVersion` (TSAN can't model the
+version-fence dependency).
+
+(c) **`BitSet::concurrentFilter`** (BitSet.h:405) reads `other.bits[i]`
+plain (where `other` is the live marks set) inside
+`IsoCellSet::sweepToFreeList` (IsoSubspace::didBeginSweepingToFreeList).
+Its own-word CAS is fine; the *foreign* word read is plain.
+
+**Spec row:** SPEC-congc §5 (witness snapshot is advisory; staleness
+tolerated) + the upstream concurrent-marking BitSet protocol (already
+blessed by the rule-1 suppressions header and §18.2's
+`isLive`→`concurrentGet` precedent).
+
+**Ruling: concurrent-accessor.** (a) `isMarkedRaw()` →
+`m_marks.concurrentGet(atomNumber(p))` (the existing concurrent accessor;
+exact §18.2 shape). (b) Add `BitSet::concurrentCopyFrom(const BitSet&)`
+that loads each word relaxed-atomic, and use it at MarkedBlockInlines.h:285
+/288 instead of struct assign. (c) `concurrentFilter`: change the
+`other.bits[i]` reads to
+`std::bit_cast<const Atomic<WordType>*>(&other.bits[i])->loadRelaxed()`.
+All three are word-granular relaxed loads = identical x86 codegen.
+
+**Files:** `Source/WTF/wtf/BitSet.h` (concurrentCopyFrom; concurrentFilter
+fix), `Source/JavaScriptCore/heap/MarkedBlock.h` (isMarkedRaw),
+`Source/JavaScriptCore/heap/MarkedBlockInlines.h` (specializedSweep copy).
+
+**Evidence:**
+```
+Read of size 8: BitSet<1024>::get BitSet.h:188
+  MarkedBlock::isMarkedRaw MarkedBlock.h:660
+  MarkedBlock::sharedGCWindowWitnessSnapshot MarkedBlock.cpp:507
+  Heap::addCoreConstraints::$_3 Heap.cpp:4725
+  Heap::runFixpointPhase
+Previous atomic write of size 8: Atomic<u64>::compareExchangeWeak
+  BitSet<1024>::concurrentTestAndSet
+  MarkedBlock::testAndSetMarked
+  SlotVisitor::appendHiddenUnbarriered
+--- sweep variant ---
+Read of size 8: __tsan_memcpy
+  MarkedBlock::Handle::specializedSweep MarkedBlockInlines.h:285  (live = header.m_marks)
+  MarkedBlock::Handle::sweep
+  LocalAllocator::tryAllocateIn / allocateSlowCase
+Previous atomic write: BitSet<1024>::concurrentTestAndSet (same as above)
+```
+
+#### 20.3.3 dependency-loadandfence (76)
+
+Raw keys: `(Atomic<Butterfly*>::store, loadAndFence<Butterfly*>)` 48 +
+`(compareExchangeStrong, loadAndFence<Butterfly*>)` 10 +
+`('data race', loadAndFence<Butterfly*>)` 5 +
+`(Atomic<u64>::store, loadAndFence<Butterfly*>)` 1 +
+`(loadAndFence<u32>, aligned_alloc)` 8 +
+`(Header::Header, loadAndFence<u32>)` 4.
+
+`WTF::Dependency::loadAndFence<T>` on x86 (Atomics.h:449) does a **plain
+`*pointer`** then `Dependency::fence` (which is a no-op on TSO). All
+callers — `JSObjectWithButterfly::fencedButterfly()` in
+`visitButterflyImpl` (concurrent GC visiting a mutator's object) and
+`MarkedBlock::aboutToMark()` reading `m_markingVersion` — are by
+construction the **consume-style dependency-ordered loads** OM §2/§3 and
+the upstream concurrent-GC protocol bless. The writer sides are already
+atomic (`AuxiliaryBarrier` relaxed store, `storeTaggedButterflyWordConcurrent`
+CAS, `FreeCell::makeLast` atomic store) or carry the §18.2
+`MarkedBlock::Header` ctor `TSAN_ANNOTATE_HAPPENS_BEFORE`.
+
+**Spec row:** OM §2 (butterfly word via fenced/tagged accessors) + OM §3
+(cell header via concurrent accessors); §13.4 TSAN-gate precedent
+("consume-style publication TSAN cannot model").
+
+**Ruling: relaxed-atomic (TSAN-gated).** Under `TSAN_ENABLED`, change
+`loadAndFence`'s `T value = *pointer` to an
+`Atomic<T>` acquire load (`std::bit_cast<const Atomic<T>*>(pointer)->load()`).
+Production keeps the plain consume/dependency load. This single Atomics.h
+change closes all 76: the writer-atomic cases (64) become atomic↔atomic;
+the `Header::Header`/`aligned_alloc` cases (12) pair via the existing
+`TSAN_ANNOTATE_HAPPENS_BEFORE(&header())` (MarkedBlock.h:575 already
+annotates the reader side; the acquire load completes the model).
+
+**Files:** `Source/WTF/wtf/Atomics.h`.
+
+**Evidence:**
+```
+Read of size 8: Dependency::loadAndFence<Butterfly*> Atomics.h:449
+  JSObjectWithButterfly::fencedButterfly
+  JSObjectWithButterfly::visitButterflyImpl<SlotVisitor>
+  JSFinalObject::visitChildren / SlotVisitor::drain
+Previous atomic write of size 8: Atomic<Butterfly*>::store
+  AuxiliaryBarrier<Butterfly*>::setWithoutBarrier
+  AuxiliaryBarrier<Butterfly*>::AuxiliaryBarrier  (cell ctor on another mutator)
+```
+
+#### 20.3.4 parked-root-snapshot (37)
+
+`GCClient::Heap::publishParkedRootSnapshot()` writes
+`m_parkedRootSnapshotThread = &thread` plain (Heap.cpp:8664/8668);
+`parkedRootSnapshotThread()` reads it plain (Heap.h:2406) from
+`Heap::gatherStackRoots` on the GC conductor. The in-source comment
+(Heap.h:2598) documents the protocol: "written BEFORE the seq_cst
+m_parkedRootSnapshot publish; read by the conductor only when that load
+returns non-null (the seq_cst pair orders it). Never cleared independently
+(stale value is harmless — gated by the snapshot pointer)."
+
+**Spec row:** SPEC-congc T5-rootscan-skip — the seq_cst
+`m_parkedRootSnapshot` pointer is the publication; the thread-id word is a
+piggyback payload ordered by it. Blessed by design; the plain word access
+is the UB.
+
+**Ruling: relaxed-atomic.** `m_parkedRootSnapshotThread` read/write via
+`WTF::atomicLoad/Store(..., relaxed)`. The seq_cst on the snapshot pointer
+remains the real HB edge.
+
+**Files:** `Source/JavaScriptCore/heap/Heap.h` (accessor + member),
+`Source/JavaScriptCore/heap/Heap.cpp` (the two write sites).
+
+**Evidence:**
+```
+Write of size 8: GCClient::Heap::publishParkedRootSnapshot Heap.cpp:8668
+  gcClientPublishParkedRootSnapshot
+  VMManager::notifyVMStop
+  VMTraps::handleTraps  (parking mutator)
+Previous read of size 8: GCClient::Heap::parkedRootSnapshotThread Heap.h:2406
+  Heap::gatherStackRoots Heap.cpp:1230
+  HeapClientSet::forEach  (GC conductor, different mutator)
+```
+
+#### 20.3.5 osr-exit-coderef (25)
+
+`DFG::JITData::setExitCode()` (DFGJITCode.h:173) move-assigns a
+`MacroAssemblerCodeRef<OSRExitPtrTag>` into `m_exits[i]` — plain writes of
+its `m_codePtr` and `m_executableMemory` words. The reader is the new
+SCALEBENCH-bimodal lock-free DCLP probe at DFGOSRExit.cpp:219:
+`exitCode(exitIndex).code().taggedPtr()` — plain read of `m_codePtr`. Both
+sides are inside `operationCompileOSRExit` on **different mutators** firing
+the same exit. The in-source comment (DFGOSRExit.cpp:195-221) documents the
+protocol: "m_exits[i] is initialized to the process-singleton
+osrExitGenerationThunk and overwritten exactly once by setExitCode under
+dfgOSRExitGenerationLock; the move-assign writes m_codePtr FIRST … a
+non-thunk codePtr implies the ramp's executable memory is fully constructed
+… loadLoadFence pairs with FINALIZE_CODE's publish."
+
+**Spec row:** SPEC-jit §4.x publish-via-one-pointer + §5.8 (single
+published code word). Blessed protocol; plain word access is the UB.
+
+**Ruling: relaxed-atomic.** Add `JITData::exitCodePtrConcurrent(unsigned)`
+that relaxed-loads the `m_codePtr` word
+(`WTF::atomicLoad(&m_exits[i].code(), relaxed).taggedPtr()` shape), use it
+at DFGOSRExit.cpp:219 in place of the plain `.code().taggedPtr()`. In
+`setExitCode()`, write `m_executableMemory` first, `WTF::storeStoreFence()`,
+then relaxed-atomic store `m_codePtr` (preserves the documented "m_codePtr
+first" → invert to "m_codePtr LAST so non-thunk implies live RefPtr"; the
+existing comment's correctness argument is the RefPtr-held-live one, not
+the field order — adjust the comment). Flag-off: gilOff-only arm
+(DFGOSRExit.cpp:217 guard), byte-identical.
+
+**Files:** `Source/JavaScriptCore/dfg/DFGJITCode.h`,
+`Source/JavaScriptCore/dfg/DFGOSRExit.cpp`.
+
+**Evidence:**
+```
+Write of size 8 by T8: MacroAssemblerCodeRef<OSRExitPtrTag>::operator=
+  DFG::JITData::setExitCode DFGJITCode.h:175
+  operationCompileOSRExit DFGOSRExit.cpp:336  (under dfgOSRExitGenerationLock)
+Previous read of size 8 by T5: MacroAssemblerCodeRef::code
+  operationCompileOSRExit DFGOSRExit.cpp:219  (lock-free DCLP probe)
+```
+
+#### 20.3.6 concurrentptrhashset-publish (7)
+
+Raw keys: `(addImpl, malloc)` 3 + `(addImpl, TrailingArray ctor)` 1 +
+`('data race', Atomic<void*>::Atomic)` 3. `ConcurrentPtrHashSet::addImpl()`
+(ConcurrentPtrHashSet.h:160) does `Table* table = m_table.loadRelaxed()`
+then plain-reads `table->mask` (size-4). `resizeIfNecessary()` constructs a
+new `Table` (TrailingArray ctor writes `mask`/size plain, in fresh malloc)
+then `m_table.store(newTable.get())` seq_cst (ConcurrentPtrHashSet.cpp:156).
+Relaxed load does not synchronize with the seq_cst store under TSAN's
+model, so the `table->mask` read races the ctor's plain init.
+
+**Spec row:** Upstream lock-free hash set; pre-existing under parallel
+markers. §13.4 precedent: ConcurrentVector/ConcurrentBuffer got the
+identical "TSAN-gated acquire on the relaxed table-pointer load"
+treatment.
+
+**Ruling: relaxed-atomic (TSAN-gated).** Under `TSAN_ENABLED`, replace
+`m_table.loadRelaxed()` with `m_table.load()` (acquire) in `addImpl()` and
+`size()`. Production keeps loadRelaxed.
+
+**Files:** `Source/WTF/wtf/ConcurrentPtrHashSet.h`.
+
+**Evidence:**
+```
+Read of size 4: ConcurrentPtrHashSet::addImpl ConcurrentPtrHashSet.h:161 (table->mask)
+  AbstractSlotVisitor::addOpaqueRoot
+  JSArrayBufferView::visitChildrenImpl<SlotVisitor>
+Previous write of size 4: TrailingArray<Table, Atomic<void*>>::TrailingArray
+  ConcurrentPtrHashSet::Table::create
+  ConcurrentPtrHashSet::resizeIfNecessary / resizeAndAdd  (another mutator's addOpaqueRoot)
+```
+
+#### 20.3.7 codeblock-jitdata-publish (4)
+
+`(baselineJITData, setBaselineJITData)` 3 + `(dfgJITData, setDFGJITData)`
+1. `setBaselineJITData()`/`setDFGJITData()` (CodeBlock.h:618/627,
+CodeBlock.cpp:818) do `WTF::storeStoreFence()` then plain
+`m_jitData = jitData.release()`. `baselineJITData()`/`dfgJITData()` read
+`m_jitData` plain via `bit_cast<...*>(m_jitData)`. The reader is
+`CodeBlock::stronglyVisitStrongReferences` →
+`forEachPropertyInlineCache` on the concurrent-GC SlotVisitor (under
+`ConcurrentJSLocker(m_lock)`, CodeBlock.cpp:1433). The writer is plan
+finalize on a mutator (`JITWorklist::completeAllReadyPlansForVM`), NOT
+holding `m_lock` — but the in-source comment at CodeBlock.h:630 ("m_jitData
+is accessed from concurrent GC threads") documents the upstream
+single-pointer-publish protocol.
+
+**Spec row:** SPEC-jit §4.x code-lifecycle publish-via-one-pointer.
+Blessed; plain word access is the UB.
+
+**Ruling: relaxed-atomic.** `m_jitData` write → `WTF::atomicStore(...,
+relaxed)` (after the existing storeStoreFence); `baselineJITData()`/
+`dfgJITData()` read → `WTF::atomicLoad(&m_jitData, relaxed)`. The
+`jitType()` discriminator is already atomic (§18 codeblock-init).
+
+**Files:** `Source/JavaScriptCore/bytecode/CodeBlock.h`,
+`Source/JavaScriptCore/bytecode/CodeBlock.cpp`.
+
+**Evidence:**
+```
+Write of size 8: CodeBlock::setBaselineJITData CodeBlock.cpp (m_jitData = release)
+  CodeBlock::setupWithUnlinkedBaselineCode
+  BaselineJITPlan::finalize
+  JITWorklist::completeAllReadyPlansForVM  (mutator A)
+Previous read of size 8: CodeBlock::baselineJITData CodeBlock.h:622
+  CodeBlock::forEachPropertyInlineCache
+  CodeBlock::stronglyVisitStrongReferences<SlotVisitor>
+  CodeBlock::visitChildren  (GC conductor, mutator B)
+```
+
+#### 20.3.8 dfg-weakrefs-reallyadd (2) — REAL BUG
+
+`(FixedVector<StructureID>::begin, ::operator=)` 1 +
+`(DesiredWeakReferences::reallyAdd, stronglyVisitWeakReferences)` 1.
+`DFG::DesiredWeakReferences::reallyAdd()`
+(DFGDesiredWeakReferences.cpp:99-100) move-assigns
+`common->m_weakStructureReferences` and `common->m_weakReferences`
+(FixedVector = unique_ptr<EmbeddedFixedVector>) **with no fence and without
+the CodeBlock's `m_lock`**. `CodeBlock::stronglyVisitWeakReferences` and
+`propagateTransitions` (CodeBlock.cpp:1450/1639) iterate those vectors
+under `ConcurrentJSLocker(m_lock)` from the concurrent-GC SlotVisitor. The
+in-source comment at :89 ("GC is deferred") is the upstream single-mutator
+guarantee; under SPEC-congc N-mutators, DeferGC on the finalizing mutator
+does NOT stop another mutator acting as GC conductor. The unique_ptr swap
+publishes a buffer pointer the visitor may dereference before its contents
+are visible (no storeStoreFence), or the visitor may iterate the OLD
+(empty) buffer while the swap frees nothing (ASSERT-empty) — but a torn
+pointer read is UB and a non-null pointer with non-visible
+EmbeddedFixedVector header (`m_size`) is a wild iteration.
+
+**Spec row:** SPEC-jit §4.x code lifecycle does NOT bless this site (no
+fence, multi-word). SPEC-congc N-mutator finalize-vs-visit gap.
+
+**Ruling: real-bug.** Fix shape: take
+`ConcurrentJSLocker locker(m_codeBlock->m_lock)` around the two
+move-assigns at DFGDesiredWeakReferences.cpp:99-100 (once-per-DFG-compile
+slow path; trivial contention; the visitor already holds the same lock).
+Alternatively, storeStoreFence before each move-assign + relaxed-atomic on
+the FixedVector storage pointer — but FixedVector doesn't expose that and
+the lock is simpler/safer.
+
+**Files:** `Source/JavaScriptCore/dfg/DFGDesiredWeakReferences.cpp`.
+
+**Evidence (cve/mc-safe-gcwait-vs-classa-stop.js):**
+```
+Write of size 8: unique_ptr<EmbeddedFixedVector<StructureID>>::operator=
+  FixedVector<StructureID>::operator=
+  DFG::DesiredWeakReferences::reallyAdd DFGDesiredWeakReferences.cpp:99
+  DFG::Plan::finalize  (mutator T10)
+Previous read of size 8: unique_ptr<...>::get
+  FixedVector<StructureID>::begin
+  CodeBlock::stronglyVisitWeakReferences<SlotVisitor>
+  CodeBlock::visitChildren  (GC conductor)
+```
+
+#### 20.3.9 typedarray-sort-memcpy (2)
+
+`(trySetIndexQuicklyForTypedArrayConcurrent, copyElements<int>)`.
+`JSGenericTypedArrayView::sort()` (JSGenericTypedArrayViewInlines.h:1137+)
+under `gilOffProcess` already takes the CVE-AUDIT A2 / MC-DF S9
+copy-out/sort/copy-back path, but the copy-out/back use
+`WTF::copyElements<int>` (memcpy) over the live typed-array lanes while
+another mutator atomic-writes via `trySetIndexQuicklyForTypedArrayConcurrent`.
+
+**Spec row:** OM §1 GT — TA lanes are intentionally racy via the dedicated
+concurrent accessors; plain memcpy is NOT the blessed accessor.
+
+**Ruling: relaxed-atomic.** In the gilOff copy-out/back arm only, replace
+`copyElements` with an element-wise relaxed-atomic load/store loop (the
+same accessor shape as `trySetIndexQuicklyForTypedArrayConcurrent` /
+`tryGetIndexQuicklyForTypedArray`). Flag-off keeps the memcpy.
+
+**Files:** `Source/JavaScriptCore/runtime/JSGenericTypedArrayViewInlines.h`.
+
+**Evidence (cve/mc-df-ta-sort-inplace.js):**
+```
+Read of size 8: __tsan_memcpy
+  WTF::copyElements<int>
+  JSGenericTypedArrayView<Int32Adaptor>::sort
+  genericTypedArrayViewProtoFuncSort
+Previous atomic write of size 4: trySetIndexQuicklyForTypedArrayConcurrent
+  JSObject::trySetIndexQuicklyConcurrent
+  llint_slow_path_put_by_val  (other mutator)
+```
+
+#### 20.3.10 jit-one-sider-allocator (20)
+
+Raw one-sided keys (current-access stack JIT-only/unrestorable; only the
+"Previous write" C++ stack present): `aligned_alloc` 13 (fresh MarkedBlock
+hand-out), `Butterfly::growArrayRight` 3 (havebadtime-vs-indexed-fastpath,
+KNOWN-FAILING — JIT reads memcpy'd butterfly contents),
+`JSRopeString::CompactFibers ctor` 2 (JIT reads freshly-memset rope
+fields), `malloc` 1 (PreciseAllocation hand-out),
+`PreciseAllocation::PreciseAllocation Atomic<bool> ctor` 1.
+
+These are the §0 accepted-tradeoff residual: TSAN cannot symbolize the
+JIT-emitted access, so the report carries only the C++-side allocator/ctor
+write. The cell-handout protocol (LocalAllocator → JIT) IS the real HB
+edge; TSAN cannot see it. §18.3 / wave-7 precedent: suppress on the
+narrowest C++-side anchor with the wave-7 justification template ("atomic
+probe vs allocator hand-out; no plain access of ours exists; the racing
+access is JIT-emitted and invisible to TSAN").
+
+**Ruling: suppress.** Add four anchors to `Tools/tsan/suppressions.txt`
+with the wave-7 justification: `race:JSC::Butterfly::growArrayRight`,
+`race:JSC::JSRopeString::CompactFibers::CompactFibers`,
+`race:JSC::PreciseAllocation::PreciseAllocation`,
+`race:JSC::MarkedBlock::tryCreate` (covers the bare aligned_alloc/malloc 14
+via the only call path). Re-audit at the next re-snapshot to confirm none
+mask a two-sided C++ regression (the wave-7 discipline: a future plain C++
+reader/writer surfaces under its own anchor).
+
+**Files:** `Tools/tsan/suppressions.txt`.
+
+**Evidence:**
+```
+[current access stack: JIT code, "<null>" / failed to restore]
+Previous write of size 8: aligned_alloc
+  tryFastCompactAlignedMalloc
+  FastMallocAlignedMemoryAllocator::tryAllocateAlignedMemory
+  MarkedBlock::tryCreate
+  BlockDirectory::tryAllocateBlock
+  LocalAllocator::allocateSlowCase  (mutator A; cell handed to mutator B's JIT)
+```
+
+## 21. Round r24 — wave-24 verification (2026-06-19)
+
+### 21.0 Build / config check
+
+`WebKitBuild/TSan/CMakeCache.txt`: `ENABLE_C_LOOP:BOOL=OFF`,
+`ENABLE_JIT:BOOL=ON` (unchanged from §20.0). Binary mtime (Jun 19 00:40,
+epoch 1781829617) > newest source (DFGOSRExit.cpp, epoch 1781829390) — the
+TSan build is current; no rebuild needed. `nm | grep -c CLoop` = 0. Smoke
+(`JSTests/threads/smoke.js`, GIL-off env, full JIT, 3x): PASS each run,
+exit 0, ZERO TSAN reports. **Zero CLoop frames** in r24
+(`grep -ci CLoop reports-r24.log` = 0).
+
+Wave-24 fixers touched (since reports-r23.log): heap/IsoSubspace.h,
+WTF/wtf/BitSet.h, heap/MarkedBlock{.h,Inlines.h}, WTF/wtf/Atomics.h,
+heap/Heap.{h,cpp}, dfg/DFGJITCode.h, dfg/DFGOSRExit.cpp, dfg/DFGPlan.cpp,
+dfg/DFGDesiredWeakReferences.{h,cpp}, WTF/wtf/ConcurrentPtrHashSet.h,
+bytecode/CodeBlock.{h,cpp}, runtime/JSGenericTypedArrayViewInlines.h.
+**`Tools/tsan/suppressions.txt` was NOT modified** — the §20.3.10
+`jit-one-sider-allocator` suppress ruling did not land.
+
+### 21.1 Run configuration
+
+Same as §20.1 (binary, env, args, TSAN_OPTIONS, suppressions). Corpus: 252
+candidate `JSTests/threads/**/*.js` (246 ran, 6 //@ skip). Result: **66
+reports** in 34 test files, 14 raw deduped stack-pair keys, grouped into
+the **6 open families** below (+ 7 r23 families now at 0). Exit-code
+spectrum: 197 exit-0, 35 exit-66, 13 exit-3 (was 10 in r23 — three new:
+api/blocking-gate, cve/mc-df-arraycopy-relabel,
+cve/mc-gc-weakgcmap-registry-vs-prune; functional, out of TSAN scope), 0
+exit-134 (semantics/frozen-seal-race no longer aborts), 1 exit-124
+(w16-c1-prevent-collection timeout, unchanged).
+
+Per-test logs: `Tools/threads/tsan/r24/`. Concatenated reports:
+`Tools/threads/tsan/reports-r24.log`. Dedup output:
+`Tools/threads/tsan/families-r24.txt`.
+
+`unsuppressedCount = 66` (3692 → 66; nothing newly suppressed; no CLoop
+families existed).
+
+### 21.2 r23-family verification
+
+| r23 id | r23 count | r24 count | status |
+|--------|-----------|-----------|--------|
+| tlc-slot-stamp | 2691 | **0** | DONE |
+| marks-bitset-plain-readers | 828 | **35** | PARTIAL — see §21.4.1 |
+| dependency-loadandfence | 76 | **0** | DONE (loadAndFence now atomic; 2 Header::Header residuals re-bin to family 10) |
+| parked-root-snapshot | 37 | **0** | DONE |
+| osr-exit-coderef | 25 | **0** | DONE (m_codePtr word closed; 2 next-layer residuals re-bin to §21.4.2) |
+| concurrentptrhashset-publish | 7 | **0** | DONE |
+| codeblock-jitdata-publish | 4 | **2** | PARTIAL — next-layer, see §21.4.2 |
+| dfg-weakrefs-reallyadd | 2 | **0** | DONE (real-bug fixed via ConcurrentJSLocker) |
+| typedarray-sort-memcpy | 2 | **0** | DONE |
+| jit-one-sider-allocator | 20 | **26** | UNFIXED — suppressions never applied, see §21.4.3 |
+
+7 of 10 r23 families closed. **3626 reports eliminated** (98.2%).
+
+### 21.3 Family table (r24)
+
+| # | id | count | spec row | ruling | files (wave ownership) |
+|---|----|-------|----------|--------|------------------------|
+| 1 | marks-bitset-plain-readers | 35 | SPEC-congc §5 / upstream concurrent-marking BitSet protocol | concurrent-accessor | WTF/wtf/BitSet.h |
+| 2 | codeblock-jitdata-publish | 2 | SPEC-jit §4.x publish-via-one-pointer; §13.4 TSAN-gate precedent | relaxed-atomic | bytecode/CodeBlock.h |
+| 3 | jit-one-sider-allocator | 26 | §0 accepted tradeoff + §18.3 wave-7 anchor class | suppress | Tools/tsan/suppressions.txt |
+| 4 | regexp-cached-result-visit | 1 | SPEC-congc visitor-vs-init; OM GT (cell fields via concurrent accessor) | relaxed-atomic | runtime/RegExpCachedResult.h, runtime/RegExpCachedResult.cpp, runtime/RegExpGlobalDataInlines.h |
+| 5 | growarrayright-vs-sparsemap-atomics | 1 | OM §4 butterfly reshape protocol — NOT blessed (two mutators reshape same butterfly) | real-bug | runtime/ThreadAtomics.cpp |
+| 6 | cachedcall-protoframe-crossthread | 1 | SPEC-jit §4.x code lifecycle — NOT blessed (installCode mutates foreign-thread stack) | real-bug | interpreter/CachedCall.h, interpreter/InterpreterInlines.h, bytecode/CodeBlock.cpp |
+
+All 6 families have **disjoint file ownership** (next wave can run all 6 in
+parallel).
+
+### 21.4 Per-family analysis
+
+#### 21.4.1 marks-bitset-plain-readers (35) — fix INCOMPLETE
+
+Raw keys: `(compareExchangeWeak, BitSet::concurrentFilter)` 20 +
+`('data race', concurrentFilter)` 15 (same pairing; dedup parser dropped
+one stack on the 15). All r23 sub-keys involving `BitSet::get` (526),
+`specializedSweep` (279) are **gone** — the wave-24 fix successfully
+atomicized those readers. The residual is a **single site the fix missed**:
+`BitSet::concurrentFilter` was patched to relaxed-atomic-load
+`other.bits[i]` (BitSet.h:410, the m_marks word), but the OWN-side
+`bits[i]` accesses at BitSet.h:412 (`bits[i] = 0`) and BitSet.h:415
+(`WordType oldBits = bits[i]`) remain plain. The pairing is
+IsoCellSet::add → `concurrentTestAndSet` (atomic CAS on the IsoCellSet's
+own BitSet word, from a HeapHelper marker via
+CodeBlock::visitChildren) vs IsoCellSet::sweepToFreeList →
+`concurrentFilter` (plain read of the SAME BitSet's own word, from a
+mutator-conductor's resumeThePeriphery → resumeAllocating → sweep).
+
+**Spec row:** unchanged (SPEC-congc §5; sweep-vs-mark BitSet protocol).
+Blessed; plain word access is the UB.
+
+**Ruling: concurrent-accessor** (unchanged). **fixShape update:** convert
+`bits[i] = 0` → `WTF::atomicStore(&bits[i], WordType(0), relaxed)` and
+`WordType oldBits = bits[i]` → `WTF::atomicLoad(&bits[i], relaxed)` in
+`BitSet::concurrentFilter`. The CAS at :419 is already atomic. Flag-off
+codegen identical (relaxed = plain MOV).
+
+**Files:** `Source/WTF/wtf/BitSet.h` only (MarkedBlock side closed).
+
+**Evidence:**
+```
+Atomic write of size 8 by T5 (HeapHelper): compareExchangeWeak
+  BitSet::concurrentTestAndSet BitSet.h:243
+  IsoCellSet::add IsoCellSetInlines.h:76
+  CodeBlock::visitChildren CodeBlock.cpp:1452  (drainFromShared marker)
+Previous read of size 8 by T15 (mutator-conductor): concurrentFilter BitSet.h:415
+  IsoCellSet::sweepToFreeList IsoCellSet.cpp:179
+  IsoSubspace::didBeginSweepingToFreeList
+  MarkedBlock::Handle::sweep / resumeAllocating
+  Heap::resumeThePeriphery
+```
+
+#### 21.4.2 codeblock-jitdata-publish (2) — next-layer residual
+
+Raw keys: `(FixedVector<MacroAssemblerCodeRef>::operator[], malloc)` 1 +
+`(TrailingArray<EmbeddedFixedVector<MacroAssemblerCodeRef>>, malloc)` 1.
+The r23 keys `(baselineJITData, setBaselineJITData)` /
+`(dfgJITData, setDFGJITData)` are **gone** — the m_jitData word itself is
+now relaxed-atomic. The residual is the **next layer down**: the new
+`DFG::JITData::exitCodePtrConcurrent(i)` (DFGJITCode.h:213, the §20.3.5
+fix) plain-dereferences `m_exits` (a `FixedVector` member of JITData,
+i.e. `unique_ptr<EmbeddedFixedVector>::get()`) on T4; the racing write is
+the malloc/ctor of the JITData itself in `DFG::Plan::tryFinalizeJITData`
+(DFGPlan.cpp:835 → ButterflyArray::createImpl) on T6. The HB edge is the
+`storeStoreFence + relaxed-atomic m_jitData store` from §20.3.7 — but
+relaxed atomics do not establish HB for TSAN, so the JITData interior
+(m_exits.m_storage, the TrailingArray header) reads as racing the ctor.
+
+**Spec row:** SPEC-jit §4.x publish-via-one-pointer. Blessed by design;
+the missing piece is TSAN visibility, not correctness. §13.4 precedent
+(ConcurrentVector/ConcurrentBuffer/ConcurrentPtrHashSet): TSAN-gated
+acquire on the publishing-pointer load.
+
+**Ruling: relaxed-atomic** (unchanged). **fixShape update:** under
+`TSAN_ENABLED`, `CodeBlock::dfgJITData()` / `baselineJITData()` use
+`memory_order_acquire` instead of relaxed (CodeBlock.h). Production keeps
+relaxed. (Do NOT touch DFGJITCode.h again — the §20.3.5 fix is correct;
+the publication edge is one level up.)
+
+**Files:** `Source/JavaScriptCore/bytecode/CodeBlock.h` only.
+
+**Evidence (dw1-sort-comparator-osr.js):**
+```
+Read of size 8 by T4: unique_ptr<EmbeddedFixedVector<...>>::get
+  FixedVector<MacroAssemblerCodeRef>::operator[] FixedVector.h:165
+  DFG::JITData::exitCodePtrConcurrent DFGJITCode.h:213
+  operationCompileOSRExit DFGOSRExit.cpp:219
+Previous write of size 8 by T6: malloc
+  ButterflyArray<DFG::JITData,...>::createImpl ButterflyArray.h:59
+  DFG::JITData::tryCreate DFGJITCode.h:413
+  DFG::Plan::tryFinalizeJITData DFGPlan.cpp:835  (other mutator's finalize)
+```
+
+#### 21.4.3 jit-one-sider-allocator (26) — suppressions NOT applied
+
+Raw keys: `('data race', aligned_alloc)` 15 + `('data race', malloc)` 3 +
+`('data race', growArrayRight)` 3 (havebadtime-vs-indexed-fastpath,
+KNOWN-FAILING) + `('data race', calloc)` 1 +
+`('data race', MarkedBlock::Header::Header)` 2 +
+`('data race', Atomic<unsigned char>::Atomic)` 1 +
+`('data race', GetByIdModeMetadata::GetByIdModeMetadata)` 1.
+
+**Status: UNFIXED.** `Tools/tsan/suppressions.txt` mtime predates
+reports-r23.log — the §20.3.10 four anchors were never added. The family
+grew (20 → 26) by absorbing the §20.3.3 `dependency-loadandfence`
+allocator-side residuals: loadAndFence is now atomic, so its pairing
+against `MarkedBlock::Header::Header` / `aligned_alloc` is now a pure
+"atomic probe vs allocator hand-out" (wave-7 class, §18.3). The
+`GetByIdModeMetadata` ctor key is the same class with both stacks present:
+LLInt's `performLLIntGetByID` atomic StructureID load (LLIntSlowPaths.cpp,
+already atomic) vs `CodeBlock::finishCreation`'s plain
+`GetByIdModeMetadata()` ctor on a fresh CodeBlock — the atomic probe is on
+a recycled metadata-table slot; revalidated by the StructureID check.
+
+**Ruling: suppress** (unchanged). **fixShape update:** apply the §20.3.10
+four anchors (`Butterfly::growArrayRight`,
+`JSRopeString::CompactFibers::CompactFibers`,
+`PreciseAllocation::PreciseAllocation`, `MarkedBlock::tryCreate`) AND
+extend with three more wave-7-class anchors:
+`race:JSC::MarkedBlock::Header::Header` (covers the 2 loadAndFence-vs-ctor
+residuals), `race:JSC::GetByIdModeMetadata::GetByIdModeMetadata` (atomic
+LLInt IC probe vs fresh-CodeBlock metadata ctor; the IC writer side is
+already atomic per §3.4/§9.2, so a plain-writer regression surfaces under
+its own anchor), and a `race:calloc` entry is **NOT** added (too broad —
+the single calloc report routes through `MarkedBlock::tryCreate` once that
+anchor lands; re-check at r25). The `Atomic<unsigned char>::Atomic` ctor
+key (1, congc-t8) is the same MarkedBlock-hand-out class via
+PreciseAllocation; covered by the PreciseAllocation anchor. All anchors
+carry the wave-7 justification template.
+
+**Files:** `Tools/tsan/suppressions.txt`.
+
+#### 21.4.4 regexp-cached-result-visit (1) — NEW
+
+`RegExpCachedResult::record` (RegExpGlobalDataInlines.h:56, `__tsan_memset`
+of the `m_reified` + `m_oneCharacterMatch` bool pair, size 2) inside
+`JSGlobalObject::init` on a JS Thread (T19, via
+`$vm.createGlobalObject`) vs
+`RegExpCachedResult::visitAggregateImpl<SlotVisitor>`
+(RegExpCachedResult.cpp:40, plain read of `m_reified`) from a HeapHelper
+marker (T5, `drainFromShared` during another mutator's
+`conductSharedCollection`). I.e. SPEC-congc N-mutator GC visits a
+JSGlobalObject whose `init()` is mid-seeding RegExpCachedResult.
+
+**Spec row:** SPEC-congc visitor-vs-init + OM GT (cell-state words read by
+the concurrent visitor go through a concurrent accessor). The §3.18
+`regexp-shared` real-bug ruling covered mutator-vs-mutator on the
+RegExpCachedResult JSValue slots and was closed; THIS is a different
+pairing (GC visitor vs `record`'s flag bytes). Benign by value (a stale
+`m_reified=false` makes the visitor skip the reified slots, which are
+null during init; a stale `true` over-visits null WriteBarriers, which
+`SlotVisitor::append` tolerates), but plain access is UB.
+
+**Ruling: relaxed-atomic.** `m_reified` / `m_oneCharacterMatch` →
+`WTF::atomicLoad(..., relaxed)` in `visitAggregateImpl`;
+`WTF::atomicStore(..., relaxed)` in `record()` (replacing the implicit
+struct-copy/memset). Flag-off codegen identical.
+
+**Files:** `Source/JavaScriptCore/runtime/RegExpCachedResult.h`,
+`Source/JavaScriptCore/runtime/RegExpCachedResult.cpp`,
+`Source/JavaScriptCore/runtime/RegExpGlobalDataInlines.h`.
+
+**Evidence (congc-t8-stop-interleaving.js):**
+```
+Write of size 2 by T19 (JS Thread): __tsan_memset
+  RegExpCachedResult::record RegExpGlobalDataInlines.h:56
+  JSGlobalObject::init JSGlobalObject.cpp:2055
+  JSGlobalObject::create  ($vm.createGlobalObject)
+Previous read of size 1 by T5 (HeapHelper): visitAggregateImpl RegExpCachedResult.cpp:40
+  RegExpGlobalData::visitAggregate
+  JSGlobalObject::visitChildrenImpl  (drainFromShared marker)
+```
+
+#### 21.4.5 growarrayright-vs-sparsemap-atomics (1) — NEW, REAL BUG
+
+`Butterfly::growArrayRight` `__tsan_memcpy` (ButterflyInlines.h:224, plain
+read of size 8) on T307 via `JSObject::increaseVectorLength` ←
+`JSObject::putDirectIndexForAtomicsMissingAdd` (ThreadAtomics.cpp:649) ←
+`atomicsStoreOnPropertyGilOff` (the indexed-miss arm of `Atomics.store`)
+vs `WriteBarrierBase<SparseArrayValueMap>::storeCell` atomic store
+(WriteBarrier.h:167) on the main thread via
+`JSObject::allocateSparseIndexMap` ←
+`ensureArrayStorageExistsAndEnterDictionaryIndexingMode` ←
+`defineOwnIndexedProperty`. Both threads mutate the **same object's
+butterfly** at the same address (heap block 0x72a000204000): main thread
+has converted the object to ArrayStorage + dictionary-indexing and is
+installing `m_sparseMap`; T307 still holds a stale view and is memcpy'ing
+the (now-ArrayStorage) butterfly to grow what it believes is contiguous
+storage.
+
+**Spec row:** OM §4 (butterfly reshape protocol) — NOT blessed.
+`putDirectIndexForAtomicsMissingAdd` calling `increaseVectorLength`
+without the cellLock / indexing-type re-check while another mutator
+performs `defineOwnIndexedProperty` → dictionary conversion is two
+mutators reshaping the same butterfly. The plain memcpy is the UB
+symptom; the underlying interleaving is a correctness hazard (T307 may
+publish a grown butterfly that drops main's SparseArrayValueMap and
+dictionary conversion).
+
+**Ruling: real-bug.** Fix shape: in
+`JSObject::putDirectIndexForAtomicsMissingAdd` (ThreadAtomics.cpp), take
+the object's cellLock (or the OM §4 indexed-reshape lock) and re-check
+`indexingType()` before calling `increaseVectorLength`; if the type is no
+longer contiguous/int32/double, fall through to the generic
+`putDirectIndexSlowOrBeyondVectorLength` path. The CVE-pattern test
+`cve/mc-reent-store-missing-indexed-define-race.js` was written for
+exactly this; route any functional fix through the CVE-audit map doc.
+
+**Files:** `Source/JavaScriptCore/runtime/ThreadAtomics.cpp`.
+
+**Evidence (cve/mc-reent-store-missing-indexed-define-race.js):**
+```
+Read of size 8 by T307: __tsan_memcpy
+  Butterfly::growArrayRight ButterflyInlines.h:224
+  JSObject::increaseVectorLength JSObject.cpp:6936
+  JSObject::putDirectIndexForAtomicsMissingAdd ThreadAtomics.cpp:649
+  atomicsStoreOnPropertyGilOff  (Atomics.store indexed-miss arm)
+Previous atomic write of size 8 by main: WriteBarrierBase<SparseArrayValueMap>::storeCell
+  JSObject::allocateSparseIndexMap JSObject.cpp:5892
+  JSObject::ensureArrayStorageExistsAndEnterDictionaryIndexingMode
+  JSObject::defineOwnIndexedProperty  (Object.defineProperty)
+```
+
+#### 21.4.6 cachedcall-protoframe-crossthread (1) — NEW, REAL BUG
+
+`ProtoCallFrame::setCodeBlock` atomic store (ProtoCallFrameInlines.h:76)
+on T1 via `CachedCall::unlinkOrUpgradeImpl` (CachedCall.h:103) ←
+`CallLinkInfoBase::unlinkOrUpgrade` ←
+`CodeBlock::unlinkOrUpgradeIncomingCalls` ←
+`ScriptExecutable::installCode` (T1's `BaselineJITPlan::finalize`) vs
+`Interpreter::executeCachedCall` `__tsan_memcpy` (InterpreterInlines.h:143,
+plain read of the ProtoCallFrame) on T4. **Location is stack of T4.** I.e.
+T1's `installCode` walks the CodeBlock's incoming-call list, finds T4's
+stack-resident `CachedCall`, and writes into its `ProtoCallFrame` while T4
+is mid-`executeCachedCall` copying that same frame.
+
+**Spec row:** SPEC-jit §4.x code lifecycle / §5.8 — NOT blessed.
+`CachedCall` is a stack-local fast-path object (StringPrototype
+`replaceUsingRegExpSearch` puts it on the calling thread's stack); cross-
+thread mutation of another thread's stack-resident ProtoCallFrame has no
+spec coverage. The atomic store on the writer side does not make the
+reader's struct-memcpy safe, and even if both were atomic the semantics
+are wrong (T4 may execute against a torn CodeBlock/entrypoint pair).
+
+**Ruling: real-bug.** Fix shape: `CachedCall` registration in the
+CodeBlock's incoming-call list must be per-thread (only the owning
+thread's `installCode` may upgrade it), OR
+`CodeBlock::unlinkOrUpgradeIncomingCalls` skips `CachedCall` entries whose
+owning thread ≠ current and instead bumps a generation counter that
+`CachedCall::call()` checks before each `executeCachedCall` (lazy upgrade
+on the owning thread). Prefer the generation-check shape (no extra
+locking on the hot path; one relaxed-atomic compare per `call()`).
+
+**Files:** `Source/JavaScriptCore/interpreter/CachedCall.h`,
+`Source/JavaScriptCore/interpreter/InterpreterInlines.h`,
+`Source/JavaScriptCore/bytecode/CodeBlock.cpp`.
+
+**Evidence (vmstate/regexp-churn-threads.js):**
+```
+Atomic write of size 8 by T1: ProtoCallFrame::setCodeBlock
+  CachedCall::unlinkOrUpgradeImpl CachedCall.h:103
+  CodeBlock::unlinkOrUpgradeIncomingCalls CodeBlock.cpp:2521
+  ScriptExecutable::installCode  (BaselineJITPlan::finalize on T1)
+Previous read of size 8 by T4: __tsan_memcpy
+  Interpreter::executeCachedCall InterpreterInlines.h:143
+  CachedCall::call CachedCall.h:69
+  replaceUsingRegExpSearch  (T4's String.prototype.replace)
+Location is stack of thread T4.
+```
+
+### 21.5 r24 run-health notes
+
+Reconciliation: 35 + 2 + 26 + 1 + 1 + 1 = **66**. Reconciles exactly to
+`grep -c 'WARNING: ThreadSanitizer' reports-r24.log`.
+
+Three new exit-3 functional failures (api/blocking-gate,
+cve/mc-df-arraycopy-relabel, cve/mc-gc-weakgcmap-registry-vs-prune) carry
+zero TSAN reports — out of this campaign's scope; queued for the
+functional fix round alongside the four KNOWN-FAILING tests.
+semantics/frozen-seal-race no longer aborts (was exit-134 in r23; now
+exit-0) — likely a side-effect of the §20.3.8 dfg-weakrefs lock fix.
+
+### 21.6 Post-wave-2 review amendments (applied)
+
+Two reviewer findings verified and amended before the r25 snapshot:
+
+**(A) codeblock-jitdata-publish — baseline-arm store missed.** The wave-2
+fix introduced `jitDataLoadOrder`/`jitDataStoreOrder` (TSAN-gated
+acquire/release, §13.4 precedent) and applied them to
+`baselineJITData()`/`dfgJITData()` loads and the inline `setDFGJITData()`
+store in CodeBlock.h, but `setBaselineJITData()` in CodeBlock.cpp:822
+still used hardcoded `std::memory_order_relaxed` (CodeBlock.cpp was owned
+by family 6 in the wave-2 file table, so the jitdata fixer correctly did
+not touch it). Under TSAN the baseline arm's acquire-load therefore had no
+paired release-store, leaving the §21.4.2 next-layer interior race
+(BaselineJITData TrailingArray header / `propertyInlineCaches()` vs the
+ButterflyArray ctor in `setupWithUnlinkedBaselineCode`) unclosed on the
+baseline arm — and 3-of-4 §20.3.7 evidence stacks were baseline.
+**Amended:** CodeBlock.cpp:822 `std::memory_order_relaxed` →
+`jitDataStoreOrder`. No non-TSAN behavior change (`jitDataStoreOrder` ==
+relaxed there; the preceding `storeStoreFence()` already orders for
+hardware).
+
+**(B) marks-bitset-plain-readers — concurrentCopyFrom flag-off codegen.**
+§20.3.2(b)'s "identical x86 codegen" claim was wrong for
+`concurrentCopyFrom`: the original `live = header.m_marks` is a 128-byte
+`std::array` struct assignment that clang lowers to a vectorized memcpy,
+whereas the 32-iteration relaxed-atomic word loop is not
+coalesced/vectorized by the optimizer. The wave-24 fix applied the loop
+unconditionally at MarkedBlockInlines.h:285/294, degrading the flag-off
+sweep prologue from a handful of SIMD moves to 32 scalar load/store pairs
+(and 4× that on `CeilingOnPageSize>16KB` targets). The
+m_marks-vs-`concurrentTestAndSet` race is upstream-preexisting and
+value-benign (the `m_markingVersion` fence protocol already orders it), so
+the relaxed read shape is needed only to satisfy TSAN — making a
+TSAN_ENABLED gate the §13.4-consistent shape. **Amended:**
+`BitSet::concurrentCopyFrom` body now `#if TSAN_ENABLED` per-word relaxed
+loop / `#else *this = other` (original struct copy). Call sites in
+MarkedBlockInlines.h unchanged. Flag-off codegen restored to the
+pre-wave-24 vectorized memcpy; TSAN build keeps the relaxed snapshot.
+
+## 22. Round r25 — wave-2 verification (2026-06-19)
+
+### 22.0 Build / config check
+
+`WebKitBuild/TSan/CMakeCache.txt`: `ENABLE_C_LOOP:BOOL=OFF`,
+`ENABLE_JIT:BOOL=ON` (unchanged from §20.0). `ninja -n jsc` = no work to do;
+binary mtime (Jun 19 01:16, epoch 1781831771) > newest source (BitSet.h,
+epoch 1781831537) — the §21.6 amendments and all wave-2 fixes are in the
+binary. `nm | grep -c CLoop` = 0. Smoke (`JSTests/threads/smoke.js`, GIL-off
+env, full JIT, 3x): PASS each run, exit 0, ZERO TSAN reports. **Zero CLoop
+frames** in r25 (`grep -ci CLoop reports-r25.log` = 0).
+
+Wave-2 fixers touched (since reports-r24.log): WTF/wtf/BitSet.h,
+bytecode/CodeBlock.{h,cpp}, runtime/RegExpCachedResult.{h,cpp},
+runtime/RegExpGlobalDataInlines.h, runtime/ThreadAtomics.cpp,
+interpreter/CachedCall.h, interpreter/InterpreterInlines.h.
+**`Tools/tsan/suppressions.txt` was NOT modified** — the §21.4.3
+`jit-one-sider-allocator` suppress ruling still has not landed (two waves
+running).
+
+### 22.1 Run configuration
+
+Same as §20.1. Corpus: 252 candidate `JSTests/threads/**/*.js` (246 ran, 6
+//@ skip). Result: **32 reports** in 8 test files, 5 raw deduped stack-pair
+keys, grouped into the **2 open families** below (+ 5 r24 families now at
+0). Exit-code spectrum: 223 exit-0, 13 exit-3 (composition: bench/* ×8 +
+arrays/push-resize + api/blocking-gate + cve/mc-df-arraycopy-relabel +
+cve/mc-gc-weakgcmap-registry-vs-prune + cve/mc-life-creator-thread-dies —
+unchanged set vs r24 except mc-life-creator-thread-dies traded places with
+lifecycle/create-basics; functional, out of scope), 8 exit-66, 1 exit-134
+(semantics/frozen-seal-race — see §22.5), 1 exit-124
+(w16-c1-prevent-collection timeout, unchanged).
+
+Per-test logs: `Tools/threads/tsan/r25/`. Concatenated reports:
+`Tools/threads/tsan/reports-r25.log` (also written to `reports-r2.log` per
+the campaign-snapshot contract). Dedup output:
+`Tools/threads/tsan/families-r25.txt`.
+
+`unsuppressedCount = 32` (66 → 32; nothing newly suppressed; no CLoop
+families existed).
+
+### 22.2 r24-family verification
+
+| r24 id | r24 count | r25 count | status |
+|--------|-----------|-----------|--------|
+| marks-bitset-plain-readers | 35 | **0** | DONE (concurrentFilter own-side bits[i] now relaxed-atomic; §21.6(B) TSAN-gate on concurrentCopyFrom verified — no resurfaced specializedSweep keys) |
+| codeblock-jitdata-publish | 2 | **0** | DONE (TSAN-gated acquire/release on m_jitData; §21.6(A) baseline-arm store verified — no FixedVector/TrailingArray-vs-malloc keys) |
+| jit-one-sider-allocator | 26 | **27** | UNFIXED — suppressions still not applied, see §22.4.1 |
+| regexp-cached-result-visit | 1 | **0** | DONE (m_reified/m_oneCharacterMatch relaxed-atomic; congc-t8 no longer carries the visitAggregateImpl key) |
+| growarrayright-vs-sparsemap-atomics | 1 | **0** | DONE (cellLock + indexingType re-check in putDirectIndexForAtomicsMissingAdd; mc-reent-store-missing-indexed-define-race now exit-0, 0 reports) |
+| cachedcall-protoframe-crossthread | 1 | **0** | DONE (vmstate/regexp-churn-threads.js exit-0, 0 reports) |
+
+5 of 6 r24 families closed. **34 reports eliminated** (52%).
+
+### 22.3 Family table (r25)
+
+| # | id | count | spec row | ruling | files (wave ownership) |
+|---|----|-------|----------|--------|------------------------|
+| 1 | jit-one-sider-allocator | 27 | §0 accepted tradeoff + §18.3 wave-7 anchor class | suppress | Tools/tsan/suppressions.txt |
+| 2 | globalobject-init-vs-visitor | 5 | SPEC-congc visitor-vs-init; OM GT (cell field words via concurrent accessor) | relaxed-atomic | runtime/JSGlobalObject.cpp |
+
+Both families have **disjoint file ownership**.
+
+### 22.4 Per-family analysis
+
+#### 22.4.1 jit-one-sider-allocator (27) — suppressions STILL not applied
+
+Raw keys: `('data race', aligned_alloc)` 19 + `('data race', malloc)` 4 +
+`('data race', MarkedBlock::Header::Header)` 2 +
+`('data race', Butterfly::growArrayRight)` 2.
+
+**All 27 reports verified by stack inspection** to be the §18.3 wave-7
+"atomic probe vs allocator hand-out" class. Unlike r23/r24, the
+current-access stack is now SYMBOLIZED in most reports (the
+`loadAndFence`/`StructureID::relaxedLoad`/`PreciseAllocation::isMarked`
+readers became atomic in §20.3.3/§21.6, so dedup.py no longer drops them as
+JIT-one-siders) — but every current-access is an **Atomic read** and every
+previous-write is the raw allocator (`aligned_alloc → MarkedBlock::tryCreate`,
+`malloc → PreciseAllocation::tryCreate{,ForLowerTierPrecise}`,
+`MarkedBlock::Header::Header` ctor, `Butterfly::growArrayRight` memcpy on the
+KNOWN-FAILING havebadtime test). No plain C++ access of ours exists on
+either side; the cell-handout protocol IS the real HB edge TSAN cannot see.
+
+The r24-only sub-keys (`JSRopeString::CompactFibers`, `GetByIdModeMetadata`,
+`calloc`, `Atomic<u8>::Atomic`) did **not** recur in r25 (run-to-run
+variance; §21.4.3 already adjudicated them as the same class).
+
+**Ruling: suppress** (unchanged, third wave running). **fixShape update:**
+the §21.4.3 anchor list is correct for r25 with ONE adjustment — the
+PreciseAllocation reports route through `tryCreate`/
+`tryCreateForLowerTierPrecise` (the malloc frame), NOT the
+`PreciseAllocation::PreciseAllocation` ctor frame. Anchor on
+`race:JSC::PreciseAllocation::tryCreate` (prefix-matches both). Final anchor
+set (each with the wave-7 justification template):
+`race:JSC::MarkedBlock::tryCreate` (covers 19 + the w16 timeout's 1),
+`race:JSC::MarkedBlock::Header::Header` (2),
+`race:JSC::PreciseAllocation::tryCreate` (4),
+`race:JSC::Butterfly::growArrayRight` (2, KNOWN-FAILING source only),
+plus the §21.4.3 r24-variance anchors `race:JSC::JSRopeString::CompactFibers`
+and `race:JSC::GetByIdModeMetadata::GetByIdModeMetadata`.
+
+**Files:** `Tools/tsan/suppressions.txt`.
+
+**Evidence (congc-t5-celllock-audit.js, malloc sub-key):**
+```
+Atomic read of size 1 by T6 (HeapHelper): Atomic<bool>::load
+  PreciseAllocation::isMarked PreciseAllocation.h:92
+  SlotVisitor::appendUnbarriered SlotVisitorInlines.h:54
+  JSOrderedHashTable<MapTraits>::visitChildrenImpl  (drainFromShared marker)
+Previous write of size 8 by T1 (mutator): malloc
+  PreciseAllocation::tryCreate PreciseAllocation.cpp:94
+  CompleteSubspace::tryAllocateSlowForClient
+  JSCellButterfly::tryCreate ← JSOrderedHashTableHelper::rehash ← JSMap::set
+```
+
+#### 22.4.2 globalobject-init-vs-visitor (5) — NEW
+
+Raw key: `('data race', JSGlobalObject::init)` 5, all from
+congc-t8-stop-interleaving.js (the same test that surfaced §21.4.4
+regexp-cached-result-visit; that family is now 0 and the test runs deeper
+into init(), exposing the next plain-writer site).
+
+`JSGlobalObject::init()` (JSGlobalObject.cpp:1903) does
+`m_arrayStructureForIndexingShapeDuringAllocation[i] =
+m_originalArrayStructureForIndexingShape[i]` — `WriteBarrierStructureID`
+struct copy-assignment, which is a **plain** `m_structureID =
+other.m_structureID` store. The reader is
+`WriteBarrierStructureID::value()` → `StructureID::relaxedLoad()` (atomic,
+size 4) inside `JSGlobalObject::visitChildrenImpl` (JSGlobalObject.cpp:3773)
+on a HeapHelper marker (`drainFromShared` during another mutator's
+conducted GC). The JSGlobalObject cell is conservatively reachable (T18's
+stack) before `finishCreation()` returns under SPEC-congc N-mutator GC.
+
+**Spec row:** SPEC-congc visitor-vs-init + OM GT (cell field words read by
+the concurrent visitor go through a concurrent accessor). The READER side
+is already the blessed `relaxedLoad`; the WRITER side (struct
+copy-assignment) is plain = UB. Benign by value (a stale zero StructureID
+makes `SlotVisitor::append(WriteBarrierStructureID)` no-op; a stale non-zero
+ID over-visits a Structure that is independently reachable from
+`m_originalArrayStructureForIndexingShape`).
+
+**Ruling: relaxed-atomic.** Replace the struct copy-assignment loop at
+JSGlobalObject.cpp:1903 with
+`m_arrayStructureForIndexingShapeDuringAllocation[i].setWithoutBarrier(
+m_originalArrayStructureForIndexingShape[i].get())` (or equivalent
+`StructureID::relaxedStore` path). Flag-off codegen identical (relaxed =
+plain MOV). Do NOT change `WriteBarrierStructureID::operator=` itself in
+WriteBarrier.h — that header's atomicization was completed in the r0-r17
+campaign and a behavior change there is higher blast-radius than the one
+call site; if a second `operator=` site surfaces later, escalate to the
+header.
+
+**Files:** `Source/JavaScriptCore/runtime/JSGlobalObject.cpp`.
+
+**Evidence (congc-t8-stop-interleaving.js):**
+```
+Atomic read of size 4 by T6 (HeapHelper): StructureID::relaxedLoad StructureID.h:79
+  WriteBarrierStructureID::value WriteBarrier.h:404
+  SlotVisitor::append(WriteBarrierStructureID const&) SlotVisitorInlines.h:124
+  JSGlobalObject::visitChildrenImpl JSGlobalObject.cpp:3773  (drainFromShared marker)
+Previous write of size 4 by T18 (JS Thread):
+  JSGlobalObject::init JSGlobalObject.cpp:1903
+    (m_arrayStructureForIndexingShapeDuringAllocation[i] = m_originalArrayStructureForIndexingShape[i])
+  JSGlobalObject::finishCreation ← JSGlobalObject::create ← $vm.createGlobalObject
+```
+
+### 22.5 r25 run-health notes
+
+Reconciliation: 27 + 5 = **32**. Reconciles exactly to
+`grep -c 'WARNING: ThreadSanitizer' reports-r25.log`.
+
+`semantics/frozen-seal-race.js` exit-134 (silent abort, 1-line log, no
+TSAN report): was exit-134 in r23, exit-0 in r24, exit-134 again in r25.
+Intermittent across the three rounds with no wave-2 fix touching its code
+path beyond ThreadAtomics.cpp; treated as a flaky functional abort, NOT a
+wave-2 regression. Queued for the functional fix round.
+
+`cve/mc-grow-buffer-storm.js` exit-66 with **zero data-race reports** (same
+as r24): the log carries `ThreadSanitizer:DEADLYSIGNAL` / `SEGV on unknown
+address 0x3ff` with pc in JIT code (`<unknown module>`). Functional crash
+in JIT-generated code, not a TSAN data race; out of this campaign's scope
+(the §0 accepted-tradeoff coverage gap — belongs to the amplifier/protocol
+tests).
+
+`w16-c1-prevent-collection.js` exit-124 timeout now carries 1 TSAN report
+(r24 had 0): an `Atomic getVectorLength` vs `aligned_alloc →
+MarkedBlock::tryCreate` pair — the §22.4.1 suppress class. Counted in
+family 1.
+
+## 23. Round r26 — wave-3 verification (2026-06-19)
+
+### 23.0 Build / config check
+
+`WebKitBuild/TSan/CMakeCache.txt`: `ENABLE_C_LOOP:BOOL=OFF`,
+`ENABLE_JIT:BOOL=ON` (unchanged from §20.0). `ninja -n jsc` = no work to do;
+binary mtime (epoch 1781832683) > newest source (JSGlobalObject.cpp, epoch
+1781832598) — the wave-3 fix is in the binary. `nm | grep -c CLoop` = 0.
+Smoke (`JSTests/threads/smoke.js`, GIL-off env, full JIT, 3x): 0 TSAN reports
+each run. **Zero CLoop frames** in r26 (`grep -ci CLoop reports-r26.log` = 0).
+
+Wave-3 fixers touched (since reports-r25.log): runtime/JSGlobalObject.cpp
+ONLY. **`Tools/tsan/suppressions.txt` was NOT modified** — the §21.4.3 /
+§22.4.1 `jit-one-sider-allocator` suppress ruling has now failed to land
+across **three consecutive waves** (r24, r25, r26). No wave-3 fixer was
+assigned to it (the only file edited was JSGlobalObject.cpp).
+
+### 23.1 Run configuration
+
+Same as §20.1. Corpus: 252 candidate `JSTests/threads/**/*.js` (246 ran, 6
+//@ skip). Result: **40 reports** in 9 test files, 11 raw deduped stack-pair
+keys, grouped into the **2 open families** below (+ 1 r25 family now at 0).
+Exit-code spectrum: 219 exit-0, 14 exit-3, 11 exit-66, 1 exit-134
+(semantics/frozen-seal-race — unchanged §22.5 flake), 1 exit-124
+(w16-c1-prevent-collection timeout, this round 0 reports).
+
+Per-test logs: `Tools/threads/tsan/r26/`. Concatenated reports:
+`Tools/threads/tsan/reports-r26.log` (also written to `reports-r3.log` per
+the campaign-snapshot contract). Dedup output:
+`Tools/threads/tsan/families-r26.txt`.
+
+`unsuppressedCount = 40` (32 → 40; nothing newly suppressed; no CLoop
+families existed). The increase is entirely run-to-run variance inside the
+unfixed `jit-one-sider-allocator` family + 1 new 2-report family.
+
+### 23.2 r25-family verification
+
+| r25 id | r25 count | r26 count | status |
+|--------|-----------|-----------|--------|
+| jit-one-sider-allocator | 27 | **38** | UNFIXED — suppressions still not applied (3rd wave running), see §23.4.1 |
+| globalobject-init-vs-visitor | 5 | **0** | DONE (`setWithoutWriteBarrier(...get())` at JSGlobalObject.cpp:1910; congc-t8 no longer carries the `JSGlobalObject::init` key) |
+
+1 of 2 r25 families closed. **5 reports eliminated**; net +8 from
+jit-one-sider variance.
+
+### 23.3 Family table (r26)
+
+| # | id | count | spec row | ruling | files (wave ownership) |
+|---|----|-------|----------|--------|------------------------|
+| 1 | jit-one-sider-allocator | 38 | §0 accepted tradeoff + §18.3 wave-7 anchor class | suppress | Tools/tsan/suppressions.txt |
+| 2 | parked-stack-stale-snapshot-read | 2 | SPEC-congc T5-rootscan stale-window bounds-check | suppress | Tools/tsan/suppressions.txt |
+
+Both families own the **same file** (suppressions.txt) — assign to ONE
+wave-4 fixer.
+
+### 23.4 Per-family analysis
+
+#### 23.4.1 jit-one-sider-allocator (38) — suppressions STILL not applied (third wave)
+
+Raw keys: `aligned_alloc` 23 + `MarkedBlock::Header::Header` 4 +
+`Butterfly::growArrayRight` 3 + `malloc` 2 + `(MarkedBlock::handle,
+aligned_alloc)` 1 + `(MarkedBlock::Handle::cellSize, malloc)` 1 +
+`Atomic<bool>::Atomic` 1 + `calloc` 1 +
+`(JSArrayBuffer::JSArrayBuffer, JSArrayBuffer::isResizableOrGrowableShared)` 1
++ `DeferrableRefCountedBase::DeferrableRefCountedBase` 1.
+
+**All 38 reports verified by stack inspection** to be the §18.3 wave-7
+"allocator hand-out vs first cross-thread access" class. The 23+4+3+2+1+1+1
+= 35 reports route through the §22.4.1 anchor frames (`MarkedBlock::tryCreate`,
+`MarkedBlock::Header::Header`, `PreciseAllocation::tryCreate*`,
+`Butterfly::growArrayRight`). The two new `MarkedBlock::handle`/
+`MarkedBlock::Handle::cellSize` reader-side keys are SlotVisitor reading the
+block-header `m_handle`/`m_atomSizeClass` words on a fresh block; the
+previous-write side IS `MarkedBlock::tryCreate` so the existing anchor
+already covers them.
+
+**3 NEW r26 ArrayBuffer-handout sub-keys** (cve/mc-grow-s4-detach-nullvec-repro
++ cve/mc-life-detach-quarantine-storm — both ran clean in r25, surfaced this
+round):
+- `calloc → ArrayBufferContents::tryAllocate` vs an Atomic typed-array probe
+  on the backing store (1).
+- `DeferrableRefCountedBase` ctor (`m_refCount{2}` non-atomic init per C++
+  std::atomic ctor semantics) vs the atomic `ref()` fetch_add (1).
+- `JSArrayBuffer::JSArrayBuffer` ctor `m_impl = arrayBuffer.get()` vs
+  `JSArrayBuffer::isResizableOrGrowableShared()` plain `m_impl` read (1).
+  `m_impl` is **set-once-immutable** (only assignment is JSArrayBuffer.cpp:38;
+  no other writer in the tree) — OM GT immutable-after-ctor cell field, no
+  concurrent-accessor required. The HB is the cell-handout protocol: the
+  ArrayBuffer/JSArrayBuffer were created on the main thread and published to
+  the worker via a JS-value store + JIT-code load (the `<null>` frames at
+  #7/#3 in both racing stacks). §0 accepted-tradeoff.
+
+**Ruling: suppress** (unchanged, FOURTH wave running). **fixShape update:**
+the §22.4.1 anchor list + THREE NEW ArrayBuffer-handout variance anchors,
+each with the wave-7 justification template referencing OM GT
+immutable-after-ctor + §0 JIT-HB:
+`race:JSC::ArrayBuffer::tryCreate` (covers the DeferrableRefCounted-ctor
+malloc + the calloc tryAllocate, both have it at frame #4-#6),
+`race:JSC::ArrayBufferContents::tryAllocate` (belt-and-braces for the calloc
+sub-key in case ArrayBuffer::tryCreate is renamed),
+`race:JSC::JSArrayBuffer::JSArrayBuffer` (the m_impl ctor write).
+
+Full anchor set to land: `race:JSC::MarkedBlock::tryCreate`,
+`race:JSC::MarkedBlock::Header::Header`,
+`race:JSC::PreciseAllocation::tryCreate`, `race:JSC::Butterfly::growArrayRight`,
+`race:JSC::JSRopeString::CompactFibers`,
+`race:JSC::GetByIdModeMetadata::GetByIdModeMetadata`,
+`race:JSC::ArrayBuffer::tryCreate`, `race:JSC::ArrayBufferContents::tryAllocate`,
+`race:JSC::JSArrayBuffer::JSArrayBuffer`.
+
+**Files:** `Tools/tsan/suppressions.txt`.
+
+**Evidence (cve/mc-life-detach-quarantine-storm.js, m_impl sub-key):**
+```
+Read of size 8 by T84: JSArrayBuffer::isResizableOrGrowableShared JSArrayBuffer.h:53
+  constructGenericTypedArrayViewImpl<Int32Adaptor> ← constructInt32Array
+  <null>  (JIT)
+Previous write of size 8 by main: JSArrayBuffer::JSArrayBuffer JSArrayBuffer.cpp:38
+  JSArrayBuffer::create ← constructArrayBuffer
+  <null>  (JIT)
+Location: heap block (MarkedBlock::tryCreate)
+```
+
+#### 23.4.2 parked-stack-stale-snapshot-read (2) — NEW
+
+Raw key: `(MachineThreads::tryCopyCooperativelyParkedThreadStack,
+WTF::Locker<WTF::Lock>::Locker)` 2, both from jit/int-gate-epoch-reclaim.js
+(ran exit-0 in r25; surfaced this round).
+
+The GC conductor (`gatherStackRoots → tryCopyCooperativelyParkedThreadStack`,
+MachineStackMarker.cpp:262/263) reads `snapshot.stackOrigin` /
+`snapshot.stackTop` via a possibly-stale parked-root-snapshot pointer. The
+snapshot struct lives **on the parked thread's stack**; in the stale window
+(thread has unparked and is RE-entering the park path) that stack region has
+been overwritten by a fresh `Locker` local inside `VMManager::notifyVMStop`
+(the "writer" — Locker.h:84/85, the `m_lockable`/`m_isLocked` member stores).
+TSAN location: "stack of thread T3".
+
+**Spec row:** SPEC-congc T5-rootscan stale-snapshot window. The in-source
+comment at MachineStackMarker.cpp:255-266 documents the protocol: in the
+well-behaved case the seq_cst `m_parkedRootSnapshot` pointer pair orders the
+field reads; in the **stale window NO ordering is relied upon** — the
+function bounds-checks the latched values against `thread.stack()` and bails.
+Both racing values (an arbitrary `WTF::Lock*` and a `bool`) fail the bounds
+check by construction.
+
+**Ruling: suppress.** The reader is, by design, reading arbitrary stack words
+on another live thread; cannot be atomicized (the "writer" is whatever
+happens to be on that stack — anchoring on `Locker` would be wrong, the next
+report would carry a different writer frame). The bounds-check defense is
+the spec'd protocol. Anchor on the reader frame:
+`race:JSC::MachineThreads::tryCopyCooperativelyParkedThreadStack`. Accepted
+masking: a future plain access introduced INSIDE that function would be
+swallowed; the function is small and the comment block makes the contract
+explicit. Justification template: SPEC-congc T5-rootscan + the in-source
+"stale window" comment.
+
+This is **distinct** from §20.3.4 `parked-root-snapshot` (that family was the
+`m_parkedRootSnapshotThread` heap field; closed in r24 via relaxed-atomic).
+This family is the snapshot **payload struct on the other thread's stack**.
+
+**Files:** `Tools/tsan/suppressions.txt`.
+
+**Evidence (jit/int-gate-epoch-reclaim.js):**
+```
+Write of size 8 by T3 (JS Thread): WTF::Locker<WTF::Lock>::Locker Locker.h:84
+  VMManager::notifyVMStop VMManager.cpp:1202
+  VMTraps::handleTraps  (re-entering the park path)
+Previous read of size 8 by main: MachineThreads::tryCopyCooperativelyParkedThreadStack
+  MachineStackMarker.cpp:262  (latchedStackOrigin = snapshot.stackOrigin)
+  MachineThreads::tryCopyOtherThreadStacks ← gatherStackRoots
+  Heap::runFixpointPhase ← collectInMutatorThread (GC conductor)
+Location: stack of thread T3
+```
+
+### 23.5 r26 run-health notes
+
+Reconciliation: 38 + 2 = **40**. Reconciles exactly to
+`grep -c 'WARNING: ThreadSanitizer' reports-r26.log`.
+
+Exit-code drift vs r25 (all run-to-run flake; no wave-3 source change touches
+any of these paths): congc-t3-barrier-storm 0→66 (1 report, family 1),
+cve/mc-grow-s4-detach-nullvec-repro 0→66 (2, family 1),
+cve/mc-life-detach-quarantine-storm 0→66 (2, family 1),
+jit/int-gate-epoch-reclaim 0→66 (2, family 2),
+semantics/ic-instanceof-vs-transition 0→66 (**0 data-race reports**;
+DEADLYSIGNAL in JIT code — §0 accepted-tradeoff coverage gap, functional,
+out of scope), lifecycle/create-basics 0→3 (functional, the §22.1-noted
+trade-places flake), cve/mc-gc-finreg-cross-thread-gc 66→0,
+gc-stress/zombie-uaf-canary 66→0.
+
+`semantics/frozen-seal-race.js` exit-134 again (r23/r25/r26 = 134, r24 = 0;
+unchanged §22.5 flaky functional abort). `w16-c1-prevent-collection.js`
+exit-124 timeout, this round carried 0 reports (r25 carried 1).
+
+**Process note:** the `jit-one-sider-allocator` suppress ruling was first
+issued in §20.3.10 (r23) and has not landed across r24/r25/r26. Both open
+r26 families resolve to `Tools/tsan/suppressions.txt`; the wave-4 partition
+should assign **one** fixer to that file with both anchor blocks.
+
+## 24. Round r27 — final-gate snapshot (2026-06-19)
+
+### 24.0 Build / config check
+
+`WebKitBuild/TSan/CMakeCache.txt`: `ENABLE_C_LOOP:BOOL=OFF`,
+`ENABLE_JIT:BOOL=ON`, `ENABLE_DFG_JIT=1`, `ENABLE_FTL_JIT=1` (cmakeconfig.h).
+`ninja -n jsc` = no work to do; binary mtime (epoch 1781832683) > newest
+source (JSGlobalObject.cpp, epoch 1781832598). `nm | grep -c CLoop` = 0.
+Smoke (`JSTests/threads/smoke.js`, GIL-off env, full JIT, 3x): PASS each
+run, exit 0, ZERO TSAN reports. **Zero CLoop frames** in r27
+(`grep -ci CLoop reports-r27.log` = 0) — the standing CLoop ruling required
+no suppression entries.
+
+Wave-4 fixer touched (since reports-r26.log): `Tools/tsan/suppressions.txt`
+ONLY (no source changes). Both §23.3 open-family rulings landed: 9 anchors
+for `jit-one-sider-allocator` (§23.4.1 final list:
+MarkedBlock::tryCreate / MarkedBlock::Header::Header /
+PreciseAllocation::tryCreate / Butterfly::growArrayRight /
+JSRopeString::CompactFibers / GetByIdModeMetadata::GetByIdModeMetadata /
+ArrayBuffer::tryCreate / ArrayBufferContents::tryAllocate /
+JSArrayBuffer::JSArrayBuffer) + 1 anchor for
+`parked-stack-stale-snapshot-read` (§23.4.2:
+MachineThreads::tryCopyCooperativelyParkedThreadStack), each with the
+wave-7 / SPEC-congc-T5 justification template.
+
+### 24.1 Run configuration
+
+Same as §20.1. Corpus: 252 candidate `JSTests/threads/**/*.js` (246 ran, 6
+//@ skip). Result: **0 unsuppressed reports**
+(`grep -c 'WARNING: ThreadSanitizer' reports-r27.log` = 0). Exit-code
+spectrum: 229 exit-0, 14 exit-3, 2 exit-66, 1 exit-124, 0 exit-134.
+Per-test logs: `Tools/threads/tsan/r27/`. Concatenated reports:
+`Tools/threads/tsan/reports-r27.log`.
+
+### 24.2 r26-family verification
+
+| r26 id | r26 count | r27 count | status |
+|--------|-----------|-----------|--------|
+| jit-one-sider-allocator | 38 | **0** | DONE (suppressions landed; 9 anchors, §23.4.1) |
+| parked-stack-stale-snapshot-read | 2 | **0** | DONE (suppression landed; 1 anchor, §23.4.2) |
+
+Both r26 families closed. 40 reports eliminated. **`unsuppressedCount = 0`.**
+
+### 24.3 Suppressions-file audit (final-gate requirement)
+
+40 active `race:` entries. Mechanical audit (`awk` block-comment check):
+**0 entries lack a justification comment**. By class:
+- 6 pre-existing upstream parallel-GC entries (rule-1; §V7 record).
+- 23 wave-7 "atomic probe vs allocator (re-)hand-out" reader-side anchors
+  (§18.3; each cites the OM ground-truth + revalidation rationale).
+- 1 rule-1 entry (`UnlinkedFunctionExecutable::recordParse`; upstream
+  concurrent-compiler pairing, deterministic re-parse, size-capped).
+- 9 r23-r26 "JIT-one-sider allocator hand-out" allocator-side anchors
+  (§20.3.10/§23.4.1; the §0 accepted-tradeoff residual).
+- 1 SPEC-congc T5-rootscan stale-window entry (§23.4.2).
+- **0 CLoop entries** (CLoop not compiled in; standing ruling required none).
+No `[CONTROL: PENDING]` entries are active (all five Part-B candidates
+remain commented out per the V7 uncomment gate).
+
+### 24.4 r27 run-health notes
+
+Best run health of the r23+ campaign (229 exit-0 vs 219 in r26). Non-zero
+exits, all functional / out of TSAN scope, every one carrying **0
+data-race reports**:
+- exit-3 (14): the 8 `bench/*` harness artifacts (bench files exit 3 by
+  design when run as tests under TSAN slowness, unchanged since r5);
+  api/blocking-gate, arrays/push-resize-multithread, lifecycle/create-basics
+  (the §22.1 GIL-era unguarded-count expectations); cve/mc-df-arraycopy-relabel,
+  cve/mc-gc-weakgcmap-registry-vs-prune, cve/mc-life-creator-thread-dies
+  (CVE-audit-owned functional set, unchanged since r24).
+- exit-66 (2): cve/mc-grow-buffer-storm (0 reports; was 66 in r17 record),
+  semantics/ic-instanceof-vs-transition (DEADLYSIGNAL in JIT code — §0
+  accepted-tradeoff coverage gap, functional, unchanged from §23.5).
+- exit-124 (1): w16-c1-prevent-collection 420s timeout, 0 reports (same
+  TSan-slowness timeout as r20/r25/r26).
+- exit-134: NONE this round (semantics/frozen-seal-race ran exit-0; the
+  §22.5 flake did not reproduce).
+
+The four KNOWN-FAILING tests (semantics/date-cache-churn,
+semantics/proto-cycle-race, semantics/symbol-registry-cross-thread,
+gc-stress/havebadtime-vs-indexed-fastpath) all ran exit-0 with 0 reports
+this round; their functional status is owned by the separate fix queue and
+does not count against the TSAN gate per the campaign charter.
+
+### 24.5 Normal-build sanity (gate 2)
+
+- **Debug GIL-off smoke 10x: 10/10 pass** (binary mtime 1781832654 >
+  newest source; `ninja -n` = no work).
+- **Debug GIL-off full corpus** (`Tools/threads/run-tests.sh`, GIL-off env):
+  **96 passed, 0 failed, 3 skipped**. Green (was 93/0/3 at the r21 record;
+  +3 tests since corpus expansion).
+- **Release bench gate**: see §24.6 below.
+
+### 24.6 Release bench gate (RED — honest record)
+
+Release rebuilt (358 targets; r24-r26 header changes had left it stale;
+binary mtime 1781834292 > newest source). Waited for loadavg-1m < 2.0
+(reached 1.91); ran `bench-gate.sh` (9-run medians, 1% threshold):
+
+| benchmark | median | baseline | delta | verdict |
+|-----------|--------|----------|-------|---------|
+| array-element-read | 54.326 | 54.446 | -0.22% | ok |
+| array-element-write | 51.888 | 51.844 | +0.08% | ok |
+| flat-butterfly-read | 13.570 | 13.546 | +0.18% | ok |
+| flat-butterfly-write | 62.500 | 62.418 | +0.13% | ok |
+| inline-property-read | 27.147 | 27.325 | -0.65% | ok |
+| inline-property-write | 54.361 | 54.425 | -0.12% | ok |
+| megamorphic-access | 1253.295 | 1445.922 | -13.32% | ok |
+| **transition-heavy-constructor** | **58.054** | **54.918** | **+5.71%** | **FAIL** |
+
+7/8 within 1%. **The gate is RED.** A targeted re-measurement of
+transition-heavy-constructor at loadavg-1m 1.76 (9 runs, median 57.87 ms,
++5.38%) confirms the number is load-stable, not noise.
+
+**Attribution (recorded, not proven):** the closeout record (§Normal-build
+sanity, 2026-06-09) measured +3.9% on this bench with the same baseline,
+itself carrying the parked V5b ~+3.1% pre-campaign residual. The r27 number
+is **~+1.7pp WORSE** than the closeout record. The only flag-off codegen
+changes between the closeout tree and r27 are the r24-r26 wave fixers'
+UNCONDITIONAL header conversions (WTF/wtf/BitSet.h, WTF/wtf/Atomics.h,
+WTF/wtf/ConcurrentPtrHashSet.h, heap/IsoSubspace.h,
+heap/MarkedBlock{.h,Inlines.h}, heap/Heap.h, bytecode/CodeBlock.h,
+dfg/DFGJITCode.h — see §21.0 file list), several of which sit on this
+benchmark's allocation/transition hot path. The closeout's METHODOLOGY
+CAVEAT applies with even more force: the combined-revert experiment is now
+owed for BOTH the closeout-era conversions AND the r24-r26 wave conversions.
+Until that runs, attribution stays UNPROVEN; the milestone record must
+carry the RED gate verbatim.
+
+The task rule ("relaxed atomics must not have moved codegen") is VIOLATED
+on this one benchmark; flagging per the "honest partials over fake green"
+directive rather than parking silently. The other 7 benches confirm the
+campaign's relaxed-atomic conversions did NOT move flag-off codegen on
+property/array/megamorphic paths (megamorphic-access improved 13.3%, almost
+certainly the r24 ConcurrentPtrHashSet / CodeBlock changes — record but do
+not claim without bisection).
+

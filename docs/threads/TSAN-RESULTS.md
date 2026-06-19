@@ -42,7 +42,12 @@ Detailed per-wave fix record: `TSAN-TRIAGE.md` §15. Raw data:
 | r14 (mop-up wave 3) | 1 |
 | r15 (mop-up wave 4) | 2 |
 | r16 (first zero snapshot) | 0 |
-| **r17 (closeout final gate)** | **0** |
+| r17 (closeout final gate) | 0 |
+| r18-r19 (post-closeout review fixes) | 5 / 2 |
+| r20-r21 (post-amendment zeros) | 0 / 0 |
+| r23 (r22+ re-baseline, corpus 252) | 3692 |
+| r24-r26 (waves r24-r26) | 66 / 32 / 40 |
+| **r27 (final-gate snapshot)** | **0** |
 
 r10 closed the thread-tsan campaign at 55 with ~60% of the residual being
 ONE family awaiting the JIT §4.4 retired-artifact epoch audit (real-bug
@@ -473,3 +478,133 @@ pre-fix reports, r19 carried 2. Artifacts: Tools/threads/tsan/r18..r21/.
   race surface; a confirmation snapshot (r22) on this tree is the cheap
   belt-and-suspenders if the milestone wants snapshot-tree identity. The
   §17.2 table is now 18 rows; the re-audit trigger covers all 18.
+
+---
+
+## r23-r27 campaign (2026-06-19, expanded 252-file corpus)
+
+The r22+ re-baseline (TSAN-TRIAGE §20) ran the EXPANDED corpus (252 files,
+up from 218: corpus2 integration added arrays/, gc-stress/, scaling/,
+semantics/, lifecycle/, congc-*, dw*-*, cve/mc-* tests) on the
+post-row-18 tree and surfaced **3692 reports** in 10 families — entirely
+NEW surface introduced by post-r22 work (SPEC-congc landing, SCALEBENCH
+bimodal DCLP, ConcurrentPtrHashSet under N-mutator pressure); every
+closeout-era family stayed at 0. Waves r24-r26 (TSAN-TRIAGE §§21-23)
+surfaced 5 more families as the first 9 were closed; 13 of the 15 distinct
+families were closed IN CODE (3652 reports), the remaining 2 adjudicated
+suppress-only (40 reports) and landed in r27.
+
+### r27 final gate (this run)
+
+**Gate 1 — TSAN: 0 unsuppressed reports.** Full corpus (246 ran, 6
+//@ skip), pinned config (`WebKitBuild/TSan/bin/jsc`, full JIT + asm LLInt,
+`ENABLE_C_LOOP=0`, GIL-off env, `halt_on_error=0`,
+`suppressions=Tools/tsan/suppressions.txt`); binary mtime > newest source
+verified; smoke 3/3 PASS pre-run. `grep -c 'WARNING: ThreadSanitizer'
+reports-r27.log` = **0**. `grep -ci CLoop reports-r27.log` = **0** (CLoop
+not compiled in; the standing ruling required no entries). Exit-code
+spectrum: 229 exit-0 (best of campaign), 14 exit-3 (bench harness +
+documented functional set), 2 exit-66 (cve/mc-grow-buffer-storm +
+ic-instanceof-vs-transition DEADLYSIGNAL in JIT — §0 accepted-tradeoff,
+0 reports each), 1 exit-124 (w16-c1-prevent-collection TSan-slowness
+timeout, 0 reports). The four KNOWN-FAILING tests all ran exit-0 with 0
+reports this round.
+
+**Suppressions audit: 40 active entries, 0 unjustified.** Mechanical check
+(every `race:` line covered by a `#` comment block): PASS. By class:
+- 6 pre-existing upstream parallel-GC entries (rule-1).
+- 23 wave-7 "atomic probe vs allocator (re-)hand-out" reader-side anchors.
+- 1 rule-1 `recordParse` (upstream concurrent-compiler, size-capped).
+- **9 r23-r26 "JIT-one-sider allocator hand-out" allocator-side anchors**
+  (NEW this run; TSAN-TRIAGE §20.3.10/§23.4.1) — the §0 accepted-tradeoff
+  residual: TSAN cannot symbolize the JIT-emitted access, so reports carry
+  only the C++-side allocator/ctor write; the real HB is the cell-handout
+  protocol (LocalAllocator -> JS-value store -> in-JIT consume).
+- **1 SPEC-congc T5-rootscan stale-window entry** (NEW this run;
+  TSAN-TRIAGE §23.4.2) — GC conductor reads a snapshot struct on a parked
+  thread's stack; in the documented stale window the function bounds-checks
+  and bails; cannot be atomicized (the "writer" is arbitrary stack content).
+- 0 CLoop entries; 0 `[CONTROL: PENDING]` entries active.
+
+**Gate 2 — normal-build sanity:**
+- Debug GIL-off smoke 10x: **10/10 PASS**.
+- Debug GIL-off full corpus (`run-tests.sh`): **96 passed, 0 failed,
+  3 skipped** — GREEN.
+- Release bench-gate (`bench-gate.sh`, 9-run medians, loadavg-1m 1.91 at
+  start): **7/8 within 1%; transition-heavy-constructor +5.71% — FAIL.**
+  Re-measured at loadavg 1.76 (9 runs, median 57.87 ms = +5.38%): load-
+  stable, not noise. **The flag-off gate is RED.**
+
+### Families fixed in code, r23-r26 (by ruling type)
+
+Full per-family record: TSAN-TRIAGE §§20-23. **13 of 15 families closed by
+code change**; 2 by adjudicated suppression.
+
+**relaxed-atomic** (SPEC-blessed racy words; plain access was the UB):
+`tlc-slot-stamp` (heap/IsoSubspace.h LowerTierPrecise per-subspace slot
+index — 2691 reports, the largest r23 family), `marks-bitset-plain-readers`
+(WTF::BitSet word loads + MarkedBlock readers — 828),
+`dependency-loadandfence` (WTF::Atomics consume-style fenced loads — 76),
+`parked-root-snapshot` (Heap m_parkedRootSnapshotThread word — 37),
+`osr-exit-coderef` (DFGJITCode publish-via-one-pointer — 25),
+`concurrentptrhashset-publish` (7), `codeblock-jitdata-publish` (4),
+`typedarray-sort-memcpy` (JSGenericTypedArrayViewInlines lanes — 2),
+`regexp-cached-result-visit` (RegExpCachedResult fields — 1),
+`globalobject-init-vs-visitor` (JSGlobalObject::init — 5).
+
+**lock / REAL BUG (spec does NOT bless; 3 found and fixed):**
+- `dfg-weakrefs-reallyadd` (DFGDesiredWeakReferences.cpp:99-100): unfenced
+  FixedVector move-assign of `m_weakStructureReferences` /
+  `m_weakReferences` raced concurrent-GC SlotVisitor iteration; the
+  upstream "GC is deferred" comment is a single-mutator guarantee that
+  SPEC-congc N-mutators voids. Fixed: `ConcurrentJSLocker(m_lock)` around
+  the two move-assigns.
+- `growarrayright-vs-sparsemap-atomics` (ThreadAtomics.cpp): two mutators
+  reshaping the same butterfly via the Atomics-on-property path; OM §4
+  reshape protocol does not bless this. Fixed in ThreadAtomics.cpp.
+- `cachedcall-protoframe-crossthread` (CachedCall.h /
+  InterpreterInlines.h / CodeBlock.cpp): installCode mutated a foreign
+  thread's CachedCall protoframe. Fixed.
+
+**concurrent-accessor / publication:** the BitSet `concurrentFilter`
+residual (r24 §21.4.1), CachedCall entry acquire re-read.
+
+### Suppressed (r27 additions, every entry justified)
+
+Two adjudication blocks appended to `Tools/tsan/suppressions.txt` (full
+rationale at each entry):
+1. **JIT-one-sider allocator hand-out** (9 anchors, 38 r26 reports):
+   `MarkedBlock::tryCreate`, `MarkedBlock::Header::Header`,
+   `PreciseAllocation::tryCreate`, `Butterfly::growArrayRight`,
+   `JSRopeString::CompactFibers`, `GetByIdModeMetadata::GetByIdModeMetadata`,
+   `ArrayBuffer::tryCreate`, `ArrayBufferContents::tryAllocate`,
+   `JSArrayBuffer::JSArrayBuffer`. Wave-7 class, allocator side; the
+   "racing" access is JIT-emitted (`<null>` frame), so there is no plain
+   C++ access of ours to convert; coverage owned by the protocol tests /
+   amplifier per the §0 accepted tradeoff.
+2. **parked-stack stale-snapshot read** (1 anchor, 2 r26 reports):
+   `MachineThreads::tryCopyCooperativelyParkedThreadStack`. SPEC-congc
+   T5-rootscan; in-source comment at MachineStackMarker.cpp:255-266
+   documents the bounds-check-and-bail protocol.
+
+### Residuals (honest record)
+
+**TSAN race surface: ZERO.** r27 is the citable zero snapshot on the
+final r23-r27 tree (corpus 252, full JIT). r20/r21 remain the citable
+zeros for the pre-expansion 218-file corpus.
+
+**Flag-off bench gate: RED, attribution UNPROVEN.**
+transition-heavy-constructor +5.71% (was +3.9% at the closeout record,
+~+3.1% parked V5b pre-campaign). The ~+1.7pp delta vs closeout aligns with
+the r24-r26 wave's UNCONDITIONAL flag-off header conversions (BitSet.h,
+Atomics.h, ConcurrentPtrHashSet.h, IsoSubspace.h, MarkedBlock.h/Inlines.h,
+Heap.h, CodeBlock.h, DFGJITCode.h — all on this bench's allocation /
+transition hot path). The combined-revert experiment (closeout obligation,
+NOW EXTENDED to include the r24-r26 conversions) is STILL NOT RUN.
+megamorphic-access -13.32% is a large unexplained improvement (do not
+claim without bisection). The other 6 benches are within ±0.7%.
+
+**Functional tails (out of TSAN scope, unchanged):** the exit-3/66/124 set
+in §24.4; semantics/ic-instanceof-vs-transition DEADLYSIGNAL in JIT code
+(amplifier-owned per §0); the four KNOWN-FAILING tests (separate fix
+queue).

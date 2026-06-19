@@ -114,7 +114,16 @@ ALWAYS_INLINE JSValue Interpreter::executeCachedCall(CachedCall& cachedCall)
     // We don't handle `NonDebuggerAsyncEvents` explicitly here. This is a JS function (since this is CachedCall),
     // so the called JS function always handles it.
 
-    auto* entry = WTF::atomicLoad(&cachedCall.m_addressForCall, std::memory_order_acquire); // THREADS: pairs with the drain's release publish.
+    // THREADS (cachedcall-protoframe-crossthread): foreign-thread install
+    // drains do NOT rewrite our stack-resident m_protoCallFrame /
+    // m_addressForCall (CachedCall::unlinkOrUpgradeImpl foreign-skip); they
+    // bump m_staleGeneration instead. Absorb that here so the !entry relink
+    // path below performs the upgrade lazily on THIS thread. One relaxed
+    // acquire compare per call; no locking.
+    if (vm.gilOff()) [[unlikely]]
+        cachedCall.absorbForeignStaleGeneration();
+
+    auto* entry = WTF::atomicLoad(&cachedCall.m_addressForCall, std::memory_order_acquire); // THREADS: same-thread writers only after the foreign-skip; kept atomic for the existing publish shape.
     if (!entry) [[unlikely]] {
         DeferTraps deferTraps(vm); // We can't jettison this code if we're about to run it.
         cachedCall.relink();
@@ -125,6 +134,15 @@ ALWAYS_INLINE JSValue Interpreter::executeCachedCall(CachedCall& cachedCall)
     // Execute the code:
     throwScope.release();
     if (vm.gilOff()) [[unlikely]] {
+        // TSAN wave 2 (cachedcall-protoframe-crossthread) amendment: the
+        // foreign-thread writer described below is now closed — a foreign
+        // drain takes the m_ownerThread skip in unlinkOrUpgradeImpl and never
+        // touches m_protoCallFrame / m_addressForCall, so both words are
+        // owner-thread-only and the struct copy below is sequential. The
+        // snapshot-and-rederive is retained as defense-in-depth (matched-pair
+        // invariant against any future cross-word skew) and because the asm
+        // re-read it documents is independent of the C++ race.
+        //
         // ANNEX CBI item 3 (w16 amend, jit-null-metadatatable-counter-bump
         // round 2): (m_addressForCall, m_protoCallFrame.codeBlock) are two
         // independent racy words against CachedCall::unlinkOrUpgradeImpl's
@@ -168,7 +186,14 @@ ALWAYS_INLINE JSValue Interpreter::tryCallWithArguments(CachedCall& cachedCall, 
     // We don't handle `NonDebuggerAsyncEvents` explicitly here. This is a JS function (since this is CachedCall),
     // so the called JS function always handles it.
 
-    auto* entry = WTF::atomicLoad(&cachedCall.m_addressForCall, std::memory_order_acquire); // THREADS: pairs with the drain's release publish.
+    // THREADS (cachedcall-protoframe-crossthread): see executeCachedCall —
+    // foreign-thread drains bump m_staleGeneration instead of rewriting our
+    // stack words; absorb it so the !entry fast-miss returns {} and the
+    // caller's fall-through to call() relink()s on this thread.
+    if (vm.gilOff()) [[unlikely]]
+        cachedCall.absorbForeignStaleGeneration();
+
+    auto* entry = WTF::atomicLoad(&cachedCall.m_addressForCall, std::memory_order_acquire); // THREADS: same-thread writers only after the foreign-skip.
     if (!entry) [[unlikely]]
         return { };
 

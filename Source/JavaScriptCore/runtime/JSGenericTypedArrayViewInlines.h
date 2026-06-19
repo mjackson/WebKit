@@ -1159,16 +1159,25 @@ template<typename Adaptor> inline auto JSGenericTypedArrayView<Adaptor>::sort() 
     // byte-identical in-place std::sort on the likely path — one
     // predicted-false Config-page test; isShared() is immutable so hoisting
     // it into the local preserves the original two-check semantics exactly.
-    // The copy-out/back reuse the existing SAB WTF::copyElements path; lane
-    // races there are the blessed §4.7 value-race shape (TSAN-TRIAGE §3.24
-    // already covers the SAB arm).
+    // TSAN-TRIAGE §20.3.9 (typedarray-sort-memcpy): the copy-out/back touch
+    // live TA lanes that another mutator may atomic-write via
+    // trySetIndexQuicklyForTypedArrayConcurrent — plain memcpy is NOT the
+    // blessed accessor (OM §1 GT). Under gilOffProcess use the §3.24 relaxed
+    // lane load/store helpers (private-buffer side stays plain); flag-off
+    // keeps the byte-identical WTF::copyElements (SAB arm unchanged).
     bool mustCopyOut = isShared();
     if (VM::isGILOffProcess()) [[unlikely]]
         mustCopyOut = true;
     if (mustCopyOut) {
         if (!forShared.tryGrow(length)) [[unlikely]]
             return SortResult::OutOfMemory;
-        WTF::copyElements(forShared.mutableSpan(), spanConstCast<const typename Adaptor::Type>(originalSpan.first(length)));
+        if (VM::isGILOffProcess()) [[unlikely]] {
+            auto* dst = forShared.mutableSpan().data();
+            auto* src = originalSpan.data();
+            for (size_t i = 0; i < length; ++i)
+                dst[i] = typedArrayLaneLoadRelaxed(src + i);
+        } else
+            WTF::copyElements(forShared.mutableSpan(), spanConstCast<const typename Adaptor::Type>(originalSpan.first(length)));
         array = forShared.mutableSpan().data();
     }
 
@@ -1187,8 +1196,17 @@ template<typename Adaptor> inline auto JSGenericTypedArrayView<Adaptor>::sort() 
         break;
     }
 
-    if (mustCopyOut)
-        WTF::copyElements(originalSpan, forShared.span().first(length));
+    if (mustCopyOut) {
+        if (VM::isGILOffProcess()) [[unlikely]] {
+            // TSAN-TRIAGE §20.3.9: relaxed lane stores back into the live span;
+            // private-buffer reads stay plain.
+            auto* dst = originalSpan.data();
+            auto* src = forShared.span().data();
+            for (size_t i = 0; i < length; ++i)
+                typedArrayLaneStoreRelaxed(dst + i, src[i]);
+        } else
+            WTF::copyElements(originalSpan, forShared.span().first(length));
+    }
 
     return SortResult::Success;
 }

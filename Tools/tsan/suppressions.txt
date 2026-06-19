@@ -455,3 +455,95 @@ race:JSC::WriteBarrierBase<*>::cell
 # threads edit in this class hoisted the unrelated singleton bit OUT of these
 # words).
 race:JSC::UnlinkedFunctionExecutable::recordParse
+
+# ============================================================================
+# r23-r26 adjudication (TSAN-TRIAGE.md §20.3.10 / §21.4.3 / §22.4.1 / §23.4):
+# the "JIT-one-sider allocator hand-out" class — the §0 accepted-tradeoff
+# residual once the corpus runs FULL JIT. Same wave-7 mechanism as the
+# recycled-allocation block above, but the racing access here is JIT-EMITTED
+# (TSAN frame "<null>" / "failed to restore the stack"): TSAN cannot
+# instrument JIT-generated code, so the report carries only the C++-side
+# allocator/ctor write. The real happens-before edge is the cell-handout
+# protocol (LocalAllocator -> JS-value store -> in-JIT consume) which TSAN
+# cannot model. There is no plain C++ access of ours to convert; the JIT
+# side's coverage belongs to the object-model protocol tests / amplifier per
+# the standing config tradeoff (docs/threads/TSAN-TRIAGE.md §0).
+#
+# Anchored on the narrowest C++-side allocator/ctor frame present in every
+# report of its sub-key (rule 4). ACCEPTED MASKING TRADEOFF (recorded, same
+# as the wave-7 block): a future plain C++ reader/writer racing one of these
+# allocator frames whose report happens to contain an anchor below would be
+# hidden in THAT pairing; mitigation is that such a regression also pairs
+# against other readers/writers and surfaces under its own anchor.
+#
+# 38 of 40 r26 reports; reconciliation in TSAN-TRIAGE.md §23.4.1.
+
+# MarkedBlock fresh hand-out (aligned_alloc interceptor; the only call path
+# is AlignedMemoryAllocator::tryAllocateAlignedMemory -> tryCreate). Covers
+# the bare aligned_alloc keys plus the SlotVisitor m_handle/m_atomSizeClass
+# reader-side keys whose previous-write IS this frame.
+race:JSC::MarkedBlock::tryCreate
+
+# MarkedBlock::Header placement-new ctor stores (m_directory/m_vm/
+# m_markingVersion/...) on a freshly allocated block, paired with a JIT-side
+# or visitor-side first read of the same words (OM GT immutable-after-ctor).
+race:JSC::MarkedBlock::Header::Header
+
+# PreciseAllocation hand-out (malloc interceptor + the in-ctor Atomic<bool>
+# member init); substring also matches tryCreateForLowerTierPrecise.
+race:JSC::PreciseAllocation::tryCreate
+
+# Butterfly out-of-line growth realloc/memcpy (gc-stress
+# havebadtime-vs-indexed-fastpath, KNOWN-FAILING functional test): JIT reads
+# the freshly-memcpy'd butterfly contents via the tagged-word protocol; the
+# C++ side is the realloc memcpy. Same wave-7 class, allocator side.
+race:JSC::Butterfly::growArrayRight
+
+# JSRopeString::CompactFibers ctor memset (r24 variance sub-key): JIT reads
+# freshly-zeroed rope fiber words; the published-impl protocol (§11.17) is
+# the real HB and lives in JIT code.
+race:JSC::JSRopeString::CompactFibers
+
+# GetByIdModeMetadata ctor (r24 variance sub-key): LLInt metadata-table
+# inline-cache slot constructor stores vs JIT-side first probe; the JIT-side
+# install fence is the real HB (JIT §5.6).
+race:JSC::GetByIdModeMetadata::GetByIdModeMetadata
+
+# ArrayBuffer hand-out (r26 variance sub-keys, cve/mc-grow-s4 +
+# cve/mc-life-detach): the ArrayBuffer/JSArrayBuffer is created on one
+# thread and published to another via a JS-value store + in-JIT load (the
+# "<null>" frames at #7/#3 in both racing stacks). OM GT immutable-after-ctor
+# cell field; §0 JIT-HB. Three anchors:
+#   - ArrayBuffer::tryCreate covers the DeferrableRefCountedBase ctor
+#     m_refCount{2} non-atomic init (per C++ std::atomic ctor semantics) and
+#     the calloc-backed ArrayBufferContents allocation (both have it at
+#     frame #4-#6 of the previous-write stack).
+#   - ArrayBufferContents::tryAllocate is belt-and-braces for the calloc
+#     sub-key in case ArrayBuffer::tryCreate is later renamed/reshaped.
+#   - JSArrayBuffer ctor is the m_impl set-once-immutable write
+#     (JSArrayBuffer.cpp:38, sole writer in the tree) vs the
+#     isResizableOrGrowableShared() plain m_impl read on a sibling — no
+#     concurrent accessor required for an immutable-after-ctor field.
+race:JSC::ArrayBuffer::tryCreate
+race:JSC::ArrayBufferContents::tryAllocate
+race:JSC::JSArrayBuffer::JSArrayBuffer
+
+# ----------------------------------------------------------------------------
+# r26 family 2 (TSAN-TRIAGE.md §23.4.2): parked-stack stale-snapshot read.
+# SPEC-congc T5-rootscan stale-window: the GC conductor's
+# tryCopyCooperativelyParkedThreadStack reads snapshot.stackOrigin/stackTop
+# via a possibly-stale parked-root-snapshot pointer; the snapshot struct
+# lives ON THE PARKED THREAD'S STACK, so in the stale window (thread has
+# unparked and is re-entering the park path) that stack region has been
+# overwritten by an arbitrary local of the parked thread (observed: a
+# WTF::Locker inside VMManager::notifyVMStop). The in-source comment at
+# MachineStackMarker.cpp:255-266 documents the protocol: in the stale window
+# NO ordering is relied upon — the function bounds-checks the latched values
+# against thread.stack() and bails; both racing values fail the bounds check
+# by construction. Cannot be atomicized (the "writer" is whatever happens to
+# be on that stack); anchoring on the writer would be wrong. Anchored on the
+# reader frame. ACCEPTED MASKING: a future plain access INSIDE this small
+# function would be swallowed; the contract is explicit in the comment block.
+# Distinct from the §20.3.4 m_parkedRootSnapshotThread heap-field family
+# (closed in r24 via relaxed-atomic).
+race:JSC::MachineThreads::tryCopyCooperativelyParkedThreadStack

@@ -606,7 +606,7 @@ bool Plan::reallyAdd(CommonData* commonData)
 
     ASSERT(m_vm->heap.isDeferred());
     m_identifiers.reallyAdd(*m_vm, commonData);
-    m_weakReferences.reallyAdd(*m_vm, commonData);
+    m_weakReferences.reallyAdd(*m_vm, m_codeBlock, commonData);
     m_transitions.reallyAdd(*m_vm, commonData);
     if (!m_watchpoints.reallyAdd(m_codeBlock, m_identifiers, commonData))
         return false;

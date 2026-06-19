@@ -2403,7 +2403,7 @@ public:
     JS_EXPORT_PRIVATE void publishParkedRootSnapshot(WTF::Thread&, CurrentThreadState*);
     void clearParkedRootSnapshot() { m_parkedRootSnapshot.store(nullptr, std::memory_order_seq_cst); }
     CurrentThreadState* parkedRootSnapshot() const { return m_parkedRootSnapshot.load(std::memory_order_seq_cst); }
-    WTF::Thread* parkedRootSnapshotThread() const { return m_parkedRootSnapshotThread; }
+    WTF::Thread* parkedRootSnapshotThread() const { return WTF::atomicLoad(const_cast<WTF::Thread**>(&m_parkedRootSnapshotThread), std::memory_order_relaxed); }
 
     // §10A.1 current-client TLS slot (set by attachCurrentThread() and the
     // server's ISS access forwarding; cleared by detachCurrentThread();
@@ -2595,7 +2595,7 @@ private:
     GCClient::CompleteSubspaceView destructibleObjectSpaceClient;
     Atomic<uint8_t> m_accessState { noAccessState }; // §10A; seq_cst RMWs (F6/F8).
     Atomic<WTF::Thread*> m_accessOwner { nullptr }; // §10A; step-0 idempotency, I2 hand-off re-stamping, debug cross-checks.
-    WTF::Thread* m_parkedRootSnapshotThread { nullptr }; // T5-rootscan-skip: written BEFORE the seq_cst m_parkedRootSnapshot publish; read by the conductor only when that load returns non-null (the seq_cst pair orders it). Never cleared independently (stale value is harmless — gated by the snapshot pointer).
+    WTF::Thread* m_parkedRootSnapshotThread { nullptr }; // T5-rootscan-skip: written BEFORE the seq_cst m_parkedRootSnapshot publish; read by the conductor only when that load returns non-null (the seq_cst pair orders it). Never cleared independently (stale value is harmless — gated by the snapshot pointer). Relaxed-atomic accessors: the seq_cst m_parkedRootSnapshot store/load is the real HB edge (TSAN-TRIAGE §20.3.4 parked-root-snapshot).
     Atomic<CurrentThreadState*> m_parkedRootSnapshot { nullptr }; // T5-rootscan-skip: see the public accessor block above. seq_cst publish/clear by the owning thread; seq_cst load by the conductor at root-scan time.
     bool m_releasedByGCPark { false }; // §10A; written only inside VMManager::notifyVMStop (manifest 5a hooks, JSC::Heap::gcWillParkInStopTheWorld / gcDidResumeFromStopTheWorld; T5).
     bool m_allocatedThisServerCycle { false }; // T1-sibint (SCALEBENCH §31) + F4-burst (§32(b)): set once this client's per-cycle byte accumulator crosses server.m_distinctAllocatorByteThreshold in the isSharedServer() didAllocate leg (own access-holding thread only); cleared world-stopped by server Heap::updateAllocationLimits via clientSet().forEach. Gates the once-per-cycle m_distinctAllocatingClientsThisCycle bump.

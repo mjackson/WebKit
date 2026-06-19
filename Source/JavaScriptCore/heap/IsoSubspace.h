@@ -29,6 +29,7 @@
 #include "BlockDirectory.h"
 #include "Subspace.h"
 #include "SubspaceAccess.h"
+#include <wtf/Atomics.h>
 #include <wtf/SinglyLinkedListWithTail.h>
 #include <JavaScriptCore/AllocatorForMode.h>
 #include <wtf/TZoneMalloc.h>
@@ -78,12 +79,21 @@ public:
     // !useSharedGCHeap: never stamped, never read (every reader is behind a
     // vm.gilOff() codegen gate); the field is one trailing unsigned with no
     // JIT-consumed-offset effect.
-    unsigned tlcSlot() const { return m_tlcSlot; }
+    // TSAN tlc-slot-stamp: spawned-thread GCThreadLocalCache ctors re-stamp the
+    // identical value concurrently with each other and with DFG-compile-thread
+    // reads (tlcSlotForConcurrentlyWithIso). The first stamp is serial (VM ctor)
+    // so every concurrent read observes the final value; relaxed atomics here
+    // close the C++ data-race UB only — no ordering required, flag-off never
+    // touches the field.
+    unsigned tlcSlot() const { return WTF::atomicLoad(const_cast<unsigned*>(&m_tlcSlot), std::memory_order_relaxed); }
     void stampTlcSlot(unsigned slot)
     {
         ASSERT(slot != BlockDirectory::invalidTlcIndex);
-        ASSERT(m_tlcSlot == BlockDirectory::invalidTlcIndex || m_tlcSlot == slot);
-        m_tlcSlot = slot;
+#if ASSERT_ENABLED
+        unsigned current = WTF::atomicLoad(&m_tlcSlot, std::memory_order_relaxed);
+        ASSERT_UNUSED(current, current == BlockDirectory::invalidTlcIndex || current == slot);
+#endif
+        WTF::atomicStore(&m_tlcSlot, slot, std::memory_order_relaxed);
     }
 
 private:
