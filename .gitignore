@@ -101,3 +101,4 @@ xcuserdata
 /Tools/threads/scan/
 /Tools/threads/scalebench/go/bench-go
 Tools/threads/scalebench/*.class
+Tools/threads/fuzz/campaign-*.log
