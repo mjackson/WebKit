@@ -1917,8 +1917,25 @@ Structure* Structure::flattenDictionaryStructureImpl(VM& vm, JSObject* object, V
         ASSERT(beforeOutOfLineCapacity > afterOutOfLineCapacity);
         // If the object had a Butterfly but after flattening/compacting we no longer have need of it,
         // we need to zero it out because the collector depends on the Structure to know the size for copying.
-        if (!afterOutOfLineCapacity && !this->hasIndexingHeader(object))
-            object->setButterfly(vm, nullptr);
+        if (!afterOutOfLineCapacity && !this->hasIndexingHeader(object)) {
+#if USE(JSVALUE64)
+            if (Options::useJSThreads()) [[unlikely]] {
+                // r47 manifest-7 audit escape #3 (SCALEBENCH §47): we are
+                // world-stopped + cell-locked here (asserted above), so the
+                // word cannot move. setButterfly()'s owner-only
+                // storeTaggedButterflyWordConcurrent traps on a
+                // foreign-tagged word. Null the word directly under the stop
+                // (I2: null payload => all-zero word; the previous flat
+                // butterfly stays conservatively reachable until the stop
+                // ends, I7).
+                Atomic<uint64_t>* word = std::bit_cast<Atomic<uint64_t>*>(object->butterflyAddress());
+                ASSERT(!isSegmentedButterfly(word->load(std::memory_order_relaxed)));
+                word->store(0, std::memory_order_seq_cst);
+                vm.writeBarrier(object);
+            } else
+#endif
+                object->setButterfly(vm, nullptr);
+        }
         // If the object was down-sized to the point where the base of the Butterfly is no longer within the
         // first CopiedBlock::blockSize bytes, we'll get the wrong answer if we try to mask the base back to
         // the CopiedBlock header. To prevent this case we need to memmove the Butterfly down.

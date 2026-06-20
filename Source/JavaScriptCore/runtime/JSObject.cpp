@@ -7303,7 +7303,31 @@ void JSObject::shiftButterflyAfterFlattening(const GCSafeConcurrentJSLocker&, VM
 
     // memcpy is fine since newButterfly is not tied to any object yet.
     memcpy(static_cast<JSValue*>(newBase), static_cast<JSValue*>(currentBase), Butterfly::totalSize(0, outOfLineCapacityAfter, hasIndexingHeader, indexingPayloadSizeInBytes));
-    
+
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] {
+        // r47 manifest-7 audit escape #2 (SCALEBENCH §47): the sole caller,
+        // Structure::flattenDictionaryStructureImpl, holds the cell lock and
+        // runs world-stopped flag-on (asserted there), so the butterfly word
+        // cannot move. setButterfly() routes to the OWNER-only
+        // storeTaggedButterflyWordConcurrent path, which RELEASE_ASSERTs
+        // butterflyTID(old) == currentButterflyTID() - a foreign-thread
+        // flatten of an object created elsewhere trips that trap. Publish
+        // tag-preserving instead (the §6/§4.6 cell-locked T3/I17 form,
+        // without the AS shape constraint - the stop makes ANY flat
+        // tag-preserving repoint sound here, and dictionaries never segment
+        // mid-flatten: the segmented branch is handled by the caller).
+        ASSERT(butterflyWorldIsStopped(vm));
+        ASSERT(cellLock().isLocked());
+        WTF::storeStoreFence();
+        Atomic<uint64_t>* word = std::bit_cast<Atomic<uint64_t>*>(butterflyAddress());
+        uint64_t old = word->load(std::memory_order_relaxed);
+        ASSERT(!isSegmentedButterfly(old));
+        word->store(encodeButterfly(newButterfly, butterflyTID(old), butterflySharedWrite(old)), std::memory_order_seq_cst);
+        vm.writeBarrier(this);
+        return;
+    }
+#endif
     setButterfly(vm, newButterfly);
 }
 

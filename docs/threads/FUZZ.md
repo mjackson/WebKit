@@ -315,3 +315,45 @@ foreign-TID escapes (slowDownAndWasteMemory; the two dictionary-flatten
 sites). DEFERRED — needs a tag-preserving cell-locked publication design
 (SCALEBENCH.md §47 "NEW residual"). Repros + ASAN reports:
 `Tools/threads/fuzz/crashes/r47/`; log: `Tools/threads/fuzz/campaign-r47.log`.
+
+## r47 closure + campaign r48 (2026-06-20, post-§48 tree)
+
+Fuzz jsc rebuilt against the §48 working tree (r47 manifest-7 setButterfly
+audit-escape closure: `slowDownAndWasteMemory` cell-locked tag-preserving
+CAS + arrayBuffer-before-butterfly publication order; `shiftButterflyAfter-
+Flattening` / `flattenDictionaryStructureImpl` world-stopped tag-preserving
+store; `existingBufferInButterfly` + JIT `emitLoadTypedArrayArrayBuffer`
+segment-aware — a Wasteful TA view CAN segment via foreign named-prop adds;
+the prior "never segmented" comment is false).
+
+**r47 + r3b-survivor re-triage** (`Tools/threads/fuzz/triage-r48.sh`, 11
+files = 9 r47-storage + r3b-001 + r3b-002):
+
+| count | signature |
+|---|---|
+| **10** | **NOREPRO** |
+| 1 | exit-3 (r3b-002 RangeError; unchanged) |
+
+**0× r47-family** (`storeTaggedButterflyWordConcurrent` /
+`slowDownAndWasteMemory` / `DeferrableRefCounted`). The 8CAE8CE0 file went
+NOREPRO only after the JIT segment-aware fix (runtime-only first round: SEGV
+@ 0xbadbeef0+0x20 in JIT iterator-next ← `slow_path_spread`).
+
+**Saved r47 repros 20× Debug `--useJSThreads=true`**: r47-001 20/20,
+r47-002 20/20 (after `existingBufferInButterfly` segment-aware; first round
+0/20 on `ASSERT(!isSegmentedButterfly)` @ `JSObject.h:1659`). Regression
+tests: `JSTests/threads/objectmodel/r47-foreign-dictionary-flatten.js`,
+`r47-typedarray-slowdown-wastememory.js`,
+`r48-typedarray-segmented-arraybuffer.js`.
+
+**Campaign r48** (2h fresh-storage, 4 jobs, 3 legs at host ~1h bg-task cap,
+2026-06-19T23:07:32Z – 2026-06-20T01:26:42Z): **310,666 execs**, 9.93% edge
+coverage. **2 crashes**, both `_flaky`, **2/2 NOREPRO at 10× retry**, **0×
+r47-family signatures**. INDEX (empty):
+`Tools/threads/fuzz/crashes/r48/INDEX.tsv`; log:
+`Tools/threads/fuzz/campaign-r48.log`.
+
+A 9m47s pre-JIT-fix smoke leg (`fuzzilli-storage-r48-prekill`, 36,308 execs)
+found 1× `ASSERTION FAILED: isPinnedPropertyTable()` — the pre-existing
+2026-06-07 class-static/gc family (the "4-min smoke" footnote above); not
+r47-related.

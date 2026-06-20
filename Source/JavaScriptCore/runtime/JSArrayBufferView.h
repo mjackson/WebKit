@@ -448,6 +448,38 @@ inline JSArrayBufferView* validateTypedArray(JSGlobalObject*, JSValue);
 inline ArrayBuffer* JSArrayBufferView::existingBufferInButterfly()
 {
     ASSERT(isWastefulTypedArray(m_mode));
+#if USE(JSVALUE64)
+    // r47-002 (FUZZ.md §47): pair with slowDownAndWasteMemory's
+    // storeStoreFence before the m_mode flip - the caller's relaxed
+    // m_mode==Wasteful (or any hasArrayBuffer()) observation must order
+    // before the butterfly word + IndexingHeader::arrayBuffer reads below, or
+    // a concurrent reader can dereference an uninitialized arrayBuffer slot
+    // mid-publication. gilOff-only in effect; gated on useJSThreads so
+    // flag-off codegen stays byte-identical (under the GIL the fence is a
+    // harmless no-op).
+    //
+    // r47-002 Debug residual (SCALEBENCH §48): a Wasteful typed-array view
+    // CAN carry a SEGMENTED butterfly word - a foreign-thread named-property
+    // add that escapes E4 (TTL fired / foreign TID) and grows
+    // outOfLineCapacity falls into trySegmentedTransition (the §44
+    // StayFlatShared gate requires !hasIndexingHeader, which a Wasteful view
+    // has). butterfly() is the flat-only accessor (ASSERT !isSegmented), so
+    // dispatch on the tagged word here. Segmented: the IndexingHeader (and
+    // its u.typedArray.buffer) lives at indexed fragment 0 slot 0 (§4.1; the
+    // I8 alias equation pins it to the flat-era B-8 location, so the buffer
+    // pointer survives the conversion verbatim).
+    if (Options::useJSThreads()) [[unlikely]] {
+        WTF::loadLoadFence();
+        uint64_t word = taggedButterflyWord();
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            ButterflySpine* spine = butterflySpine(word);
+            spine->tsanConsume();
+            ASSERT(spine->indexedFragmentCountConcurrent()); // C2: hasIndexingHeader.
+            return std::bit_cast<IndexingHeader*>(&spine->indexedFragment(0)->slots[0])->arrayBuffer();
+        }
+        return untaggedButterfly(word)->indexingHeader()->arrayBuffer();
+    }
+#endif
     return butterfly()->indexingHeader()->arrayBuffer();
 }
 

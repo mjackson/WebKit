@@ -92,18 +92,51 @@ static void emitLegacyButterflyTagTrap(AssemblyHelpers& jit, GPRReg butterflyGPR
 #endif
 }
 
-// Typed-array wasteful-mode butterflies are never segmented and never carry
-// the SW regime (their butterfly only routes to the ArrayBuffer); flag-on the
-// tag must still be masked before dereference (I14(a)).
-static void emitTypedArrayButterflyTagMask(AssemblyHelpers& jit, GPRReg butterflyGPR)
+// SPEC-jit section 5.5 Task 8 (I14(a)) + r48 (FUZZ.md / SCALEBENCH §48):
+// load the ArrayBuffer* from a Wasteful typed-array view's butterfly,
+// flag-on segment-aware. The previous "typed-array wasteful-mode butterflies
+// are never segmented" claim is FALSE — a foreign-thread named-property add
+// that escapes E4 (TTL fired / foreign TID) and grows outOfLineCapacity
+// segments via trySegmentedTransition (the §44 StayFlatShared gate requires
+// !hasIndexingHeader, which a Wasteful view HAS). Under that conversion the
+// IndexingHeader (and its u.typedArray.buffer) lives at indexed fragment 0
+// slot 0 (§4.1; the I8 alias equation pins it to the flat-era B-8 location,
+// so the buffer pointer survives the conversion verbatim). resultGPR ==
+// arrayBuffer on exit; scratchGPR is clobbered flag-on (callers re-load
+// m_mode afterwards). Flag-off codegen unchanged: one masked loadPtr at
+// [butterfly + offsetOfArrayBuffer].
+static void emitLoadTypedArrayArrayBuffer(AssemblyHelpers& jit, GPRReg baseGPR, GPRReg resultGPR, [[maybe_unused]] GPRReg scratchGPR)
 {
+    jit.loadPtr(AssemblyHelpers::Address(baseGPR, JSObject::butterflyOffset()), resultGPR);
 #if USE(JSVALUE64)
-    if (Options::useJSThreads()) [[unlikely]]
-        jit.and64(AssemblyHelpers::TrustedImm64(static_cast<int64_t>(butterflyTagPointerMask)), butterflyGPR);
-#else
-    UNUSED_PARAM(jit);
-    UNUSED_PARAM(butterflyGPR);
+    if (Options::useJSThreads()) [[unlikely]] {
+        ASSERT(scratchGPR != resultGPR && scratchGPR != baseGPR);
+        // Segmented iff TID == notTTLTID (the all-ones TID, I3; payload != 0
+        // is given by m_mode==Wasteful => the wastage install happened).
+        constexpr uint64_t tidMask = 0x7fffULL << 48;
+        static_assert(tidMask == JSC::butterflyTIDMask);
+        jit.move(AssemblyHelpers::TrustedImm64(static_cast<int64_t>(tidMask)), scratchGPR);
+        jit.and64(resultGPR, scratchGPR);
+        auto notSegmented = jit.branch64(AssemblyHelpers::NotEqual, scratchGPR, AssemblyHelpers::TrustedImm64(static_cast<int64_t>(tidMask)));
+        // Segmented: resultGPR = spine after mask; arrayBuffer is at
+        // [indexedFragment(0) + 0] = [[spine + 32 + outOfLineFragmentCount*8] + 0].
+        jit.and64(AssemblyHelpers::TrustedImm64(static_cast<int64_t>(butterflyTagPointerMask)), resultGPR);
+        jit.load32(AssemblyHelpers::Address(resultGPR, 0), scratchGPR); // ButterflySpine::outOfLineFragmentCount
+        static_assert(!OBJECT_OFFSETOF(ButterflySpine, outOfLineFragmentCount));
+        static_assert(sizeof(ButterflySpine) == 32 && sizeof(void*) == 8);
+        jit.loadPtr(AssemblyHelpers::BaseIndex(resultGPR, scratchGPR, AssemblyHelpers::TimesEight, sizeof(ButterflySpine)), resultGPR); // indexedFragment(0)
+        static_assert(!OBJECT_OFFSETOF(ButterflyFragment, slots));
+        static_assert(!IndexingHeader::offsetOfArrayBuffer()); // u.typedArray.buffer at offset 0 of the header slot.
+        jit.loadPtr(AssemblyHelpers::Address(resultGPR, 0), resultGPR);
+        auto done = jit.jump();
+        notSegmented.link(&jit);
+        jit.and64(AssemblyHelpers::TrustedImm64(static_cast<int64_t>(butterflyTagPointerMask)), resultGPR);
+        jit.loadPtr(AssemblyHelpers::Address(resultGPR, Butterfly::offsetOfArrayBuffer()), resultGPR);
+        done.link(&jit);
+        return;
+    }
 #endif
+    jit.loadPtr(AssemblyHelpers::Address(resultGPR, Butterfly::offsetOfArrayBuffer()), resultGPR);
 }
 
 }
@@ -2247,9 +2280,13 @@ AssemblyHelpers::JumpList AssemblyHelpers::branchIfResizableOrGrowableSharedType
     //     ResizableNonSharedWastefulTypedArray
     //     ResizableNonSharedAutoLengthWastefulTypedArray
 
-    loadPtr(Address(baseGPR, JSObject::butterflyOffset()), scratch2GPR);
-    AssemblyHelpersInternal::emitTypedArrayButterflyTagMask(*this, scratch2GPR); // SPEC-jit section 5.5 Task 8 (I14(a))
-    loadPtr(Address(scratch2GPR, Butterfly::offsetOfArrayBuffer()), scratch2GPR);
+    // r48: segment-aware butterfly -> arrayBuffer load (clobbers scratchGPR
+    // flag-on; mode is re-loaded for the isGrowableShared test below).
+    AssemblyHelpersInternal::emitLoadTypedArrayArrayBuffer(*this, baseGPR, scratch2GPR, scratchGPR);
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]]
+        load8(Address(baseGPR, JSArrayBufferView::offsetOfMode()), scratchGPR);
+#endif
 
     auto isGrowableShared = branchTest32(NonZero, scratchGPR, TrustedImm32(isGrowableSharedMode));
 #if USE(LARGE_TYPED_ARRAYS)
@@ -2322,9 +2359,14 @@ std::tuple<AssemblyHelpers::Jump, AssemblyHelpers::JumpList> AssemblyHelpers::lo
     if (typedArrayType && typedArrayType.value() == TypeDataView)
         loadPtr(Address(baseGPR, JSDataView::offsetOfBuffer()), scratch2GPR);
     else {
-        loadPtr(Address(baseGPR, JSObject::butterflyOffset()), scratch2GPR);
-        AssemblyHelpersInternal::emitTypedArrayButterflyTagMask(*this, scratch2GPR); // SPEC-jit section 5.5 Task 8 (I14(a))
-        loadPtr(Address(scratch2GPR, Butterfly::offsetOfArrayBuffer()), scratch2GPR);
+        // r48: segment-aware butterfly -> arrayBuffer load (clobbers
+        // scratchGPR flag-on; mode is re-loaded for the isGrowableShared test
+        // below).
+        AssemblyHelpersInternal::emitLoadTypedArrayArrayBuffer(*this, baseGPR, scratch2GPR, scratchGPR);
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            load8(Address(baseGPR, JSArrayBufferView::offsetOfMode()), scratchGPR);
+#endif
     }
 
     auto isGrowableShared = branchTest32(NonZero, scratchGPR, TrustedImm32(isGrowableSharedMode));

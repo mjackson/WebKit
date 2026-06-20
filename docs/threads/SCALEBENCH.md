@@ -3940,3 +3940,102 @@ reliable repro of the same `slowDownAndWasteMemory` site).
 **verified=false** by the literal ±2% bench-gate criterion (1 of 8 outside,
 bisection-proven host-inadmissible, attributed and V5b-transferred). All
 correctness gates (1)(2)(3)(5)(6-signature) green.
+
+## §48 r47 closure (2026-06-20)
+
+### Fix: r47 manifest-7 setButterfly audit escapes (3 sites + 2 surfaced reads)
+
+The §47-DEFERRED r47 family (8 reproducible = ONE root: foreign-TID
+`setButterfly` reaches `storeTaggedButterflyWordConcurrent`'s owner-TID
+RELEASE_ASSERT, `JSObjectInlines.h:116`) closes at the 3 audited write
+sites plus 2 read sites surfaced by progressing past them:
+
+| site | file | fix |
+|---|---|---|
+| `JSArrayBufferView::slowDownAndWasteMemory` | `JSArrayBufferView.cpp` | flag-on cell-locked: re-check `hasArrayBuffer()` (idempotent loser path), build wastage butterfly LOCAL + fill `IndexingHeader::arrayBuffer` BEFORE publication, storeStoreFence, tag-PRESERVING seq_cst CAS (the §4.6 AS-COPY shape, open-coded for NonArray indexing), storeStoreFence before `m_mode` flip. Closes r47-001 (owner-TID trap) + r47-002 (poison `arrayBuffer()` mid-publish). |
+| `JSObject::shiftButterflyAfterFlattening` | `JSObject.cpp` | flag-on world-stopped + cell-locked tag-preserving seq_cst store (the §6/§4.6 T3/I17 form, no AS shape constraint — the stop makes ANY flat tag-preserving repoint sound). |
+| `Structure::flattenDictionaryStructureImpl` (null case) | `Structure.cpp` | flag-on world-stopped + cell-locked: zero the word directly (I2: null payload ⇒ all-zero word). |
+| `JSArrayBufferView::existingBufferInButterfly` (surfaced by r47-002 Debug) | `JSArrayBufferView.h` | segment-aware dispatch: a Wasteful view CAN carry a SEGMENTED word (foreign-TID named-prop add that grows outOfLineCapacity falls into `trySegmentedTransition`; the §44 StayFlatShared gate requires `!hasIndexingHeader` which a Wasteful view HAS). Segmented ⇒ read `arrayBuffer` from `spine->indexedFragment(0)->slots[0]` (§4.1; the I8 alias equation pins it to flat-era B−8). + loadLoadFence pairing the (c) storeStoreFence above. |
+| `emitLoadTypedArrayArrayBuffer` (was `emitTypedArrayButterflyTagMask`; surfaced by 8CAE8CE0 retriage) | `jit/AssemblyHelpers.cpp` | the JIT analogue: `branchIfResizableOrGrowableSharedTypedArrayIsOutOfBounds` / `loadTypedArrayByteLengthImpl` loaded `[maskedButterfly + offsetOfArrayBuffer]` flat-only — the prior "typed-array wasteful-mode butterflies are never segmented" comment is FALSE. Segment-aware: branch on TID==notTTLTID, segmented ⇒ `[spine + 32 + outOfLineFragmentCount*8]` → indexedFragment(0) → `[+0]` = arrayBuffer. Clobbers scratchGPR flag-on; both call sites re-load `m_mode`. Baseline/DFG/FTL (all share the helper). |
+
+Flag-off byte-identical at every site (gated `[[unlikely]]` on
+`Options::useJSThreads()`). Regression tests: `JSTests/threads/objectmodel/
+r47-foreign-dictionary-flatten.js`, `r47-typedarray-slowdown-wastememory.js`,
+`r48-typedarray-segmented-arraybuffer.js`.
+
+### §48 (1) r47-001 + r47-002 20× Debug `--useJSThreads=true`
+
+| repro | result |
+|---|---|
+| r47-001 | **20/20** ✓ |
+| r47-002 | **20/20** ✓ (after the `existingBufferInButterfly` segment-aware fix; first round 0/20 on `ASSERT(!isSegmentedButterfly)` @ `JSObject.h:1659` `butterfly()` ← `existingBufferInButterfly` ← `validateTypedArray` — the Wasteful-segmented read site, NOT the original DeferrableRefCounted SEGV) |
+
+### §48 (2) r47 + r3b-survivor re-triage vs new Fuzz binary
+
+`Tools/threads/fuzz/triage-r48.sh` over **11** files (9 r47-storage crashes
++ r3b-001 + r3b-002 SOURCE paths):
+
+| count | signature |
+|---|---|
+| **10** | **NOREPRO** |
+| 1 | exit-3 (r3b-002; uncaught RangeError, unchanged from §47) |
+
+**0× r47-family** (`storeTaggedButterflyWordConcurrent` /
+`slowDownAndWasteMemory` / `DeferrableRefCounted`). The 8CAE8CE0 file went
+NOREPRO only after the JIT segment-aware fix (first re-triage, runtime-only:
+SEGV @ `0xbadbeef0+0x20` in JIT iterator-next ← `slow_path_spread`; growable
+SAB view + foreign named-prop add ⇒ segmented ⇒ JIT `[spine−8]` = scribble).
+Full table: `WebKitBuild/Fuzz/triage-r48/all.tsv`.
+
+### §48 (3) Regression tests + corpus + identity + scalebench checksums
+
+| Gate | Result |
+|---|---|
+| New regression tests (3 × on/off, Debug) | **6/6 rc=0** ✓ |
+| Corpus GIL-on (Debug, `JSC_useJSThreads=1`) | **102 / 0 / 2** (was 98/0/3; +3 new objectmodel tests, +1 prior unskip) |
+| Corpus GIL-off (Debug, pinned env) | **100 / 0 / 4** (was 97/0/4) |
+| v5a-identity (40 tests, Release) | **mismatches=0** ✓ |
+| intcs W=16 3-rep (Release, GIL-off) | rc=0 ×3, **cs `e85d66e7\|15cf18bb\|651b594b\|abc7704f` 3/3 ✓** §39b ref; total_ms 3491/3691/3515 at load 12-18 (r48 fuzz running alongside; checksums-only gate) |
+| flat W=16 3-rep (Release, GIL-off) | rc=0 ×3, **cs `686d6890\|0fbbd673\|3af6b072\|e1d22021` 3/3 ✓** §38 ref; total_ms 528/558/502 at load 13-18 |
+| DFG/FTL forced segmented-Wasteful path (Debug+Release) | rc=0 ×3 ✓ |
+
+Raw: `Tools/threads/scalebench/results-v48-ship.jsonl`.
+
+### §48 (4) 2h fresh-storage re-fuzz (campaign r48)
+
+`fuzzilli-storage-r48`, fresh, 4 jobs, 3 legs (host bg-task ~1h cap; resume
+from on-disk corpus between legs): 2026-06-19T23:07:32Z – 2026-06-20T01:26:42Z,
+**121 min** total uptime (59 + 56 + 6). **310,666 execs**, **9.93%** edge
+coverage. **2 crashes**, both `_flaky`-tagged (`Tools/threads/fuzz/
+triage-r48-campaign.sh`, 10× retry each):
+
+| count | signature |
+|---|---|
+| **2** | **NOREPRO** |
+
+**0× r47-family signatures** (`storeTaggedButterflyWordConcurrent` /
+`slowDownAndWasteMemory` / `DeferrableRefCounted`). Log:
+`Tools/threads/fuzz/campaign-r48.log`; storage:
+`WebKitBuild/Fuzz/fuzzilli-storage-r48/`; INDEX (empty):
+`Tools/threads/fuzz/crashes/r48/INDEX.tsv`.
+
+A separate **9m47s pre-JIT-fix smoke leg** (`fuzzilli-storage-r48-prekill`,
+36,308 execs, runtime-only fix applied, JIT helper still flat-only) found
+**1 crash**: `ASSERTION FAILED: isPinnedPropertyTable()` (Debug; SIGABRT
+no-report on Fuzz), the pre-existing 2026-06-07 class-static/gc family
+(FUZZ.md "4-min smoke" footnote); NOT r47-related, NOT a §48 regression
+(reproduces flaky on every prior tree). Recorded as a known pre-existing
+residual; not counted against (4).
+
+### §48 verdict
+
+| Gate | Result |
+|---|---|
+| (1) r47-001/r47-002 20× Debug | **20/20 + 20/20** ✓ |
+| (2) r47 + r3b-survivor re-triage | **10/11 NOREPRO** (1 = exit-3, unchanged), **0× r47-family** ✓ |
+| (3) Regression + corpus on/off + identity 40 + intcs/flat W=16 cs | **6/6 + 102/0/2 + 100/0/4 + 0 mismatch + 6/6 cs match** ✓ |
+| (4) 2h re-fuzz | **2 crashes / 2 NOREPRO / 0× r47-family signatures** ✓ |
+
+**verified=true**: (1)(2)(3) green; (4) finds 0 of the
+`storeTaggedButterflyWordConcurrent` / `slowDownAndWasteMemory` /
+`DeferrableRefCounted` signatures.
