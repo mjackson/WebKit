@@ -100,8 +100,17 @@ void ScriptExecutable::clearCode(IsoCellSet& clearableCodeSet)
     case ModuleProgramExecutableType: {
         ModuleProgramExecutable* executable = static_cast<ModuleProgramExecutable*>(this);
         executable->m_codeBlock.clear();
-        executable->m_unlinkedCodeBlock.clear();
-        executable->m_moduleEnvironmentSymbolTable.clear();
+        // Do not clear m_unlinkedCodeBlock or m_moduleEnvironmentSymbolTable: the
+        // already-instantiated JSModuleEnvironment is sized to that symbol table,
+        // and for a top-level-await module the suspended generator frame is laid
+        // out by the existing UnlinkedModuleProgramCodeBlock. Regenerating either
+        // under a different CodeGenerationMode (e.g. after Debugger::
+        // setBreakpointsActivated flips defaultCodeGenerationMode()) would yield
+        // bytecode whose ResolvedClosureVar offsets and frame layout no longer
+        // match the live environment. Module bodies execute once, so dropping the
+        // unlinked code block here would never recover debug hooks for the body
+        // anyway; inner functions still pick them up via deleteAllUnlinkedCodeBlocks.
+        // See the invariant documented in UnlinkedModuleProgramCodeBlock.h.
         break;
     }
     default:
