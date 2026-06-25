@@ -1,0 +1,92 @@
+name: jam Build macOS arm64
+
+# Builds OUR bun-webkit-macos-arm64.tar.gz from this fork and publishes it as a
+# release asset that the jam runtime can consume by repointing vendor/jsc/VENDOR.json.
+# Reuses the upstream cross-compile recipe (macos-cross-release.sh + Dockerfile.macos)
+# unmodified, so the toolchain stays pinned/identical to oven-sh's and the fork stays
+# mergeable with upstream.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_ref:
+        description: "Git ref to build (commit SHA, branch, or tag)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  macos-arm64:
+    name: macOS arm64 (cross-compiled from Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Resolve build ref
+        id: ref
+        run: |
+          if [ -n "${{ inputs.build_ref }}" ]; then
+            echo "ref=${{ inputs.build_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !LayoutTests/
+            !JSTests/
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Build bun-webkit-macos-arm64
+        run: |
+          set -euxo pipefail
+          rm -rf "${{ runner.temp }}/bun-webkit" "${{ runner.temp }}/bun-webkit.tar.gz"
+          MACOS_ARCH="arm64" \
+          WEBKIT_RELEASE_TYPE="Release" \
+          LTO_FLAG="" \
+          CPP_FLAGS="" \
+          ENABLE_SANITIZERS="" \
+          temp="${{ runner.temp }}" \
+          bash macos-cross-release.sh
+
+          cd "${{ runner.temp }}"
+          echo "#define BUN_WEBKIT_VERSION \"${{ steps.ref.outputs.ref }}\"" \
+            >> bun-webkit/include/cmakeconfig.h
+          echo '{ "name": "bun-webkit-macos-arm64", "version": "0.0.1-${{ steps.ref.outputs.ref }}", "os": ["darwin"], "cpu": ["arm64"], "repository": "https://github.com/${{ github.repository }}" }' \
+            > bun-webkit/package.json
+
+          test -f bun-webkit/lib/libJavaScriptCore.a
+          test -f bun-webkit/lib/libWTF.a
+          test -f bun-webkit/lib/libbmalloc.a
+          test -f bun-webkit/include/JavaScriptCore/JavaScript.h
+          test -f bun-webkit/include/cmakeconfig.h
+
+          tar -czf bun-webkit-macos-arm64.tar.gz bun-webkit
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bun-webkit-macos-arm64
+          path: ${{ runner.temp }}/bun-webkit-macos-arm64.tar.gz
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          TAG="autobuild-${{ steps.ref.outputs.ref }}"
+          ASSET="${{ runner.temp }}/bun-webkit-macos-arm64.tar.gz"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" \
+              --notes "Automated bun-webkit build for ${{ steps.ref.outputs.ref }}" \
+              --target "${{ steps.ref.outputs.ref }}"
+          fi
+          gh release upload "$TAG" "$ASSET" --clobber
