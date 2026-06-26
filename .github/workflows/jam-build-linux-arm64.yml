@@ -2,19 +2,12 @@ name: jam Build Linux arm64
 
 # Builds OUR bun-webkit-linux-arm64.tar.gz from this fork and publishes it as a
 # release asset that the jam runtime can consume by repointing vendor/jsc/VENDOR.json.
-#
-# Upstream builds linux-arm64 on a NATIVE arm64 runner (`linux-arm64-gh`, Bun's
-# fleet). On a free GitHub-hosted amd64 `ubuntu-latest` there is no native arm64
-# runner, so this builds linux/arm64 under QEMU emulation. The build RECIPE — the
-# upstream `Dockerfile` — is reused UNMODIFIED (it is already multi-arch via
-# TARGETARCH/BUILDPLATFORM). release.sh derives its arch from `uname -m`, so it
-# can't target arm64 from an amd64 host; the buildx invocation below is byte-for
-# -byte the one release.sh runs (same Dockerfile, target, args), only with
-# --platform=linux/arm64 and the arm64 MARCH_FLAG release.sh itself selects for
-# arm64. Mirrors build-reusable.yml's plain `bun-webkit-linux-arm64` Release lane.
-#
-# Emulated arm64 codegen is slow (well within the 350-min cap), but produces the
-# same static JSCOnly artifact.
+# Reuses the upstream recipe (release.sh + Dockerfile) UNMODIFIED so the fork stays
+# mergeable with upstream. Runs NATIVELY on a GitHub-hosted arm64 runner
+# (ubuntu-24.04-arm, free for public repos) — no QEMU emulation, so release.sh
+# derives aarch64 from `uname -m` exactly as it does for amd64, and the gcc-13
+# arm64 debs install against an arm64 host. Mirrors build-reusable.yml's plain
+# `bun-webkit-linux-arm64` Release variant (Release, -O3 -DNDEBUG=1, no LTO, no ASAN).
 
 on:
   workflow_dispatch:
@@ -30,9 +23,9 @@ permissions:
 
 jobs:
   linux-arm64:
-    name: Linux arm64 (emulated on amd64)
-    runs-on: ubuntu-latest
-    timeout-minutes: 350
+    name: Linux arm64 (native)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 150
     steps:
       - name: Resolve build ref
         id: ref
@@ -48,39 +41,23 @@ jobs:
           ref: ${{ steps.ref.outputs.ref }}
           fetch-depth: 1
 
-      - name: Set up QEMU (arm64 emulation)
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
       - uses: docker/setup-buildx-action@v3
         with:
           install: true
 
       - name: Build bun-webkit-linux-arm64
-        env:
-          DOCKER_BUILDKIT: "1"
         run: |
           set -euxo pipefail
           rm -rf "${{ runner.temp }}/bun-webkit" "${{ runner.temp }}/bun-webkit.tar.gz"
-
-          # Same buildx command release.sh runs, pinned to linux/arm64 with the
-          # arm64 MARCH_FLAG release.sh itself uses for that arch. Dockerfile is
-          # reused unmodified (multi-arch via TARGETARCH/BUILDPLATFORM).
-          docker buildx build \
-            -f Dockerfile \
-            -t bun-webkit-linux-arm64 \
-            --build-arg ENABLE_SANITIZERS="" \
-            --build-arg LTO_FLAG="" \
-            --build-arg MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1" \
-            --build-arg RELEASE_FLAGS="-O3 -DNDEBUG=1" \
-            --build-arg WEBKIT_RELEASE_TYPE="Release" \
-            --build-arg CPU="native" \
-            --progress=plain \
-            --platform=linux/arm64 \
-            --target=artifact \
-            --output type=local,dest="${{ runner.temp }}/bun-webkit" \
-            .
+          # Match build-reusable.yml's arm64 Release lane: native cpu, armv8-a+crc floor.
+          MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1" \
+          WEBKIT_RELEASE_TYPE="Release" \
+          RELEASE_FLAGS="-O3 -DNDEBUG=1" \
+          CPU="native" cpu="native" \
+          LTO_FLAG="" \
+          ENABLE_SANITIZERS="" \
+          temp="${{ runner.temp }}" \
+          bash release.sh
 
           cd "${{ runner.temp }}"
           echo "#define BUN_WEBKIT_VERSION \"${{ steps.ref.outputs.ref }}\"" \
@@ -88,6 +65,7 @@ jobs:
           echo '{ "name": "bun-webkit-linux-arm64", "version": "0.0.1-${{ steps.ref.outputs.ref }}", "os": ["linux"], "cpu": ["arm64"], "repository": "https://github.com/${{ github.repository }}" }' \
             > bun-webkit/package.json
 
+          # Static-only payload, matching upstream's release packaging.
           rm -rf bun-webkit/lib/*.so bun-webkit/lib/*.so.*
 
           test -f bun-webkit/lib/libJavaScriptCore.a
