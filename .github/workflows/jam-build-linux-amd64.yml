@@ -1,0 +1,97 @@
+name: jam Build Linux amd64
+
+# Builds OUR bun-webkit-linux-amd64.tar.gz from this fork and publishes it as a
+# release asset that the jam runtime can consume by repointing vendor/jsc/VENDOR.json.
+# Reuses the upstream recipe (release.sh + Dockerfile) UNMODIFIED so the fork stays
+# mergeable with upstream. The amd64 build runs natively under buildx on the
+# ubuntu-latest amd64 host (no emulation). Mirrors build-reusable.yml's plain
+# `bun-webkit-linux-amd64` Release variant (Release, -O3 -DNDEBUG=1, no LTO, no ASAN).
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_ref:
+        description: "Git ref to build (commit SHA, branch, or tag)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  linux-amd64:
+    name: Linux amd64
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Resolve build ref
+        id: ref
+        run: |
+          if [ -n "${{ inputs.build_ref }}" ]; then
+            echo "ref=${{ inputs.build_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 1
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Build bun-webkit-linux-amd64
+        run: |
+          set -euxo pipefail
+          rm -rf "${{ runner.temp }}/bun-webkit" "${{ runner.temp }}/bun-webkit.tar.gz"
+          # Match build-reusable.yml's amd64 Release lane: native cpu, haswell floor.
+          MARCH_FLAG="-march=haswell" \
+          WEBKIT_RELEASE_TYPE="Release" \
+          RELEASE_FLAGS="-O3 -DNDEBUG=1" \
+          CPU="native" cpu="native" \
+          LTO_FLAG="" \
+          ENABLE_SANITIZERS="" \
+          temp="${{ runner.temp }}" \
+          bash release.sh
+
+          cd "${{ runner.temp }}"
+          echo "#define BUN_WEBKIT_VERSION \"${{ steps.ref.outputs.ref }}\"" \
+            >> bun-webkit/include/cmakeconfig.h
+          echo '{ "name": "bun-webkit-linux-amd64", "version": "0.0.1-${{ steps.ref.outputs.ref }}", "os": ["linux"], "cpu": ["x64"], "repository": "https://github.com/${{ github.repository }}" }' \
+            > bun-webkit/package.json
+
+          # Static-only payload, matching upstream's release packaging.
+          rm -rf bun-webkit/lib/*.so bun-webkit/lib/*.so.*
+
+          test -f bun-webkit/lib/libJavaScriptCore.a
+          test -f bun-webkit/lib/libWTF.a
+          test -f bun-webkit/lib/libbmalloc.a
+          test -f bun-webkit/lib/libicui18n.a
+          test -f bun-webkit/lib/libicuuc.a
+          test -f bun-webkit/lib/libicudata.a
+          test -f bun-webkit/include/JavaScriptCore/JavaScript.h
+          test -f bun-webkit/include/cmakeconfig.h
+
+          tar -czf bun-webkit-linux-amd64.tar.gz bun-webkit
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bun-webkit-linux-amd64
+          path: ${{ runner.temp }}/bun-webkit-linux-amd64.tar.gz
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          TAG="autobuild-${{ steps.ref.outputs.ref }}"
+          ASSET="${{ runner.temp }}/bun-webkit-linux-amd64.tar.gz"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" \
+              --notes "Automated bun-webkit build for ${{ steps.ref.outputs.ref }}" \
+              --target "${{ steps.ref.outputs.ref }}"
+          fi
+          gh release upload "$TAG" "$ASSET" --clobber
