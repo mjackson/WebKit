@@ -1,3 +1,12 @@
+## jam fork divergence
+
+This fork carries jam-specific additions on top of upstream Bun WebKit (`oven-sh/WebKit`). Divergence is deliberately confined to CI workflow files so the fork stays mergeable with upstream — the build recipe (`release.sh` + `Dockerfile`) is reused unmodified.
+
+- `.github/workflows/jam-build-*.yml` — build the `bun-webkit-{platform}-{arch}.tar.gz` static-JSCOnly release assets that the jam runtime consumes (pinned in jam's `vendor/jsc/VENDOR.json`).
+- `jam-build-linux-amd64.yml` `build_type: debug` — builds an `-O0` + debug-info JSCOnly artifact (`bun-webkit-linux-amd64-debug.tar.gz`) next to the default `-O3` release artifact. **Reason:** jam's native C++ bridge translation units compile at `-O0` in debug builds; linking them against the `-O3` release engine triggers a debug-Linux ODR / inline-codegen skew that aborts inside `JSC::VM::VM` at startup. An optimization-level-matched engine eliminates the skew. Only the optimization level differs from the release artifact (build type stays `Release`, `NDEBUG` defined, asserts off), isolating the ABI axis.
+
+---
+
 # WebKit with patches
 
 This is a build of WebKit with some extra patches used by [bun](https://bun.sh)

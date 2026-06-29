@@ -4,8 +4,18 @@ name: jam Build Linux amd64
 # release asset that the jam runtime can consume by repointing vendor/jsc/VENDOR.json.
 # Reuses the upstream recipe (release.sh + Dockerfile) UNMODIFIED so the fork stays
 # mergeable with upstream. The amd64 build runs natively under buildx on the
-# ubuntu-latest amd64 host (no emulation). Mirrors build-reusable.yml's plain
-# `bun-webkit-linux-amd64` Release variant (Release, -O3 -DNDEBUG=1, no LTO, no ASAN).
+# ubuntu-latest amd64 host (no emulation).
+#
+# build_type:
+#   release (default) -> -O3 -DNDEBUG=1, asset bun-webkit-linux-amd64.tar.gz
+#                        (mirrors build-reusable.yml's plain Release variant).
+#   debug             -> -O0 -DNDEBUG=1 -DRELEASE_WITHOUT_OPTIMIZATIONS, asset
+#                        bun-webkit-linux-amd64-debug.tar.gz. Only the optimization
+#                        level differs from the release artifact (build type stays
+#                        Release, NDEBUG defined, asserts off, debug info retained).
+#                        This is the ABI/inline-codegen profile jam's native bridge
+#                        TUs use in debug builds; an opt-matched engine fixes a
+#                        debug-Linux ODR skew that aborts in JSC::VM::VM at startup.
 
 on:
   workflow_dispatch:
@@ -15,6 +25,14 @@ on:
         type: string
         required: false
         default: ""
+      build_type:
+        description: "release (-O3, default) or debug (-O0 + debug info, ABI-matched to jam debug builds)"
+        type: choice
+        required: false
+        default: release
+        options:
+          - release
+          - debug
 
 permissions:
   contents: write
@@ -33,6 +51,13 @@ jobs:
           else
             echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           fi
+          if [ "${{ inputs.build_type }}" = "debug" ]; then
+            echo "suffix=-debug" >> "$GITHUB_OUTPUT"
+            echo "release_flags=-O0 -DNDEBUG=1 -DRELEASE_WITHOUT_OPTIMIZATIONS" >> "$GITHUB_OUTPUT"
+          else
+            echo "suffix=" >> "$GITHUB_OUTPUT"
+            echo "release_flags=-O3 -DNDEBUG=1" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/checkout@v4
         with:
@@ -43,14 +68,15 @@ jobs:
         with:
           install: true
 
-      - name: Build bun-webkit-linux-amd64
+      - name: Build bun-webkit-linux-amd64${{ steps.ref.outputs.suffix }}
         run: |
           set -euxo pipefail
           rm -rf "${{ runner.temp }}/bun-webkit" "${{ runner.temp }}/bun-webkit.tar.gz"
           # Match build-reusable.yml's amd64 Release lane: native cpu, haswell floor.
+          # Optimization flags come from build_type (see workflow header).
           MARCH_FLAG="-march=haswell" \
           WEBKIT_RELEASE_TYPE="Release" \
-          RELEASE_FLAGS="-O3 -DNDEBUG=1" \
+          RELEASE_FLAGS="${{ steps.ref.outputs.release_flags }}" \
           CPU="native" cpu="native" \
           LTO_FLAG="" \
           ENABLE_SANITIZERS="" \
@@ -60,7 +86,7 @@ jobs:
           cd "${{ runner.temp }}"
           echo "#define BUN_WEBKIT_VERSION \"${{ steps.ref.outputs.ref }}\"" \
             >> bun-webkit/include/cmakeconfig.h
-          echo '{ "name": "bun-webkit-linux-amd64", "version": "0.0.1-${{ steps.ref.outputs.ref }}", "os": ["linux"], "cpu": ["x64"], "repository": "https://github.com/${{ github.repository }}" }' \
+          echo '{ "name": "bun-webkit-linux-amd64${{ steps.ref.outputs.suffix }}", "version": "0.0.1-${{ steps.ref.outputs.ref }}", "os": ["linux"], "cpu": ["x64"], "repository": "https://github.com/${{ github.repository }}" }' \
             > bun-webkit/package.json
 
           # Static-only payload, matching upstream's release packaging.
@@ -75,12 +101,12 @@ jobs:
           test -f bun-webkit/include/JavaScriptCore/JavaScript.h
           test -f bun-webkit/include/cmakeconfig.h
 
-          tar -czf bun-webkit-linux-amd64.tar.gz bun-webkit
+          tar -czf "bun-webkit-linux-amd64${{ steps.ref.outputs.suffix }}.tar.gz" bun-webkit
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bun-webkit-linux-amd64
-          path: ${{ runner.temp }}/bun-webkit-linux-amd64.tar.gz
+          name: bun-webkit-linux-amd64${{ steps.ref.outputs.suffix }}
+          path: ${{ runner.temp }}/bun-webkit-linux-amd64${{ steps.ref.outputs.suffix }}.tar.gz
 
       - name: Publish release
         env:
@@ -88,7 +114,7 @@ jobs:
         run: |
           set -euxo pipefail
           TAG="autobuild-${{ steps.ref.outputs.ref }}"
-          ASSET="${{ runner.temp }}/bun-webkit-linux-amd64.tar.gz"
+          ASSET="${{ runner.temp }}/bun-webkit-linux-amd64${{ steps.ref.outputs.suffix }}.tar.gz"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --title "$TAG" \
               --notes "Automated bun-webkit build for ${{ steps.ref.outputs.ref }}" \
