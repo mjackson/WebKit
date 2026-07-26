@@ -35,6 +35,7 @@ class CachePayload {
 public:
     JS_EXPORT_PRIVATE static CachePayload makeMappedPayload(FileSystem::MappedFileData&&);
     JS_EXPORT_PRIVATE static CachePayload makeMallocPayload(MallocSpan<uint8_t, VMMalloc>&&);
+    JS_EXPORT_PRIVATE static CachePayload makeBorrowedPayload(std::span<const uint8_t>);
     JS_EXPORT_PRIVATE static CachePayload makeEmptyPayload();
 
     JS_EXPORT_PRIVATE CachePayload(CachePayload&&);
@@ -44,7 +45,7 @@ public:
     JS_EXPORT_PRIVATE std::span<const uint8_t> span() const LIFETIME_BOUND;
 
 private:
-    using DataType = Variant<MallocSpan<uint8_t, VMMalloc>, FileSystem::MappedFileData>;
+    using DataType = Variant<MallocSpan<uint8_t, VMMalloc>, FileSystem::MappedFileData, std::span<const uint8_t>>;
     explicit CachePayload(DataType&&);
 
     DataType m_data;

@@ -40,6 +40,11 @@ CachePayload CachePayload::makeMallocPayload(MallocSpan<uint8_t, VMMalloc>&& dat
     return CachePayload(WTF::move(data));
 }
 
+CachePayload CachePayload::makeBorrowedPayload(std::span<const uint8_t> data)
+{
+    return CachePayload(WTF::move(data));
+}
+
 CachePayload CachePayload::makeEmptyPayload()
 {
     return CachePayload({ });
@@ -56,9 +61,13 @@ CachePayload::~CachePayload() = default;
 
 std::span<const uint8_t> CachePayload::span() const LIFETIME_BOUND
 {
-    return WTF::switchOn(m_data, [](const auto& data) {
-        return data.span();
-    });
+    return WTF::switchOn(m_data,
+        [](std::span<const uint8_t> data) {
+            return data;
+        },
+        [](const auto& data) {
+            return data.span();
+        });
 }
 
 } // namespace JSC
