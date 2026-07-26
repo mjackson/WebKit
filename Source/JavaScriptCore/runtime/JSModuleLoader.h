@@ -111,6 +111,10 @@ public:
     JSModuleNamespaceObject* getModuleNamespaceObject(JSGlobalObject*, JSValue moduleRecord);
     JSArray* dependencyKeysIfEvaluated(JSGlobalObject*, const String& key);
 
+    using ModuleRegistryMap = ModuleMap<WriteBarrier<ModuleRegistryEntry>>;
+    const ModuleRegistryMap& moduleRegistryEntries() const LIFETIME_BOUND { return m_moduleMap; }
+    JS_EXPORT_PRIVATE bool removeModuleRegistryEntry(const Identifier&);
+
     DECLARE_VISIT_CHILDREN;
 
     static AbstractModuleRecord* getImportedModule(AbstractModuleRecord* referrer, const AbstractModuleRecord::ModuleRequest&);
@@ -185,7 +189,7 @@ private:
     // Corresponds to RealmRecord.[[LoadedModules]].
     ModuleMap<AbstractModuleRecord::LoadedModuleRequest> m_loadedModules;
 
-    ModuleMap<WriteBarrier<ModuleRegistryEntry>> m_moduleMap;
+    ModuleRegistryMap m_moduleMap;
 
     ResolutionMap<WriteBarrier<Unknown>> m_resolutionFailures;
 };

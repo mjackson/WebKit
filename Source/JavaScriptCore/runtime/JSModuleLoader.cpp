@@ -978,6 +978,21 @@ ModuleRegistryEntry* JSModuleLoader::getRegisteredMayBeNull(const Identifier& ke
     return nullptr;
 }
 
+bool JSModuleLoader::removeModuleRegistryEntry(const Identifier& key)
+{
+    Locker locker { cellLock() };
+    auto* impl = key.impl();
+    m_loadedModules.removeIf([&](auto& entry) {
+        return entry.key.first == impl;
+    });
+    m_resolutionFailures.removeIf([&](auto& entry) {
+        return entry.key.first == impl || entry.key.second == impl;
+    });
+    return m_moduleMap.removeIf([&](auto& entry) {
+        return entry.key.first == impl;
+    });
+}
+
 void JSModuleLoader::addResolutionFailure(VM& vm, const ResolutionMapKey& key, JSValue error)
 {
     Locker locker { cellLock() };

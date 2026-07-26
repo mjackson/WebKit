@@ -284,11 +284,17 @@ void ErrorInstance::computeErrorInfo(VM& vm)
 
     if (m_stackTrace && !m_stackTrace->isEmpty()) {
         getLineColumnAndSource(vm, m_stackTrace.get(), m_lineColumn, m_sourceURL);
+        auto materializer = vm.errorInfoMaterializer();
+        String materializedStack;
+        if (materializer)
+            materializedStack = materializer(vm, *m_stackTrace, m_lineColumn.line, m_lineColumn.column, m_sourceURL, vm.errorInfoMaterializerContext());
         // If the stack property was already materialized by Error.captureStackString,
         // use emptyString as a placeholder to materialize the other properties in
         // materializeErrorInfoIfNeeded below.
         if (m_stackPropertyAlreadyMaterialized)
             m_stackString = emptyString();
+        else if (materializer)
+            m_stackString = WTF::move(materializedStack);
         else
             m_stackString = Interpreter::stackTraceAsString(vm, *m_stackTrace.get());
         m_stackTrace = nullptr;
