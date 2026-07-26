@@ -1,0 +1,234 @@
+#!/usr/bin/env python3
+
+import argparse
+import gzip
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import stat
+import tarfile
+import tempfile
+
+
+PLATFORM_LIBRARIES = {
+    "linux": (
+        "libJavaScriptCore.a",
+        "libWTF.a",
+        "libbmalloc.a",
+        "libicui18n.a",
+        "libicuuc.a",
+        "libicudata.a",
+    ),
+    "macos": (
+        "libJavaScriptCore.a",
+        "libWTF.a",
+        "libbmalloc.a",
+    ),
+    "windows": (
+        "JavaScriptCore.lib",
+        "WTF.lib",
+        "bmalloc.lib",
+        "icuin.lib",
+        "icuuc.lib",
+        "icudt.lib",
+    ),
+}
+
+
+def copy_headers(source, destination, flatten=False):
+    if not source.is_dir():
+        return False
+
+    for path in sorted(source.rglob("*.h")):
+        relative_path = Path(path.name) if flatten else path.relative_to(source)
+        output_path = destination / relative_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path.resolve(), output_path)
+    return True
+
+
+def find_library(name, search_roots):
+    for root in search_roots:
+        direct_match = root / name
+        if direct_match.is_file():
+            return direct_match
+        matches = sorted(root.rglob(name)) if root.is_dir() else []
+        if matches:
+            return matches[0]
+    raise FileNotFoundError(f"Could not find required library {name}")
+
+
+def normalize_archive_metadata(path):
+    # Apple ar records build-time member metadata even in release archives.
+    # Normalize the common ar header fields without rewriting object payloads.
+    with path.open("r+b") as archive:
+        if archive.read(8) != b"!<arch>\n":
+            raise ValueError(f"Required static library is not an ar archive: {path}")
+        archive.seek(0, 2)
+        archive_size = archive.tell()
+
+        offset = 8
+        while offset < archive_size:
+            archive.seek(offset)
+            header = archive.read(60)
+            if len(header) != 60 or header[58:] != b"`\n":
+                raise ValueError(
+                    f"Malformed ar member header in {path} at offset {offset}"
+                )
+            try:
+                member_size = int(header[48:58].decode("ascii").strip())
+            except ValueError as error:
+                raise ValueError(
+                    f"Malformed ar member size in {path} at offset {offset}"
+                ) from error
+            if member_size < 0:
+                raise ValueError(
+                    f"Negative ar member size in {path} at offset {offset}"
+                )
+
+            archive.seek(offset + 16)
+            archive.write(b"0           0     0     ")
+            offset += 60 + member_size + (member_size % 2)
+
+        if offset != archive_size:
+            raise ValueError(f"Malformed ar archive length for {path}")
+
+
+def normalized_tar_info(path, archive_name):
+    info = tarfile.TarInfo(archive_name)
+    info.uid = 0
+    info.gid = 0
+    info.uname = "root"
+    info.gname = "root"
+    info.mtime = 0
+    if path.is_dir():
+        info.type = tarfile.DIRTYPE
+        info.mode = 0o755
+    else:
+        info.size = path.stat().st_size
+        info.mode = 0o755 if path.stat().st_mode & stat.S_IXUSR else 0o644
+    return info
+
+
+def write_archive(payload, archive):
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    with archive.open("wb") as output:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=0) as compressed:
+            with tarfile.open(fileobj=compressed, mode="w") as tar:
+                paths = [payload, *sorted(payload.rglob("*"))]
+                for path in paths:
+                    archive_name = Path("jam-webkit") / path.relative_to(payload)
+                    info = normalized_tar_info(path, archive_name.as_posix())
+                    if path.is_dir():
+                        tar.addfile(info)
+                    else:
+                        with path.open("rb") as source:
+                            tar.addfile(info, source)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Package a static JSCOnly build for Jam."
+    )
+    parser.add_argument("--build-dir", required=True, type=Path)
+    parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--platform", required=True, choices=PLATFORM_LIBRARIES)
+    parser.add_argument("--arch", required=True, choices=("amd64", "arm64"))
+    parser.add_argument("--version", required=True)
+    parser.add_argument(
+        "--library-dir",
+        action="append",
+        default=[],
+        type=Path,
+        help="Additional directory to search for static libraries.",
+    )
+    args = parser.parse_args()
+
+    build_dir = args.build_dir.resolve()
+    output_dir = args.output_dir.resolve()
+    source_dir = Path(__file__).resolve().parents[2]
+    archive_name = f"jam-webkit-{args.platform}-{args.arch}.tar.gz"
+    archive_path = output_dir / archive_name
+
+    with tempfile.TemporaryDirectory(prefix="jam-webkit-package-") as temporary:
+        payload = Path(temporary) / "jam-webkit"
+        include_dir = payload / "include"
+        jsc_include_dir = include_dir / "JavaScriptCore"
+        library_dir = payload / "lib"
+        jsc_include_dir.mkdir(parents=True)
+        library_dir.mkdir()
+
+        jsc_header_roots = (
+            source_dir / "Source" / "JavaScriptCore",
+            build_dir / "JavaScriptCore" / "DerivedSources",
+            build_dir / "JavaScriptCore" / "Headers" / "JavaScriptCore",
+            build_dir / "JavaScriptCore.framework" / "Headers",
+            build_dir / "JavaScriptCore" / "PrivateHeaders" / "JavaScriptCore",
+            build_dir / "JavaScriptCore.framework" / "PrivateHeaders",
+        )
+        copied_jsc_headers = False
+        for root in jsc_header_roots:
+            copied_jsc_headers |= copy_headers(root, jsc_include_dir, flatten=True)
+        if not copied_jsc_headers:
+            raise FileNotFoundError("Could not find generated JavaScriptCore headers")
+
+        if not copy_headers(build_dir / "WTF" / "Headers" / "wtf", include_dir / "wtf"):
+            raise FileNotFoundError("Could not find generated WTF headers")
+        if not copy_headers(
+            build_dir / "bmalloc" / "Headers" / "bmalloc", include_dir / "bmalloc"
+        ):
+            raise FileNotFoundError("Could not find generated bmalloc headers")
+
+        cmake_config = build_dir / "cmakeconfig.h"
+        if not cmake_config.is_file():
+            raise FileNotFoundError("Could not find generated cmakeconfig.h")
+        shutil.copy2(cmake_config, include_dir / "cmakeconfig.h")
+        with (include_dir / "cmakeconfig.h").open("a", encoding="utf-8") as output:
+            output.write(f'\n#define JAM_WEBKIT_VERSION "{args.version}"\n')
+
+        search_roots = [build_dir / "lib", *args.library_dir]
+        for name in PLATFORM_LIBRARIES[args.platform]:
+            source = find_library(name, search_roots)
+            destination = library_dir / name
+            shutil.copy2(source, destination)
+            normalize_archive_metadata(destination)
+
+        package = {
+            "name": f"jam-webkit-{args.platform}-{args.arch}",
+            "version": f"0.0.1-{args.version}",
+            "os": ["darwin" if args.platform == "macos" else args.platform],
+            "cpu": ["x64" if args.arch == "amd64" else "arm64"],
+            "repository": "https://github.com/mjackson/webkit-new",
+        }
+        (payload / "package.json").write_text(
+            json.dumps(package, separators=(",", ":")) + "\n", encoding="utf-8"
+        )
+
+        required_headers = (
+            jsc_include_dir / "JavaScript.h",
+            jsc_include_dir / "APICast.h",
+            jsc_include_dir / "JSCInlines.h",
+            jsc_include_dir / "JSGlobalObject.h",
+            jsc_include_dir / "JSNativeStdFunction.h",
+            include_dir / "cmakeconfig.h",
+        )
+        for header in required_headers:
+            if not header.is_file():
+                raise FileNotFoundError(f"Missing required header {header}")
+
+        write_archive(payload, archive_path)
+
+    digest_builder = hashlib.sha256()
+    with archive_path.open("rb") as archive:
+        while block := archive.read(1024 * 1024):
+            digest_builder.update(block)
+    digest = digest_builder.hexdigest()
+    checksum_path = archive_path.with_suffix(archive_path.suffix + ".sha256")
+    checksum_path.write_text(f"{digest}  {archive_name}\n", encoding="utf-8")
+    print(archive_path)
+    print(checksum_path)
+
+
+if __name__ == "__main__":
+    main()

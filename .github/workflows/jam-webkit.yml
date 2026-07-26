@@ -1,0 +1,195 @@
+name: Jam WebKit
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_ref:
+        description: Git ref to build
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve commit
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.build_ref || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Record commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.platform }} ${{ matrix.arch }}
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            arch: amd64
+            runner: ubuntu-24.04
+          - platform: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - platform: macos
+            arch: amd64
+            runner: macos-15-intel
+          - platform: macos
+            arch: arm64
+            runner: macos-15
+          - platform: windows
+            arch: amd64
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libicu-dev ninja-build ruby
+
+      - name: Install macOS dependencies
+        if: matrix.platform == 'macos'
+        run: brew install ninja
+
+      - name: Install Windows ICU
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          vcpkg install --classic --clean-after-build icu:x64-windows-static-md
+          $sourceDir = Join-Path $env:VCPKG_INSTALLATION_ROOT `
+            "installed\x64-windows-static-md\lib"
+          $outputDir = Join-Path $env:RUNNER_TEMP "jam-icu"
+          New-Item -ItemType Directory -Force $outputDir | Out-Null
+          foreach ($library in @("icuin", "icuuc", "icudt")) {
+            $matches = @(Get-ChildItem $sourceDir -File -Filter "*$library*.lib" |
+              Where-Object { -not $_.Name.EndsWith("d.lib") })
+            if ($matches.Count -ne 1) {
+              throw "Expected one release $library library, found: $matches"
+            }
+            Copy-Item $matches[0].FullName (Join-Path $outputDir "$library.lib")
+          }
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            export CC=clang
+            export CXX=clang++
+          fi
+          cmake_args=(
+            -S .
+            -B WebKitBuild/Jam
+            -G Ninja
+            -DPORT=JSCOnly
+            -DENABLE_API_TESTS=OFF
+            -DENABLE_JAVASCRIPT_SHELL=OFF
+            -DENABLE_STATIC_JSC=ON
+            -DENABLE_TOOLS=OFF
+            -DUSE_THIN_ARCHIVES=OFF
+            -DCMAKE_BUILD_TYPE=Release
+          )
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            icu_root="$(cygpath -m "${RUNNER_TEMP}/jam-icu")"
+            icu_include="$(cygpath -m \
+              "${VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static-md/include")"
+            project_include="$(cygpath -m \
+              "${PWD}/Tools/CMake/JamWindowsICU.cmake")"
+            cmake_args+=(
+              -DCMAKE_C_COMPILER=clang-cl
+              -DCMAKE_CXX_COMPILER=clang-cl
+              "-DCMAKE_PROJECT_INCLUDE=${project_include}"
+              "-DCMAKE_TOOLCHAIN_FILE=${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake"
+              -DVCPKG_MANIFEST_MODE=OFF
+              -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+              "-DICU_ROOT=${icu_root}"
+              "-DJAM_WINDOWS_ICU_ROOT=${icu_root}"
+              "-DJAM_WINDOWS_ICU_INCLUDE=${icu_include}"
+            )
+          fi
+          cmake "${cmake_args[@]}"
+
+      - name: Build
+        run: cmake --build WebKitBuild/Jam --target JavaScriptCore --parallel
+
+      - name: Package
+        shell: bash
+        run: |
+          library_args=()
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            library_args+=(--library-dir "/usr/lib/$(gcc -print-multiarch)")
+          elif [[ "${{ matrix.platform }}" == "windows" ]]; then
+            library_args+=(--library-dir "${RUNNER_TEMP}/jam-icu")
+          fi
+          python Tools/Scripts/package-jam-webkit \
+            --build-dir WebKitBuild/Jam \
+            --output-dir "${{ runner.temp }}" \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --version "${{ needs.resolve.outputs.sha }}" \
+            "${library_args[@]}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: jam-webkit-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/jam-webkit-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+            ${{ runner.temp }}/jam-webkit-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    needs:
+      - resolve
+      - build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: jam-webkit-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Verify checksums
+        working-directory: artifacts
+        run: sha256sum --check *.sha256
+
+      - name: Publish immutable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="autobuild-${{ needs.resolve.outputs.sha }}"
+          if ! gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release create "$tag" \
+              --repo "${{ github.repository }}" \
+              --target "${{ needs.resolve.outputs.sha }}" \
+              --title "$tag" \
+              --notes "Static JSCOnly payloads built from ${{ needs.resolve.outputs.sha }}."
+          fi
+          gh release upload "$tag" artifacts/* \
+            --repo "${{ github.repository }}"
