@@ -1251,6 +1251,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSGlobalObject.h
     runtime/JSGlobalObjectFunctions.h
     runtime/JSGlobalObjectInlines.h
+    runtime/JSModuleLoader.h
     runtime/JSGlobalProxy.h
     runtime/JSGlobalProxyInlines.h
     runtime/JSInt16Array.h
