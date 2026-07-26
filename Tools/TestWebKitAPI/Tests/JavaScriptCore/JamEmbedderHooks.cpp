@@ -29,6 +29,7 @@
 #include <JavaScriptCore/Completion.h>
 #include <JavaScriptCore/IdentifierInlines.h>
 #include <JavaScriptCore/InitializeThreading.h>
+#include <JavaScriptCore/JSCJSValuePropertyInlines.h>
 #include <JavaScriptCore/JSFunction.h>
 #include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/JSGlobalObjectInlines.h>
@@ -37,6 +38,7 @@
 #include <JavaScriptCore/MicrotaskQueueInlines.h>
 #include <JavaScriptCore/SourceCode.h>
 #include <JavaScriptCore/SourceTaintedOrigin.h>
+#include <JavaScriptCore/StackFrame.h>
 #include <JavaScriptCore/VM.h>
 #include <limits>
 
@@ -49,6 +51,22 @@ using JSC::JSLockHolder;
 using JSC::VM;
 
 static Vector<uint64_t> observedJobOwners;
+
+struct ErrorMaterializerState {
+    unsigned calls { 0 };
+    size_t frameCount { 0 };
+};
+
+static String materializeErrorInfo(VM&, Vector<JSC::StackFrame>& frames, unsigned& line, unsigned& column, String& sourceURL, void* context)
+{
+    auto& state = *static_cast<ErrorMaterializerState*>(context);
+    ++state.calls;
+    state.frameCount = frames.size();
+    line = 123;
+    column = 45;
+    sourceURL = "mapped.js"_s;
+    return "mapped stack"_s;
+}
 
 static JSC::EncodedJSValue recordJobOwner(JSGlobalObject* globalObject, JSC::CallFrame*)
 {
@@ -133,6 +151,39 @@ TEST(JavaScriptCore_JamEmbedderHooks, RestoresPromiseReactionJobOwners)
     EXPECT_EQ(observedJobOwners[0], 0u);
     EXPECT_EQ(observedJobOwners[1], std::numeric_limits<uint64_t>::max());
     EXPECT_EQ(globalObject->embedderJobOwner(), 17u);
+}
+
+TEST(JavaScriptCore_JamEmbedderHooks, MaterializesErrorInfoLazily)
+{
+    WTF::initializeMainThread();
+    JSC::initialize();
+
+    VM& vm = VM::create(HeapType::Large).leakRef();
+    JSLockHolder locker(vm);
+    auto* globalObject = JSGlobalObject::create(vm, JSGlobalObject::createStructure(vm, JSC::jsNull()));
+    ErrorMaterializerState state;
+    vm.setErrorInfoMaterializer(materializeErrorInfo, &state);
+
+    auto source = JSC::makeSource("new Error('boom')"_s, { }, JSC::SourceTaintedOrigin::Untainted, "original.js"_s);
+    JSC::JSValue error = JSC::evaluate(globalObject, source);
+    ASSERT_TRUE(error.isObject());
+    EXPECT_EQ(state.calls, 0u);
+
+    auto* errorObject = error.getObject();
+    EXPECT_EQ(errorObject->get(globalObject, vm.propertyNames->stack).toWTFString(globalObject), "mapped stack"_s);
+    EXPECT_EQ(state.calls, 1u);
+    EXPECT_GT(state.frameCount, 0u);
+    EXPECT_EQ(errorObject->get(globalObject, vm.propertyNames->line).asNumber(), 123);
+    EXPECT_EQ(errorObject->get(globalObject, vm.propertyNames->column).asNumber(), 45);
+    EXPECT_EQ(errorObject->get(globalObject, vm.propertyNames->sourceURL).toWTFString(globalObject), "mapped.js"_s);
+
+    errorObject->get(globalObject, vm.propertyNames->stack);
+    EXPECT_EQ(state.calls, 1u);
+
+    vm.setErrorInfoMaterializer(nullptr);
+    JSC::JSValue defaultError = JSC::evaluate(globalObject, source);
+    ASSERT_TRUE(defaultError.isObject());
+    EXPECT_NE(defaultError.getObject()->get(globalObject, vm.propertyNames->stack).toWTFString(globalObject), "mapped stack"_s);
 }
 
 } // namespace TestWebKitAPI
