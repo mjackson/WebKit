@@ -1646,12 +1646,35 @@ public:
     void encode(Encoder& encoder, const StringSourceProvider& sourceProvider)
     {
         Base::encode(encoder, sourceProvider);
+#if !USE(JAM_BYTECODE_CACHE)
         m_source.encode(encoder, sourceProvider.source().toString());
+#else
+        m_sourceLength = sourceProvider.source().length();
+#endif
     }
 
+#if USE(JAM_BYTECODE_CACHE)
+    SourceProvider* decode(Decoder& decoder, SourceProviderSourceType sourceType) const
+#else
     StringSourceProvider* decode(Decoder& decoder, SourceProviderSourceType sourceType) const
+#endif
     {
+#if USE(JAM_BYTECODE_CACHE)
+        // Reuse the runtime provider instead of decoding and allocating an
+        // identical String. Jam pairs each cache with this exact embedded
+        // source, but retain cheap type and length checks against bad input.
+        if (RefPtr<SourceProvider> provider = decoder.provider()) {
+            if (provider->sourceType() == sourceType && provider->source().length() == m_sourceLength)
+                return provider.leakRef();
+        }
+
+        // A decoder without the matching provider cannot validate a cache that
+        // intentionally omits its duplicate source text. Return an empty source;
+        // the decode entry point rejects providers it did not supply.
+        String decodedSource;
+#else
         String decodedSource = m_source.decode(decoder);
+#endif
         SourceOrigin decodedSourceOrigin = m_sourceOrigin.decode(decoder);
         String decodedSourceURL = m_sourceURL.decode(decoder);
         TextPosition decodedStartPosition = m_startPosition.decode(decoder);
@@ -1662,7 +1685,11 @@ public:
     }
 
 private:
+#if !USE(JAM_BYTECODE_CACHE)
     CachedString m_source;
+#else
+    unsigned m_sourceLength;
+#endif
 };
 
 #if ENABLE(WEBASSEMBLY)
@@ -2689,8 +2716,13 @@ UnlinkedCodeBlock* decodeCodeBlockImpl(VM& vm, const SourceCodeKey& key, Ref<Cac
         if (!cachedEntry->decode(decoder.get(), entry))
             return nullptr;
     }
+#if USE(JAM_BYTECODE_CACHE)
+    if (&entry.first.source().provider() != &key.source().provider())
+        return nullptr;
+#else
     if (entry.first != key)
         return nullptr;
+#endif
 
     if (Options::reportBytecodeCacheDecodeTimes()) [[unlikely]] {
         MonotonicTime after = MonotonicTime::now();

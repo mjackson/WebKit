@@ -107,6 +107,7 @@ jobs:
             -DENABLE_JAVASCRIPT_SHELL=OFF
             -DENABLE_STATIC_JSC=ON
             -DENABLE_TOOLS=OFF
+            -DUSE_JAM_BYTECODE_CACHE=ON
             -DUSE_THIN_ARCHIVES=OFF
             -DCMAKE_BUILD_TYPE=Release
           )

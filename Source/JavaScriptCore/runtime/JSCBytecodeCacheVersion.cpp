@@ -52,6 +52,13 @@ static constexpr bool verbose = false;
 
 uint32_t computeJSCBytecodeCacheVersion()
 {
+#if USE(JAM_BYTECODE_CACHE)
+    // Jam links the same static JavaScriptCore archive into its build-time
+    // bytecode generator and runtime executable. Their ELF build IDs differ,
+    // so use an identity fixed when JavaScriptCore itself is compiled.
+    static constexpr uint32_t precomputedCacheVersion = SuperFastHash::computeHash(__TIMESTAMP__);
+    return precomputedCacheVersion;
+#else
     UNUSED_VARIABLE(JSCBytecodeCacheVersionInternal::verbose);
     static LazyNeverDestroyed<uint32_t> cacheVersion;
     static std::once_flag onceFlag;
@@ -159,6 +166,7 @@ uint32_t computeJSCBytecodeCacheVersion()
 #endif
     });
     return cacheVersion.get();
+#endif
 }
 
 } // namespace JSC
