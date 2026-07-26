@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include <JavaScriptCore/CallFrame.h>
+#include <JavaScriptCore/CachedBytecode.h>
 #include <JavaScriptCore/Completion.h>
 #include <JavaScriptCore/IdentifierInlines.h>
 #include <JavaScriptCore/InitializeThreading.h>
@@ -203,6 +204,15 @@ TEST(JavaScriptCore_JamEmbedderHooks, CreatesSyntheticModuleWithNamedExports)
     auto* record = JSC::SyntheticModuleRecord::tryCreateWithExportNamesAndValues(
         globalObject, Identifier::fromString(vm, "test:synthetic"_s), exportNames, exportValues);
     ASSERT_TRUE(record);
+}
+
+TEST(JavaScriptCore_JamEmbedderHooks, BorrowsImmutableCachedBytecode)
+{
+    const uint8_t storage[] { 1, 2, 3, 4 };
+    Ref<JSC::CachedBytecode> bytecode = JSC::CachedBytecode::createBorrowed(std::span(storage));
+
+    EXPECT_EQ(bytecode->span().data(), storage);
+    EXPECT_EQ(bytecode->span().size(), sizeof(storage));
 }
 
 } // namespace TestWebKitAPI
