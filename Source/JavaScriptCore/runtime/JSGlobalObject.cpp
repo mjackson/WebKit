@@ -3684,13 +3684,13 @@ void JSGlobalObject::queueMicrotaskSlow(VM& vm, QueuedTask&& task)
     ([&] ALWAYS_INLINE_LAMBDA {
         if (auto* crossTaskToken = vm.crossTaskToken(); crossTaskToken && crossTaskToken->shouldPropagateToMicroTask()) [[unlikely]] {
             if (auto dispatcher = crossTaskToken->createMicrotaskDispatcher(vm, this)) {
-                task.setDispatcher(JSMicrotaskDispatcher::create(vm, dispatcher.releaseNonNull(), this));
+                task.setDispatcher(JSMicrotaskDispatcher::create(vm, dispatcher.releaseNonNull(), this, task.jobOwner()));
                 return;
             }
         }
 
         if (debugger()) [[unlikely]] {
-            task.setDispatcher(JSMicrotaskDispatcher::create(vm, DebuggableMicrotaskDispatcher::create(), this));
+            task.setDispatcher(JSMicrotaskDispatcher::create(vm, DebuggableMicrotaskDispatcher::create(), this, task.jobOwner()));
             return;
         }
     }());

@@ -46,6 +46,29 @@
 
 namespace JSC {
 
+class PromiseJobOwnerScope {
+public:
+    PromiseJobOwnerScope(JSGlobalObject& globalObject, std::optional<uint64_t> owner)
+        : m_globalObject(globalObject)
+        , m_previousOwner(globalObject.embedderJobOwner())
+        , m_shouldRestore(owner.has_value())
+    {
+        if (owner)
+            m_globalObject.setEmbedderJobOwner(owner);
+    }
+
+    ~PromiseJobOwnerScope()
+    {
+        if (m_shouldRestore)
+            m_globalObject.setEmbedderJobOwner(m_previousOwner);
+    }
+
+private:
+    JSGlobalObject& m_globalObject;
+    std::optional<uint64_t> m_previousOwner;
+    bool m_shouldRestore;
+};
+
 const ClassInfo JSPromise::s_info = { "Promise"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSPromise) };
 
 JSPromise* JSPromise::create(VM& vm, Structure* structure)
@@ -331,12 +354,13 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
 {
     bool fulfilledCallable = onFulfilled.isCallable();
     bool rejectedCallable = onRejected.isCallable();
+    auto jobOwner = globalObject->embedderJobOwner();
 
     switch (status()) {
     case JSPromise::Status::Pending: {
         bool onlyFulfill = fulfilledCallable && !rejectedCallable;
         bool onlyReject = !fulfilledCallable && rejectedCallable;
-        if (inlineReactionKind() == InlineReactionKind::None && !payloadCell()) {
+        if (!jobOwner && inlineReactionKind() == InlineReactionKind::None && !payloadCell()) {
             if ((onlyFulfill || onlyReject) && promiseOrCapability.inherits<JSPromise>()) [[likely]] {
                 auto* resultPromise = uncheckedDowncast<JSPromise>(promiseOrCapability);
                 setInlineHandlerReaction(vm, onlyFulfill ? InlineReactionKind::FulfillHandler : InlineReactionKind::RejectHandler, resultPromise, onlyFulfill ? onFulfilled : onRejected);
@@ -346,14 +370,14 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
         JSPromiseReaction* existing = reactionHead(vm);
         JSPromiseReaction* reaction;
         if (onlyFulfill)
-            reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, onFulfilled, true, existing);
+            reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, onFulfilled, true, existing, jobOwner);
         else if (onlyReject)
-            reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, onRejected, false, existing);
+            reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, onRejected, false, existing, jobOwner);
         else if (fulfilledCallable) {
             ASSERT(rejectedCallable);
-            reaction = JSFullPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, jsUndefined(), existing);
+            reaction = JSFullPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, jsUndefined(), existing, jobOwner);
         } else
-            reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, InternalMicrotask::PromiseResolveWithoutHandlerJob, jsUndefined(), existing);
+            reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, InternalMicrotask::PromiseResolveWithoutHandlerJob, jsUndefined(), existing, jobOwner);
         setPackedCell(vm, flags() | isHandledFlag, reaction);
         break;
     }
@@ -382,14 +406,15 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
 void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, InternalMicrotask task, JSCell* cell, JSValue context)
 {
     JSValue cellValue = cell ? JSValue(cell) : jsUndefined();
+    auto jobOwner = realm()->embedderJobOwner();
     switch (status()) {
     case JSPromise::Status::Pending: {
-        if (inlineReactionKind() == InlineReactionKind::None && !payloadCell()) [[likely]] {
+        if (!jobOwner && inlineReactionKind() == InlineReactionKind::None && !payloadCell()) [[likely]] {
             setInlineMicrotaskReaction(vm, task, cell, context);
             break;
         }
         JSPromiseReaction* existing = reactionHead(vm);
-        auto* reaction = JSSlimPromiseReaction::create(vm, cellValue, task, context, existing);
+        auto* reaction = JSSlimPromiseReaction::create(vm, cellValue, task, context, existing, jobOwner);
         setPackedCell(vm, flags() | isHandledFlag, reaction);
         break;
     }
@@ -663,6 +688,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolvingFunctionResolveWithInternalMicrotask, (
     other->setField(vm, JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskOther, jsNull());
 
     auto* contextCell = uncheckedDowncast<JSSlimPromiseReaction>(callee->getField(JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskContext));
+    PromiseJobOwnerScope jobOwnerScope(*globalObject, contextCell->jobOwner());
     JSValue argument = callFrame->argument(0);
     JSPromise::resolveWithInternalMicrotask(globalObject, vm, argument, contextCell->internalMicrotask(), contextCell->handlerOrContext());
     return JSValue::encode(jsUndefined());
@@ -681,6 +707,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolvingFunctionRejectWithInternalMicrotask, (J
     other->setField(vm, JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskOther, jsNull());
 
     auto* contextCell = uncheckedDowncast<JSSlimPromiseReaction>(callee->getField(JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskContext));
+    PromiseJobOwnerScope jobOwnerScope(*globalObject, contextCell->jobOwner());
     JSValue argument = callFrame->argument(0);
     JSPromise::rejectWithInternalMicrotask(vm, globalObject, argument, contextCell->internalMicrotask(), contextCell->handlerOrContext());
     return JSValue::encode(jsUndefined());
@@ -744,7 +771,7 @@ std::tuple<JSFunction*, JSFunction*> JSPromise::createResolvingFunctionsWithInte
     auto* resolve = JSFunctionWithFields::create(vm, globalObject, vm.promiseResolvingFunctionResolveWithInternalMicrotaskExecutable());
     auto* reject = JSFunctionWithFields::create(vm, globalObject, vm.promiseResolvingFunctionRejectWithInternalMicrotaskExecutable());
 
-    auto* contextCell = JSSlimPromiseReaction::create(vm, jsUndefined(), task, context, /* next */ nullptr);
+    auto* contextCell = JSSlimPromiseReaction::create(vm, jsUndefined(), task, context, /* next */ nullptr, globalObject->embedderJobOwner());
 
     resolve->setField(vm, JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskContext, contextCell);
     resolve->setField(vm, JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskOther, reject);
@@ -791,7 +818,8 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
             RELEASE_ASSERT_NOT_REACHED();
         }
 
-        globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(status), promise, handler, arg);
+        QueuedTask queuedTask { nullptr, task, static_cast<uint8_t>(status), globalObject, promise, handler, arg };
+        globalObject->queueMicrotask(vm, WTF::move(queuedTask), reaction->jobOwner());
     };
 
     ASSERT(head);
