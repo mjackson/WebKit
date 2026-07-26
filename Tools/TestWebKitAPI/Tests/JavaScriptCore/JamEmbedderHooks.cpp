@@ -31,6 +31,7 @@
 #include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/JSModuleLoader.h>
+#include <JavaScriptCore/MicrotaskQueueInlines.h>
 #include <JavaScriptCore/SourceCode.h>
 #include <JavaScriptCore/SourceTaintedOrigin.h>
 #include <JavaScriptCore/VM.h>
@@ -70,6 +71,28 @@ TEST(JavaScriptCore_JamEmbedderHooks, RemovesExactModuleRegistryEntry)
         EXPECT_NE(entry.key.first, firstKey.impl());
     EXPECT_EQ(loader->moduleRegistryEntries().size(), 1u);
     EXPECT_EQ(loader->moduleRegistryEntries().begin()->key.first, secondKey);
+}
+
+TEST(JavaScriptCore_JamEmbedderHooks, DiscardsTasksForOneGlobalObject)
+{
+    WTF::initializeMainThread();
+    JSC::initialize();
+
+    VM& vm = VM::create(HeapType::Large).leakRef();
+    JSLockHolder locker(vm);
+    auto queue = JSC::MicrotaskQueue::create(vm);
+    auto* firstGlobalObject = JSGlobalObject::create(vm, JSGlobalObject::createStructure(vm, JSC::jsNull()));
+    auto* secondGlobalObject = JSGlobalObject::create(vm, JSGlobalObject::createStructure(vm, JSC::jsNull()));
+
+    queue->enqueue(JSC::QueuedTask { nullptr, JSC::InternalMicrotask::InvokeFunctionJob, 0, firstGlobalObject, JSC::jsUndefined() });
+    queue->enqueue(JSC::QueuedTask { nullptr, JSC::InternalMicrotask::InvokeFunctionJob, 0, secondGlobalObject, JSC::jsUndefined() });
+    queue->enqueue(JSC::QueuedTask { nullptr, JSC::InternalMicrotask::InvokeFunctionJob, 0, firstGlobalObject, JSC::jsUndefined() });
+
+    EXPECT_EQ(queue->discardTasksForGlobalObject(*firstGlobalObject), 2u);
+    EXPECT_EQ(queue->size(), 1u);
+    EXPECT_EQ(queue->discardTasksForGlobalObject(*firstGlobalObject), 0u);
+    EXPECT_EQ(queue->discardTasksForGlobalObject(*secondGlobalObject), 1u);
+    EXPECT_TRUE(queue->isEmpty());
 }
 
 } // namespace TestWebKitAPI

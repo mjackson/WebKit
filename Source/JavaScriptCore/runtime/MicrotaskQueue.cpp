@@ -147,6 +147,27 @@ bool MarkedMicrotaskDeque::hasMicrotasksForFullyActiveDocument() const
     return false;
 }
 
+size_t MarkedMicrotaskDeque::discardTasksForGlobalObject(JSGlobalObject& globalObject)
+{
+    MarkedMicrotaskDeque remaining;
+    size_t discarded = 0;
+    while (!isEmpty()) {
+        auto task = dequeue();
+        if (task.globalObject() == &globalObject)
+            ++discarded;
+        else
+            remaining.enqueue(WTF::move(task));
+    }
+    swap(remaining);
+    return discarded;
+}
+
+size_t MicrotaskQueue::discardTasksForGlobalObject(JSGlobalObject& globalObject)
+{
+    return m_queue.discardTasksForGlobalObject(globalObject)
+        + m_toKeep.discardTasksForGlobalObject(globalObject);
+}
+
 template<typename Visitor>
 void MarkedMicrotaskDeque::visitAggregateImpl(Visitor& visitor)
 {

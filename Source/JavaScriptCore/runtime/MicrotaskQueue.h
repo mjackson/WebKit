@@ -199,6 +199,8 @@ public:
     DECLARE_VISIT_AGGREGATE;
 
 private:
+    size_t discardTasksForGlobalObject(JSGlobalObject&);
+
     Deque<QueuedTask> m_queue;
     size_t m_markedBefore { 0 };
 };
@@ -225,6 +227,8 @@ public:
         m_queue.clear();
         m_toKeep.clear();
     }
+
+    JS_EXPORT_PRIVATE size_t discardTasksForGlobalObject(JSGlobalObject&);
 
     void beginMarking()
     {
