@@ -1860,6 +1860,10 @@ WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(JavaScriptCore JavaScriptCoreJIT
 
 WEBKIT_FRAMEWORK(JavaScriptCore)
 
+if (ENABLE_STATIC_JSC AND TARGET JavaScriptCoreJIT)
+    target_sources(JavaScriptCore PRIVATE $<TARGET_OBJECTS:JavaScriptCoreJIT>)
+endif ()
+
 if (USE_APPLE_INTERNAL_SDK)
     WEBKIT_TARGET_USE_PGO(JavaScriptCore PROFILE JavaScriptCore)
 endif ()
