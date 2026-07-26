@@ -55,6 +55,12 @@ public:
         return adoptRef(*new CachedBytecode(CachePayload::makeMallocPayload(WTF::move(data)), WTF::move(leafExecutables)));
     }
 
+    // The caller must keep the borrowed storage alive until this object is destroyed.
+    static Ref<CachedBytecode> createBorrowed(std::span<const uint8_t> data, LeafExecutableMap&& leafExecutables = { })
+    {
+        return adoptRef(*new CachedBytecode(CachePayload::makeBorrowedPayload(data), WTF::move(leafExecutables)));
+    }
+
     LeafExecutableMap& leafExecutables() LIFETIME_BOUND { return m_leafExecutables; }
 
     JS_EXPORT_PRIVATE void addGlobalUpdate(Ref<CachedBytecode>);
