@@ -143,6 +143,13 @@ def main():
         type=Path,
         help="Additional directory to search for static libraries.",
     )
+    parser.add_argument(
+        "--header-dir",
+        action="append",
+        default=[],
+        type=Path,
+        help="Additional header tree to copy into the payload include directory.",
+    )
     args = parser.parse_args()
 
     build_dir = args.build_dir.resolve()
@@ -179,6 +186,11 @@ def main():
             build_dir / "bmalloc" / "Headers" / "bmalloc", include_dir / "bmalloc"
         ):
             raise FileNotFoundError("Could not find generated bmalloc headers")
+        for header_root in args.header_dir:
+            if not copy_headers(header_root, include_dir):
+                raise FileNotFoundError(
+                    f"Could not find headers under additional root {header_root}"
+                )
 
         cmake_config = build_dir / "cmakeconfig.h"
         if not cmake_config.is_file():
@@ -216,6 +228,10 @@ def main():
         for header in required_headers:
             if not header.is_file():
                 raise FileNotFoundError(f"Missing required header {header}")
+        if args.platform == "windows" and not (
+            include_dir / "unicode" / "utypes.h"
+        ).is_file():
+            raise FileNotFoundError("Missing required Windows ICU headers")
 
         write_archive(payload, archive_path)
 
