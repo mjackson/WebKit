@@ -65,24 +65,24 @@ JSValue JSPromiseReaction::tryGetContext(JSValue reactionsValue)
 
 const ClassInfo JSSlimPromiseReaction::s_info = { "SlimPromiseReaction"_s, &JSPromiseReaction::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSSlimPromiseReaction) };
 
-JSSlimPromiseReaction* JSSlimPromiseReaction::create(VM& vm, JSValue promise, JSValue handler, bool isFulfill, JSPromiseReaction* next)
+JSSlimPromiseReaction* JSSlimPromiseReaction::create(VM& vm, JSValue promise, JSValue handler, bool isFulfill, JSPromiseReaction* next, std::optional<uint64_t> jobOwner)
 {
-    JSSlimPromiseReaction* result = new (NotNull, allocateCell<JSSlimPromiseReaction>(vm)) JSSlimPromiseReaction(vm, vm.slimPromiseReactionStructure.get(), promise, handler, next, static_cast<uint8_t>(InternalMicrotask::None), isFulfill);
+    JSSlimPromiseReaction* result = new (NotNull, allocateCell<JSSlimPromiseReaction>(vm)) JSSlimPromiseReaction(vm, vm.slimPromiseReactionStructure.get(), promise, handler, next, static_cast<uint8_t>(InternalMicrotask::None), isFulfill, jobOwner);
     result->finishCreation(vm);
     return result;
 }
 
-JSSlimPromiseReaction* JSSlimPromiseReaction::create(VM& vm, JSValue promise, InternalMicrotask task, JSValue context, JSPromiseReaction* next)
+JSSlimPromiseReaction* JSSlimPromiseReaction::create(VM& vm, JSValue promise, InternalMicrotask task, JSValue context, JSPromiseReaction* next, std::optional<uint64_t> jobOwner)
 {
     ASSERT(task != InternalMicrotask::None);
-    JSSlimPromiseReaction* result = new (NotNull, allocateCell<JSSlimPromiseReaction>(vm)) JSSlimPromiseReaction(vm, vm.slimPromiseReactionStructure.get(), promise, context, next, static_cast<uint8_t>(task), false);
+    JSSlimPromiseReaction* result = new (NotNull, allocateCell<JSSlimPromiseReaction>(vm)) JSSlimPromiseReaction(vm, vm.slimPromiseReactionStructure.get(), promise, context, next, static_cast<uint8_t>(task), false, jobOwner);
     result->finishCreation(vm);
     return result;
 }
 
 JSSlimPromiseReaction* JSSlimPromiseReaction::createAsyncGeneratorRequest(VM& vm, JSValue settlementTarget, JSValue value, uint8_t resumeMode, JSPromiseReaction* next)
 {
-    JSSlimPromiseReaction* result = new (NotNull, allocateCell<JSSlimPromiseReaction>(vm)) JSSlimPromiseReaction(vm, vm.slimPromiseReactionStructure.get(), settlementTarget, value, next, resumeMode, false);
+    JSSlimPromiseReaction* result = new (NotNull, allocateCell<JSSlimPromiseReaction>(vm)) JSSlimPromiseReaction(vm, vm.slimPromiseReactionStructure.get(), settlementTarget, value, next, resumeMode, false, std::nullopt);
     result->finishCreation(vm);
     return result;
 }
@@ -107,9 +107,9 @@ DEFINE_VISIT_CHILDREN(JSSlimPromiseReaction);
 
 const ClassInfo JSFullPromiseReaction::s_info = { "FullPromiseReaction"_s, &JSPromiseReaction::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSFullPromiseReaction) };
 
-JSFullPromiseReaction* JSFullPromiseReaction::create(VM& vm, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSPromiseReaction* next)
+JSFullPromiseReaction* JSFullPromiseReaction::create(VM& vm, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSPromiseReaction* next, std::optional<uint64_t> jobOwner)
 {
-    JSFullPromiseReaction* result = new (NotNull, allocateCell<JSFullPromiseReaction>(vm)) JSFullPromiseReaction(vm, vm.fullPromiseReactionStructure.get(), promise, onFulfilled, onRejected, context, next);
+    JSFullPromiseReaction* result = new (NotNull, allocateCell<JSFullPromiseReaction>(vm)) JSFullPromiseReaction(vm, vm.fullPromiseReactionStructure.get(), promise, onFulfilled, onRejected, context, next, jobOwner);
     result->finishCreation(vm);
     return result;
 }

@@ -46,6 +46,7 @@ public:
     JSValue promise() const { return m_promise.get(); }
     JSPromiseReaction* next() const LIFETIME_BOUND { return m_next.pointer(); }
     InternalMicrotask internalMicrotask() const { return static_cast<InternalMicrotask>(m_next.type()); }
+    std::optional<uint64_t> jobOwner() const { return m_jobOwner; }
 
     void setPromise(VM& vm, JSValue value) { m_promise.set(vm, this, value); }
     void setNext(VM& vm, JSPromiseReaction* value)
@@ -57,15 +58,17 @@ public:
     static JSValue tryGetContext(JSValue reactionsValue);
 
 protected:
-    JSPromiseReaction(VM& vm, Structure* structure, JSValue promise, JSPromiseReaction* next, uint8_t payload)
+    JSPromiseReaction(VM& vm, Structure* structure, JSValue promise, JSPromiseReaction* next, uint8_t payload, std::optional<uint64_t> jobOwner)
         : Base(vm, structure)
         , m_promise(promise, WriteBarrierEarlyInit)
         , m_next(next, payload)
+        , m_jobOwner(jobOwner)
     {
     }
 
     WriteBarrier<Unknown> m_promise;
     CompactPointerTuple<JSPromiseReaction*, uint8_t> m_next;
+    std::optional<uint64_t> m_jobOwner;
 };
 
 class JSSlimPromiseReaction final : public JSPromiseReaction {
@@ -83,8 +86,8 @@ public:
 
     static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
-    static JSSlimPromiseReaction* create(VM&, JSValue promise, JSValue handler, bool isFulfill, JSPromiseReaction* next);
-    static JSSlimPromiseReaction* create(VM&, JSValue promise, InternalMicrotask, JSValue context, JSPromiseReaction* next);
+    static JSSlimPromiseReaction* create(VM&, JSValue promise, JSValue handler, bool isFulfill, JSPromiseReaction* next, std::optional<uint64_t> jobOwner = std::nullopt);
+    static JSSlimPromiseReaction* create(VM&, JSValue promise, InternalMicrotask, JSValue context, JSPromiseReaction* next, std::optional<uint64_t> jobOwner = std::nullopt);
 
     static JSSlimPromiseReaction* createAsyncGeneratorRequest(VM&, JSValue settlementTarget, JSValue value, uint8_t resumeMode, JSPromiseReaction* next);
     uint8_t asyncGeneratorResumeMode() const { return m_next.type(); }
@@ -95,8 +98,8 @@ public:
     void setHandlerOrContext(VM& vm, JSValue value) { m_handlerOrContext.set(vm, this, value); }
 
 private:
-    JSSlimPromiseReaction(VM& vm, Structure* structure, JSValue promise, JSValue handlerOrContext, JSPromiseReaction* next, uint8_t payload, bool isFulfill)
-        : Base(vm, structure, promise, next, payload)
+    JSSlimPromiseReaction(VM& vm, Structure* structure, JSValue promise, JSValue handlerOrContext, JSPromiseReaction* next, uint8_t payload, bool isFulfill, std::optional<uint64_t> jobOwner)
+        : Base(vm, structure, promise, next, payload, jobOwner)
         , m_handlerOrContext(handlerOrContext, WriteBarrierEarlyInit)
     {
         if (isFulfill)
@@ -121,7 +124,7 @@ public:
 
     static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
-    static JSFullPromiseReaction* create(VM&, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSPromiseReaction* next);
+    static JSFullPromiseReaction* create(VM&, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSPromiseReaction* next, std::optional<uint64_t> jobOwner = std::nullopt);
 
     JSValue onFulfilled() const { return m_onFulfilled.get(); }
     JSValue onRejected() const { return m_onRejected.get(); }
@@ -133,8 +136,8 @@ public:
 
 
 private:
-    JSFullPromiseReaction(VM& vm, Structure* structure, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSPromiseReaction* next)
-        : Base(vm, structure, promise, next, static_cast<uint8_t>(InternalMicrotask::None))
+    JSFullPromiseReaction(VM& vm, Structure* structure, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSPromiseReaction* next, std::optional<uint64_t> jobOwner)
+        : Base(vm, structure, promise, next, static_cast<uint8_t>(InternalMicrotask::None), jobOwner)
         , m_onFulfilled(onFulfilled, WriteBarrierEarlyInit)
         , m_onRejected(onRejected, WriteBarrierEarlyInit)
         , m_context(context, WriteBarrierEarlyInit)

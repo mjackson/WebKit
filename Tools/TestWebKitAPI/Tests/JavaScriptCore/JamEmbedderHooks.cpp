@@ -25,16 +25,20 @@
 
 #include "config.h"
 
+#include <JavaScriptCore/CallFrame.h>
 #include <JavaScriptCore/Completion.h>
 #include <JavaScriptCore/IdentifierInlines.h>
 #include <JavaScriptCore/InitializeThreading.h>
+#include <JavaScriptCore/JSFunction.h>
 #include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/JSModuleLoader.h>
+#include <JavaScriptCore/JSPromise.h>
 #include <JavaScriptCore/MicrotaskQueueInlines.h>
 #include <JavaScriptCore/SourceCode.h>
 #include <JavaScriptCore/SourceTaintedOrigin.h>
 #include <JavaScriptCore/VM.h>
+#include <limits>
 
 namespace TestWebKitAPI {
 
@@ -43,6 +47,14 @@ using JSC::Identifier;
 using JSC::JSGlobalObject;
 using JSC::JSLockHolder;
 using JSC::VM;
+
+static Vector<uint64_t> observedJobOwners;
+
+static JSC::EncodedJSValue recordJobOwner(JSGlobalObject* globalObject, JSC::CallFrame*)
+{
+    observedJobOwners.append(globalObject->embedderJobOwner().value());
+    return JSC::JSValue::encode(JSC::jsUndefined());
+}
 
 TEST(JavaScriptCore_JamEmbedderHooks, RemovesExactModuleRegistryEntry)
 {
@@ -93,6 +105,34 @@ TEST(JavaScriptCore_JamEmbedderHooks, DiscardsTasksForOneGlobalObject)
     EXPECT_EQ(queue->discardTasksForGlobalObject(*firstGlobalObject), 0u);
     EXPECT_EQ(queue->discardTasksForGlobalObject(*secondGlobalObject), 1u);
     EXPECT_TRUE(queue->isEmpty());
+}
+
+TEST(JavaScriptCore_JamEmbedderHooks, RestoresPromiseReactionJobOwners)
+{
+    WTF::initializeMainThread();
+    JSC::initialize();
+
+    VM& vm = VM::create(HeapType::Large).leakRef();
+    JSLockHolder locker(vm);
+    auto* globalObject = JSGlobalObject::create(vm, JSGlobalObject::createStructure(vm, JSC::jsNull()));
+    auto* promise = JSC::JSPromise::create(vm, globalObject->promiseStructure());
+    auto* handler = JSC::JSFunction::create(vm, globalObject, 0, "recordJobOwner"_s, recordJobOwner, JSC::ImplementationVisibility::Private);
+    observedJobOwners.clear();
+
+    globalObject->setEmbedderJobOwner(0);
+    promise->performPromiseThenExported(vm, globalObject, handler, JSC::jsUndefined(), JSC::jsUndefined());
+    globalObject->setEmbedderJobOwner(std::numeric_limits<uint64_t>::max());
+    promise->performPromiseThenExported(vm, globalObject, handler, JSC::jsUndefined(), JSC::jsUndefined());
+
+    globalObject->setEmbedderJobOwner(17);
+    promise->fulfill(vm, JSC::jsUndefined());
+    globalObject->microtaskQueue().performMicrotaskCheckpoint<false>(
+        vm, [](JSGlobalObject*, JSGlobalObject*) { });
+
+    ASSERT_EQ(observedJobOwners.size(), 2u);
+    EXPECT_EQ(observedJobOwners[0], 0u);
+    EXPECT_EQ(observedJobOwners[1], std::numeric_limits<uint64_t>::max());
+    EXPECT_EQ(globalObject->embedderJobOwner(), 17u);
 }
 
 } // namespace TestWebKitAPI

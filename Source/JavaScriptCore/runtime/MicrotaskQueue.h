@@ -124,12 +124,15 @@ public:
         m_dispatcher.setPointer(std::bit_cast<JSCell*>(std::bit_cast<uintptr_t>(dispatcher) | isJSMicrotaskDispatcherFlag));
     }
 
+    void setJobOwner(VM&, JSGlobalObject&, std::optional<uint64_t>);
+
     bool isRunnable() const;
 
     // Defined in MicrotaskQueueInlines.h (requires JSType knowledge).
     JSCell* dispatcher() const;
     JSGlobalObject* globalObject() const;
     JSMicrotaskDispatcher* jsMicrotaskDispatcher() const;
+    std::optional<uint64_t> jobOwner() const;
     std::optional<MicrotaskIdentifier> identifier() const;
     InternalMicrotask job() const { return static_cast<InternalMicrotask>(static_cast<uint8_t>(m_dispatcher.type())); }
     // Task-specific metadata stored in upper 8 bits of type field.
@@ -144,6 +147,7 @@ private:
     }
 
     static constexpr uintptr_t isJSMicrotaskDispatcherFlag = 0x1;
+    static constexpr uintptr_t isJobOwnerCarrierFlag = 0x2;
     CompactPointerTuple<JSCell*, uint16_t> m_dispatcher;
     JSValue m_arguments[maxArguments] { };
 };

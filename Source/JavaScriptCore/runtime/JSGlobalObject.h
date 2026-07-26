@@ -236,6 +236,7 @@ private:
     bool m_associatedContextIsFullyActive { true };
     bool m_canFastQueueMicrotask { true };
     Ref<MicrotaskQueue> m_microtaskQueue;
+    std::optional<uint64_t> m_embedderJobOwner;
 
     ALWAYS_INLINE void updateCanFastQueueMicrotask()
     {
@@ -1235,8 +1236,11 @@ public:
     }
 
     void queueMicrotask(VM&, QueuedTask&&);
+    void queueMicrotask(VM&, QueuedTask&&, std::optional<uint64_t> jobOwner);
     void queueMicrotask(VM&, InternalMicrotask, uint8_t, JSValue, JSValue, JSValue);
     void queueMicrotaskSlow(VM&, QueuedTask&&);
+    std::optional<uint64_t> embedderJobOwner() const { return m_embedderJobOwner; }
+    void setEmbedderJobOwner(std::optional<uint64_t> owner) { m_embedderJobOwner = owner; }
 
 #if ASSERT_ENABLED
     const JSGlobalObject* globalObjectAtDebuggerEntry() const { return m_globalObjectAtDebuggerEntry; }

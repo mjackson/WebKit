@@ -48,11 +48,45 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(MicrotaskQueue);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(MicrotaskDispatcher);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(DebuggableMicrotaskDispatcher);
 
+class JobOwnerScope {
+public:
+    JobOwnerScope(JSGlobalObject& globalObject, const QueuedTask& task)
+        : m_globalObject(globalObject)
+        , m_previousOwner(globalObject.embedderJobOwner())
+        , m_shouldRestore(task.jobOwner().has_value())
+    {
+        if (auto owner = task.jobOwner())
+            m_globalObject.setEmbedderJobOwner(owner);
+    }
+
+    ~JobOwnerScope()
+    {
+        if (m_shouldRestore)
+            m_globalObject.setEmbedderJobOwner(m_previousOwner);
+    }
+
+private:
+    JSGlobalObject& m_globalObject;
+    std::optional<uint64_t> m_previousOwner;
+    bool m_shouldRestore;
+};
+
 bool QueuedTask::isRunnable() const
 {
     if (isJSMicrotaskDispatcher()) [[unlikely]]
         return uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher())->dispatcher()->isRunnable();
-    return uncheckedDowncast<JSGlobalObject>(dispatcher())->microtaskRunnability() == QueuedTaskResult::Executed;
+    return globalObject()->microtaskRunnability() == QueuedTaskResult::Executed;
+}
+
+void QueuedTask::setJobOwner(VM& vm, JSGlobalObject& globalObject, std::optional<uint64_t> jobOwner)
+{
+    if (!jobOwner)
+        return;
+    if (std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & (isJSMicrotaskDispatcherFlag | isJobOwnerCarrierFlag)) {
+        uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher())->setJobOwner(*jobOwner);
+        return;
+    }
+    m_dispatcher.setPointer(std::bit_cast<JSCell*>(std::bit_cast<uintptr_t>(JSMicrotaskDispatcher::createJobOwnerCarrier(vm, globalObject, *jobOwner)) | isJobOwnerCarrierFlag));
 }
 
 static bool runMicrotask(JSGlobalObject* globalObject, TopExceptionScope& catchScope, VM& vm, QueuedTask& task, MicrotaskCallCache* microtaskCallCache)
@@ -197,7 +231,7 @@ ALWAYS_INLINE std::pair<JSGlobalObject*, bool> MicrotaskQueue::drainImpl(JSGloba
         auto& front = m_queue.front();
 
         if (!front.isJSMicrotaskDispatcher()) [[likely]] {
-            auto* globalObject = uncheckedDowncast<JSGlobalObject>(front.dispatcher());
+            auto* globalObject = front.globalObject();
             auto result = globalObject->microtaskRunnability();
             if (result != QueuedTask::Result::Executed) [[unlikely]] {
                 auto task = m_queue.dequeue();
@@ -210,6 +244,7 @@ ALWAYS_INLINE std::pair<JSGlobalObject*, bool> MicrotaskQueue::drainImpl(JSGloba
                 return { globalObject, false };
 
             auto task = m_queue.dequeue();
+            JobOwnerScope jobOwnerScope(*globalObject, task);
             if (!runMicrotask(globalObject, catchScope, vm, task, &microtaskCallCache)) [[unlikely]] {
                 clear();
                 return { nullptr, true };
@@ -224,6 +259,7 @@ ALWAYS_INLINE std::pair<JSGlobalObject*, bool> MicrotaskQueue::drainImpl(JSGloba
             EnsureStillAliveScope dispatcherScope(jsMicrotaskDispatcher);
 
             auto task = m_queue.dequeue();
+            JobOwnerScope jobOwnerScope(*globalObject, task);
             QueuedTask::Result result;
             {
                 ScriptProfilingScope profilingScope(globalObject, ProfilingReason::Microtask);
