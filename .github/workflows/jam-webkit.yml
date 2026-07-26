@@ -77,9 +77,9 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          vcpkg install --classic --clean-after-build icu:x64-windows-static-md
+          vcpkg install --classic --clean-after-build icu:x64-windows-static
           $sourceDir = Join-Path $env:VCPKG_INSTALLATION_ROOT `
-            "installed\x64-windows-static-md\lib"
+            "installed\x64-windows-static\lib"
           $outputDir = Join-Path $env:RUNNER_TEMP "jam-icu"
           New-Item -ItemType Directory -Force $outputDir | Out-Null
           foreach ($library in @("icuin", "icuuc", "icudt")) {
@@ -113,16 +113,17 @@ jobs:
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             icu_root="$(cygpath -m "${RUNNER_TEMP}/jam-icu")"
             icu_include="$(cygpath -m \
-              "${VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static-md/include")"
+              "${VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/include")"
             project_include="$(cygpath -m \
               "${PWD}/Tools/CMake/JamWindowsICU.cmake")"
             cmake_args+=(
               -DCMAKE_C_COMPILER=clang-cl
               -DCMAKE_CXX_COMPILER=clang-cl
+              -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
               "-DCMAKE_PROJECT_INCLUDE=${project_include}"
               "-DCMAKE_TOOLCHAIN_FILE=${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake"
               -DVCPKG_MANIFEST_MODE=OFF
-              -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+              -DVCPKG_TARGET_TRIPLET=x64-windows-static
               "-DICU_ROOT=${icu_root}"
               "-DJAM_WINDOWS_ICU_ROOT=${icu_root}"
               "-DJAM_WINDOWS_ICU_INCLUDE=${icu_include}"
@@ -142,7 +143,7 @@ jobs:
           elif [[ "${{ matrix.platform }}" == "windows" ]]; then
             library_args+=(--library-dir "${RUNNER_TEMP}/jam-icu")
             library_args+=(--header-dir \
-              "${VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static-md/include")
+              "${VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/include")
           fi
           python Tools/Scripts/package-jam-webkit \
             --build-dir WebKitBuild/Jam \
