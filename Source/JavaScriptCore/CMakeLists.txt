@@ -1251,6 +1251,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSGlobalObject.h
     runtime/JSGlobalObjectFunctions.h
     runtime/JSGlobalObjectInlines.h
+    runtime/JSModuleLoader.h
     runtime/JSGlobalProxy.h
     runtime/JSGlobalProxyInlines.h
     runtime/JSInt16Array.h
@@ -1858,6 +1859,10 @@ WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(JavaScriptCore JavaScriptCoreJIT
     DIRS jit dfg ftl bytecode bytecompiler llint lol tools)
 
 WEBKIT_FRAMEWORK(JavaScriptCore)
+
+if (ENABLE_STATIC_JSC AND TARGET JavaScriptCoreJIT)
+    target_sources(JavaScriptCore PRIVATE $<TARGET_OBJECTS:JavaScriptCoreJIT>)
+endif ()
 
 if (USE_APPLE_INTERNAL_SDK)
     WEBKIT_TARGET_USE_PGO(JavaScriptCore PROFILE JavaScriptCore)
