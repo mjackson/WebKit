@@ -39,6 +39,7 @@
 #include <JavaScriptCore/SourceCode.h>
 #include <JavaScriptCore/SourceTaintedOrigin.h>
 #include <JavaScriptCore/StackFrame.h>
+#include <JavaScriptCore/SyntheticModuleRecord.h>
 #include <JavaScriptCore/VM.h>
 #include <limits>
 
@@ -184,6 +185,24 @@ TEST(JavaScriptCore_JamEmbedderHooks, MaterializesErrorInfoLazily)
     JSC::JSValue defaultError = JSC::evaluate(globalObject, source);
     ASSERT_TRUE(defaultError.isObject());
     EXPECT_NE(defaultError.getObject()->get(globalObject, vm.propertyNames->stack).toWTFString(globalObject), "mapped stack"_s);
+}
+
+TEST(JavaScriptCore_JamEmbedderHooks, CreatesSyntheticModuleWithNamedExports)
+{
+    WTF::initializeMainThread();
+    JSC::initialize();
+
+    VM& vm = VM::create(HeapType::Large).leakRef();
+    JSLockHolder locker(vm);
+    auto* globalObject = JSGlobalObject::create(vm, JSGlobalObject::createStructure(vm, JSC::jsNull()));
+    Vector<Identifier, 4> exportNames;
+    exportNames.append(Identifier::fromString(vm, "answer"_s));
+    JSC::MarkedArgumentBuffer exportValues;
+    exportValues.append(JSC::jsNumber(42));
+
+    auto* record = JSC::SyntheticModuleRecord::tryCreateWithExportNamesAndValues(
+        globalObject, Identifier::fromString(vm, "test:synthetic"_s), exportNames, exportValues);
+    ASSERT_TRUE(record);
 }
 
 } // namespace TestWebKitAPI
