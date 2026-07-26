@@ -141,6 +141,8 @@ jobs:
             library_args+=(--library-dir "/usr/lib/$(gcc -print-multiarch)")
           elif [[ "${{ matrix.platform }}" == "windows" ]]; then
             library_args+=(--library-dir "${RUNNER_TEMP}/jam-icu")
+            library_args+=(--header-dir \
+              "${VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static-md/include")
           fi
           python Tools/Scripts/package-jam-webkit \
             --build-dir WebKitBuild/Jam \
