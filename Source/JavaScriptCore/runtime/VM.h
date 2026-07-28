@@ -747,6 +747,7 @@ public:
     MacroAssemblerCodeRef<JITThunkPtrTag> getCTIStub(ThunkGenerator);
     MacroAssemblerCodeRef<JITThunkPtrTag> getCTIStub(CommonJITThunkID);
     std::unique_ptr<SharedJITStubSet> m_sharedJITStubs;
+    void ensureWarmedUpForConcurrentCompilation();
 #endif
 #if ENABLE(FTL_JIT)
     std::unique_ptr<FTL::Thunks> ftlThunks;
@@ -1235,6 +1236,9 @@ private:
     bool m_globalConstRedeclarationShouldThrow { true };
     bool m_allowRedeclaringSymbols { false };
     bool m_shouldBuildPCToCodeOriginMapping { false };
+#if ENABLE(JIT)
+    bool m_hasWarmedUpForConcurrentCompilation { false };
+#endif
     DeletePropertyMode m_deletePropertyMode { DeletePropertyMode::Default };
     HeapAnalyzer* m_activeHeapAnalyzer { nullptr };
     std::unique_ptr<CodeCache> m_codeCache;
