@@ -38,6 +38,7 @@
 #include <JavaScriptCore/Weak.h>
 #include <JavaScriptCore/WeakHandleOwner.h>
 #include <tuple>
+#include <wtf/Atomics.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Hasher.h>
@@ -53,7 +54,9 @@ class Signature;
 class VM;
 class NativeExecutable;
 
-// List up super common stubs so that we initialize them eagerly.
+// Super common stubs with stable IDs. Each one is generated lazily on first
+// request and cached for the lifetime of the VM; ctiStub(VM&, CommonJITThunkID)
+// has a lock-free fast path for already-generated thunks.
 #define JSC_FOR_EACH_COMMON_THUNK(macro) \
     macro(HandleException, handleExceptionGenerator) \
     macro(CheckException, checkExceptionGenerator) \
@@ -200,7 +203,7 @@ public:
     CodePtr<JITThunkPtrTag> ctiInternalFunctionCall(VM&);
     CodePtr<JITThunkPtrTag> ctiInternalFunctionConstruct(VM&);
 
-    MacroAssemblerCodeRef<JITThunkPtrTag> ctiStub(CommonJITThunkID);
+    MacroAssemblerCodeRef<JITThunkPtrTag> ctiStub(VM&, CommonJITThunkID);
     MacroAssemblerCodeRef<JITThunkPtrTag> ctiStub(VM&, ThunkGenerator);
     MacroAssemblerCodeRef<JITThunkPtrTag> ctiSlowPathFunctionStub(VM&, SlowPathFunction);
 
@@ -208,9 +211,20 @@ public:
     NativeExecutable* hostFunctionStub(VM&, TaggedNativeFunction, TaggedNativeFunction constructor, ThunkGenerator, ImplementationVisibility, Intrinsic, const DOMJIT::Signature*, unsigned length, const String& name);
     NativeExecutable* hostFunctionStub(VM&, TaggedNativeFunction, ThunkGenerator, ImplementationVisibility, Intrinsic, unsigned length, const String& name);
 
-    void initialize(VM&);
-
 private:
+    // The life cycle of a common thunk slot. A slot moves monotonically
+    // NotCompiled -> Compiled(NeedsCrossModifyingCodeFence) -> Compiled, and the
+    // code ref in m_commonThunks is written exactly once (under m_lock) before the
+    // state advances past NotCompiled. This mirrors the fence discipline of
+    // ctiStubImpl()'s Entry::needsCrossModifyingCodeFence.
+    enum class CommonThunkState : uint8_t {
+        NotCompiled = 0,
+        CompiledNeedsCrossModifyingCodeFence,
+        Compiled,
+    };
+
+    MacroAssemblerCodeRef<JITThunkPtrTag> ctiStubSlow(VM&, CommonJITThunkID);
+
     template <typename GenerateThunk>
     MacroAssemblerCodeRef<JITThunkPtrTag> ctiStubImpl(ThunkGenerator key, GenerateThunk);
 
@@ -257,6 +271,7 @@ private:
     using WeakNativeExecutableSet = UncheckedKeyHashSet<Weak<NativeExecutable>, WeakNativeExecutableHash>;
 
     MacroAssemblerCodeRef<JITThunkPtrTag> m_commonThunks[numberOfCommonThunkIDs] { };
+    Atomic<CommonThunkState> m_commonThunkStates[numberOfCommonThunkIDs] { };
     CTIStubMap m_ctiStubMap;
     WeakNativeExecutableSet m_nativeExecutableSet;
     WTF::RecursiveLock m_lock;
