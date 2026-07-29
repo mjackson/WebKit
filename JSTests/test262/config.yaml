@@ -17,7 +17,6 @@ skip:
     - FinalizationRegistry.prototype.cleanupSome
     - decorators
     - source-phase-imports
-    - Intl.Era-monthcode
     - await-dictionary
     - import-bytes
     - immutable-arraybuffer

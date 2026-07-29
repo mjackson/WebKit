@@ -1392,6 +1392,100 @@ static void NODELETE replaceNarrowNoBreakSpaceOrThinSpaceWithNormalSpace(Contain
     }
 }
 
+struct EraOverride {
+    String name;
+    String year;
+    bool needsInsertion;
+    bool appearsBeforeYear;
+};
+
+static bool eraAppearsBeforeYear(UDateFormat* format)
+{
+    Vector<char16_t, 32> pattern;
+    auto status = callBufferProducingFunction(udat_toPattern, format, false, pattern);
+    if (U_FAILURE(status))
+        return false;
+
+    unsigned eraIndex = pattern.size();
+    unsigned yearIndex = pattern.size();
+    for (unsigned i = 0; i < pattern.size(); ++i) {
+        if (pattern[i] == '\'') {
+            i = skipLiteralText(pattern, i, pattern.size());
+            continue;
+        }
+        if (pattern[i] == 'G' && eraIndex == pattern.size())
+            eraIndex = i;
+        if ((pattern[i] == 'y' || pattern[i] == 'Y' || pattern[i] == 'u') && yearIndex == pattern.size())
+            yearIndex = i;
+    }
+    return eraIndex < yearIndex;
+}
+
+static std::optional<EraOverride> eraOverride(UDateFormat* format, double value, unsigned eraWidth, unsigned yearWidth)
+{
+    if (!eraWidth)
+        return std::nullopt;
+
+    UErrorCode status = U_ZERO_ERROR;
+    const UCalendar* formatterCalendar = udat_getCalendar(format);
+    const char* calendarType = ucal_getType(formatterCalendar, &status);
+    if (U_FAILURE(status))
+        return std::nullopt;
+    String calendarTypeString = String::fromUTF8(calendarType);
+    bool isIslamic = calendarTypeString.startsWith("islamic"_s);
+    bool isCoptic = calendarTypeString == "coptic"_s;
+    if (!isIslamic && !isCoptic)
+        return std::nullopt;
+
+    auto calendar = std::unique_ptr<UCalendar, ICUDeleter<ucal_close>>(ucal_clone(formatterCalendar, &status));
+    if (U_FAILURE(status))
+        return std::nullopt;
+    ucal_setMillis(calendar.get(), value, &status);
+    int32_t extendedYear = ucal_get(calendar.get(), UCAL_EXTENDED_YEAR, &status);
+    if (U_FAILURE(status) || extendedYear > 0)
+        return std::nullopt;
+
+    UDateFormatSymbolType symbolType;
+    switch (eraWidth) {
+    case 1:
+    case 2:
+        symbolType = UDAT_ERAS;
+        break;
+    case 3:
+        symbolType = UDAT_ERA_NAMES;
+        break;
+    default:
+        ASSERT_NOT_REACHED();
+        return std::nullopt;
+    }
+
+    Vector<char16_t, 16> eraName;
+    status = callBufferProducingFunction(udat_getSymbols, format, symbolType, 1, eraName);
+    if (U_FAILURE(status) || eraName.isEmpty())
+        return std::nullopt;
+
+    String yearName;
+    if (isIslamic && yearWidth) {
+        ucal_set(calendar.get(), UCAL_EXTENDED_YEAR, 1 - extendedYear);
+        double adjustedValue = ucal_getMillis(calendar.get(), &status);
+        if (U_FAILURE(status))
+            return std::nullopt;
+
+        UFieldPosition yearPosition { UDAT_YEAR_FIELD, 0, 0 };
+        Vector<char16_t, 32> adjustedResult;
+        status = callBufferProducingFunction(udat_format, format, adjustedValue, adjustedResult, &yearPosition);
+        if (U_FAILURE(status) || yearPosition.beginIndex >= yearPosition.endIndex)
+            return std::nullopt;
+        yearName = String(adjustedResult.subspan(yearPosition.beginIndex, yearPosition.endIndex - yearPosition.beginIndex));
+    }
+    return EraOverride {
+        String(WTF::move(eraName)),
+        WTF::move(yearName),
+        isCoptic,
+        isCoptic && eraAppearsBeforeYear(format),
+    };
+}
+
 // https://tc39.es/proposal-temporal/#sec-formatdatetime
 JSValue IntlDateTimeFormat::format(JSGlobalObject* globalObject, double value) const
 {
@@ -1403,12 +1497,50 @@ JSValue IntlDateTimeFormat::format(JSGlobalObject* globalObject, double value) c
     if (!std::isfinite(value))
         return throwRangeError(globalObject, scope, "date value is not finite in DateTimeFormat format()"_s);
 
+    auto eraOverride = JSC::eraOverride(m_impl->m_dateFormat.get(), value, static_cast<unsigned>(m_impl->m_era), static_cast<unsigned>(m_impl->m_year));
+    UFieldPosition eraPosition { UDAT_ERA_FIELD, 0, 0 };
     Vector<char16_t, 32> result;
-    auto status = callBufferProducingFunction(udat_format, m_impl->m_dateFormat.get(), value, result, nullptr);
+    auto status = callBufferProducingFunction(udat_format, m_impl->m_dateFormat.get(), value, result, eraOverride && !eraOverride->needsInsertion ? &eraPosition : nullptr);
     if (U_FAILURE(status))
         return throwTypeError(globalObject, scope, "failed to format date value"_s);
     replaceNarrowNoBreakSpaceOrThinSpaceWithNormalSpace(result);
 
+    if (eraOverride && eraOverride->needsInsertion) {
+        String resultString(WTF::move(result));
+        return jsString(vm, eraOverride->appearsBeforeYear
+            ? makeString(eraOverride->name, resultString)
+            : makeString(resultString, eraOverride->name));
+    }
+    if (eraOverride && eraPosition.beginIndex < eraPosition.endIndex) {
+        UFieldPosition yearPosition { UDAT_YEAR_FIELD, 0, 0 };
+        Vector<char16_t, 32> ignoredResult;
+        if (!eraOverride->year.isEmpty()) {
+            status = callBufferProducingFunction(udat_format, m_impl->m_dateFormat.get(), value, ignoredResult, &yearPosition);
+            if (U_FAILURE(status))
+                return throwTypeError(globalObject, scope, "failed to format date value"_s);
+        }
+        StringView resultView(result.span());
+        if (yearPosition.beginIndex < yearPosition.endIndex && yearPosition.beginIndex < eraPosition.beginIndex) {
+            return jsString(vm, makeString(
+                resultView.left(yearPosition.beginIndex),
+                eraOverride->year,
+                resultView.substring(yearPosition.endIndex, eraPosition.beginIndex - yearPosition.endIndex),
+                eraOverride->name,
+                resultView.substring(eraPosition.endIndex)));
+        }
+        if (yearPosition.beginIndex < yearPosition.endIndex) {
+            return jsString(vm, makeString(
+                resultView.left(eraPosition.beginIndex),
+                eraOverride->name,
+                resultView.substring(eraPosition.endIndex, yearPosition.beginIndex - eraPosition.endIndex),
+                eraOverride->year,
+                resultView.substring(yearPosition.endIndex)));
+        }
+        return jsString(vm, makeString(
+            resultView.left(eraPosition.beginIndex),
+            eraOverride->name,
+            resultView.substring(eraPosition.endIndex)));
+    }
     return jsString(vm, String(WTF::move(result)));
 }
 
@@ -1475,7 +1607,7 @@ static ASCIILiteral partTypeString(UDateFormatField field)
     return "unknown"_s;
 }
 
-static JSValue buildFormattedDateTimeParts(JSGlobalObject* globalObject, UDateFormat* format, double value, JSString* sourceType)
+static JSValue buildFormattedDateTimeParts(JSGlobalObject* globalObject, UDateFormat* format, double value, JSString* sourceType, unsigned eraWidth, unsigned yearWidth)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1493,6 +1625,7 @@ static JSValue buildFormattedDateTimeParts(JSGlobalObject* globalObject, UDateFo
     if (U_FAILURE(status)) [[unlikely]]
         return throwTypeError(globalObject, scope, "failed to format date value"_s);
     replaceNarrowNoBreakSpaceOrThinSpaceWithNormalSpace(result);
+    auto eraOverride = JSC::eraOverride(format, value, eraWidth, yearWidth);
 
     JSArray* parts = JSArray::tryCreate(vm, globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 0);
     if (!parts) [[unlikely]]
@@ -1500,6 +1633,19 @@ static JSValue buildFormattedDateTimeParts(JSGlobalObject* globalObject, UDateFo
 
     StringView resultStringView(result.span());
     auto literalString = jsNontrivialString(vm, "literal"_s);
+    auto appendEraPart = [&] {
+        auto type = jsNontrivialString(vm, "era"_s);
+        auto value = jsString(vm, eraOverride->name);
+        JSObject* part = sourceType
+            ? createIntlPartObjectWithSource(globalObject, type, value, sourceType)
+            : createIntlPartObject(globalObject, type, value);
+        parts->putDirectIndex(globalObject, parts->length(), part);
+    };
+
+    if (eraOverride && eraOverride->needsInsertion && eraOverride->appearsBeforeYear) {
+        appendEraPart();
+        RETURN_IF_EXCEPTION(scope, { });
+    }
 
     int32_t resultLength = result.size();
     int32_t previousEndIndex = 0;
@@ -1522,13 +1668,24 @@ static JSValue buildFormattedDateTimeParts(JSGlobalObject* globalObject, UDateFo
 
         if (fieldType >= 0) {
             auto type = jsNontrivialString(vm, partTypeString(UDateFormatField(fieldType)));
-            auto value = jsString(vm, resultStringView.substring(beginIndex, endIndex - beginIndex));
+            JSString* value;
+            if (fieldType == UDAT_ERA_FIELD && eraOverride)
+                value = jsString(vm, eraOverride->name);
+            else if (fieldType == UDAT_YEAR_FIELD && eraOverride && !eraOverride->year.isEmpty())
+                value = jsString(vm, eraOverride->year);
+            else
+                value = jsString(vm, resultStringView.substring(beginIndex, endIndex - beginIndex));
             JSObject* part = sourceType
                 ? createIntlPartObjectWithSource(globalObject, type, value, sourceType)
                 : createIntlPartObject(globalObject, type, value);
             parts->putDirectIndex(globalObject, parts->length(), part);
             RETURN_IF_EXCEPTION(scope, { });
         }
+    }
+
+    if (eraOverride && eraOverride->needsInsertion && !eraOverride->appearsBeforeYear) {
+        appendEraPart();
+        RETURN_IF_EXCEPTION(scope, { });
     }
 
     return parts;
@@ -2003,12 +2160,12 @@ JSValue IntlDateTimeFormat::formatRangeToParts(JSGlobalObject* globalObject, JSV
             return { };
 
         if (nonTemporalPreamble->equal)
-            RELEASE_AND_RETURN(scope, buildFormattedDateTimeParts(globalObject, m_impl->m_dateFormat.get(), preamble->startMs, jsNontrivialString(vm, "shared"_s)));
+            RELEASE_AND_RETURN(scope, buildFormattedDateTimeParts(globalObject, m_impl->m_dateFormat.get(), preamble->startMs, jsNontrivialString(vm, "shared"_s), static_cast<unsigned>(m_impl->m_era), static_cast<unsigned>(m_impl->m_year)));
         RELEASE_AND_RETURN(scope, buildFormattedDateIntervalParts(globalObject, nonTemporalPreamble->formattedValue));
     }
 
     if (preamble->equal)
-        RELEASE_AND_RETURN(scope, buildFormattedDateTimeParts(globalObject, preamble->tempFormat, preamble->startMs, jsNontrivialString(vm, "shared"_s)));
+        RELEASE_AND_RETURN(scope, buildFormattedDateTimeParts(globalObject, preamble->tempFormat, preamble->startMs, jsNontrivialString(vm, "shared"_s), static_cast<unsigned>(m_impl->m_era), static_cast<unsigned>(m_impl->m_year)));
     RELEASE_AND_RETURN(scope, buildFormattedDateIntervalParts(globalObject, preamble->formattedValue));
 }
 
@@ -2431,7 +2588,7 @@ JSValue IntlDateTimeFormat::formatToParts(JSGlobalObject* globalObject, JSValue 
             return throwTypeError(globalObject, scope, "DateTimeFormat has no fields applicable to this Temporal type"_s);
     }
 
-    RELEASE_AND_RETURN(scope, buildFormattedDateTimeParts(globalObject, fmt, record.value, nullptr));
+    RELEASE_AND_RETURN(scope, buildFormattedDateTimeParts(globalObject, fmt, record.value, nullptr, static_cast<unsigned>(m_impl->m_era), static_cast<unsigned>(m_impl->m_year)));
 }
 
 std::unique_ptr<UDateIntervalFormat, UDateIntervalFormatDeleter>

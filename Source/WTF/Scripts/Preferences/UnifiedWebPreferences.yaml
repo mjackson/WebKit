@@ -4554,16 +4554,16 @@ InterruptVideoOnPageVisibilityChangeEnabled:
 
 IntlEraMonthcodeEnabled:
   type: bool
-  status: testable
+  status: stable
   category: javascript
   humanReadableName: "Intl Era and Month Code"
-  humanReadableDescription: "Enable Intl.Era-monthcode proposal."
+  humanReadableDescription: "Enable Intl Era and MonthCode support."
   webcoreBinding: none
   jscOptionName: useIntlEraMonthcode
   sharedPreferenceForWebProcess: true
   defaultValue:
     WebKit:
-      default: false
+      default: true
 
 InvisibleAutoplayNotPermitted:
   type: bool
