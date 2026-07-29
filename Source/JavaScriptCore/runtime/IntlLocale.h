@@ -86,6 +86,7 @@ private:
     DECLARE_DEFAULT_FINISH_CREATION;
 
     String keywordValue(ASCIILiteral, bool isBoolean = false) const;
+    CString localeIDForDataLookup() const;
 
     CString m_localeID;
 
