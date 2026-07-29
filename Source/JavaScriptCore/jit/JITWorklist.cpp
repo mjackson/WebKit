@@ -150,12 +150,6 @@ void JITWorklist::wakeThreads(const AbstractLocker& locker, unsigned enqueuedTie
 
 CompilationResult JITWorklist::enqueue(Ref<JITPlan> plan)
 {
-    // All concurrent compilation (baseline, DFG, and FTL plans) funnels through
-    // here on the requesting mutator thread, so this is the single point where we
-    // can warm up the VM constant cells that compiler threads read, before the
-    // plan becomes visible to them.
-    plan->vm()->ensureWarmedUpForConcurrentCompilation();
-
     if (!Options::useConcurrentJIT()) {
 #if USE(PROTECTED_JIT)
         // Must be constructed before we allocate anything using SequesteredArenaMalloc

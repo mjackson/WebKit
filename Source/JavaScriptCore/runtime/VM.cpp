@@ -150,7 +150,6 @@
 #include "Watchdog.h"
 #include "WeakGCMapInlines.h"
 #include "WideningNumberPredictionFuzzerAgent.h"
-#include <wtf/CompilationThread.h>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/ProcessID.h>
 #include <wtf/ReadWriteLock.h>
@@ -402,6 +401,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         m_fastAsyncGeneratorSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
     }
 
+    // Eagerly initialize constant cells since the concurrent compiler can access them.
+    if (Options::useJIT()) {
+        emptyPropertyNameEnumerator();
+        ensureMegamorphicCache();
+    }
     {
         auto* bigInt = JSBigInt::tryCreateFrom(*this, 1);
         if (bigInt)
@@ -525,6 +529,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         ftlThunks = makeUnique<FTL::Thunks>();
 #endif // ENABLE(FTL_JIT)
         m_sharedJITStubs = makeUnique<SharedJITStubSet>();
+        getBoundFunction(/* isJSFunction */ true, SourceTaintedOrigin::Untainted);
     }
 #endif // ENABLE(JIT)
 
@@ -832,32 +837,6 @@ MacroAssemblerCodeRef<JITThunkPtrTag> VM::getCTIStub(ThunkGenerator generator)
 MacroAssemblerCodeRef<JITThunkPtrTag> VM::getCTIStub(CommonJITThunkID thunkID)
 {
     return jitStubs->ctiStub(*this, thunkID);
-}
-
-void VM::ensureWarmedUpForConcurrentCompilation()
-{
-    ASSERT(!isCompilationThread());
-    if (m_hasWarmedUpForConcurrentCompilation)
-        return;
-
-    // Initialize the constant cells that compiler threads read straight off the VM
-    // without locking: DFGFixupPhase and FTLLowerDFGToB3 constant-fold
-    // emptyPropertyNameEnumerator(), DFGConstantFoldingPhase freezes
-    // getBoundFunction(), and AssemblyHelpers reads ensureMegamorphicCache() while
-    // emitting megamorphic access code. None of these can be created on a compiler
-    // thread (the first two allocate GC cells, and LazyUniqueRef initialization is
-    // not thread-safe), so they must exist before the first compilation plan
-    // becomes visible to the worklist threads.
-    emptyPropertyNameEnumerator();
-    ensureMegamorphicCache();
-    getBoundFunction(/* isJSFunction */ true, SourceTaintedOrigin::Untainted);
-
-    // Publish the cells above before the flag, so that once any thread sees the
-    // flag set, the cells are visible too. Visibility to the compiler threads
-    // themselves is additionally guaranteed by the worklist lock the enqueue
-    // path takes after calling this.
-    WTF::storeStoreFence();
-    m_hasWarmedUpForConcurrentCompilation = true;
 }
 
 #endif // ENABLE(JIT)
