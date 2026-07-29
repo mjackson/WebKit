@@ -64,7 +64,6 @@
 #include "IncrementalSweeper.h"
 #include "Interpreter.h"
 #include "IntlCache.h"
-#include "IntlObject.h"
 #include "JITCode.h"
 #include "JITOperationList.h"
 #include "JITSizeStatistics.h"
@@ -524,10 +523,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 
 #if ENABLE(JIT)
-    // Make sure that any stubs that the JIT is going to use are initialized in non-compilation threads.
     if (Options::useJIT()) {
         jitStubs = makeUnique<JITThunks>();
-        jitStubs->initialize(*this);
 #if ENABLE(FTL_JIT)
         ftlThunks = makeUnique<FTL::Thunks>();
 #endif // ENABLE(FTL_JIT)
@@ -545,12 +542,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 
     Config::finalize();
-
-    if (!isInMiniMode()) {
-        initializeAvailableTimeZones();
-        if (heapType == HeapType::Large)
-            dateCache.timeZoneDisplayName(/* isDST */ false);
-    }
 
     // We must set this at the end only after the VM is fully initialized.
     WTF::storeStoreFence();
@@ -845,7 +836,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> VM::getCTIStub(ThunkGenerator generator)
 
 MacroAssemblerCodeRef<JITThunkPtrTag> VM::getCTIStub(CommonJITThunkID thunkID)
 {
-    return jitStubs->ctiStub(thunkID);
+    return jitStubs->ctiStub(*this, thunkID);
 }
 
 #endif // ENABLE(JIT)

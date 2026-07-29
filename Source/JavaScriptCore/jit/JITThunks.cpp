@@ -49,13 +49,17 @@ JITThunks::JITThunks() = default;
 
 JITThunks::~JITThunks() = default;
 
-void JITThunks::initialize(VM& vm)
+static MacroAssemblerCodeRef<JITThunkPtrTag> generateCommonThunk(VM& vm, CommonJITThunkID thunkID)
 {
-    ASSERT(!isCompilationThread());
-#define JSC_DEFINE_COMMON_JIT_THUNK(name, func) \
-    m_commonThunks[static_cast<unsigned>(CommonJITThunkID::name)] = func(vm);
-JSC_FOR_EACH_COMMON_THUNK(JSC_DEFINE_COMMON_JIT_THUNK)
-#undef JSC_DEFINE_COMMON_JIT_THUNK
+    switch (thunkID) {
+#define JSC_GENERATE_COMMON_JIT_THUNK(name, func) \
+    case CommonJITThunkID::name: \
+        return func(vm);
+JSC_FOR_EACH_COMMON_THUNK(JSC_GENERATE_COMMON_JIT_THUNK)
+#undef JSC_GENERATE_COMMON_JIT_THUNK
+    }
+    RELEASE_ASSERT_NOT_REACHED();
+    return { };
 }
 
 static inline NativeExecutable& NODELETE getMayBeDyingNativeExecutable(const Weak<NativeExecutable>& weak)
@@ -105,10 +109,10 @@ inline bool JITThunks::WeakNativeExecutableHash::equal(const Weak<NativeExecutab
     return aExecutable.function() == std::get<0>(b) && aExecutable.constructor() == std::get<1>(b) && aExecutable.implementationVisibility() == std::get<2>(b) && aExecutable.length() == std::get<3>(b) && aExecutable.name() == std::get<4>(b);
 }
 
-CodePtr<JITThunkPtrTag> JITThunks::ctiNativeCall(VM&)
+CodePtr<JITThunkPtrTag> JITThunks::ctiNativeCall(VM& vm)
 {
     ASSERT(Options::useJIT());
-    return ctiStub(CommonJITThunkID::NativeCall).code();
+    return ctiStub(vm, CommonJITThunkID::NativeCall).code();
 }
 
 CodePtr<JITThunkPtrTag> JITThunks::ctiNativeCallWithDebuggerHook(VM& vm)
@@ -117,10 +121,10 @@ CodePtr<JITThunkPtrTag> JITThunks::ctiNativeCallWithDebuggerHook(VM& vm)
     return ctiStub(vm, nativeCallWithDebuggerHookGenerator).code();
 }
 
-CodePtr<JITThunkPtrTag> JITThunks::ctiNativeConstruct(VM&)
+CodePtr<JITThunkPtrTag> JITThunks::ctiNativeConstruct(VM& vm)
 {
     ASSERT(Options::useJIT());
-    return ctiStub(CommonJITThunkID::NativeConstruct).code();
+    return ctiStub(vm, CommonJITThunkID::NativeConstruct).code();
 }
 
 CodePtr<JITThunkPtrTag> JITThunks::ctiNativeConstructWithDebuggerHook(VM& vm)
@@ -129,28 +133,28 @@ CodePtr<JITThunkPtrTag> JITThunks::ctiNativeConstructWithDebuggerHook(VM& vm)
     return ctiStub(vm, nativeConstructWithDebuggerHookGenerator).code();
 }
 
-CodePtr<JITThunkPtrTag> JITThunks::ctiNativeTailCall(VM&)
+CodePtr<JITThunkPtrTag> JITThunks::ctiNativeTailCall(VM& vm)
 {
     ASSERT(Options::useJIT());
-    return ctiStub(CommonJITThunkID::NativeTailCall).code();
+    return ctiStub(vm, CommonJITThunkID::NativeTailCall).code();
 }
 
-CodePtr<JITThunkPtrTag> JITThunks::ctiNativeTailCallWithoutSavedTags(VM&)
+CodePtr<JITThunkPtrTag> JITThunks::ctiNativeTailCallWithoutSavedTags(VM& vm)
 {
     ASSERT(Options::useJIT());
-    return ctiStub(CommonJITThunkID::NativeTailCallWithoutSavedTags).code();
+    return ctiStub(vm, CommonJITThunkID::NativeTailCallWithoutSavedTags).code();
 }
 
-CodePtr<JITThunkPtrTag> JITThunks::ctiInternalFunctionCall(VM&)
+CodePtr<JITThunkPtrTag> JITThunks::ctiInternalFunctionCall(VM& vm)
 {
     ASSERT(Options::useJIT());
-    return ctiStub(CommonJITThunkID::InternalFunctionCall).code();
+    return ctiStub(vm, CommonJITThunkID::InternalFunctionCall).code();
 }
 
-CodePtr<JITThunkPtrTag> JITThunks::ctiInternalFunctionConstruct(VM&)
+CodePtr<JITThunkPtrTag> JITThunks::ctiInternalFunctionConstruct(VM& vm)
 {
     ASSERT(Options::useJIT());
-    return ctiStub(CommonJITThunkID::InternalFunctionConstruct).code();
+    return ctiStub(vm, CommonJITThunkID::InternalFunctionConstruct).code();
 }
 
 template <typename GenerateThunk>
@@ -195,11 +199,44 @@ MacroAssemblerCodeRef<JITThunkPtrTag> JITThunks::ctiStub(VM& vm, ThunkGenerator 
     });
 }
 
-MacroAssemblerCodeRef<JITThunkPtrTag> JITThunks::ctiStub(CommonJITThunkID thunkID)
+MacroAssemblerCodeRef<JITThunkPtrTag> JITThunks::ctiStub(VM& vm, CommonJITThunkID thunkID)
 {
-    auto result = m_commonThunks[static_cast<unsigned>(thunkID)];
-    ASSERT(result);
-    return result;
+    unsigned index = static_cast<unsigned>(thunkID);
+    // Once a slot reaches Compiled, its code ref is immutable for the lifetime of
+    // this JITThunks, so we can return it without taking m_lock. The acquire load
+    // pairs with the release store in ctiStubSlow() that published the slot.
+    if (m_commonThunkStates[index].load(std::memory_order_acquire) == CommonThunkState::Compiled)
+        return m_commonThunks[index];
+    return ctiStubSlow(vm, thunkID);
+}
+
+MacroAssemblerCodeRef<JITThunkPtrTag> JITThunks::ctiStubSlow(VM& vm, CommonJITThunkID thunkID)
+{
+    unsigned index = static_cast<unsigned>(thunkID);
+    Locker locker { m_lock };
+
+    CommonThunkState state = m_commonThunkStates[index].loadRelaxed();
+    if (state == CommonThunkState::NotCompiled) {
+        MacroAssemblerCodeRef<JITThunkPtrTag> codeRef = generateCommonThunk(vm, thunkID);
+        // Generating a thunk can transitively generate other thunks (m_lock is
+        // recursive), but a thunk can never require itself.
+        RELEASE_ASSERT(m_commonThunkStates[index].loadRelaxed() == CommonThunkState::NotCompiled);
+        m_commonThunks[index] = WTF::move(codeRef);
+        // Match ctiStubImpl(): the main thread issues a crossModifyingCodeFence
+        // before running any code a compiler thread generates, but it may grab a
+        // compiler-thread-generated thunk before that fence. So a thunk generated
+        // on a compiler thread stays flagged until the first non-compilation
+        // thread fetches it.
+        state = isCompilationThread() ? CommonThunkState::CompiledNeedsCrossModifyingCodeFence : CommonThunkState::Compiled;
+        m_commonThunkStates[index].store(state, std::memory_order_release);
+    }
+
+    if (state == CommonThunkState::CompiledNeedsCrossModifyingCodeFence && !isCompilationThread()) {
+        WTF::crossModifyingCodeFence();
+        m_commonThunkStates[index].store(CommonThunkState::Compiled, std::memory_order_release);
+    }
+
+    return m_commonThunks[index];
 }
 
 MacroAssemblerCodeRef<JITThunkPtrTag> JITThunks::ctiSlowPathFunctionStub(VM& vm, SlowPathFunction slowPathFunction)
