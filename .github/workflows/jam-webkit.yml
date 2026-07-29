@@ -69,30 +69,35 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang ninja-build ruby unzip
 
-      - name: Build filtered Linux ICU
-        if: matrix.platform == 'linux'
+      - name: Build filtered ICU
+        if: matrix.platform == 'linux' || matrix.platform == 'macos'
         shell: bash
         run: |
           set -euo pipefail
-          icu_archive="${RUNNER_TEMP}/icu4c-74_2-src.tgz"
-          icu_data_archive="${RUNNER_TEMP}/icu4c-74_2-data.zip"
+          icu_archive="${RUNNER_TEMP}/icu4c-78.3-sources.tgz"
+          icu_data_archive="${RUNNER_TEMP}/icu4c-78.3-data.zip"
           icu_prefix="${RUNNER_TEMP}/jam-icu"
           curl --fail --location --retry 3 \
             --output "${icu_archive}" \
-            https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-src.tgz
+            https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-sources.tgz
           curl --fail --location --retry 3 \
             --output "${icu_data_archive}" \
-            https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-data.zip
+            https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-data.zip
           printf '%s\n' \
-            "e6c7876c0f3d756f3a6969cad9a8909e535eeaac352f3a721338b9cbd56864bf7414469d29ec843462997815d2ca9d0dab06d38c37cdd4d8feb28ad04d8781b0  ${icu_archive}" \
-            "f9dbd303f78de1bf9089262211f3b618f1ec915e57877855d0bc6496332620f4ea92eabe1dff9fa721600e9a6ce56885f79361bbcdf97d0cfedd18e4a2d58ad0  ${icu_data_archive}" \
-            | sha512sum --check
+            "3a2e7a47604ba702f345878308e6fefeca612ee895cf4a5f222e7955fabfe0c0  ${icu_archive}" \
+            "9d8b3899096aeb83e4e21ef8a40fec9e03b28db18c48452efac882ce25a91e27  ${icu_data_archive}" \
+            | shasum -a 256 --check
           tar -xzf "${icu_archive}" -C "${RUNNER_TEMP}"
-          rm "${RUNNER_TEMP}/icu/source/data/in/icudt74l.dat"
+          rm "${RUNNER_TEMP}/icu/source/data/in/icudt78l.dat"
           unzip -q -o "${icu_data_archive}" -d "${RUNNER_TEMP}/icu/source"
           pushd "${RUNNER_TEMP}/icu/source"
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            icu_platform=macOS
+          else
+            icu_platform=Linux/clang
+          fi
           ICU_DATA_FILTER_FILE="${GITHUB_WORKSPACE}/.github/icu-data-filter.json" \
-            ./runConfigureICU Linux/clang \
+            ./runConfigureICU "${icu_platform}" \
               --prefix="${icu_prefix}" \
               --disable-extras \
               --disable-samples \
@@ -100,7 +105,7 @@ jobs:
               --disable-tests \
               --enable-static \
               --with-data-packaging=static
-          make --jobs "$(nproc)"
+          make --jobs "$(getconf _NPROCESSORS_ONLN)"
           data_list="data/out/tmp/icudata.lst"
           if grep -Eq '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|translit/)' \
             "${data_list}"; then
@@ -127,6 +132,10 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
+          git -C $env:VCPKG_INSTALLATION_ROOT fetch --depth 1 origin `
+            43ea817e84600347895efc196e2bb91162e9e679
+          git -C $env:VCPKG_INSTALLATION_ROOT checkout `
+            43ea817e84600347895efc196e2bb91162e9e679
           vcpkg install --classic --clean-after-build icu:x64-windows-static
           $sourceDir = Join-Path $env:VCPKG_INSTALLATION_ROOT `
             "installed\x64-windows-static\lib"
@@ -158,10 +167,11 @@ jobs:
             -DENABLE_STATIC_JSC=ON
             -DENABLE_TOOLS=OFF
             -DUSE_JAM_BYTECODE_CACHE=ON
+            -DUSE_JAM_CUSTOM_ICU=ON
             -DUSE_THIN_ARCHIVES=OFF
             -DCMAKE_BUILD_TYPE=Release
           )
-          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+          if [[ "${{ matrix.platform }}" == "linux" || "${{ matrix.platform }}" == "macos" ]]; then
             cmake_args+=(
               "-DICU_ROOT=${RUNNER_TEMP}/jam-icu"
             )
@@ -194,7 +204,7 @@ jobs:
         shell: bash
         run: |
           library_args=()
-          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+          if [[ "${{ matrix.platform }}" == "linux" || "${{ matrix.platform }}" == "macos" ]]; then
             library_args+=(--library-dir "${RUNNER_TEMP}/jam-icu/lib")
             library_args+=(--header-dir "${RUNNER_TEMP}/jam-icu/include")
           elif [[ "${{ matrix.platform }}" == "windows" ]]; then

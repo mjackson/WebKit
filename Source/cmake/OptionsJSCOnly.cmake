@@ -18,6 +18,7 @@ set(PROJECT_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_
 WEBKIT_OPTION_BEGIN()
 WEBKIT_OPTION_DEFINE(ENABLE_STATIC_JSC "Whether to build JavaScriptCore as a static library." PUBLIC OFF)
 WEBKIT_OPTION_DEFINE(USE_JAM_BYTECODE_CACHE "Whether to optimize serialized bytecode for Jam's embedded sources." PUBLIC OFF)
+WEBKIT_OPTION_DEFINE(USE_JAM_CUSTOM_ICU "Whether to link Jam's portable ICU payload instead of platform ICU." PUBLIC OFF)
 WEBKIT_OPTION_DEFINE(USE_LIBBACKTRACE "Whether to enable usage of libbacktrace." PUBLIC OFF)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_REMOTE_INSPECTOR PRIVATE OFF)
 if (NOT WIN32)
@@ -116,7 +117,7 @@ else ()
 endif ()
 
 find_package(ICU 70.1 REQUIRED COMPONENTS data i18n uc)
-if (APPLE)
+if (APPLE AND NOT USE_JAM_CUSTOM_ICU)
     add_definitions(-DU_DISABLE_RENAMING=1)
 endif ()
 

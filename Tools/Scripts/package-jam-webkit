@@ -24,6 +24,9 @@ PLATFORM_LIBRARIES = {
         "libJavaScriptCore.a",
         "libWTF.a",
         "libbmalloc.a",
+        "libicui18n.a",
+        "libicuuc.a",
+        "libicudata.a",
     ),
     "windows": (
         "JavaScriptCore.lib",

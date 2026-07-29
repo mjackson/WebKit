@@ -63,6 +63,13 @@
 #include "IntlSegmenterPrototype.h"
 #include "JSCInlines.h"
 #include "Options.h"
+#if !PLATFORM(COCOA) || USE(JAM_CUSTOM_ICU)
+#undef U_SHOW_CPLUSPLUS_API
+#define U_SHOW_CPLUSPLUS_API 1
+#include <unicode/locid.h>
+#undef U_SHOW_CPLUSPLUS_API
+#define U_SHOW_CPLUSPLUS_API 0
+#endif
 #include <unicode/ubrk.h>
 #include <unicode/ucal.h>
 #include <unicode/ucol.h>
@@ -81,6 +88,10 @@
 #include <wtf/text/StringImpl.h>
 #include <wtf/text/StringParsingBuffer.h>
 #include <wtf/unicode/icu/ICUHelpers.h>
+
+#if PLATFORM(COCOA) && !USE(JAM_CUSTOM_ICU) && !USE(APPLE_INTERNAL_SDK)
+extern "C" int32_t ualoc_canonicalForm(const char*, char*, int32_t, UErrorCode*);
+#endif
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -728,12 +739,22 @@ String canonicalizeUnicodeLocaleID(const CString& tag)
     auto buffer = localeIDBufferForLanguageTagWithNullTerminator(tag);
     if (buffer.isEmpty())
         return String();
-    auto canonicalized = canonicalizeLocaleIDWithoutNullTerminator(buffer.span().data());
+    String originalLanguageTag = String::fromUTF8(tag.span());
+    Vector<CString, 4> unicodeYesKeys;
+    auto canonicalized = canonicalizeLocaleIDWithoutNullTerminator(buffer.span().data(), originalLanguageTag, &unicodeYesKeys);
     if (!canonicalized)
         return String();
     canonicalized->append('\0');
     ASSERT(canonicalized->contains('\0'));
-    return languageTagForLocaleID(canonicalized->span().data());
+    String canonicalizedTag = languageTagForLocaleID(canonicalized->span().data());
+    for (auto& key : unicodeYesKeys) {
+        String unicodeKey = String::fromUTF8(key.span());
+        canonicalizedTag = makeStringByReplacingAll(
+            canonicalizedTag,
+            makeString('-' , unicodeKey, "-jscyes"_s),
+            makeString('-' , unicodeKey, "-yes"_s));
+    }
+    return canonicalizedTag;
 }
 
 String canonicalizeUnicodeLocaleID(const StringView tag)
@@ -1632,24 +1653,101 @@ bool isWellFormedCurrencyCode(StringView currency)
     return currency.length() == 3 && currency.containsOnly<isASCIIAlpha>();
 }
 
-std::optional<Vector<char, 32>> canonicalizeLocaleIDWithoutNullTerminator(const char* localeID)
+static bool hasExplicitUnicodeYesValue(StringView languageTag, StringView expectedKey)
+{
+    auto subtags = languageTag.split('-');
+    auto iterator = subtags.begin();
+    while (iterator != subtags.end()) {
+        if ((*iterator).length() == 1 && equalLettersIgnoringASCIICase(*iterator, "u"_s))
+            break;
+        ++iterator;
+    }
+    if (iterator == subtags.end())
+        return false;
+
+    ++iterator;
+    while (iterator != subtags.end() && (*iterator).length() >= 3)
+        ++iterator;
+    while (iterator != subtags.end() && (*iterator).length() == 2) {
+        StringView key = *iterator;
+        ++iterator;
+        if (iterator != subtags.end()
+            && equalIgnoringASCIICase(key, expectedKey)
+            && equalLettersIgnoringASCIICase(*iterator, "yes"_s))
+            return true;
+        while (iterator != subtags.end() && (*iterator).length() >= 3)
+            ++iterator;
+    }
+    return false;
+}
+
+std::optional<Vector<char, 32>> canonicalizeLocaleIDWithoutNullTerminator(const char* localeID, StringView originalLanguageTag, Vector<CString, 4>* unicodeYesKeys)
 {
     ASSERT(localeID);
     Vector<char, 32> buffer;
-#if U_ICU_VERSION_MAJOR_NUM >= 68 && USE(APPLE_INTERNAL_SDK)
+#if U_ICU_VERSION_MAJOR_NUM >= 68 && PLATFORM(COCOA) && !USE(JAM_CUSTOM_ICU)
     // Use ualoc_canonicalForm AppleICU SPI, which can perform mapping of aliases.
     // ICU-21506 is a bug upstreaming this SPI to ICU.
     // https://unicode-org.atlassian.net/browse/ICU-21506
     auto status = callBufferProducingFunction(ualoc_canonicalForm, localeID, buffer);
     if (U_FAILURE(status))
         return std::nullopt;
-    return buffer;
 #else
-    auto status = callBufferProducingFunction(uloc_canonicalize, localeID, buffer);
-    if (U_FAILURE(status))
+    auto locale = icu::Locale::createCanonical(localeID);
+    if (locale.isBogus())
         return std::nullopt;
-    return buffer;
+    CString canonicalName(locale.getName());
+    buffer.append(canonicalName.span());
 #endif
+
+    // Apple ICU canonicalizes "yes" to "true" for every Unicode keyword,
+    // although CLDR defines that alias only for these five boolean keys.
+    // Preserve "yes" for all other keys with an internal valid type before
+    // uloc_toLanguageTag repeats the incorrect mapping. The caller restores
+    // the original value in the resulting language tag.
+    auto isYesAliasKey = [](const char* key) {
+        return key[0] == 'k'
+            && (key[1] == 'b' || key[1] == 'c' || key[1] == 'h' || key[1] == 'k' || key[1] == 'n')
+            && !key[2];
+    };
+    Vector<CString, 4> keywordsToRestore;
+    UErrorCode keywordStatus = U_ZERO_ERROR;
+    auto keywords = std::unique_ptr<UEnumeration, ICUDeleter<uenum_close>>(uloc_openKeywords(localeID, &keywordStatus));
+    if (U_SUCCESS(keywordStatus) && keywords) {
+        int32_t keyLength;
+        while (const char* key = uenum_next(keywords.get(), &keyLength, &keywordStatus)) {
+            CString keyword(std::span { key, static_cast<size_t>(keyLength) });
+            Vector<char, 16> value;
+            auto valueStatus = callBufferProducingFunction(uloc_getKeywordValue, localeID, keyword.data(), value);
+            const char* unicodeKey = uloc_toUnicodeLocaleKey(keyword.data());
+            bool isYes = value.size() == 3 && value[0] == 'y' && value[1] == 'e' && value[2] == 's';
+            if (U_SUCCESS(valueStatus) && unicodeKey && isYes && !isYesAliasKey(unicodeKey)
+                && hasExplicitUnicodeYesValue(originalLanguageTag, String::fromUTF8(unicodeKey))) {
+                keywordsToRestore.append(WTF::move(keyword));
+                if (unicodeYesKeys)
+                    unicodeYesKeys->append(CString(unicodeKey));
+            }
+        }
+    }
+    if (!keywordsToRestore.isEmpty()) {
+        auto original = buffer;
+        buffer.append('\0');
+        buffer.grow(buffer.size() + 32);
+        int32_t length = 0;
+        for (auto& keyword : keywordsToRestore) {
+            keywordStatus = U_ZERO_ERROR;
+            length = uloc_setKeywordValue(keyword.data(), "jscyes", buffer.mutableSpan().data(), buffer.size(), &keywordStatus);
+            if (needsToGrowToProduceBuffer(keywordStatus)) {
+                buffer.grow(length + 1);
+                keywordStatus = U_ZERO_ERROR;
+                length = uloc_setKeywordValue(keyword.data(), "jscyes", buffer.mutableSpan().data(), buffer.size(), &keywordStatus);
+            }
+            if (U_FAILURE(keywordStatus))
+                return original;
+        }
+        buffer.shrink(length);
+    }
+    return buffer;
 }
 
 std::optional<String> mapICUCalendarKeywordToBCP47(const String& calendar)
