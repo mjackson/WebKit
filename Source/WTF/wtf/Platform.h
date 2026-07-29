@@ -123,7 +123,7 @@
 #ifdef __cplusplus
 #define UCHAR_TYPE char16_t
 #endif
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) && !USE(JAM_CUSTOM_ICU)
 #define U_DISABLE_RENAMING 1
 #endif
 

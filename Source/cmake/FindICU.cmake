@@ -1,5 +1,5 @@
 
-if (APPLE)
+if (APPLE AND NOT USE_JAM_CUSTOM_ICU)
     if (USE_APPLE_INTERNAL_SDK)
         set(ICU_INCLUDE_DIRS ${CMAKE_OSX_SYSROOT}/usr/local/include)
     else ()
