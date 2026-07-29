@@ -30,6 +30,8 @@
 #include "IntlDateTimeFormat.h"
 #include "IntlObjectInlines.h"
 #include "JSCInlines.h"
+#include <algorithm>
+#include <array>
 #include <unicode/ucal.h>
 #include <unicode/ucol.h>
 #include <unicode/udatpg.h>
@@ -242,6 +244,58 @@ String IntlLocale::keywordValue(ASCIILiteral key, bool isBoolean) const
     if (result == "true"_s)
         return emptyString();
     return result;
+}
+
+CString IntlLocale::localeIDForDataLookup() const
+{
+    String subdivision = keywordValue("sd"_s);
+    if (subdivision.isEmpty())
+        return m_localeID;
+
+    UErrorCode status = U_ZERO_ERROR;
+    std::array<char, ULOC_COUNTRY_CAPACITY> region;
+    auto existingRegionLength = uloc_getCountry(m_localeID.data(), region.data(), region.size(), &status);
+    if (U_FAILURE(status))
+        return m_localeID;
+    bool useSubdivisionRegion = !existingRegionLength && keywordValue("rg"_s).isEmpty();
+
+    unsigned regionLength = 0;
+    if (useSubdivisionRegion && subdivision.length() >= 2 && isASCIIAlpha(subdivision[0]) && isASCIIAlpha(subdivision[1]))
+        regionLength = 2;
+    else if (useSubdivisionRegion && subdivision.length() >= 3 && isASCIIDigit(subdivision[0]) && isASCIIDigit(subdivision[1]) && isASCIIDigit(subdivision[2]))
+        regionLength = 3;
+
+    Vector<char, 64> localeID;
+    localeID.append(m_localeID.span());
+    localeID.append('\0');
+    localeID.grow(localeID.size() + 32);
+
+    auto setKeyword = [&](const char* key, const char* value) -> std::optional<int32_t> {
+        status = U_ZERO_ERROR;
+        auto length = uloc_setKeywordValue(key, value, localeID.mutableSpan().data(), localeID.size(), &status);
+        if (needsToGrowToProduceBuffer(status)) {
+            localeID.grow(length + 1);
+            status = U_ZERO_ERROR;
+            length = uloc_setKeywordValue(key, value, localeID.mutableSpan().data(), localeID.size(), &status);
+        }
+        if (U_FAILURE(status))
+            return std::nullopt;
+        return length;
+    };
+
+    auto length = setKeyword("sd", nullptr);
+    if (!length)
+        return m_localeID;
+
+    if (regionLength) {
+        String regionOverride = makeString(subdivision.left(regionLength), "zzzz"_s);
+        ASSERT(regionOverride.containsOnlyASCII());
+        auto rawRegionOverride = regionOverride.ascii();
+        length = setKeyword("rg", rawRegionOverride.data());
+        if (!length)
+            return m_localeID;
+    }
+    return CString(localeID.span().first(*length));
 }
 
 // Build an ICU locale ID from the given source, keeping only multi-character
@@ -796,7 +850,8 @@ JSArray* IntlLocale::calendars(JSGlobalObject* globalObject)
 
     UErrorCode status = U_ZERO_ERROR;
     constexpr bool commonlyUsed = true;
-    auto calendars = std::unique_ptr<UEnumeration, ICUDeleter<uenum_close>>(ucal_getKeywordValuesForLocale("calendar", m_localeID.data(), commonlyUsed, &status));
+    auto localeID = localeIDForDataLookup();
+    auto calendars = std::unique_ptr<UEnumeration, ICUDeleter<uenum_close>>(ucal_getKeywordValuesForLocale("calendar", localeID.data(), commonlyUsed, &status));
     if (!U_SUCCESS(status)) {
         throwTypeError(globalObject, scope, "invalid locale"_s);
         return nullptr;
@@ -861,6 +916,7 @@ JSArray* IntlLocale::collations(JSGlobalObject* globalObject)
         return nullptr;
     }
 
+    std::ranges::sort(elements, WTF::codePointCompareLessThan);
     RELEASE_AND_RETURN(scope, createArrayFromStringVector(globalObject, WTF::move(elements)));
 }
 
@@ -878,7 +934,8 @@ JSArray* IntlLocale::hourCycles(JSGlobalObject* globalObject)
     }
 
     UErrorCode status = U_ZERO_ERROR;
-    auto generator = std::unique_ptr<UDateTimePatternGenerator, ICUDeleter<udatpg_close>>(udatpg_open(m_localeID.data(), &status));
+    auto localeID = localeIDForDataLookup();
+    auto generator = std::unique_ptr<UDateTimePatternGenerator, ICUDeleter<udatpg_close>>(udatpg_open(localeID.data(), &status));
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "invalid locale"_s);
         return nullptr;
@@ -1013,7 +1070,8 @@ JSObject* IntlLocale::weekInfo(JSGlobalObject* globalObject)
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     UErrorCode status = U_ZERO_ERROR;
-    auto calendar = std::unique_ptr<UCalendar, ICUDeleter<ucal_close>>(ucal_open(nullptr, 0, m_localeID.data(), UCAL_DEFAULT, &status));
+    auto localeID = localeIDForDataLookup();
+    auto calendar = std::unique_ptr<UCalendar, ICUDeleter<ucal_close>>(ucal_open(nullptr, 0, localeID.data(), UCAL_DEFAULT, &status));
     if (!U_SUCCESS(status)) {
         throwTypeError(globalObject, scope, "invalid locale"_s);
         return nullptr;

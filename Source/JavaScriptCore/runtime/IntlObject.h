@@ -218,7 +218,7 @@ JS_EXPORT_PRIVATE String canonicalizeUnicodeLocaleID(const StringView);
 
 bool NODELETE isWellFormedCurrencyCode(StringView);
 
-std::optional<Vector<char, 32>> canonicalizeLocaleIDWithoutNullTerminator(const char* localeID);
+std::optional<Vector<char, 32>> canonicalizeLocaleIDWithoutNullTerminator(const char* localeID, StringView originalLanguageTag = { }, Vector<CString, 4>* unicodeYesKeys = nullptr);
 
 struct UFieldPositionIteratorDeleter {
     void operator()(UFieldPositionIterator*) const;
