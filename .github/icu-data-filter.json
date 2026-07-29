@@ -1,0 +1,18 @@
+{
+  "featureFilters": {
+    "confusables": "exclude",
+    "conversion_mappings": "exclude",
+    "rbnf_tree": {
+      "filterType": "locale",
+      "includeChildren": false,
+      "includelist": [
+        "ja",
+        "zh",
+        "zh_Hant"
+      ]
+    },
+    "stringprep": "exclude",
+    "translit": "exclude",
+    "unames": "exclude"
+  }
+}

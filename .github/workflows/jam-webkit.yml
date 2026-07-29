@@ -67,7 +67,57 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libicu-dev ninja-build ruby
+          sudo apt-get install -y clang ninja-build ruby unzip
+
+      - name: Build filtered Linux ICU
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          icu_archive="${RUNNER_TEMP}/icu4c-74_2-src.tgz"
+          icu_data_archive="${RUNNER_TEMP}/icu4c-74_2-data.zip"
+          icu_prefix="${RUNNER_TEMP}/jam-icu"
+          curl --fail --location --retry 3 \
+            --output "${icu_archive}" \
+            https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-src.tgz
+          curl --fail --location --retry 3 \
+            --output "${icu_data_archive}" \
+            https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-data.zip
+          printf '%s\n' \
+            "e6c7876c0f3d756f3a6969cad9a8909e535eeaac352f3a721338b9cbd56864bf7414469d29ec843462997815d2ca9d0dab06d38c37cdd4d8feb28ad04d8781b0  ${icu_archive}" \
+            "f9dbd303f78de1bf9089262211f3b618f1ec915e57877855d0bc6496332620f4ea92eabe1dff9fa721600e9a6ce56885f79361bbcdf97d0cfedd18e4a2d58ad0  ${icu_data_archive}" \
+            | sha512sum --check
+          tar -xzf "${icu_archive}" -C "${RUNNER_TEMP}"
+          rm "${RUNNER_TEMP}/icu/source/data/in/icudt74l.dat"
+          unzip -q -o "${icu_data_archive}" -d "${RUNNER_TEMP}/icu/source"
+          pushd "${RUNNER_TEMP}/icu/source"
+          ICU_DATA_FILTER_FILE="${GITHUB_WORKSPACE}/.github/icu-data-filter.json" \
+            ./runConfigureICU Linux/clang \
+              --prefix="${icu_prefix}" \
+              --disable-extras \
+              --disable-samples \
+              --disable-shared \
+              --disable-tests \
+              --enable-static \
+              --with-data-packaging=static
+          make --jobs "$(nproc)"
+          data_list="data/out/tmp/icudata.lst"
+          if grep -Eq '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|translit/)' \
+            "${data_list}"; then
+            echo "Excluded ICU data survived filtering:" >&2
+            grep -E '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|translit/)' \
+              "${data_list}" >&2
+            exit 1
+          fi
+          printf '%s\n' \
+            rbnf/ja.res \
+            rbnf/res_index.res \
+            rbnf/root.res \
+            rbnf/zh.res \
+            rbnf/zh_Hant.res \
+            | diff - <(grep '^rbnf/.*\.res$' "${data_list}" | LC_ALL=C sort)
+          make install
+          popd
 
       - name: Install macOS dependencies
         if: matrix.platform == 'macos'
@@ -111,6 +161,11 @@ jobs:
             -DUSE_THIN_ARCHIVES=OFF
             -DCMAKE_BUILD_TYPE=Release
           )
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            cmake_args+=(
+              "-DICU_ROOT=${RUNNER_TEMP}/jam-icu"
+            )
+          fi
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             icu_root="$(cygpath -m "${RUNNER_TEMP}/jam-icu")"
             icu_include="$(cygpath -m \
@@ -140,7 +195,8 @@ jobs:
         run: |
           library_args=()
           if [[ "${{ matrix.platform }}" == "linux" ]]; then
-            library_args+=(--library-dir "/usr/lib/$(gcc -print-multiarch)")
+            library_args+=(--library-dir "${RUNNER_TEMP}/jam-icu/lib")
+            library_args+=(--header-dir "${RUNNER_TEMP}/jam-icu/include")
           elif [[ "${{ matrix.platform }}" == "windows" ]]; then
             library_args+=(--library-dir "${RUNNER_TEMP}/jam-icu")
             library_args+=(--header-dir \
