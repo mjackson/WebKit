@@ -69,6 +69,13 @@ inline bool calendarHasEras(CalendarID id)
         || id == japaneseCalendarID() || id == persianCalendarID() || id == rocCalendarID();
 }
 
+// Returns true for calendars whose sole era uses the arithmetic year directly.
+inline bool calendarHasSingleEra(CalendarID id)
+{
+    return id == buddhistCalendarID() || id == copticCalendarID() || id == ethioaaCalendarID()
+        || id == hebrewCalendarID() || id == indianCalendarID() || id == persianCalendarID();
+}
+
 // calendarIsLunisolar — true for calendars with leap months (Chinese, Dangi, Hebrew).
 // NOTE: temporal_rs Calendar::is_iso() returns true for ISO8601 (opposite semantic).
 inline bool calendarIsLunisolar(CalendarID id)

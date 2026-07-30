@@ -629,9 +629,9 @@ static std::optional<uint8_t> computeFieldResolutionOrdinalMonth(UCalendar* cal,
 static std::optional<int32_t> mapTemporalEraToICUEra(CalendarID calendarId, StringView era)
 {
     if (calendarId == gregoryCalendarID()) {
-        if (era == "bce"_s)
+        if (era == "bce"_s || era == "bc"_s)
             return 0;
-        if (era == "ce"_s)
+        if (era == "ce"_s || era == "ad"_s)
             return 1;
         return std::nullopt;
     }
@@ -642,8 +642,10 @@ static std::optional<int32_t> mapTemporalEraToICUEra(CalendarID calendarId, Stri
             if (era == StringView(e.name))
                 return japaneseEraCode(e.startYear);
         }
-        if (era == "ce"_s)
+        if (era == "ce"_s || era == "ad"_s)
             return 0;
+        if (era == "bce"_s || era == "bc"_s)
+            return japaneseEraCode(1);
         return std::nullopt;
     }
     if (calendarId == rocCalendarID()) {
@@ -764,7 +766,7 @@ TemporalResult<CalendarFields> isoToCalendarFields(CalendarID calendarId, const 
             // mapICUEraToTemporalEra for Japanese calls japaneseEraStartYear which uses withCalendar
             // on the same calendarId — safe because the outer lock was released above.
             fields.era = mapICUEraToTemporalEra(calendarId, raw.ucalEra);
-            fields.eraYear = raw.ucalYear;
+            fields.eraYear = calendarHasSingleEra(calendarId) ? fields.year : raw.ucalYear;
         }
         if (calendarId == japaneseCalendarID()) {
             if (isoDate.year() < japaneseCalendarGregorianTransitionYear) {
@@ -972,6 +974,12 @@ TemporalResult<std::optional<int32_t>> calendarEraYear(CalendarID calendarId, co
         if (!yearOrError)
             return makeUnexpected(yearOrError.error());
         return std::optional<int32_t>(islamicEraFieldsFor(*yearOrError).eraYear);
+    }
+    if (calendarHasSingleEra(calendarId)) {
+        auto yearOrError = calendarYear(calendarId, isoDate);
+        if (!yearOrError)
+            return makeUnexpected(yearOrError.error());
+        return std::optional<int32_t>(*yearOrError);
     }
     // 2. Return the era year (year within the current era) of isoDate in calendarId.
     // NOTE: Japanese "ce"/"bce" fallback: eraYear is the Gregorian year.
@@ -2164,9 +2172,9 @@ TemporalResult<ISO8601::PlainDate> calendarDateFromFields(CalendarID calendarId,
         if (calendarId == japaneseCalendarID()) {
             // Named-era arithmetic year is era start year + eraYear - 1.
             CheckedInt32 checkedISOYear = *eraYear;
-            if (*era == "bce"_s)
+            if (*era == "bce"_s || *era == "bc"_s)
                 checkedISOYear = 1 - checkedISOYear;
-            else if (*era != "ce"_s) {
+            else if (*era != "ce"_s && *era != "ad"_s) {
                 const JapaneseEra* japaneseEra = nullptr;
                 for (auto& candidate : japaneseEras) {
                     if (*era == StringView(candidate.name)) {
@@ -2214,6 +2222,8 @@ TemporalResult<ISO8601::PlainDate> calendarDateFromFields(CalendarID calendarId,
         icuEraCode = mapTemporalEraToICUEra(calendarId, *era);
         if (!icuEraCode) [[unlikely]]
             return makeUnexpected(rangeError("era is not valid for this calendar"_s));
+        if (calendarHasSingleEra(calendarId) && year && *year != *eraYear) [[unlikely]]
+            return makeUnexpected(rangeError("year is inconsistent with era and eraYear"_s));
     }
 
     if (calendarId == rocCalendarID() || calendarId == buddhistCalendarID()) {
@@ -2250,8 +2260,16 @@ TemporalResult<ISO8601::PlainDate> calendarDateFromFields(CalendarID calendarId,
             // Gregorian-derived calendars returned through arithmetic paths above.
             if (!icuEraCode) [[unlikely]]
                 return makeUnexpected(rangeError("era is not valid for this calendar"_s));
-            ucal_set(cal, UCAL_ERA, *icuEraCode);
-            ucal_set(cal, UCAL_YEAR, *eraYear);
+            if (calendarHasSingleEra(calendarId)) {
+                if (calendarId == ethioaaCalendarID()) {
+                    ucal_set(cal, UCAL_ERA, *icuEraCode);
+                    ucal_set(cal, UCAL_YEAR, *eraYear);
+                } else
+                    ucal_set(cal, UCAL_EXTENDED_YEAR, *eraYear);
+            } else {
+                ucal_set(cal, UCAL_ERA, *icuEraCode);
+                ucal_set(cal, UCAL_YEAR, *eraYear);
+            }
         } else if (calendarId == ethioaaCalendarID()) {
             // Ethioaa uses calendar-native UCAL_YEAR for arithmetic.
             ucal_set(cal, UCAL_ERA, 0);
