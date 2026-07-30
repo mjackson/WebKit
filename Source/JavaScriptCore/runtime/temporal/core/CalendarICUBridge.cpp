@@ -523,6 +523,64 @@ static std::optional<int32_t> actualLunisolarMonthLength(UCalendar* cal, Calenda
     return length >= 29 && length <= 30 ? std::optional<int32_t> { length } : std::nullopt;
 }
 
+static constexpr int64_t floorDivide(int64_t numerator, int64_t denominator)
+{
+    int64_t quotient = numerator / denominator;
+    if (numerator % denominator < 0)
+        --quotient;
+    return quotient;
+}
+
+static constexpr int64_t nonNegativeModulo(int64_t value, int64_t modulus)
+{
+    int64_t remainder = value % modulus;
+    return remainder < 0 ? remainder + modulus : remainder;
+}
+
+// ICU-23007: ICU4C applies the Hebrew epoch-year postponement incorrectly.
+// Use the Calendrical Calculations rules to determine month lengths independently.
+static int64_t hebrewCalendarElapsedDays(int32_t year)
+{
+    int64_t monthsElapsed = floorDivide(235LL * year - 234, 19);
+    int64_t partsElapsed = 12084 + 13753 * monthsElapsed;
+    int64_t days = 29 * monthsElapsed + floorDivide(partsElapsed, 25920);
+    return nonNegativeModulo(3 * (days + 1), 7) < 3 ? days + 1 : days;
+}
+
+static int64_t hebrewNewYear(int32_t year)
+{
+    int64_t previous = hebrewCalendarElapsedDays(year - 1);
+    int64_t current = hebrewCalendarElapsedDays(year);
+    int64_t next = hebrewCalendarElapsedDays(year + 1);
+    int64_t correction = next - current == 356 ? 2 : current - previous == 382 ? 1 : 0;
+    return current + correction;
+}
+
+static int32_t hebrewMonthLength(int32_t year, const ParsedMonthCode& monthCode)
+{
+    if (monthCode.isLeapMonth)
+        return 30;
+
+    switch (monthCode.monthNumber) {
+    case 2: {
+        int64_t daysInYear = hebrewNewYear(year + 1) - hebrewNewYear(year);
+        return daysInYear == 355 || daysInYear == 385 ? 30 : 29;
+    }
+    case 3: {
+        int64_t daysInYear = hebrewNewYear(year + 1) - hebrewNewYear(year);
+        return daysInYear == 353 || daysInYear == 383 ? 29 : 30;
+    }
+    case 4:
+    case 6:
+    case 8:
+    case 10:
+    case 12:
+        return 29;
+    default:
+        return 30;
+    }
+}
+
 static bool addLunisolarCalendarDays(UCalendar* cal, CalendarID calendarId, int32_t days, UErrorCode& status)
 {
     if (calendarId == chineseCalendarID() || calendarId == dangiCalendarID())
@@ -2345,7 +2403,9 @@ TemporalResult<ISO8601::PlainDate> calendarDateFromFields(CalendarID calendarId,
                 }
                 if (!found && overflow == TemporalOverflow::Reject) [[unlikely]]
                     return makeUnexpected(rangeError("monthCode does not exist in this calendar year"_s)); // Clamp day via ucal_add.
-                auto maxDayOrError = actualLunisolarMonthLength(cal, calendarId);
+                auto maxDayOrError = calendarId == hebrewCalendarID()
+                    ? std::optional<int32_t> { hebrewMonthLength(year.value_or(eraYear.value_or(0)), *monthCode) }
+                    : actualLunisolarMonthLength(cal, calendarId);
                 if (!maxDayOrError) [[unlikely]]
                     return makeUnexpected(rangeError(icuReadCalendarFailed));
                 int32_t maxDay = *maxDayOrError;
