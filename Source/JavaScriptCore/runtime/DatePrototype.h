@@ -49,6 +49,8 @@ public:
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
+    static const ClassInfo* infoForStructure();
+
 private:
     DatePrototype(VM&, Structure*);
     void finishCreation(VM&, JSGlobalObject*);

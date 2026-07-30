@@ -235,6 +235,8 @@ private:
     QueuedTaskResult m_microtaskRunnability { QueuedTaskResult::Executed };
     bool m_associatedContextIsFullyActive { true };
     bool m_canFastQueueMicrotask { true };
+    bool m_temporalStructuresInitialized { false };
+    bool m_temporalPropertyInitialized { false };
     Ref<MicrotaskQueue> m_microtaskQueue;
     std::optional<uint64_t> m_embedderJobOwner;
 
@@ -754,7 +756,11 @@ public:
 
     JS_EXPORT_PRIVATE static bool getOwnPropertySlot(JSObject*, JSGlobalObject*, PropertyName, PropertySlot&);
     JS_EXPORT_PRIVATE static bool put(JSCell*, JSGlobalObject*, PropertyName, JSValue, PutPropertySlot&);
+    JS_EXPORT_PRIVATE static bool deleteProperty(JSCell*, JSGlobalObject*, PropertyName, DeletePropertySlot&);
     JS_EXPORT_PRIVATE static bool defineOwnProperty(JSObject*, JSGlobalObject*, PropertyName, const PropertyDescriptor&, bool shouldThrow);
+
+    unsigned temporalInitializationState() const;
+    void initializeTemporalStructures();
 
     bool canDeclareGlobalFunction(const Identifier&);
     template<BindingCreationContext> void createGlobalFunctionBinding(const Identifier&);
@@ -1333,6 +1339,7 @@ private:
     void initializeAggregateErrorConstructor(LazyClassStructure::Initializer&);
 
     void initializeSuppressedErrorConstructor(LazyClassStructure::Initializer&);
+    void materializeTemporalProperty();
 
     JS_EXPORT_PRIVATE void init(VM&);
     void initStaticGlobals(VM&);

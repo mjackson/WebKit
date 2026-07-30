@@ -999,6 +999,92 @@ void JSGlobalObject::initializeSuppressedErrorConstructor(LazyClassStructure::In
     init.setConstructor(SuppressedErrorConstructor::create(init.vm, SuppressedErrorConstructor::createStructure(init.vm, this, m_errorStructure.constructor(this)), uncheckedDowncast<SuppressedErrorPrototype>(init.prototype)));
 }
 
+void JSGlobalObject::initializeTemporalStructures()
+{
+    if (m_temporalStructuresInitialized)
+        return;
+    m_temporalStructuresInitialized = true;
+
+    m_durationStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalDurationPrototype::create(init.vm, TemporalDurationPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalDuration::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalDurationConstructor::create(init.vm, TemporalDurationConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+
+    m_instantStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalInstantPrototype::create(init.vm, TemporalInstantPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalInstant::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalInstantConstructor::create(init.vm, TemporalInstantConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+
+    m_plainDateStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalPlainDatePrototype::create(init.vm, init.global, TemporalPlainDatePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalPlainDate::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalPlainDateConstructor::create(init.vm, TemporalPlainDateConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+
+    m_plainDateTimeStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalPlainDateTimePrototype::create(init.vm, init.global, TemporalPlainDateTimePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalPlainDateTime::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalPlainDateTimeConstructor::create(init.vm, TemporalPlainDateTimeConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+
+    m_plainMonthDayStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalPlainMonthDayPrototype::create(init.vm, init.global, TemporalPlainMonthDayPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalPlainMonthDay::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalPlainMonthDayConstructor::create(init.vm, TemporalPlainMonthDayConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+
+    m_plainTimeStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalPlainTimePrototype::create(init.vm, init.global, TemporalPlainTimePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalPlainTime::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalPlainTimeConstructor::create(init.vm, TemporalPlainTimeConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+
+    m_plainYearMonthStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalPlainYearMonthPrototype::create(init.vm, init.global, TemporalPlainYearMonthPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalPlainYearMonth::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalPlainYearMonthConstructor::create(init.vm, TemporalPlainYearMonthConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+
+    m_zonedDateTimeStructure.initLater(
+        [] (LazyClassStructure::Initializer& init) {
+            auto* prototype = TemporalZonedDateTimePrototype::create(init.vm, init.global, TemporalZonedDateTimePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
+            init.setPrototype(prototype);
+            init.setStructure(TemporalZonedDateTime::createStructure(init.vm, init.global, prototype));
+            init.setConstructor(TemporalZonedDateTimeConstructor::create(init.vm, TemporalZonedDateTimeConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
+        });
+}
+
+void JSGlobalObject::materializeTemporalProperty()
+{
+    if (!Options::useTemporal() || m_temporalPropertyInitialized)
+        return;
+    m_temporalPropertyInitialized = true;
+
+    VM& vm = this->vm();
+    if (!isValidOffset(getDirectOffset(vm, vm.propertyNames->Temporal)))
+        return;
+
+    initializeTemporalStructures();
+    auto* temporal = TemporalObject::create(vm, TemporalObject::createStructure(vm, this));
+    putDirect(vm, vm.propertyNames->Temporal, temporal, static_cast<unsigned>(PropertyAttribute::DontEnum));
+}
+
 SUPPRESS_ASAN inline void JSGlobalObject::initStaticGlobals(VM& vm)
 {
     GlobalPropertyInfo staticGlobals[] = {
@@ -1729,74 +1815,9 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     IntlObject* intl = IntlObject::create(vm, this, IntlObject::createStructure(vm, this, m_objectPrototype.get()));
     putDirectWithoutTransition(vm, vm.propertyNames->Intl, intl, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
-    if (Options::useTemporal()) {
-        m_durationStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalDurationPrototype::create(init.vm, TemporalDurationPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalDuration::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalDurationConstructor::create(init.vm, TemporalDurationConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
+    if (Options::useTemporal())
+        putDirectWithoutTransition(vm, vm.propertyNames->Temporal, jsUndefined(), static_cast<unsigned>(PropertyAttribute::DontEnum));
 
-        m_instantStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalInstantPrototype::create(init.vm, TemporalInstantPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalInstant::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalInstantConstructor::create(init.vm, TemporalInstantConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
-
-        m_plainDateStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalPlainDatePrototype::create(init.vm, init.global, TemporalPlainDatePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalPlainDate::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalPlainDateConstructor::create(init.vm, TemporalPlainDateConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
-
-        m_plainDateTimeStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalPlainDateTimePrototype::create(init.vm, init.global, TemporalPlainDateTimePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalPlainDateTime::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalPlainDateTimeConstructor::create(init.vm, TemporalPlainDateTimeConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
-
-        m_plainMonthDayStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalPlainMonthDayPrototype::create(init.vm, init.global, TemporalPlainMonthDayPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalPlainMonthDay::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalPlainMonthDayConstructor::create(init.vm, TemporalPlainMonthDayConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
-
-        m_plainTimeStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalPlainTimePrototype::create(init.vm, init.global, TemporalPlainTimePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalPlainTime::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalPlainTimeConstructor::create(init.vm, TemporalPlainTimeConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
-
-        m_plainYearMonthStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalPlainYearMonthPrototype::create(init.vm, init.global, TemporalPlainYearMonthPrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalPlainYearMonth::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalPlainYearMonthConstructor::create(init.vm, TemporalPlainYearMonthConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
-
-        m_zonedDateTimeStructure.initLater(
-            [] (LazyClassStructure::Initializer& init) {
-                auto* prototype = TemporalZonedDateTimePrototype::create(init.vm, init.global, TemporalZonedDateTimePrototype::createStructure(init.vm, init.global, init.global->objectPrototype()));
-                init.setPrototype(prototype);
-                init.setStructure(TemporalZonedDateTime::createStructure(init.vm, init.global, prototype));
-                init.setConstructor(TemporalZonedDateTimeConstructor::create(init.vm, TemporalZonedDateTimeConstructor::createStructure(init.vm, init.global, init.global->functionPrototype()), prototype));
-            });
-
-        TemporalObject* temporal = TemporalObject::create(vm, TemporalObject::createStructure(vm, this));
-        putDirectWithoutTransition(vm, vm.propertyNames->Temporal, temporal, static_cast<unsigned>(PropertyAttribute::DontEnum));
-    }
     if (Options::useShadowRealm())
         putDirectWithoutTransition(vm, vm.propertyNames->ShadowRealm, shadowRealmConstructor, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
@@ -2330,6 +2351,9 @@ bool JSGlobalObject::put(JSCell* cell, JSGlobalObject* globalObject, PropertyNam
     JSGlobalObject* thisObject = uncheckedDowncast<JSGlobalObject>(cell);
     ASSERT(!Heap::heap(value) || Heap::heap(value) == Heap::heap(thisObject));
 
+    if (propertyName == vm.propertyNames->Temporal)
+        thisObject->m_temporalPropertyInitialized = true;
+
     if (isThisValueAltered(slot, thisObject)) [[unlikely]] {
         SymbolTableEntry::Fast entry = thisObject->symbolTable()->get(propertyName.uid());
         if (!entry.isNull()) {
@@ -2355,6 +2379,9 @@ bool JSGlobalObject::defineOwnProperty(JSObject* object, JSGlobalObject* globalO
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSGlobalObject* thisObject = uncheckedDowncast<JSGlobalObject>(object);
+
+    if (propertyName == vm.propertyNames->Temporal)
+        thisObject->m_temporalPropertyInitialized = true;
 
     SymbolTableEntry entry;
     PropertyDescriptor currentDescriptor;
@@ -2382,6 +2409,14 @@ bool JSGlobalObject::defineOwnProperty(JSObject* object, JSGlobalObject* globalO
     }
 
     RELEASE_AND_RETURN(scope, Base::defineOwnProperty(thisObject, globalObject, propertyName, descriptor, shouldThrow));
+}
+
+bool JSGlobalObject::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, PropertyName propertyName, DeletePropertySlot& slot)
+{
+    auto* thisObject = uncheckedDowncast<JSGlobalObject>(cell);
+    if (propertyName == globalObject->vm().propertyNames->Temporal)
+        thisObject->m_temporalPropertyInitialized = true;
+    return Base::deleteProperty(thisObject, globalObject, propertyName, slot);
 }
 
 // https://tc39.es/ecma262/#sec-candeclareglobalfunction
@@ -3198,9 +3233,25 @@ void JSGlobalObject::addStaticGlobals(std::span<GlobalPropertyInfo> globals)
 
 bool JSGlobalObject::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot)
 {
+    auto* thisObject = uncheckedDowncast<JSGlobalObject>(object);
+    if (propertyName == globalObject->vm().propertyNames->Temporal)
+        thisObject->materializeTemporalProperty();
     if (Base::getOwnPropertySlot(object, globalObject, propertyName, slot))
         return true;
-    return symbolTableGet(uncheckedDowncast<JSGlobalObject>(object), propertyName, slot);
+    return symbolTableGet(thisObject, propertyName, slot);
+}
+
+unsigned JSGlobalObject::temporalInitializationState() const
+{
+    constexpr unsigned structuresInitialized = 1;
+    constexpr unsigned namespaceMaterialized = 1 << 1;
+
+    unsigned state = 0;
+    if (m_temporalStructuresInitialized)
+        state |= structuresInitialized;
+    if (m_temporalPropertyInitialized && getDirect(vm(), vm().propertyNames->Temporal).isObject())
+        state |= namespaceMaterialized;
+    return state;
 }
 
 void JSGlobalObject::clearRareData(JSCell* cell)
