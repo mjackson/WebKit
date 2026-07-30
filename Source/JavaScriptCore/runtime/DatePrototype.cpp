@@ -87,6 +87,7 @@ static JSC_DECLARE_HOST_FUNCTION(dateProtoFuncToTemporalInstant);
 static JSC_DECLARE_HOST_FUNCTION(dateProtoFuncToLocaleString);
 static JSC_DECLARE_HOST_FUNCTION(dateProtoFuncToLocaleDateString);
 static JSC_DECLARE_HOST_FUNCTION(dateProtoFuncToLocaleTimeString);
+static JSValue createToTemporalInstantProperty(VM&, JSObject*);
 
 }
 
@@ -272,11 +273,31 @@ const ClassInfo DatePrototype::s_info = { "Object"_s, &Base::s_info, &dateProtot
 @end
 */
 
+/* Source for DatePrototype.lut.h
+@begin temporalDatePrototypeTable
+  toTemporalInstant     createToTemporalInstantProperty       DontEnum|PropertyCallback
+@end
+*/
+
 // ECMA 15.9.4
 
 DatePrototype::DatePrototype(VM& vm, Structure* structure)
     : Base(vm, structure)
 {
+}
+
+const ClassInfo* DatePrototype::infoForStructure()
+{
+    static const ClassInfo temporalDatePrototypeInfo = { "Object"_s, &s_info, &temporalDatePrototypeTable, nullptr, CREATE_METHOD_TABLE(DatePrototype) };
+    return Options::useTemporal() ? &temporalDatePrototypeInfo : info();
+}
+
+static JSValue createToTemporalInstantProperty(VM& vm, JSObject* object)
+{
+    auto* globalObject = object->realm();
+    globalObject->initializeTemporalStructures();
+    Identifier propertyName = Identifier::fromString(vm, "toTemporalInstant"_s);
+    return JSFunction::create(vm, globalObject, 0, propertyName.string(), dateProtoFuncToTemporalInstant, ImplementationVisibility::Public);
 }
 
 void DatePrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
@@ -292,11 +313,6 @@ void DatePrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
     JSFunction* toPrimitiveFunction = JSFunction::create(vm, globalObject, 1, "[Symbol.toPrimitive]"_s, dateProtoFuncToPrimitiveSymbol, ImplementationVisibility::Public);
     putDirectWithoutTransition(vm, vm.propertyNames->toPrimitiveSymbol, toPrimitiveFunction, PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly);
 
-    if (Options::useTemporal()) {
-        Identifier toTemporalInstantName = Identifier::fromString(vm, "toTemporalInstant"_s);
-        JSFunction* toTemporalInstantFunction = JSFunction::create(vm, globalObject, 0, toTemporalInstantName.string(), dateProtoFuncToTemporalInstant, ImplementationVisibility::Public);
-        putDirectWithoutTransition(vm, toTemporalInstantName, toTemporalInstantFunction, static_cast<unsigned>(PropertyAttribute::DontEnum));
-    }
     // The constructor will be added later, after DateConstructor has been built.
 }
 
