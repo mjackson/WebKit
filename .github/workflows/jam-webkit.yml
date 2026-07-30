@@ -90,6 +90,8 @@ jobs:
           tar -xzf "${icu_archive}" -C "${RUNNER_TEMP}"
           rm "${RUNNER_TEMP}/icu/source/data/in/icudt78l.dat"
           unzip -q -o "${icu_data_archive}" -d "${RUNNER_TEMP}/icu/source"
+          patch -d "${RUNNER_TEMP}/icu" -p1 \
+            < "${GITHUB_WORKSPACE}/.github/patches/icu/chinese-1987-astronomy.patch"
           pushd "${RUNNER_TEMP}/icu/source"
           if [[ "${{ matrix.platform }}" == "macos" ]]; then
             icu_platform=macOS
@@ -136,6 +138,16 @@ jobs:
             43ea817e84600347895efc196e2bb91162e9e679
           git -C $env:VCPKG_INSTALLATION_ROOT checkout `
             43ea817e84600347895efc196e2bb91162e9e679
+          $icuPort = Join-Path $env:VCPKG_INSTALLATION_ROOT "ports\icu"
+          Copy-Item `
+            (Join-Path $env:GITHUB_WORKSPACE `
+              ".github\patches\icu\chinese-1987-astronomy.patch") `
+            $icuPort
+          $portfile = Join-Path $icuPort "portfile.cmake"
+          $contents = Get-Content $portfile -Raw
+          $contents = $contents -replace "PATCHES\r?\n", `
+            "PATCHES`n        chinese-1987-astronomy.patch`n"
+          Set-Content $portfile $contents
           vcpkg install --classic --clean-after-build icu:x64-windows-static
           $sourceDir = Join-Path $env:VCPKG_INSTALLATION_ROOT `
             "installed\x64-windows-static\lib"
