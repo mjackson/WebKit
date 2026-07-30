@@ -819,13 +819,15 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
             // Handling "islamicc" candidate for backward compatibility.
             if (calendar == "islamicc"_s)
                 calendar = "islamic-civil"_s;
-            if (Options::useIntlEraMonthcode()) {
-                // https://tc39.es/proposal-intl-era-monthcode/#sec-createdatetimeformat step 9
-                if (calendar == "islamic"_s)
-                    calendar = "islamic-tbla"_s;
-                if (!intlAvailableCalendarIndex().contains(calendar))
-                    calendar = defaultCalendarForLocale(resolved.dataLocale);
-            }
+            // https://tc39.es/proposal-intl-era-monthcode/#sec-createdatetimeformat step 9
+            if (calendar == "islamic"_s)
+                calendar = "islamic-tbla"_s;
+            // Not a numbered CreateDateTimeFormat step; the spec's [[ca]] slot still permits
+            // calendars outside AvailableCalendars() here. Per TG2's resolution closing
+            // AvailableCalendars() and ignoring unsupported "ca" values like "islamic-rgsa"
+            // (https://github.com/tc39/ecma402/blob/main/meetings/notes-2026-01-08.md#intl-era-month-code-99), fall back instead.
+            if (!intlAvailableCalendarIndex().contains(calendar))
+                calendar = defaultCalendarForLocale(resolved.dataLocale);
         }
         impl->m_calendar = WTF::move(calendar);
     }
@@ -2561,7 +2563,7 @@ JSValue IntlDateTimeFormat::format(JSGlobalObject* globalObject, JSValue x) cons
 
     Vector<char16_t, 32> result;
     auto fmtStatus = callBufferProducingFunction(udat_format, tempFormat, record.value, result, nullptr);
-    if (U_FAILURE(fmtStatus))
+    if (U_FAILURE(fmtStatus)) [[unlikely]]
         return throwTypeError(globalObject, scope, "failed to format date value"_s);
     replaceNarrowNoBreakSpaceOrThinSpaceWithNormalSpace(result);
     return jsString(vm, String(WTF::move(result)));
