@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include "FractionToDouble.h"
+
 #include <JavaScriptCore/IntlObject.h>
 #include <JavaScriptCore/TemporalObject.h>
 #include <wtf/Int128.h>
@@ -133,9 +135,9 @@ public:
         case TemporalUnit::Millisecond:
             return static_cast<double>(m_milliseconds);
         case TemporalUnit::Microsecond:
-            return static_cast<double>(m_microseconds);
+            return fractionToDouble(m_microseconds, 1.0);
         case TemporalUnit::Nanosecond:
-            return static_cast<double>(m_nanoseconds);
+            return fractionToDouble(m_nanoseconds, 1.0);
         }
         ASSERT_NOT_REACHED();
         return 0;

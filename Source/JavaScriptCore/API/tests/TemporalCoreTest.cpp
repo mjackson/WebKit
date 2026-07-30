@@ -984,6 +984,11 @@ static void testBalanceDuration()
     ISO8601::Duration d4(0, 0, 0, 0, 0, 0, 0, 500, 0, 0);
     balanceDuration(d4, TemporalUnit::Millisecond);
     TCHECK_EQ(static_cast<int64_t>(d4.milliseconds()), 500LL, "balance: 500ms unchanged");
+
+    // Converting a balanced Int128 field to Number must round the exact integer once.
+    ISO8601::Duration d5(0, 0, 0, 0, 0, 0, 8692288669465520LL, 0, 373761, 0);
+    balanceDuration(d5, TemporalUnit::Microsecond);
+    TCHECK_EQ(d5[TemporalUnit::Microsecond], 8.692288669465521e21, "balance: large microseconds round exactly");
 }
 
 // ---------------------------------------------------------------------------

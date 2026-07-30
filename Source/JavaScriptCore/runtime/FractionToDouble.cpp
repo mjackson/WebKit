@@ -133,8 +133,12 @@ double fractionToDouble(const Int128& numerator, double denominator)
 
     // When the denominator is 1, we are just calculating the double
     // approximation of the numerator.
-    if (denominator == 1)
-        return static_cast<double>(numerator);
+    if (denominator == 1) {
+        double approximation = static_cast<double>(numerator);
+        if (isSafeInteger(approximation))
+            return approximation;
+        return fractionToDoubleSlow(numerator, denominator);
+    }
 
     // When the numerator can be represented exactly as a double the algorithm
     // collapses to a simple double division.
