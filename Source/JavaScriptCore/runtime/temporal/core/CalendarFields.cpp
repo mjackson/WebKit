@@ -176,6 +176,14 @@ TemporalResult<ResolvedCalendarDate> dateFromFields(CalendarID calendarId, const
     }
 
     // Steps 1-2 (non-ISO): CalendarResolveFields + CalendarDateToISO via ICU bridge.
+    bool hasEraYear = fields.era.has_value() && fields.eraYear.has_value();
+    if (!fields.year && !hasEraYear)
+        return makeUnexpected(typeError("year property must be present"_s));
+    if (!fields.day)
+        return makeUnexpected(typeError("day property must be present"_s));
+    if (!fields.month && !fields.monthCode)
+        return makeUnexpected(typeError("month or monthCode property must be present"_s));
+
     auto rangeCheck = checkYearRange(fields);
     if (!rangeCheck)
         return makeUnexpected(rangeCheck.error());
@@ -192,14 +200,6 @@ TemporalResult<ResolvedCalendarDate> dateFromFields(CalendarID calendarId, const
         if (clampTo<uint8_t>(*fields.month) != codeMonth)
             return makeUnexpected(rangeError("month does not match monthCode"_s));
     }
-
-    bool hasEraYear = fields.era.has_value() && fields.eraYear.has_value();
-    if (!fields.year && !hasEraYear)
-        return makeUnexpected(typeError("year property must be present"_s));
-    if (!fields.day)
-        return makeUnexpected(typeError("day property must be present"_s));
-    if (!fields.month && !fields.monthCode)
-        return makeUnexpected(typeError("month or monthCode property must be present"_s));
 
     // Resolve month from month/monthCode
     uint8_t month = 1;
@@ -249,6 +249,12 @@ TemporalResult<ResolvedCalendarDate> yearMonthFromFields(CalendarID calendarId, 
     }
 
     // Steps 1-3 (non-ISO): set [[Day]]=1 + CalendarResolveFields + CalendarDateToISO via ICU bridge.
+    bool hasEraYear = fields.era.has_value() && fields.eraYear.has_value();
+    if (!fields.year && !hasEraYear)
+        return makeUnexpected(typeError("year property must be present"_s));
+    if (!fields.month && !fields.monthCode)
+        return makeUnexpected(typeError("month or monthCode property must be present"_s));
+
     auto rangeCheck = checkYearRange(fields);
     if (!rangeCheck)
         return makeUnexpected(rangeCheck.error());
@@ -265,12 +271,6 @@ TemporalResult<ResolvedCalendarDate> yearMonthFromFields(CalendarID calendarId, 
         if (clampTo<uint8_t>(*fields.month) != codeMonth)
             return makeUnexpected(rangeError("month does not match monthCode"_s));
     }
-
-    bool hasEraYear = fields.era.has_value() && fields.eraYear.has_value();
-    if (!fields.year && !hasEraYear)
-        return makeUnexpected(typeError("year property must be present"_s));
-    if (!fields.month && !fields.monthCode)
-        return makeUnexpected(typeError("month or monthCode property must be present"_s));
 
     uint8_t month = 1;
     if (fields.month)
