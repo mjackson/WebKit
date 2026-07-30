@@ -115,6 +115,18 @@ struct GregorianArithmeticYearFields {
     int32_t eraYear;
 };
 
+struct IslamicEraFields {
+    ASCIILiteral era;
+    int32_t eraYear;
+};
+
+static IslamicEraFields islamicEraFieldsFor(int32_t extendedYear)
+{
+    if (extendedYear > 0)
+        return { "ah"_s, extendedYear };
+    return { "bh"_s, 1 - extendedYear };
+}
+
 static GregorianArithmeticYearFields gregorianArithmeticYearFieldsFor(CalendarID calendarId, int32_t isoYear)
 {
     ASSERT(calendarId == rocCalendarID() || calendarId == buddhistCalendarID());
@@ -744,10 +756,16 @@ TemporalResult<CalendarFields> isoToCalendarFields(CalendarID calendarId, const 
     fields.isLeapMonth = fields.monthCode.endsWith("L"_s);
 
     if (raw.hasEra) {
-        // mapICUEraToTemporalEra for Japanese calls japaneseEraStartYear which uses withCalendar
-        // on the same calendarId — safe because the outer lock was released above.
-        fields.era = mapICUEraToTemporalEra(calendarId, raw.ucalEra);
-        fields.eraYear = raw.ucalYear;
+        if (calendarIsIslamic(calendarId)) {
+            auto eraFields = islamicEraFieldsFor(raw.extendedYear);
+            fields.era = String(eraFields.era);
+            fields.eraYear = eraFields.eraYear;
+        } else {
+            // mapICUEraToTemporalEra for Japanese calls japaneseEraStartYear which uses withCalendar
+            // on the same calendarId — safe because the outer lock was released above.
+            fields.era = mapICUEraToTemporalEra(calendarId, raw.ucalEra);
+            fields.eraYear = raw.ucalYear;
+        }
         if (calendarId == japaneseCalendarID()) {
             if (isoDate.year() < japaneseCalendarGregorianTransitionYear) {
                 fields.era = isoDate.year() > 0 ? "ce"_s : "bce"_s;
@@ -908,6 +926,12 @@ TemporalResult<std::optional<String>> calendarEra(CalendarID calendarId, const I
         return std::optional<String>(std::nullopt);
     if (calendarId == rocCalendarID() || calendarId == buddhistCalendarID())
         return std::optional<String>(String(gregorianArithmeticYearFieldsFor(calendarId, isoDate.year()).era));
+    if (calendarIsIslamic(calendarId)) {
+        auto yearOrError = calendarYear(calendarId, isoDate);
+        if (!yearOrError)
+            return makeUnexpected(yearOrError.error());
+        return std::optional<String>(String(islamicEraFieldsFor(*yearOrError).era));
+    }
     // 2. Return the era string for isoDate in calendarId (e.g. "ce", "bce", "reiwa").
     // NOTE: Japanese dates before 1873 use "ce"/"bce" per spec, not ICU era names.
     if (calendarId == japaneseCalendarID() && isoDate.year() < japaneseCalendarGregorianTransitionYear)
@@ -943,6 +967,12 @@ TemporalResult<std::optional<int32_t>> calendarEraYear(CalendarID calendarId, co
         return std::optional<int32_t>(std::nullopt);
     if (calendarId == rocCalendarID() || calendarId == buddhistCalendarID())
         return std::optional<int32_t>(gregorianArithmeticYearFieldsFor(calendarId, isoDate.year()).eraYear);
+    if (calendarIsIslamic(calendarId)) {
+        auto yearOrError = calendarYear(calendarId, isoDate);
+        if (!yearOrError)
+            return makeUnexpected(yearOrError.error());
+        return std::optional<int32_t>(islamicEraFieldsFor(*yearOrError).eraYear);
+    }
     // 2. Return the era year (year within the current era) of isoDate in calendarId.
     // NOTE: Japanese "ce"/"bce" fallback: eraYear is the Gregorian year.
     if (calendarId == japaneseCalendarID() && isoDate.year() < japaneseCalendarGregorianTransitionYear)
@@ -1492,7 +1522,7 @@ TemporalResult<ISO8601::PlainDate> calendarDateAdd(CalendarID calendarId, const 
         return fixedSolarDateAdd(calendarId, isoDate, duration, overflow);
     // 3. Gregorian-derived calendars use ISO proleptic-Gregorian arithmetic.
     // NOTE: ICU's gregory uses Julian arithmetic before 1582; keep the ISO path for Gregorian-derived calendars.
-    if (!calendarIsLunisolar(calendarId))
+    if (!calendarIsLunisolar(calendarId) && !calendarIsIslamic(calendarId))
         return isoDateAdd(isoDate, duration, overflow);
     // 4. Let totalDays be duration.[[Days]] + 7 × duration.[[Weeks]].
     // NOTE: ucal_add takes int32_t; any component outside int32_t exceeds Temporal's representable range.
@@ -1521,17 +1551,20 @@ TemporalResult<ISO8601::PlainDate> calendarDateAdd(CalendarID calendarId, const 
         int32_t originalDay = ucal_get(cal, UCAL_DAY_OF_MONTH, &status);
         if (U_FAILURE(status)) [[unlikely]]
             return makeUnexpected(rangeError(icuReadCalendarFailed));
-        // 7. If duration.[[Years]] ≠ 0, add years and re-resolve the original month code in the new year.
+        // 7. If duration.[[Years]] ≠ 0, add years and, for leap-month calendars,
+        // re-resolve the original month code in the new year.
         if (duration.years()) {
             ucal_add(cal, UCAL_EXTENDED_YEAR, clampTo<int32_t>(duration.years()), &status);
             if (U_FAILURE(status)) [[unlikely]]
                 return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
-            auto foundState = setCalendarToMonthCode(cal, calendarId, origMonthCode);
-            if (!foundState) [[unlikely]]
-                return makeUnexpected(rangeError("Failed to resolve month code after year addition"_s));
-            //    a. If overflow is ~reject~ and month code doesn't exist in new year, throw RangeError.
-            if (!foundState.value() && overflow == TemporalOverflow::Reject) [[unlikely]]
-                return makeUnexpected(rangeError("month code does not exist in the target year (overflow: reject)"_s));
+            if (calendarIsLunisolar(calendarId)) {
+                auto foundState = setCalendarToMonthCode(cal, calendarId, origMonthCode);
+                if (!foundState) [[unlikely]]
+                    return makeUnexpected(rangeError("Failed to resolve month code after year addition"_s));
+                //    a. If overflow is ~reject~ and month code doesn't exist in new year, throw RangeError.
+                if (!foundState.value() && overflow == TemporalOverflow::Reject) [[unlikely]]
+                    return makeUnexpected(rangeError("month code does not exist in the target year (overflow: reject)"_s));
+            }
         }
 
         // 8. If duration.[[Months]] ≠ 0, add months.
@@ -1677,9 +1710,10 @@ TemporalResult<ISO8601::Duration> calendarDateUntil(CalendarID calendarId, const
     // CalendarDateUntil takes "largestUnit: a date unit" — spec guarantees Year/Month/Week/Day only.
     ASSERT(largestUnit == TemporalUnit::Year || largestUnit == TemporalUnit::Month || largestUnit == TemporalUnit::Week || largestUnit == TemporalUnit::Day);
 
-    // 1. If calendarId is neither fixed solar nor lunisolar, use ISO proleptic-Gregorian arithmetic.
+    // 1. If calendarId is neither fixed solar nor a calendar with non-Gregorian
+    // year/month arithmetic, use ISO proleptic-Gregorian arithmetic.
     // NOTE: ICU's 'gregory' uses Julian before 1582, causing field mismatches; always route through ISO.
-    if (!calendarIsNonISOSolar(calendarId) && !calendarIsLunisolar(calendarId))
+    if (!calendarIsNonISOSolar(calendarId) && !calendarIsLunisolar(calendarId) && !calendarIsIslamic(calendarId))
         return diffISODate(one, two, largestUnit);
     // 2. If largestUnit is ~day~ or ~week~, use pure ISO day count (calendar-independent).
     // NOTE: ICU Chinese/Dangi epoch ms is approximate for dates beyond ~year 2100; pure ISO is exact.
@@ -2151,6 +2185,22 @@ TemporalResult<ISO8601::PlainDate> calendarDateFromFields(CalendarID calendarId,
             if (year && *year != isoYear) [[unlikely]]
                 return makeUnexpected(rangeError("year is inconsistent with era and eraYear"_s));
             return calendarDateFromFields(gregoryCalendarID(), isoYear, month, day, std::nullopt, std::nullopt, monthCode, overflow);
+        }
+        if (calendarIsIslamic(calendarId)) {
+            CheckedInt32 checkedYear = *eraYear;
+            if (*era == "bh"_s) {
+                checkedYear = 1;
+                checkedYear -= *eraYear;
+            } else if (*era != "ah"_s)
+                return makeUnexpected(rangeError("era is not valid for this calendar"_s));
+            if (checkedYear.hasOverflowed()) [[unlikely]]
+                return makeUnexpected(rangeError("Resolved calendar date is outside representable range"_s));
+            if (year && *year != checkedYear.value()) [[unlikely]]
+                return makeUnexpected(rangeError("year is inconsistent with era and eraYear"_s));
+            year = checkedYear.value();
+            tookEraPath = false;
+            era = std::nullopt;
+            eraYear = std::nullopt;
         }
     }
 
