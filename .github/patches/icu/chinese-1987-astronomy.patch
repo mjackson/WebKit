@@ -1,0 +1,45 @@
+diff --git a/source/i18n/chnsecal.cpp b/source/i18n/chnsecal.cpp
+index 94ece08..842c8f1 100644
+--- a/source/i18n/chnsecal.cpp
++++ b/source/i18n/chnsecal.cpp
+@@ -25,7 +25,9 @@
+ #include <float.h>
+ #include "gregoimp.h" // Math
+ #include "astro.h" // CalendarAstronomer and CalendarCache
++#include "unicode/rbtz.h"
+ #include "unicode/simpletz.h"
++#include "unicode/tzrule.h"
+ #include "uhash.h"
+ #include "ucln_in.h"
+ #include "cstring.h"
+@@ -152,7 +154,29 @@ const char *ChineseCalendar::getType() const {
+ namespace { // anonymous
+ 
+ static void U_CALLCONV initAstronomerTimeZone() {
+-    gAstronomerTimeZone = new SimpleTimeZone(CHINA_OFFSET, UNICODE_STRING_SIMPLE("CHINA_ZONE") );
++    // The astronomer approximation selects regular month 7 at the July 1987
++    // conjunction. Temporarily moving the calculation meridian one hour east
++    // selects leap month 6, matching the published calendar.
++    UErrorCode status = U_ZERO_ERROR;
++    const UDate millis1987[] = { static_cast<UDate>((1987 - 1970) * 365 * kOneDay + 4 * kOneDay) };
++    const UDate millis1988[] = { static_cast<UDate>((1988 - 1970) * 365 * kOneDay + 4 * kOneDay) };
++    LocalPointer<InitialTimeZoneRule> initialTimeZone(new InitialTimeZoneRule(
++        UNICODE_STRING_SIMPLE("GMT+8"), CHINA_OFFSET, 0), status);
++    LocalPointer<TimeZoneRule> rule1987(new TimeArrayTimeZoneRule(
++        UNICODE_STRING_SIMPLE("China 1987"), 9 * kOneHour, 0, millis1987, 1, DateTimeRule::STANDARD_TIME), status);
++    LocalPointer<TimeZoneRule> rule1988(new TimeArrayTimeZoneRule(
++        UNICODE_STRING_SIMPLE("China 1988"), CHINA_OFFSET, 0, millis1988, 1, DateTimeRule::STANDARD_TIME), status);
++    LocalPointer<RuleBasedTimeZone> zone(new RuleBasedTimeZone(
++        UNICODE_STRING_SIMPLE("CHINA_ZONE"), initialTimeZone.orphan()), status);
++    if (U_SUCCESS(status)) {
++        zone->addTransitionRule(rule1987.orphan(), status);
++        zone->addTransitionRule(rule1988.orphan(), status);
++        zone->complete(status);
++    }
++    if (U_SUCCESS(status))
++        gAstronomerTimeZone = zone.orphan();
++    else
++        gAstronomerTimeZone = new SimpleTimeZone(CHINA_OFFSET, UNICODE_STRING_SIMPLE("CHINA_ZONE"));
+     ucln_i18n_registerCleanup(UCLN_I18N_CHINESE_CALENDAR, calendar_chinese_cleanup);
+ }
+ 

@@ -709,93 +709,17 @@ static bool isHebrewYear0Kislev(UCalendar* cal, CalendarID calendarId)
 // icu4x: components/calendar/src/date.rs Date::month().ordinal
 // NOTE: mutates cal (walks months via ucal_add). Must be the last ICU cal operation in a withCalendar lambda;
 //       withCalendar calls ucal_clear before the next use so no restore is needed.
-static std::optional<uint8_t> computeOrdinalMonth(UCalendar* cal, CalendarID calendarId)
+static std::optional<uint8_t> computeOrdinalMonth(UCalendar* cal, CalendarID)
 {
-    UErrorCode status = U_ZERO_ERROR;
-    int32_t month = ucal_get(cal, UCAL_MONTH, &status) + 1;
-    if (U_FAILURE(status)) [[unlikely]]
+    auto ordinalMonth = readICUField(cal, UCAL_ORDINAL_MONTH);
+    if (!ordinalMonth || *ordinalMonth < 0 || *ordinalMonth > 12) [[unlikely]]
         return std::nullopt;
-    if (!calendarIsLunisolar(calendarId))
-        return static_cast<uint8_t>(month); // For lunisolar: the ordinal month includes leap months.
-    // UCAL_MONTH gives the underlying month index (leap months share same index).
-    // Count how many months from start of year to current position.
-    int32_t isLeap = ucal_get(cal, UCAL_IS_LEAP_MONTH, &status);
-    if (U_FAILURE(status)) [[unlikely]]
-        return std::nullopt;
-    ucal_set(cal, UCAL_MONTH, 0);
-    ucal_set(cal, UCAL_IS_LEAP_MONTH, 0);
-    ucal_set(cal, UCAL_DAY_OF_MONTH, 1);
-
-    int32_t ordinal = 1;
-    int32_t targetMonth = month - 1; // 0-indexed for comparison with UCAL_MONTH
-    int32_t targetIsLeap = isLeap;
-    for (int i = 0; i < 15; i++) {
-        // max 13 months + safety
-        int32_t curMonth = ucal_get(cal, UCAL_MONTH, &status);
-        if (U_FAILURE(status)) [[unlikely]]
-            return std::nullopt;
-        int32_t curLeap = ucal_get(cal, UCAL_IS_LEAP_MONTH, &status);
-        if (U_FAILURE(status)) [[unlikely]]
-            return std::nullopt;
-        if (curMonth == targetMonth && curLeap == targetIsLeap)
-            break;
-        ucal_add(cal, UCAL_MONTH, 1, &status);
-        if (U_FAILURE(status)) [[unlikely]]
-            return std::nullopt;
-        if (!forceICUFieldReresolution(cal)) [[unlikely]]
-            return std::nullopt;
-        ordinal++;
-    }
-
-    return static_cast<uint8_t>(ordinal);
+    return static_cast<uint8_t>(*ordinalMonth + 1);
 }
 
 static std::optional<uint8_t> computeFieldResolutionOrdinalMonth(UCalendar* cal, CalendarID calendarId)
 {
-    if (calendarId != chineseCalendarID() && calendarId != dangiCalendarID())
-        return computeOrdinalMonth(cal, calendarId);
-
-    UErrorCode status = U_ZERO_ERROR;
-    auto targetCode = getMonthCode(cal, calendarId);
-    auto parsedTargetCode = targetCode ? ISO8601::parseMonthCode(*targetCode) : std::nullopt;
-    if (!parsedTargetCode) [[unlikely]]
-        return std::nullopt;
-    auto anchor = lunisolarYearAnchor(cal, calendarId, status);
-    if (!anchor) [[unlikely]]
-        return std::nullopt;
-
-    if (anchor->second > anchor->first) {
-        auto isLeapYear = isChineseLeapYear(cal, *anchor, status);
-        if (!isLeapYear) [[unlikely]]
-            return std::nullopt;
-        uint8_t ordinal = parsedTargetCode->monthNumber + parsedTargetCode->isLeapMonth;
-        if (*isLeapYear && !parsedTargetCode->isLeapMonth) {
-            bool leapFollows = false;
-            for (uint8_t i = 0; i < 13; ++i) {
-                if (advanceToNextLunisolarMonth(cal, calendarId, status) != LunisolarMonthAdvanceResult::Advanced) [[unlikely]]
-                    return std::nullopt;
-                auto code = getMonthCode(cal, calendarId);
-                if (!code) [[unlikely]]
-                    return std::nullopt;
-                if (*code == "M01"_s)
-                    return ordinal + !leapFollows;
-                leapFollows |= code->endsWith("L"_s);
-            }
-            return std::nullopt;
-        }
-        return ordinal <= 13 ? std::optional<uint8_t> { ordinal } : std::nullopt;
-    }
-
-    for (uint8_t ordinal = 1; ordinal <= 13; ++ordinal) {
-        auto code = getMonthCode(cal, calendarId);
-        if (!code) [[unlikely]]
-            return std::nullopt;
-        if (*code == *targetCode)
-            return ordinal;
-        if (advanceToNextLunisolarMonth(cal, calendarId, status) != LunisolarMonthAdvanceResult::Advanced) [[unlikely]]
-            return std::nullopt;
-    }
-    return std::nullopt;
+    return computeOrdinalMonth(cal, calendarId);
 }
 
 // https://tc39.es/proposal-intl-era-monthcode/#sec-temporal-canonicalizeeraincalendar
@@ -1257,6 +1181,32 @@ TemporalResult<int32_t> calendarDaysInYear(CalendarID calendarId, const ISO8601:
     if (calendarUsesISOFallbackForExtremeYear(calendarId, isoDate.year()))
         return WTF::daysInYear(isoDate.year());
     return withCalendarSetToDate(gregorianArithmeticCalendarFor(calendarId), isoDate, [&](UCalendar* cal) -> TemporalResult<int32_t> {
+        if (calendarId == chineseCalendarID() || calendarId == dangiCalendarID()) {
+            UErrorCode status = U_ZERO_ERROR;
+            if (!setCalendarToLunisolarYearStart(cal, calendarId, std::nullopt, status)) [[unlikely]]
+                return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
+            double yearStart = ucal_getMillis(cal, &status);
+            if (U_FAILURE(status)) [[unlikely]]
+                return makeUnexpected(rangeError(icuReadCalendarFailed));
+            bool reachedNextYear = false;
+            for (uint8_t month = 0; month < 13; ++month) {
+                if (advanceToNextLunisolarMonth(cal, calendarId, status) != LunisolarMonthAdvanceResult::Advanced) [[unlikely]]
+                    return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
+                auto monthCode = getMonthCode(cal, calendarId);
+                if (!monthCode) [[unlikely]]
+                    return makeUnexpected(rangeError(icuReadCalendarFailed));
+                if (*monthCode == "M01"_s) {
+                    reachedNextYear = true;
+                    break;
+                }
+            }
+            if (!reachedNextYear) [[unlikely]]
+                return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
+            double nextYearStart = ucal_getMillis(cal, &status);
+            if (U_FAILURE(status)) [[unlikely]]
+                return makeUnexpected(rangeError(icuReadCalendarFailed));
+            return static_cast<int32_t>((nextYearStart - yearStart) / 86'400'000.0);
+        }
         // ICU4C-WORKAROUND: rdar://182958553 - Hebrew y0 is Regular leap per icu4x (384), not Deficient leap (383).
         if (calendarId == hebrewCalendarID()) {
             UErrorCode s = U_ZERO_ERROR;
@@ -1309,23 +1259,10 @@ TemporalResult<int32_t> calendarMonthsInYear(CalendarID calendarId, const ISO860
         return 12;
     return withCalendarSetToDate(calendarId, isoDate, [&](UCalendar* cal) -> TemporalResult<int32_t> {
         if (calendarIsLunisolar(calendarId)) {
-            // For lunisolar calendars, count months by walking from month 1 to end of year.
-            // cal is local; mutating it has no observable effect outside this function.
-            UErrorCode status = U_ZERO_ERROR;
-            bool isChineseBased = calendarId == chineseCalendarID() || calendarId == dangiCalendarID();
-            if (isChineseBased) {
-                auto anchor = lunisolarYearAnchor(cal, calendarId, status);
-                if (!anchor) [[unlikely]]
-                    return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
-                if (anchor->second > anchor->first) {
-                    auto isLeapYear = isChineseLeapYear(cal, *anchor, status);
-                    if (!isLeapYear) [[unlikely]]
-                        return makeUnexpected(rangeError(icuReadCalendarFailed));
-                    return *isLeapYear ? 13 : 12;
-                }
-            } else if (!setCalendarToLunisolarYearStart(cal, calendarId, std::nullopt, status)) [[unlikely]]
-                return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
-            return walkLunisolarMonthsFromYearStart(cal, calendarId, icuCalendarArithmeticFailed);
+            auto result = readICUFieldLimit(cal, UCAL_ORDINAL_MONTH, UCAL_ACTUAL_MAXIMUM);
+            if (!result) [[unlikely]]
+                return makeUnexpected(result.error());
+            return *result + 1;
         }
         auto result = readICUFieldLimit(cal, UCAL_MONTH, UCAL_ACTUAL_MAXIMUM);
         if (!result) [[unlikely]]
@@ -2687,22 +2624,11 @@ TemporalResult<ISO8601::PlainDate> nonISOCalendarDateToISO(CalendarID calendarId
             // Step 3: CalendarMonthsInYear.
             uint8_t resolvedMonth;
             if (calendarIsLunisolar(calendarId)) {
-                // For lunisolar calendars, 'month' is the ordinal month (1-indexed).
-                // Count monthsInYear using a separate calendar to avoid state corruption.
                 if (!setCalendarToLunisolarYearStart(cal, calendarId, year, status)) [[unlikely]]
                     return makeUnexpected(rangeError("Failed to resolve lunisolar calendar"_s));
-                // Count months in year by walking cal forward, then reset to year start.
-                double calMs = ucal_getMillis(cal, &status);
+                int32_t monthsInYear = ucal_getLimit(cal, UCAL_ORDINAL_MONTH, UCAL_ACTUAL_MAXIMUM, &status) + 1;
                 if (U_FAILURE(status)) [[unlikely]]
                     return makeUnexpected(rangeError(icuReadCalendarFailed));
-                auto monthsInYearOrError = walkLunisolarMonthsFromYearStart(cal, calendarId, "Failed to resolve lunisolar calendar"_s);
-                if (!monthsInYearOrError) [[unlikely]]
-                    return makeUnexpected(monthsInYearOrError.error());
-                int32_t monthsInYear = *monthsInYearOrError;
-                // Reset to year start before advancing to target month.
-                ucal_setMillis(cal, calMs, &status);
-                if (U_FAILURE(status)) [[unlikely]]
-                    return makeUnexpected(rangeError(icuSetCalendarFailed));
 
                 // Clamp or reject month against monthsInYear.
                 resolvedMonth = month;
@@ -2712,12 +2638,10 @@ TemporalResult<ISO8601::PlainDate> nonISOCalendarDateToISO(CalendarID calendarId
                     resolvedMonth = static_cast<uint8_t>(monthsInYear);
                 }
 
-                // Advance the original calendar to the target month.
-                for (uint8_t ordinal = 1; ordinal < resolvedMonth; ++ordinal) {
-                    auto advanceResult = advanceToNextLunisolarMonth(cal, calendarId, status);
-                    if (advanceResult == LunisolarMonthAdvanceResult::Error) [[unlikely]]
-                        return makeUnexpected(rangeError(U_FAILURE(status) ? icuReadCalendarFailed : icuCalendarArithmeticFailed));
-                }
+                ucal_set(cal, UCAL_ORDINAL_MONTH, resolvedMonth - 1);
+                ucal_set(cal, UCAL_DAY_OF_MONTH, 1);
+                if (!forceICUFieldReresolution(cal)) [[unlikely]]
+                    return makeUnexpected(rangeError(icuCalendarArithmeticFailed));
             } else {
                 // CalendarMonthsInYear: cursor is already at year start, so read [[MonthsInYear]]
                 // straight off ICU instead of round-tripping through an ISO date.
