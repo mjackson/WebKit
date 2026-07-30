@@ -2284,6 +2284,8 @@ TemporalResult<ISO8601::PlainDate> calendarDateFromFields(CalendarID calendarId,
                 return makeUnexpected(rangeError("month is out of range"_s));
             if (monthCode->monthNumber == 13 && calendarId != copticCalendarID() && calendarId != ethiopicCalendarID() && calendarId != ethioaaCalendarID()) [[unlikely]]
                 return makeUnexpected(rangeError("month is out of range"_s));
+            if (calendarId == hebrewCalendarID() && monthCode->isLeapMonth && monthCode->monthNumber != 5) [[unlikely]]
+                return makeUnexpected(rangeError("monthCode is not valid for the Hebrew calendar"_s));
 
             if (calendarIsLunisolar(calendarId)) {
                 // Lunisolar: walk months from start of year to find target monthCode.
