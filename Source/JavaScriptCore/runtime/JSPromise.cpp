@@ -75,6 +75,11 @@ JSPromise* JSPromise::create(VM& vm, Structure* structure)
 {
     JSPromise* promise = new (NotNull, allocateCell<JSPromise>(vm)) JSPromise(vm, structure);
     promise->finishCreation(vm);
+    JSGlobalObject* globalObject = structure->globalObject();
+    if (globalObject) {
+        if (auto* tracker = globalObject->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]]
+            tracker(globalObject, promise);
+    }
     return promise;
 }
 

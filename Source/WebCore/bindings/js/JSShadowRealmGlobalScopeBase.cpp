@@ -57,6 +57,7 @@ const GlobalObjectMethodTable* JSShadowRealmGlobalScopeBase::globalObjectMethodT
         &moduleLoaderCreateImportMetaProperties,
         &moduleLoaderEvaluate,
         &promiseRejectionTracker,
+        nullptr /* promiseCreationTracker */,
         &reportUncaughtExceptionAtEventLoop,
         &currentScriptExecutionOwner,
         &scriptExecutionStatus,

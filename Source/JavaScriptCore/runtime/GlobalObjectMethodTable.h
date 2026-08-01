@@ -68,6 +68,11 @@ struct GlobalObjectMethodTable {
     JSValue (*moduleLoaderEvaluate)(JSGlobalObject*, JSModuleLoader*, JSValue key, JSValue moduleRecordValue, RefPtr<ScriptFetcher>, JSValue awaitedValue, JSValue resumeMode);
 
     void (*promiseRejectionTracker)(JSGlobalObject*, JSPromise*, JSPromiseRejectionOperation);
+    // Fired once per materialized JSPromise allocation in the global's realm.
+    // Null for all engine clients; an embedder that installs it must do so
+    // before the realm compiles any code, because optimizing tiers only emit
+    // the notifying allocation path when a tracker is present at compile time.
+    void (*promiseCreationTracker)(JSGlobalObject*, JSPromise*);
     void (*reportUncaughtExceptionAtEventLoop)(JSGlobalObject*, Exception*);
 
     // For most contexts this is just the global object. For JSDOMWindow, however, this is the JSDocument.

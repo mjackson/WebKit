@@ -63,6 +63,7 @@ const GlobalObjectMethodTable* JSWorkerGlobalScopeBase::globalObjectMethodTable(
         &moduleLoaderCreateImportMetaProperties,
         &moduleLoaderEvaluate,
         &promiseRejectionTracker,
+        nullptr /* promiseCreationTracker */,
         &reportUncaughtExceptionAtEventLoop,
         &currentScriptExecutionOwner,
         &scriptExecutionStatus,

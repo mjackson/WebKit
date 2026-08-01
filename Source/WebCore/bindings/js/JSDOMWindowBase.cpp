@@ -101,6 +101,7 @@ const GlobalObjectMethodTable* JSDOMWindowBase::globalObjectMethodTable()
         moduleLoaderCreateImportMetaProperties,
         moduleLoaderEvaluate,
         promiseRejectionTracker,
+        nullptr /* promiseCreationTracker */,
         reportUncaughtExceptionAtEventLoop,
         currentScriptExecutionOwner,
         scriptExecutionStatus,

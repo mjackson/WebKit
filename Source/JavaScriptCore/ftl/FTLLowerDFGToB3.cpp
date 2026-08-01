@@ -10046,6 +10046,12 @@ IGNORE_CLANG_WARNINGS_END
     void compileNewPromise()
     {
         ASSERT(m_node->structure()->classInfoForCells() == JSPromise::info());
+        if (m_graph.globalObjectFor(m_origin.semantic)->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]] {
+            // A creation tracker must observe every materialized promise, so
+            // this tier allocates through the notifying operation.
+            setJSValue(vmCall(pointerType(), operationNewPromise, m_vmValue, frozenPointer(m_graph.freezeStrong(m_node->structure().get()))));
+            return;
+        }
         LBasicBlock slowCase = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
         LBasicBlock lastNext = m_out.insertNewBlocksBefore(slowCase);
@@ -10477,6 +10483,11 @@ IGNORE_CLANG_WARNINGS_END
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
 
         LValue callee = lowCell(m_node->child1());
+
+        if (globalObject->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]] {
+            setJSValue(vmCall(pointerType(), operationCreatePromise, weakPointer(globalObject), callee));
+            return;
+        }
 
         LBasicBlock derivedCase = m_out.newBlock();
         LBasicBlock isFunctionBlock = m_out.newBlock();
@@ -22123,7 +22134,9 @@ IGNORE_CLANG_WARNINGS_END
     {
         auto* globalObject = m_graph.globalObjectFor(m_origin.semantic);
 
-        if (m_node->isResolvedValueKnownNonThenable() || !(abstractValue(m_node->child1()).m_type & SpecObject)) {
+        const bool creationTracked = !!globalObject->globalObjectMethodTable()->promiseCreationTracker;
+        if (!creationTracked
+            && (m_node->isResolvedValueKnownNonThenable() || !(abstractValue(m_node->child1()).m_type & SpecObject))) {
             LValue argument = lowJSValue(m_node->child1());
 
             LBasicBlock slowCase = m_out.newBlock();
