@@ -24,6 +24,7 @@
  */
 
 #include "config.h"
+#include "GlobalObjectMethodTable.h"
 #include "FTLLowerDFGToB3.h"
 
 #if ENABLE(FTL_JIT)

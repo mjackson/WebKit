@@ -24,6 +24,7 @@
  */
 
 #include "config.h"
+#include "GlobalObjectMethodTable.h"
 #include "DFGSpeculativeJIT.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
