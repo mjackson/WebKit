@@ -75,8 +75,11 @@ JSPromise* JSPromise::create(VM& vm, Structure* structure)
 {
     JSPromise* promise = new (NotNull, allocateCell<JSPromise>(vm)) JSPromise(vm, structure);
     promise->finishCreation(vm);
-    JSGlobalObject* globalObject = structure->globalObject();
-    if (globalObject) {
+    // Every JSPromise is constructed here, so one notification site covers
+    // the engine. The structure carries the realm the promise belongs to,
+    // which is the realm that must observe it — not whichever realm happens
+    // to be running, which differs once an embedder runs several per VM.
+    if (JSGlobalObject* globalObject = structure->realm()) {
         if (auto* tracker = globalObject->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]]
             tracker(globalObject, promise);
     }
