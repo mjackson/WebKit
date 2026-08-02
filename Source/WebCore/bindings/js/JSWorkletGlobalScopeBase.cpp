@@ -55,6 +55,7 @@ const GlobalObjectMethodTable* JSWorkletGlobalScopeBase::globalObjectMethodTable
         &moduleLoaderCreateImportMetaProperties,
         &moduleLoaderEvaluate,
         &promiseRejectionTracker,
+        nullptr /* promiseCreationTracker */,
         &reportUncaughtExceptionAtEventLoop,
         &currentScriptExecutionOwner,
         &scriptExecutionStatus,

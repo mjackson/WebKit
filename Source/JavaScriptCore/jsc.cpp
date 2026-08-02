@@ -983,6 +983,7 @@ const GlobalObjectMethodTable GlobalObject::s_globalObjectMethodTable = {
     &moduleLoaderCreateImportMetaProperties,
     nullptr, // moduleLoaderEvaluate
     &promiseRejectionTracker,
+    nullptr /* promiseCreationTracker */,
     &reportUncaughtExceptionAtEventLoop,
     &currentScriptExecutionOwner,
     &scriptExecutionStatus,

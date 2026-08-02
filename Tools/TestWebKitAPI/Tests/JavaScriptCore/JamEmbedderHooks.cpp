@@ -127,6 +127,36 @@ TEST(JavaScriptCore_JamEmbedderHooks, DiscardsTasksForOneGlobalObject)
     EXPECT_TRUE(queue->isEmpty());
 }
 
+static unsigned promiseCreationNotifications = 0;
+
+static void countPromiseCreation(JSGlobalObject*, JSC::JSPromise*)
+{
+    promiseCreationNotifications++;
+}
+
+TEST(JavaScriptCore_JamEmbedderHooks, NotifiesPromiseCreationTracker)
+{
+    WTF::initializeMainThread();
+    JSC::initialize();
+
+    VM& vm = VM::create(HeapType::Large).leakRef();
+    JSLockHolder locker(vm);
+    static GlobalObjectMethodTable trackingTable = *JSGlobalObject::baseGlobalObjectMethodTable();
+    trackingTable.promiseCreationTracker = &countPromiseCreation;
+    auto* globalObject = JSGlobalObject::createWithCustomMethodTable(
+        vm, JSGlobalObject::createStructure(vm, JSC::jsNull()), &trackingTable);
+
+    promiseCreationNotifications = 0;
+    auto* promise = JSC::JSPromise::create(vm, globalObject->promiseStructure());
+    EXPECT_EQ(promiseCreationNotifications, 1u);
+    EXPECT_TRUE(!!promise);
+
+    // A realm without the tracker must notify nothing.
+    auto* untracked = JSGlobalObject::create(vm, JSGlobalObject::createStructure(vm, JSC::jsNull()));
+    JSC::JSPromise::create(vm, untracked->promiseStructure());
+    EXPECT_EQ(promiseCreationNotifications, 1u);
+}
+
 TEST(JavaScriptCore_JamEmbedderHooks, RestoresPromiseReactionJobOwners)
 {
     WTF::initializeMainThread();

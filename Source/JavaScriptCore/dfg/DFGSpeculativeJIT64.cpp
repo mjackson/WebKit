@@ -24,6 +24,7 @@
  */
 
 #include "config.h"
+#include "GlobalObjectMethodTable.h"
 #include "DFGSpeculativeJIT.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -9192,6 +9193,19 @@ void SpeculativeJIT::compileCreatePromise(Node* node)
 {
     JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
 
+    if (globalObject->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]] {
+        // A creation tracker must observe every materialized promise, so this
+        // tier allocates through the notifying operation instead of inline.
+        SpeculateCellOperand callee(this, node->child1());
+        GPRReg calleeGPR = callee.gpr();
+        flushRegisters();
+        GPRFlushedCallResult result(this);
+        GPRReg resultGPR = result.gpr();
+        callOperation(operationCreatePromise, resultGPR, LinkableConstant::globalObject(*this, node), calleeGPR);
+        cellResult(resultGPR, node);
+        return;
+    }
+
     SpeculateCellOperand callee(this, node->child1());
     GPRTemporary result(this);
     GPRTemporary structure(this);
@@ -9237,6 +9251,16 @@ void SpeculativeJIT::compileCreatePromise(Node* node)
 
 void SpeculativeJIT::compileNewPromise(Node* node)
 {
+    if (m_graph.globalObjectFor(node->origin.semantic)->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]] {
+        FrozenValue* structure = m_graph.freezeStrong(node->structure().get());
+        flushRegisters();
+        GPRFlushedCallResult result(this);
+        GPRReg resultGPR = result.gpr();
+        callOperation(operationNewPromise, resultGPR, TrustedImmPtr(&vm()), TrustedImmPtr(structure));
+        cellResult(resultGPR, node);
+        return;
+    }
+
     GPRTemporary result(this);
     GPRTemporary scratch1(this);
     GPRTemporary scratch2(this);
@@ -9260,7 +9284,9 @@ void SpeculativeJIT::compileNewPromise(Node* node)
 void SpeculativeJIT::compileNewResolvedPromise(Node* node)
 {
     JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
-    if (node->isResolvedValueKnownNonThenable() || !(m_state.forNode(node->child1()).m_type & SpecObject)) {
+    const bool creationTracked = !!globalObject->globalObjectMethodTable()->promiseCreationTracker;
+    if (!creationTracked
+        && (node->isResolvedValueKnownNonThenable() || !(m_state.forNode(node->child1()).m_type & SpecObject))) {
         JSValueOperand argument(this, node->child1());
 
         GPRTemporary result(this);
