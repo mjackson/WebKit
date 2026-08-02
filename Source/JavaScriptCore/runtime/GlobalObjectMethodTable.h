@@ -87,6 +87,13 @@ struct GlobalObjectMethodTable {
     String (*codeForEval)(JSGlobalObject*, JSValue);
     bool (*canCompileStrings)(JSGlobalObject*, CompilationType, String, const ArgList&);
     Structure* (*trustedScriptStructure)(JSGlobalObject*);
+
+    // Fired once per materialized JSPromise in the global's realm. Null for
+    // every engine client, and last in the struct so their positional
+    // initializers leave it null without listing it. An embedder that installs
+    // it must do so before the realm compiles any code: the optimizing tiers
+    // decide at compile time whether to emit the notifying allocation path.
+    void (*promiseCreationTracker)(JSGlobalObject*, JSPromise*);
 };
 
 } // namespace JSC
