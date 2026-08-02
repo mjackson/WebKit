@@ -2936,6 +2936,19 @@ JSC_DEFINE_JIT_OPERATION(operationNewPromise, JSCell*, (VM* vmPointer, Structure
     OPERATION_RETURN(scope, JSPromise::create(vm, structure));
 }
 
+// The optimizing tiers allocate promises inline rather than through
+// JSPromise::create, so they report the new promise here instead.
+JSC_DEFINE_JIT_OPERATION(operationNotifyPromiseCreation, void, (VM* vmPointer, JSPromise* promise))
+{
+    VM& vm = *vmPointer;
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSPromise::notifyCreated(promise);
+    OPERATION_RETURN(scope);
+}
+
 JSC_DEFINE_JIT_OPERATION(operationNewGenerator, JSCell*, (VM* vmPointer, Structure* structure))
 {
     VM& vm = *vmPointer;

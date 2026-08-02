@@ -50,6 +50,11 @@ public:
     }
 
     JS_EXPORT_PRIVATE static JSPromise* create(VM&, Structure*);
+    // Report a newly materialized promise to the realm's creation tracker, if
+    // the embedder installed one. `create` calls this; the optimizing tiers,
+    // which allocate promises inline, call it through
+    // operationNotifyPromiseCreation.
+    static void notifyCreated(JSPromise*);
     static JSPromise* createWithInitialValues(VM&, Structure*);
     static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 

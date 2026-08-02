@@ -10047,12 +10047,7 @@ IGNORE_CLANG_WARNINGS_END
     void compileNewPromise()
     {
         ASSERT(m_node->structure()->classInfoForCells() == JSPromise::info());
-        if (m_graph.globalObjectFor(m_origin.semantic)->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]] {
-            // A creation tracker must observe every materialized promise, so
-            // this tier allocates through the notifying operation.
-            setJSValue(vmCall(pointerType(), operationNewPromise, m_vmValue, frozenPointer(m_graph.freezeStrong(m_node->structure().get()))));
-            return;
-        }
+        const bool creationTracked = !!m_graph.globalObjectFor(m_origin.semantic)->globalObjectMethodTable()->promiseCreationTracker;
         LBasicBlock slowCase = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
         LBasicBlock lastNext = m_out.insertNewBlocksBefore(slowCase);
@@ -10061,6 +10056,11 @@ IGNORE_CLANG_WARNINGS_END
         m_out.store64(m_out.int64Zero, object, m_heaps.JSPromise_packed);
         m_out.store64(m_out.constInt64(JSValue::encode(JSValue())), object, m_heaps.JSPromise_slot);
         mutatorFence();
+        // The tracker must observe every materialized promise. Notifying here,
+        // on the inline path only, keeps the allocation inline; the slow case
+        // reaches JSPromise::create, which notifies for itself.
+        if (creationTracked) [[unlikely]]
+            vmCall(Void, operationNotifyPromiseCreation, m_vmValue, object);
         ValueFromBlock fastResult = m_out.anchor(object);
         m_out.jump(continuation);
 
@@ -22136,8 +22136,7 @@ IGNORE_CLANG_WARNINGS_END
         auto* globalObject = m_graph.globalObjectFor(m_origin.semantic);
 
         const bool creationTracked = !!globalObject->globalObjectMethodTable()->promiseCreationTracker;
-        if (!creationTracked
-            && (m_node->isResolvedValueKnownNonThenable() || !(abstractValue(m_node->child1()).m_type & SpecObject))) {
+        if (m_node->isResolvedValueKnownNonThenable() || !(abstractValue(m_node->child1()).m_type & SpecObject)) {
             LValue argument = lowJSValue(m_node->child1());
 
             LBasicBlock slowCase = m_out.newBlock();
@@ -22149,6 +22148,9 @@ IGNORE_CLANG_WARNINGS_END
             m_out.store64(m_out.constInt64((static_cast<uint64_t>(JSPromise::Status::Fulfilled) | JSPromise::isFirstResolvingFunctionCalledFlag) << CompactPointerTuple<JSCell*, uint16_t>::maxNumberOfBitsInPointer), promise, m_heaps.JSPromise_packed);
             m_out.store64(argument, promise, m_heaps.JSPromise_slot);
             mutatorFence();
+            // Inline path only; the slow case reaches JSPromise::create.
+            if (creationTracked) [[unlikely]]
+                vmCall(Void, operationNotifyPromiseCreation, m_vmValue, promise);
             ValueFromBlock fastResult = m_out.anchor(promise);
             m_out.jump(continuation);
 

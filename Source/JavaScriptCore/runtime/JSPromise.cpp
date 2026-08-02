@@ -71,18 +71,25 @@ private:
 
 const ClassInfo JSPromise::s_info = { "Promise"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSPromise) };
 
+// The structure carries the realm the promise belongs to, which is the realm
+// that must observe it — not whichever realm happens to be running, which
+// differs once an embedder runs several per VM.
+void JSPromise::notifyCreated(JSPromise* promise)
+{
+    JSGlobalObject* globalObject = promise->structure()->realm();
+    if (!globalObject)
+        return;
+    if (auto* tracker = globalObject->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]]
+        tracker(globalObject, promise);
+}
+
 JSPromise* JSPromise::create(VM& vm, Structure* structure)
 {
     JSPromise* promise = new (NotNull, allocateCell<JSPromise>(vm)) JSPromise(vm, structure);
     promise->finishCreation(vm);
-    // Every JSPromise is constructed here, so one notification site covers
-    // the engine. The structure carries the realm the promise belongs to,
-    // which is the realm that must observe it — not whichever realm happens
-    // to be running, which differs once an embedder runs several per VM.
-    if (JSGlobalObject* globalObject = structure->realm()) {
-        if (auto* tracker = globalObject->globalObjectMethodTable()->promiseCreationTracker) [[unlikely]]
-            tracker(globalObject, promise);
-    }
+    // Every JSPromise the runtime constructs comes through here. The optimizing
+    // tiers allocate inline instead, so they notify for themselves.
+    notifyCreated(promise);
     return promise;
 }
 
