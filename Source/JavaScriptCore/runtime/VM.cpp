@@ -64,7 +64,6 @@
 #include "IncrementalSweeper.h"
 #include "Interpreter.h"
 #include "IntlCache.h"
-#include "IntlObject.h"
 #include "JITCode.h"
 #include "JITOperationList.h"
 #include "JITSizeStatistics.h"
@@ -524,10 +523,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 
 #if ENABLE(JIT)
-    // Make sure that any stubs that the JIT is going to use are initialized in non-compilation threads.
     if (Options::useJIT()) {
         jitStubs = makeUnique<JITThunks>();
-        jitStubs->initialize(*this);
 #if ENABLE(FTL_JIT)
         ftlThunks = makeUnique<FTL::Thunks>();
 #endif // ENABLE(FTL_JIT)
@@ -545,12 +542,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 
     Config::finalize();
-
-    if (!isInMiniMode()) {
-        initializeAvailableTimeZones();
-        if (heapType == HeapType::Large)
-            dateCache.timeZoneDisplayName(/* isDST */ false);
-    }
 
     // We must set this at the end only after the VM is fully initialized.
     WTF::storeStoreFence();
@@ -845,7 +836,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> VM::getCTIStub(ThunkGenerator generator)
 
 MacroAssemblerCodeRef<JITThunkPtrTag> VM::getCTIStub(CommonJITThunkID thunkID)
 {
-    return jitStubs->ctiStub(thunkID);
+    return jitStubs->ctiStub(*this, thunkID);
 }
 
 #endif // ENABLE(JIT)
@@ -1814,7 +1805,21 @@ void VM::executeEntryScopeServicesOnExit()
     if (!traps().needHandling(VMTraps::NeedTermination))
         clearHasTerminationRequest();
 
-    clearScratchBuffers();
+    // ClearScratchBuffers is a transient service, and clearScratchBuffers() clears the
+    // request itself. DFG::prepareCatchOSREntry() is the only client that can leave a
+    // ScratchBuffer active across the entry scope boundary, and it requests the service
+    // when it does. Every other writer of ScratchBuffer::activeLength pairs its activation
+    // with a deactivation within a single VM entry. Hence, if the service was not
+    // requested, there is no active buffer to clear.
+    if (hasEntryScopeServiceRequest(EntryScopeService::ClearScratchBuffers)) [[unlikely]]
+        clearScratchBuffers();
+#if ASSERT_ENABLED
+    else {
+        Locker locker { m_scratchBufferLock };
+        for (auto* scratchBuffer : m_scratchBuffers)
+            ASSERT_WITH_MESSAGE(!scratchBuffer->activeLength(), "A scratch buffer was left active without requesting EntryScopeService::ClearScratchBuffers");
+    }
+#endif
 }
 
 JSGlobalObject* VM::deprecatedVMEntryGlobalObject(JSGlobalObject* globalObject) const

@@ -75,6 +75,7 @@
 #include "ExceptionHelpers.h"
 #include "ISO8601.h"
 #include "IntlObject.h"
+#include "Options.h"
 #include "VM.h"
 #include <limits>
 #include <wtf/DateMath.h>
@@ -454,8 +455,25 @@ String DateCache::timeZoneDisplayName(bool isDST)
 
 static Lock timeZoneCacheLock;
 
+// Ports without a time zone change notifier never advance WTF::lastTimeZoneID(),
+// so the only way for them to observe a host time zone change is to re-check the
+// host time zone every time it is consulted (webkit.org/b/318841). That check
+// throws away the Date and Intl caches on every VM entry, which is pure waste for
+// an embedder whose host time zone is fixed for the lifetime of the process, so
+// such an embedder can opt out with Options::hostTimeZoneCanChange(). Explicit
+// changes still take effect either way: they go through WTF::timeZoneDidChange().
+static bool shouldAlwaysHaveTimeZoneChange()
+{
+#if USE(TIME_ZONE_CHANGE_NOTIFICATIONS)
+    return false;
+#else
+    return Options::hostTimeZoneCanChange();
+#endif
+}
+
 // To confine icu::TimeZone destructor invocation in this file.
 DateCache::DateCache()
+    : m_alwaysHasTimeZoneChange(shouldAlwaysHaveTimeZoneChange())
 {
     WTF::listenForTimeZoneChangeNotifications();
 }
@@ -471,11 +489,7 @@ static TimeZone retrieveTimeZoneInformation()
     static NeverDestroyed<CachedHostTimeZone> globalCache;
 
     uint64_t currentID = WTF::lastTimeZoneID();
-#if USE(TIME_ZONE_CHANGE_NOTIFICATIONS)
-    bool isCacheStale = globalCache->timeZoneID != currentID;
-#else
-    bool isCacheStale = true;
-#endif
+    bool isCacheStale = shouldAlwaysHaveTimeZoneChange() || globalCache->timeZoneID != currentID;
     if (isCacheStale) {
         Vector<char16_t, 32> timeZoneID;
         getTimeZoneOverride(timeZoneID);

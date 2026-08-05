@@ -561,6 +561,8 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useSourceProviderCache, true, Normal, "If false, the parser will not use the source provider cache. It's good to verify everything works when this is false. Because the cache is so successful, it can mask bugs."_s) \
     v(Bool, useCodeCache, true, Normal, "If false, the unlinked byte code cache will not be used."_s) \
     \
+    v(Bool, hostTimeZoneCanChange, true, Normal, "Whether the host time zone can change while this process runs. Ports without USE(TIME_ZONE_CHANGE_NOTIFICATIONS) can only honor this by re-checking the host time zone on every VM entry, which flushes the Date and Intl caches each time; an embedder that fixes the host time zone for the lifetime of the process can set this to false to keep those caches. Has no effect where a platform notifier reports the changes instead."_s) \
+    \
     v(Bool, useWasm, canUseWasm(), Normal, "Expose the Wasm global object."_s) \
     \
     v(Bool, failToCompileWasmCode, false, Normal, "If true, no Wasm::Plan will sucessfully compile a function."_s) \

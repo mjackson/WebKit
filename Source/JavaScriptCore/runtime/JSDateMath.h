@@ -90,11 +90,12 @@ public:
 
     bool hasTimeZoneChange()
     {
-#if USE(TIME_ZONE_CHANGE_NOTIFICATIONS)
+        // Nothing advances lastTimeZoneID() without a platform notifier, so on
+        // those ports the host time zone has to be treated as always stale
+        // unless the embedder pinned it. See shouldAlwaysHaveTimeZoneChange().
+        if (m_alwaysHasTimeZoneChange) [[unlikely]]
+            return true;
         return m_cachedTimeZoneID != WTF::lastTimeZoneID();
-#else
-        return true;
-#endif
     }
 
     JS_EXPORT_PRIVATE void clearForTimeZoneChange();
@@ -174,6 +175,7 @@ private:
     double m_cachedDateStringValue;
     DateInstanceCache m_dateInstanceCache;
     uint64_t m_cachedTimeZoneID { 0 };
+    const bool m_alwaysHasTimeZoneChange;
     String m_timeZoneStandardDisplayNameCache;
     String m_timeZoneDSTDisplayNameCache;
 };
