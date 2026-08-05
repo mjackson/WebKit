@@ -1805,7 +1805,21 @@ void VM::executeEntryScopeServicesOnExit()
     if (!traps().needHandling(VMTraps::NeedTermination))
         clearHasTerminationRequest();
 
-    clearScratchBuffers();
+    // ClearScratchBuffers is a transient service, and clearScratchBuffers() clears the
+    // request itself. DFG::prepareCatchOSREntry() is the only client that can leave a
+    // ScratchBuffer active across the entry scope boundary, and it requests the service
+    // when it does. Every other writer of ScratchBuffer::activeLength pairs its activation
+    // with a deactivation within a single VM entry. Hence, if the service was not
+    // requested, there is no active buffer to clear.
+    if (hasEntryScopeServiceRequest(EntryScopeService::ClearScratchBuffers)) [[unlikely]]
+        clearScratchBuffers();
+#if ASSERT_ENABLED
+    else {
+        Locker locker { m_scratchBufferLock };
+        for (auto* scratchBuffer : m_scratchBuffers)
+            ASSERT_WITH_MESSAGE(!scratchBuffer->activeLength(), "A scratch buffer was left active without requesting EntryScopeService::ClearScratchBuffers");
+    }
+#endif
 }
 
 JSGlobalObject* VM::deprecatedVMEntryGlobalObject(JSGlobalObject* globalObject) const
