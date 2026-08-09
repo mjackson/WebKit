@@ -107,20 +107,17 @@ jobs:
               --with-data-packaging=static
           make --jobs "$(getconf _NPROCESSORS_ONLN)"
           data_list="data/out/tmp/icudata.lst"
-          if grep -Eq '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|translit/)' \
+          # Modules Jam/JSC never call: converters, confusables, stringprep,
+          # translit, character names, layout tables, emoji property tables,
+          # converter aliases, and rule-based number formatting (spellout).
+          # Locale trees for Intl stay complete; this list is only dead weight.
+          if grep -Eq '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|ulayout\.icu|uemoji\.icu|cnvalias\.icu|translit/|rbnf/)' \
             "${data_list}"; then
             echo "Excluded ICU data survived filtering:" >&2
-            grep -E '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|translit/)' \
+            grep -E '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|ulayout\.icu|uemoji\.icu|cnvalias\.icu|translit/|rbnf/)' \
               "${data_list}" >&2
             exit 1
           fi
-          printf '%s\n' \
-            rbnf/ja.res \
-            rbnf/res_index.res \
-            rbnf/root.res \
-            rbnf/zh.res \
-            rbnf/zh_Hant.res \
-            | diff - <(grep '^rbnf/.*\.res$' "${data_list}" | LC_ALL=C sort)
           make install
           popd
 
