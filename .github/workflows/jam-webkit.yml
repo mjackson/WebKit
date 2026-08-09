@@ -129,13 +129,18 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          git -C $env:VCPKG_INSTALLATION_ROOT fetch --depth 1 origin `
+          # Pin the vcpkg tree, then bootstrap a matching binary. The runner's
+          # prebuilt vcpkg refuses older scripts ("schema version 1 is not
+          # supported"), so install after rebuild rather than calling PATH vcpkg.
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          git -C $vcpkgRoot fetch --depth 1 origin `
             43ea817e84600347895efc196e2bb91162e9e679
-          git -C $env:VCPKG_INSTALLATION_ROOT checkout `
+          git -C $vcpkgRoot checkout `
             43ea817e84600347895efc196e2bb91162e9e679
-          vcpkg install --classic --clean-after-build icu:x64-windows-static
-          $sourceDir = Join-Path $env:VCPKG_INSTALLATION_ROOT `
-            "installed\x64-windows-static\lib"
+          & "$vcpkgRoot\bootstrap-vcpkg.bat" -disableMetrics
+          & "$vcpkgRoot\vcpkg.exe" install --classic --clean-after-build `
+            icu:x64-windows-static
+          $sourceDir = Join-Path $vcpkgRoot "installed\x64-windows-static\lib"
           $outputDir = Join-Path $env:RUNNER_TEMP "jam-icu"
           New-Item -ItemType Directory -Force $outputDir | Out-Null
           foreach ($library in @("icuin", "icuuc", "icudt")) {
