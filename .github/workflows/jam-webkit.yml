@@ -107,14 +107,14 @@ jobs:
               --with-data-packaging=static
           make --jobs "$(getconf _NPROCESSORS_ONLN)"
           data_list="data/out/tmp/icudata.lst"
-          # Modules Jam/JSC never call: converters, confusables, stringprep,
-          # translit, character names, layout tables, emoji property tables,
-          # converter aliases, and rule-based number formatting (spellout).
-          # Locale trees for Intl stay complete; this list is only dead weight.
-          if grep -Eq '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|ulayout\.icu|uemoji\.icu|cnvalias\.icu|translit/|rbnf/)' \
+          # Modules Jam/JSC never call. Keep cnvalias/ulayout/uemoji: the ICU
+          # data makefile lists them as hard dependencies of brkitr even though
+          # the engine never loads them at runtime. Full rbnf (spellout) is
+          # safe to drop — JSC Intl does not use RBNF.
+          if grep -Eq '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|translit/|rbnf/)' \
             "${data_list}"; then
             echo "Excluded ICU data survived filtering:" >&2
-            grep -E '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|ulayout\.icu|uemoji\.icu|cnvalias\.icu|translit/|rbnf/)' \
+            grep -E '(^|/)([^/]+\.cnv|confusables\.cfu|[^/]+\.spp|unames\.icu|translit/|rbnf/)' \
               "${data_list}" >&2
             exit 1
           fi

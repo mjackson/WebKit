@@ -1,13 +1,10 @@
 {
   "featureFilters": {
-    "cnvalias": "exclude",
     "confusables": "exclude",
     "conversion_mappings": "exclude",
     "rbnf_tree": "exclude",
     "stringprep": "exclude",
     "translit": "exclude",
-    "uemoji": "exclude",
-    "ulayout": "exclude",
     "unames": "exclude"
   }
 }
