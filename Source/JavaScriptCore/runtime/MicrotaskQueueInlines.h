@@ -62,6 +62,13 @@ inline std::optional<uint64_t> QueuedTask::jobOwner() const
     return std::nullopt;
 }
 
+inline JSValue QueuedTask::jobContext() const
+{
+    if (std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & (isJSMicrotaskDispatcherFlag | isJobOwnerCarrierFlag)) [[unlikely]]
+        return uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher())->jobContext();
+    return JSValue();
+}
+
 inline std::optional<MicrotaskIdentifier> QueuedTask::identifier() const
 {
     auto* dispatcher = jsMicrotaskDispatcher();
@@ -88,12 +95,12 @@ inline MicrotaskQueue& JSGlobalObject::microtaskQueue() const
 
 inline void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task)
 {
-    queueMicrotask(vm, WTF::move(task), embedderJobOwner());
+    queueMicrotask(vm, WTF::move(task), embedderJobOwner(), embedderJobContext());
 }
 
-inline void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task, std::optional<uint64_t> jobOwner)
+inline void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task, std::optional<uint64_t> jobOwner, JSValue jobContext)
 {
-    task.setJobOwner(vm, *this, jobOwner);
+    task.setJobOwner(vm, *this, jobOwner, jobContext);
     if (!m_canFastQueueMicrotask || vm.crossTaskToken()) [[unlikely]] {
         queueMicrotaskSlow(vm, WTF::move(task));
         return;

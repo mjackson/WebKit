@@ -76,6 +76,15 @@ static JSC::EncodedJSValue recordJobOwner(JSGlobalObject* globalObject, JSC::Cal
     return JSC::JSValue::encode(JSC::jsUndefined());
 }
 
+static Vector<double> observedJobContexts;
+
+static JSC::EncodedJSValue recordJobContext(JSGlobalObject* globalObject, JSC::CallFrame*)
+{
+    JSC::JSValue context = globalObject->embedderJobContext();
+    observedJobContexts.append(context.isEmpty() ? -1 : context.asNumber());
+    return JSC::JSValue::encode(JSC::jsUndefined());
+}
+
 TEST(JavaScriptCore_JamEmbedderHooks, RemovesExactModuleRegistryEntry)
 {
     WTF::initializeMainThread();
@@ -153,6 +162,39 @@ TEST(JavaScriptCore_JamEmbedderHooks, RestoresPromiseReactionJobOwners)
     EXPECT_EQ(observedJobOwners[0], 0u);
     EXPECT_EQ(observedJobOwners[1], std::numeric_limits<uint64_t>::max());
     EXPECT_EQ(globalObject->embedderJobOwner(), 17u);
+}
+
+TEST(JavaScriptCore_JamEmbedderHooks, RestoresPromiseReactionJobContexts)
+{
+    WTF::initializeMainThread();
+    JSC::initialize();
+
+    VM& vm = VM::create(HeapType::Large).leakRef();
+    JSLockHolder locker(vm);
+    auto* globalObject = JSGlobalObject::create(vm, JSGlobalObject::createStructure(vm, JSC::jsNull()));
+    auto* promise = JSC::JSPromise::create(vm, globalObject->promiseStructure());
+    auto* handler = JSC::JSFunction::create(vm, globalObject, 0, "recordJobContext"_s, recordJobContext, JSC::ImplementationVisibility::Private);
+    observedJobContexts.clear();
+
+    // A reaction registered while a context is installed runs under that context.
+    globalObject->setEmbedderJobOwner(1);
+    globalObject->setEmbedderJobContext(vm, JSC::jsNumber(100));
+    promise->performPromiseThenExported(vm, globalObject, handler, JSC::jsUndefined(), JSC::jsUndefined());
+
+    // An owner-carrying reaction registered with no context installs the empty
+    // capture when it runs, shielding it from whatever context is then ambient.
+    globalObject->setEmbedderJobContext(vm, JSC::JSValue());
+    promise->performPromiseThenExported(vm, globalObject, handler, JSC::jsUndefined(), JSC::jsUndefined());
+
+    globalObject->setEmbedderJobContext(vm, JSC::jsNumber(300));
+    promise->fulfill(vm, JSC::jsUndefined());
+    globalObject->microtaskQueue().performMicrotaskCheckpoint<false>(
+        vm, [](JSGlobalObject*, JSGlobalObject*) { });
+
+    ASSERT_EQ(observedJobContexts.size(), 2u);
+    EXPECT_EQ(observedJobContexts[0], 100);
+    EXPECT_EQ(observedJobContexts[1], -1);
+    EXPECT_EQ(globalObject->embedderJobContext().asNumber(), 300);
 }
 
 TEST(JavaScriptCore_JamEmbedderHooks, MaterializesErrorInfoLazily)

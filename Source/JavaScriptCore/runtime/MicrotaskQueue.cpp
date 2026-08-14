@@ -53,22 +53,33 @@ public:
     JobOwnerScope(JSGlobalObject& globalObject, const QueuedTask& task)
         : m_globalObject(globalObject)
         , m_previousOwner(globalObject.embedderJobOwner())
-        , m_shouldRestore(task.jobOwner().has_value())
+        , m_previousContext(globalObject.embedderJobContext())
+        , m_shouldRestoreOwner(task.jobOwner().has_value())
+        , m_shouldRestoreContext(m_shouldRestoreOwner || !task.jobContext().isEmpty())
     {
         if (auto owner = task.jobOwner())
             m_globalObject.setEmbedderJobOwner(owner);
+        // An owner-carrying job installs its captured context even when that
+        // capture was empty, so a context deliberately left installed by an
+        // earlier job never bleeds into a job registered without one.
+        if (m_shouldRestoreContext)
+            m_globalObject.setEmbedderJobContext(globalObject.vm(), task.jobContext());
     }
 
     ~JobOwnerScope()
     {
-        if (m_shouldRestore)
+        if (m_shouldRestoreOwner)
             m_globalObject.setEmbedderJobOwner(m_previousOwner);
+        if (m_shouldRestoreContext)
+            m_globalObject.setEmbedderJobContext(m_globalObject.vm(), m_previousContext);
     }
 
 private:
     JSGlobalObject& m_globalObject;
     std::optional<uint64_t> m_previousOwner;
-    bool m_shouldRestore;
+    JSValue m_previousContext;
+    bool m_shouldRestoreOwner;
+    bool m_shouldRestoreContext;
 };
 
 bool QueuedTask::isRunnable() const
@@ -78,15 +89,19 @@ bool QueuedTask::isRunnable() const
     return globalObject()->microtaskRunnability() == QueuedTaskResult::Executed;
 }
 
-void QueuedTask::setJobOwner(VM& vm, JSGlobalObject& globalObject, std::optional<uint64_t> jobOwner)
+void QueuedTask::setJobOwner(VM& vm, JSGlobalObject& globalObject, std::optional<uint64_t> jobOwner, JSValue jobContext)
 {
-    if (!jobOwner)
+    if (!jobOwner && jobContext.isEmpty())
         return;
     if (std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & (isJSMicrotaskDispatcherFlag | isJobOwnerCarrierFlag)) {
-        uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher())->setJobOwner(*jobOwner);
+        auto* jsDispatcher = uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher());
+        if (jobOwner)
+            jsDispatcher->setJobOwner(*jobOwner);
+        if (!jobContext.isEmpty())
+            jsDispatcher->setJobContext(vm, jobContext);
         return;
     }
-    m_dispatcher.setPointer(std::bit_cast<JSCell*>(std::bit_cast<uintptr_t>(JSMicrotaskDispatcher::createJobOwnerCarrier(vm, globalObject, *jobOwner)) | isJobOwnerCarrierFlag));
+    m_dispatcher.setPointer(std::bit_cast<JSCell*>(std::bit_cast<uintptr_t>(JSMicrotaskDispatcher::createJobOwnerCarrier(vm, globalObject, jobOwner, jobContext)) | isJobOwnerCarrierFlag));
 }
 
 static bool runMicrotask(JSGlobalObject* globalObject, TopExceptionScope& catchScope, VM& vm, QueuedTask& task, MicrotaskCallCache* microtaskCallCache)

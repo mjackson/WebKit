@@ -9,7 +9,9 @@ This repository tracks upstream WebKit directly. Jam-specific engine changes are
 5. named-export synthetic module construction;
 6. borrowed immutable cached bytecode for zero-copy embedded caches;
 7. complete static JSCOnly archives, packaging, and release automation;
-8. clang-cl compatibility for `SegmentedVector` zero-length storage.
+8. clang-cl compatibility for `SegmentedVector` zero-length storage;
+9. enabled-language gating for PCH objects (JSCOnly API tests on macOS);
+10. per-job embedder async-context value on the job-ownership lineage.
 
 To update the fork, fetch `WebKit/WebKit`, rebase the patch stack onto its `main` branch, run the focused `JavaScriptCore_JamEmbedderHooks` API tests, and dispatch the `Jam WebKit` workflow for the rebased commit. The workflow builds five native static payloads, verifies their SHA-256 checksums, and publishes them under the immutable `autobuild-<commit>` release tag.
 

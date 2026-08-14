@@ -38,31 +38,32 @@ Structure* JSMicrotaskDispatcher::createStructure(VM& vm, JSGlobalObject* global
     return Structure::create(vm, globalObject, prototype, TypeInfo(JSMicrotaskDispatcherType, StructureFlags), info());
 }
 
-JSMicrotaskDispatcher* JSMicrotaskDispatcher::create(VM& vm, Structure* structure, Ref<MicrotaskDispatcher>&& dispatcher, JSGlobalObject* globalObject, std::optional<uint64_t> jobOwner)
+JSMicrotaskDispatcher* JSMicrotaskDispatcher::create(VM& vm, Structure* structure, Ref<MicrotaskDispatcher>&& dispatcher, JSGlobalObject* globalObject, std::optional<uint64_t> jobOwner, JSValue jobContext)
 {
     RefPtr<MicrotaskDispatcher> dispatcherPtr = WTF::move(dispatcher);
-    auto* cell = new (NotNull, allocateCell<JSMicrotaskDispatcher>(vm)) JSMicrotaskDispatcher(vm, structure, WTF::move(dispatcherPtr), globalObject, jobOwner);
+    auto* cell = new (NotNull, allocateCell<JSMicrotaskDispatcher>(vm)) JSMicrotaskDispatcher(vm, structure, WTF::move(dispatcherPtr), globalObject, jobOwner, jobContext);
     cell->finishCreation(vm);
     return cell;
 }
 
-JSMicrotaskDispatcher* JSMicrotaskDispatcher::create(VM& vm, Ref<MicrotaskDispatcher>&& dispatcher, JSGlobalObject* globalObject, std::optional<uint64_t> jobOwner)
+JSMicrotaskDispatcher* JSMicrotaskDispatcher::create(VM& vm, Ref<MicrotaskDispatcher>&& dispatcher, JSGlobalObject* globalObject, std::optional<uint64_t> jobOwner, JSValue jobContext)
 {
-    return create(vm, vm.jsMicrotaskDispatcherStructure.get(), WTF::move(dispatcher), globalObject, jobOwner);
+    return create(vm, vm.jsMicrotaskDispatcherStructure.get(), WTF::move(dispatcher), globalObject, jobOwner, jobContext);
 }
 
-JSMicrotaskDispatcher* JSMicrotaskDispatcher::createJobOwnerCarrier(VM& vm, JSGlobalObject& globalObject, uint64_t jobOwner)
+JSMicrotaskDispatcher* JSMicrotaskDispatcher::createJobOwnerCarrier(VM& vm, JSGlobalObject& globalObject, std::optional<uint64_t> jobOwner, JSValue jobContext)
 {
-    auto* cell = new (NotNull, allocateCell<JSMicrotaskDispatcher>(vm)) JSMicrotaskDispatcher(vm, vm.jsMicrotaskDispatcherStructure.get(), nullptr, &globalObject, jobOwner);
+    auto* cell = new (NotNull, allocateCell<JSMicrotaskDispatcher>(vm)) JSMicrotaskDispatcher(vm, vm.jsMicrotaskDispatcherStructure.get(), nullptr, &globalObject, jobOwner, jobContext);
     cell->finishCreation(vm);
     return cell;
 }
 
-JSMicrotaskDispatcher::JSMicrotaskDispatcher(VM& vm, Structure* structure, RefPtr<MicrotaskDispatcher>&& dispatcher, JSGlobalObject* globalObject, std::optional<uint64_t> jobOwner)
+JSMicrotaskDispatcher::JSMicrotaskDispatcher(VM& vm, Structure* structure, RefPtr<MicrotaskDispatcher>&& dispatcher, JSGlobalObject* globalObject, std::optional<uint64_t> jobOwner, JSValue jobContext)
     : Base(vm, structure)
     , m_dispatcher(WTF::move(dispatcher))
     , m_globalObject(vm, this, globalObject, WriteBarrier<JSGlobalObject>::MayBeNull)
     , m_jobOwner(jobOwner)
+    , m_jobContext(jobContext, WriteBarrierEarlyInit)
     , m_type(m_dispatcher ? m_dispatcher->type() : MicrotaskDispatcher::Type::None)
 {
 }
@@ -74,6 +75,7 @@ void JSMicrotaskDispatcher::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_globalObject);
+    visitor.append(thisObject->m_jobContext);
 }
 DEFINE_VISIT_CHILDREN(JSMicrotaskDispatcher);
 
