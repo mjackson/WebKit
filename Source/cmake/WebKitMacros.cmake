@@ -183,7 +183,15 @@ function(_WEBKIT_ADD_PCH_OBJECT _target)
     endif ()
     get_target_property(_pch_bin_dir ${_target} BINARY_DIR)
     list(FILTER _PO_PREFIX_LANGUAGES INCLUDE REGEX "^(CXX|OBJCXX)$")
+    # A PCH object is emitted only for languages the build enables: on ports
+    # that never enable OBJCXX (JSCOnly), an .mm PCH object would be compiled
+    # by the CXX rule against the C++ PCH, which clang rejects because the
+    # extension re-enables Objective-C.
+    get_property(_enabled_languages GLOBAL PROPERTY ENABLED_LANGUAGES)
     foreach (_pch_lang IN LISTS _PO_PREFIX_LANGUAGES)
+        if (NOT _pch_lang IN_LIST _enabled_languages)
+            continue ()
+        endif ()
         _WEBKIT_PCH_PATHS_FOR_LANGUAGE(${_pch_lang} _pch_src_ext _pch_stub_ext _pch_stem)
         set_property(SOURCE "${_pch_bin_dir}/CMakeFiles/${_target}.dir/${_pch_stem}.${_pch_stub_ext}"
             APPEND PROPERTY COMPILE_OPTIONS "${_stub_flags}")

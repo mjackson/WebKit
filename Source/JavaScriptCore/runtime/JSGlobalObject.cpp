@@ -2903,6 +2903,7 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     Base::visitChildren(thisObject, visitor);
 
     visitor.append(thisObject->m_globalThis);
+    visitor.append(thisObject->m_embedderJobContext);
 
     visitor.append(thisObject->m_globalLexicalEnvironment);
     visitor.append(thisObject->m_globalScopeExtension);
@@ -3684,13 +3685,13 @@ void JSGlobalObject::queueMicrotaskSlow(VM& vm, QueuedTask&& task)
     ([&] ALWAYS_INLINE_LAMBDA {
         if (auto* crossTaskToken = vm.crossTaskToken(); crossTaskToken && crossTaskToken->shouldPropagateToMicroTask()) [[unlikely]] {
             if (auto dispatcher = crossTaskToken->createMicrotaskDispatcher(vm, this)) {
-                task.setDispatcher(JSMicrotaskDispatcher::create(vm, dispatcher.releaseNonNull(), this, task.jobOwner()));
+                task.setDispatcher(JSMicrotaskDispatcher::create(vm, dispatcher.releaseNonNull(), this, task.jobOwner(), task.jobContext()));
                 return;
             }
         }
 
         if (debugger()) [[unlikely]] {
-            task.setDispatcher(JSMicrotaskDispatcher::create(vm, DebuggableMicrotaskDispatcher::create(), this, task.jobOwner()));
+            task.setDispatcher(JSMicrotaskDispatcher::create(vm, DebuggableMicrotaskDispatcher::create(), this, task.jobOwner(), task.jobContext()));
             return;
         }
     }());
