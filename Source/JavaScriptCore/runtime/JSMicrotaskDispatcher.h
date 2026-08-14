@@ -49,12 +49,17 @@ public:
 
     static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
-    static JSMicrotaskDispatcher* create(VM&, Structure*, Ref<MicrotaskDispatcher>&&, JSGlobalObject* = nullptr);
-    JS_EXPORT_PRIVATE static JSMicrotaskDispatcher* create(VM&, Ref<MicrotaskDispatcher>&&, JSGlobalObject* = nullptr);
+    static JSMicrotaskDispatcher* create(VM&, Structure*, Ref<MicrotaskDispatcher>&&, JSGlobalObject* = nullptr, std::optional<uint64_t> jobOwner = std::nullopt, JSValue jobContext = JSValue());
+    JS_EXPORT_PRIVATE static JSMicrotaskDispatcher* create(VM&, Ref<MicrotaskDispatcher>&&, JSGlobalObject* = nullptr, std::optional<uint64_t> jobOwner = std::nullopt, JSValue jobContext = JSValue());
+    static JSMicrotaskDispatcher* createJobOwnerCarrier(VM&, JSGlobalObject&, std::optional<uint64_t>, JSValue jobContext);
 
-    MicrotaskDispatcher* dispatcher() const { return m_dispatcher.ptr(); }
+    MicrotaskDispatcher* dispatcher() const { return m_dispatcher.get(); }
 
     JSGlobalObject* globalObject() const LIFETIME_BOUND { return m_globalObject.get(); }
+    std::optional<uint64_t> jobOwner() const { return m_jobOwner; }
+    void setJobOwner(uint64_t owner) { m_jobOwner = owner; }
+    JSValue jobContext() const { return m_jobContext.get(); }
+    void setJobContext(VM& vm, JSValue context) { m_jobContext.set(vm, this, context); }
 
     MicrotaskDispatcher::Type cachedType() const { return m_type; }
 
@@ -62,10 +67,12 @@ public:
     static void destroy(JSCell*);
 
 private:
-    JSMicrotaskDispatcher(VM&, Structure*, Ref<MicrotaskDispatcher>&&, JSGlobalObject*);
+    JSMicrotaskDispatcher(VM&, Structure*, RefPtr<MicrotaskDispatcher>&&, JSGlobalObject*, std::optional<uint64_t>, JSValue);
 
-    const Ref<MicrotaskDispatcher> m_dispatcher;
+    const RefPtr<MicrotaskDispatcher> m_dispatcher;
     WriteBarrier<JSGlobalObject> m_globalObject;
+    std::optional<uint64_t> m_jobOwner;
+    WriteBarrier<Unknown> m_jobContext;
     MicrotaskDispatcher::Type m_type;
 };
 

@@ -38,12 +38,12 @@ namespace JSC {
 
 inline JSCell* QueuedTask::dispatcher() const
 {
-    return std::bit_cast<JSCell*>(std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & ~isJSMicrotaskDispatcherFlag);
+    return std::bit_cast<JSCell*>(std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & ~(isJSMicrotaskDispatcherFlag | isJobOwnerCarrierFlag));
 }
 
 inline JSGlobalObject* QueuedTask::globalObject() const
 {
-    if (isJSMicrotaskDispatcher()) [[unlikely]]
+    if (std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & (isJSMicrotaskDispatcherFlag | isJobOwnerCarrierFlag)) [[unlikely]]
         return uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher())->globalObject();
     return uncheckedDowncast<JSGlobalObject>(dispatcher());
 }
@@ -53,6 +53,20 @@ inline JSMicrotaskDispatcher* QueuedTask::jsMicrotaskDispatcher() const
     if (isJSMicrotaskDispatcher()) [[unlikely]]
         return uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher());
     return nullptr;
+}
+
+inline std::optional<uint64_t> QueuedTask::jobOwner() const
+{
+    if (std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & (isJSMicrotaskDispatcherFlag | isJobOwnerCarrierFlag)) [[unlikely]]
+        return uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher())->jobOwner();
+    return std::nullopt;
+}
+
+inline JSValue QueuedTask::jobContext() const
+{
+    if (std::bit_cast<uintptr_t>(m_dispatcher.pointer()) & (isJSMicrotaskDispatcherFlag | isJobOwnerCarrierFlag)) [[unlikely]]
+        return uncheckedDowncast<JSMicrotaskDispatcher>(dispatcher())->jobContext();
+    return JSValue();
 }
 
 inline std::optional<MicrotaskIdentifier> QueuedTask::identifier() const
@@ -81,6 +95,12 @@ inline MicrotaskQueue& JSGlobalObject::microtaskQueue() const
 
 inline void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task)
 {
+    queueMicrotask(vm, WTF::move(task), embedderJobOwner(), embedderJobContext());
+}
+
+inline void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task, std::optional<uint64_t> jobOwner, JSValue jobContext)
+{
+    task.setJobOwner(vm, *this, jobOwner, jobContext);
     if (!m_canFastQueueMicrotask || vm.crossTaskToken()) [[unlikely]] {
         queueMicrotaskSlow(vm, WTF::move(task));
         return;

@@ -237,6 +237,8 @@ using VMIdentifier = AtomicObjectIdentifier<VMIdentifierType>;
 class VM : public ThreadSafeRefCountedWithSuppressingSaferCPPChecking<VM> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(VM, VM);
 public:
+    using ErrorInfoMaterializer = String (*)(VM&, Vector<StackFrame>&, unsigned& line, unsigned& column, String& sourceURL, void* context);
+
     // WebCore has a one-to-one mapping of threads to VMs;
     // create() should only be called once
     // on a thread, this is the 'default' VM (it uses the
@@ -1017,6 +1019,13 @@ public:
 
     DrainMicrotaskDelayScope drainMicrotaskDelayScope() { return DrainMicrotaskDelayScope { *this }; }
     JS_EXPORT_PRIVATE void drainMicrotasks();
+    void setErrorInfoMaterializer(ErrorInfoMaterializer materializer, void* context = nullptr)
+    {
+        m_errorInfoMaterializer = materializer;
+        m_errorInfoMaterializerContext = context;
+    }
+    ErrorInfoMaterializer errorInfoMaterializer() const { return m_errorInfoMaterializer; }
+    void* errorInfoMaterializerContext() const { return m_errorInfoMaterializerContext; }
     void setOnEachMicrotaskTick(WTF::Function<void(VM&)>&& func) { m_onEachMicrotaskTick = WTF::move(func); }
     void callOnEachMicrotaskTick()
     {
@@ -1259,6 +1268,8 @@ private:
     Vector<Strong<JSPromise>> m_aboutToBeNotifiedRejectedPromises;
 
     WTF::Function<void(VM&)> m_onEachMicrotaskTick;
+    ErrorInfoMaterializer m_errorInfoMaterializer { nullptr };
+    void* m_errorInfoMaterializerContext { nullptr };
     uintptr_t m_currentWeakRefVersion { 0 };
 
     int64_t m_moduleAsyncEvaluationCount { 0 };
