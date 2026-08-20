@@ -153,8 +153,11 @@ jobs:
           $env:JAM_ICU_DATA_ZIP = $dataZip
           $env:JAM_ICU_FILTER_FILE = Join-Path $env:GITHUB_WORKSPACE ".github\icu-data-filter.json"
           $env:VCPKG_KEEP_ENV_VARS = "JAM_ICU_DATA_ZIP;JAM_ICU_FILTER_FILE"
+          # Pass --overlay-ports as its own argument. `--overlay-ports=D:\...`
+          # is split on the drive colon and parsed as a package spec.
+          $overlayPorts = Join-Path $env:GITHUB_WORKSPACE "Tools\jam\vcpkg-ports"
           & "$vcpkgRoot\vcpkg.exe" install --classic --clean-after-build `
-            --overlay-ports=(Join-Path $env:GITHUB_WORKSPACE "Tools\jam\vcpkg-ports") `
+            --overlay-ports $overlayPorts `
             icu:x64-windows-static
           $sourceDir = Join-Path $vcpkgRoot "installed\x64-windows-static\lib"
           $outputDir = Join-Path $env:RUNNER_TEMP "jam-icu"
