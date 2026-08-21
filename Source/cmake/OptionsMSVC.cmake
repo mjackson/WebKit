@@ -63,8 +63,26 @@ endfunction()
 # Use AT&T syntax for inline asm
 MSVC_ADD_COMPILE_OPTIONS(/clang:-masm=att)
 
-# Create pdb files for debugging purposes, also for Release builds
-MSVC_ADD_COMPILE_OPTIONS(/Zi /GS)
+# Create pdb files for debugging purposes, also for Release builds.
+# Jam payload archives omit /Zi and /Z7 so the static libs stay near Unix .a
+# size. The vcpkg Windows toolchain CACHE-sets /Z7 on Release flags, so the
+# extra MSVC_ADD_COMPILE_OPTIONS(/Zi) is not the only source of CodeView.
+if (USE_JAM_STRIPPED_PAYLOAD)
+    MSVC_ADD_COMPILE_OPTIONS(/GS)
+    foreach (_jam_debug_var
+            CMAKE_C_FLAGS CMAKE_CXX_FLAGS
+            CMAKE_C_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_C_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_RELWITHDEBINFO
+            CMAKE_C_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_MINSIZEREL)
+        if (DEFINED ${_jam_debug_var})
+            string(REPLACE "/Z7" "" _jam_stripped "${${_jam_debug_var}}")
+            string(REPLACE "/Zi" "" _jam_stripped "${_jam_stripped}")
+            set(${_jam_debug_var} "${_jam_stripped}" CACHE STRING "" FORCE)
+        endif ()
+    endforeach ()
+else ()
+    MSVC_ADD_COMPILE_OPTIONS(/Zi /GS)
+endif ()
 
 # Disable ICF (identical code folding) optimization,
 # as it makes it unsafe to pointer-compare functions with identical definitions.

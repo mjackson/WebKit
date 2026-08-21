@@ -1,0 +1,10 @@
+{
+  "featureFilters": {
+    "confusables": "exclude",
+    "conversion_mappings": "exclude",
+    "rbnf_tree": "exclude",
+    "stringprep": "exclude",
+    "translit": "exclude",
+    "unames": "exclude"
+  }
+}

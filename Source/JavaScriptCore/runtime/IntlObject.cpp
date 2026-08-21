@@ -63,7 +63,7 @@
 #include "IntlSegmenterPrototype.h"
 #include "JSCInlines.h"
 #include "Options.h"
-#if !PLATFORM(COCOA)
+#if !PLATFORM(COCOA) || USE(JAM_CUSTOM_ICU)
 #undef U_SHOW_CPLUSPLUS_API
 #define U_SHOW_CPLUSPLUS_API 1
 #include <unicode/locid.h>
@@ -89,7 +89,7 @@
 #include <wtf/text/StringParsingBuffer.h>
 #include <wtf/unicode/icu/ICUHelpers.h>
 
-#if PLATFORM(COCOA) && !USE(APPLE_INTERNAL_SDK)
+#if PLATFORM(COCOA) && !USE(JAM_CUSTOM_ICU) && !USE(APPLE_INTERNAL_SDK)
 extern "C" int32_t ualoc_canonicalForm(const char*, char*, int32_t, UErrorCode*);
 #endif
 
@@ -1685,7 +1685,7 @@ std::optional<Vector<char, 32>> canonicalizeLocaleIDWithoutNullTerminator(const 
 {
     ASSERT(localeID);
     Vector<char, 32> buffer;
-#if U_ICU_VERSION_MAJOR_NUM >= 68 && PLATFORM(COCOA)
+#if U_ICU_VERSION_MAJOR_NUM >= 68 && PLATFORM(COCOA) && !USE(JAM_CUSTOM_ICU)
     // Use ualoc_canonicalForm AppleICU SPI, which can perform mapping of aliases.
     // ICU-21506 is a bug upstreaming this SPI to ICU.
     // https://unicode-org.atlassian.net/browse/ICU-21506
