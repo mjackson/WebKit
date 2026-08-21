@@ -207,6 +207,7 @@ jobs:
               -DCMAKE_C_COMPILER=clang-cl
               -DCMAKE_CXX_COMPILER=clang-cl
               -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+              -DUSE_JAM_STRIPPED_PAYLOAD=ON
               "-DCMAKE_PROJECT_INCLUDE=${project_include}"
               "-DCMAKE_TOOLCHAIN_FILE=${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake"
               -DVCPKG_MANIFEST_MODE=OFF
@@ -224,6 +225,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
+          python Tools/Scripts/package-jam-webkit --self-test
           library_args=()
           if [[ "${{ matrix.platform }}" == "linux" || "${{ matrix.platform }}" == "macos" ]]; then
             library_args+=(--library-dir "${RUNNER_TEMP}/jam-icu/lib")

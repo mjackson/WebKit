@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 import shutil
 import stat
+import subprocess
+import sys
 import tarfile
 import tempfile
 
@@ -49,6 +51,26 @@ def copy_headers(source, destination, flatten=False):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path.resolve(), output_path)
     return True
+
+
+def find_llvm_objcopy():
+    for name in ("llvm-objcopy", "llvm-objcopy.exe"):
+        found = shutil.which(name)
+        if found:
+            return found
+    clang_cl = shutil.which("clang-cl") or shutil.which("clang-cl.exe")
+    if clang_cl:
+        sibling = Path(clang_cl).with_name("llvm-objcopy.exe")
+        if sibling.is_file():
+            return str(sibling)
+    raise FileNotFoundError(
+        "llvm-objcopy is required to strip debug info from Windows payload libraries"
+    )
+
+
+def strip_windows_library_debug(path, objcopy=None):
+    tool = objcopy or find_llvm_objcopy()
+    subprocess.run([tool, "--strip-debug", str(path)], check=True)
 
 
 def find_library(name, search_roots):
@@ -207,6 +229,8 @@ def main():
             source = find_library(name, search_roots)
             destination = library_dir / name
             shutil.copy2(source, destination)
+            if args.platform == "windows":
+                strip_windows_library_debug(destination)
             normalize_archive_metadata(destination)
 
         package = {
@@ -249,5 +273,48 @@ def main():
     print(checksum_path)
 
 
+def _run_self_tests():
+    with tempfile.TemporaryDirectory(prefix="package-jam-webkit-test-") as temporary:
+        root = Path(temporary)
+        fake_clang = root / "clang-cl.exe"
+        fake_objcopy = root / "llvm-objcopy.exe"
+        fake_clang.write_bytes(b"")
+        fake_objcopy.write_bytes(b"")
+        saved_which = shutil.which
+
+        def which(name):
+            if name in ("clang-cl", "clang-cl.exe"):
+                return str(fake_clang)
+            return None
+
+        shutil.which = which
+        try:
+            found = find_llvm_objcopy()
+        finally:
+            shutil.which = saved_which
+        if found != str(fake_objcopy):
+            raise AssertionError(f"expected sibling llvm-objcopy, got {found}")
+
+        calls = []
+
+        def run(command, check):
+            calls.append((list(command), check))
+
+        saved_run = subprocess.run
+        subprocess.run = run
+        library = root / "JavaScriptCore.lib"
+        library.write_bytes(b"lib")
+        try:
+            strip_windows_library_debug(library, objcopy=str(fake_objcopy))
+        finally:
+            subprocess.run = saved_run
+        if calls != [([str(fake_objcopy), "--strip-debug", str(library)], True)]:
+            raise AssertionError(f"unexpected objcopy invocation: {calls}")
+    print("package-jam-webkit self-test ok")
+
+
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["--self-test"]:
+        _run_self_tests()
+    else:
+        main()

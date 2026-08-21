@@ -1,5 +1,9 @@
 find_package(Threads REQUIRED)
 
+# Jam payload archives are linked into jam.exe. MSVC /Zi debug info inflates
+# Windows .lib members ~8x versus Unix .a files. Payload jobs turn this on.
+option(USE_JAM_STRIPPED_PAYLOAD "Build Jam static payloads without MSVC debug info." OFF)
+
 if (MSVC)
     include(OptionsMSVC)
 else ()

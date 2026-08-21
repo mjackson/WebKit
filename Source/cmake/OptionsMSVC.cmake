@@ -63,8 +63,13 @@ endfunction()
 # Use AT&T syntax for inline asm
 MSVC_ADD_COMPILE_OPTIONS(/clang:-masm=att)
 
-# Create pdb files for debugging purposes, also for Release builds
-MSVC_ADD_COMPILE_OPTIONS(/Zi /GS)
+# Create pdb files for debugging purposes, also for Release builds.
+# Jam payload archives omit /Zi so the static libs stay near Unix .a size.
+if (USE_JAM_STRIPPED_PAYLOAD)
+    MSVC_ADD_COMPILE_OPTIONS(/GS)
+else ()
+    MSVC_ADD_COMPILE_OPTIONS(/Zi /GS)
+endif ()
 
 # Disable ICF (identical code folding) optimization,
 # as it makes it unsafe to pointer-compare functions with identical definitions.
