@@ -132,13 +132,32 @@ jobs:
           # Pin the vcpkg tree, then bootstrap a matching binary. The runner's
           # prebuilt vcpkg refuses older scripts ("schema version 1 is not
           # supported"), so install after rebuild rather than calling PATH vcpkg.
+          # Overlay the icu port so Windows rebuilds data with the same zip and
+          # ICU_DATA_FILTER_FILE Unix payload jobs already use.
           $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
           git -C $vcpkgRoot fetch --depth 1 origin `
             43ea817e84600347895efc196e2bb91162e9e679
           git -C $vcpkgRoot checkout `
             43ea817e84600347895efc196e2bb91162e9e679
           & "$vcpkgRoot\bootstrap-vcpkg.bat" -disableMetrics
+          $dataZip = Join-Path $env:RUNNER_TEMP "icu4c-78.3-data.zip"
+          curl.exe --fail --location --retry 3 --output $dataZip `
+            https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-data.zip
+          $actual = (Get-FileHash $dataZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne "9d8b3899096aeb83e4e21ef8a40fec9e03b28db18c48452efac882ce25a91e27") {
+            throw "ICU data zip hash mismatch: $actual"
+          }
+          $overlay = Join-Path $env:GITHUB_WORKSPACE "Tools\jam\vcpkg-ports\icu"
+          Copy-Item "$vcpkgRoot\ports\icu\*.patch" $overlay
+          Copy-Item "$vcpkgRoot\ports\icu\vcpkg-cmake-wrapper.cmake" $overlay
+          $env:JAM_ICU_DATA_ZIP = $dataZip
+          $env:JAM_ICU_FILTER_FILE = Join-Path $env:GITHUB_WORKSPACE ".github\icu-data-filter.json"
+          $env:VCPKG_KEEP_ENV_VARS = "JAM_ICU_DATA_ZIP;JAM_ICU_FILTER_FILE"
+          # Pass --overlay-ports as its own argument. `--overlay-ports=D:\...`
+          # is split on the drive colon and parsed as a package spec.
+          $overlayPorts = Join-Path $env:GITHUB_WORKSPACE "Tools\jam\vcpkg-ports"
           & "$vcpkgRoot\vcpkg.exe" install --classic --clean-after-build `
+            --overlay-ports $overlayPorts `
             icu:x64-windows-static
           $sourceDir = Join-Path $vcpkgRoot "installed\x64-windows-static\lib"
           $outputDir = Join-Path $env:RUNNER_TEMP "jam-icu"
