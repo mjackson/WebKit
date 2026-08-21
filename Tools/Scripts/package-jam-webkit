@@ -73,6 +73,32 @@ def strip_windows_library_debug(path, objcopy=None):
     subprocess.run([tool, "--strip-debug", str(path)], check=True)
 
 
+# Uncompressed Linux .a sizes are ~87/4/1.5/9/5/26 MB. COFF without debug
+# should stay well under 4x those; debug-bloated JavaScriptCore.lib is ~688 MB.
+WINDOWS_LIBRARY_MAX_BYTES = {
+    "JavaScriptCore.lib": 350 * 1024 * 1024,
+    "WTF.lib": 20 * 1024 * 1024,
+    "bmalloc.lib": 8 * 1024 * 1024,
+    "icuin.lib": 40 * 1024 * 1024,
+    "icuuc.lib": 20 * 1024 * 1024,
+    "icudt.lib": 40 * 1024 * 1024,
+}
+
+
+def stage_payload_library(platform, source, destination):
+    shutil.copy2(source, destination)
+    if platform == "windows":
+        strip_windows_library_debug(destination)
+        limit = WINDOWS_LIBRARY_MAX_BYTES.get(destination.name)
+        size = destination.stat().st_size
+        if limit is not None and size > limit:
+            raise ValueError(
+                f"{destination.name} is {size} bytes after --strip-debug; "
+                f"expected at most {limit} (debug info likely still present)"
+            )
+    normalize_archive_metadata(destination)
+
+
 def find_library(name, search_roots):
     for root in search_roots:
         direct_match = root / name
@@ -228,10 +254,7 @@ def main():
         for name in PLATFORM_LIBRARIES[args.platform]:
             source = find_library(name, search_roots)
             destination = library_dir / name
-            shutil.copy2(source, destination)
-            if args.platform == "windows":
-                strip_windows_library_debug(destination)
-            normalize_archive_metadata(destination)
+            stage_payload_library(args.platform, source, destination)
 
         package = {
             "name": f"jam-webkit-{args.platform}-{args.arch}",
@@ -298,18 +321,37 @@ def _run_self_tests():
         calls = []
 
         def run(command, check):
-            calls.append((list(command), check))
+            calls.append(list(command))
 
         saved_run = subprocess.run
+        saved_objcopy = find_llvm_objcopy
         subprocess.run = run
-        library = root / "JavaScriptCore.lib"
-        library.write_bytes(b"lib")
+        globals()["find_llvm_objcopy"] = lambda: str(fake_objcopy)
+        saved_normalize = normalize_archive_metadata
+        globals()["normalize_archive_metadata"] = lambda path: None
         try:
-            strip_windows_library_debug(library, objcopy=str(fake_objcopy))
+            staged = []
+            for name in PLATFORM_LIBRARIES["windows"]:
+                source = root / f"src-{name}"
+                dest = root / name
+                source.write_bytes(b"lib")
+                dest.write_bytes(b"")
+                dest.chmod(0o644)
+                # Keep the size check from firing on tiny fixtures.
+                stage_payload_library("windows", source, dest)
+                staged.append(dest.name)
         finally:
             subprocess.run = saved_run
-        if calls != [([str(fake_objcopy), "--strip-debug", str(library)], True)]:
-            raise AssertionError(f"unexpected objcopy invocation: {calls}")
+            globals()["find_llvm_objcopy"] = saved_objcopy
+            globals()["normalize_archive_metadata"] = saved_normalize
+        expected = [
+            [str(fake_objcopy), "--strip-debug", str(root / name)]
+            for name in PLATFORM_LIBRARIES["windows"]
+        ]
+        if calls != expected:
+            raise AssertionError(f"unexpected objcopy invocations: {calls}")
+        if staged != list(PLATFORM_LIBRARIES["windows"]):
+            raise AssertionError(f"unexpected staged libraries: {staged}")
     print("package-jam-webkit self-test ok")
 
 
